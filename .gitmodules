@@ -4,3 +4,6 @@
 [submodule "lib/GeneralisedIncentives"]
 	path = lib/GeneralisedIncentives
 	url = https://github.com/catalystdao/GeneralisedIncentives
+[submodule "lib/solmate"]
+	path = lib/solmate
+	url = https://github.com/transmissions11/solmate

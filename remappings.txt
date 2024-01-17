@@ -1,0 +1,7 @@
+GeneralisedIncentives/=lib/GeneralisedIncentives/src/
+ds-test/=lib/forge-std/lib/ds-test/src/
+erc4626-tests/=lib/GeneralisedIncentives/lib/openzeppelin-contracts/lib/erc4626-tests/
+forge-std/=lib/forge-std/src/
+openzeppelin-contracts/=lib/GeneralisedIncentives/lib/openzeppelin-contracts/
+openzeppelin/=lib/GeneralisedIncentives/lib/openzeppelin-contracts/contracts/
+solmate/=lib/solmate/src/

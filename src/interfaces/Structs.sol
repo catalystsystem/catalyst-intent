@@ -8,14 +8,15 @@ struct OrderDescription {
     address sourceAsset;
     uint256 minBond;
     uint64 timeout;
-    bytes32 evaluationContract;
+    address sourceEvaluationContract;
+    bytes32 destinationEvaluationContract;
     bytes evaluationContext;
 }
 
 struct OrderContext {
     address claimer;
     uint256 sourceAssetsClaimed;
-    address sourceAsset
+    address sourceAsset;
 }
 
 struct Signature {

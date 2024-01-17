@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
+import { ERC20 } from 'solmate/tokens/ERC20.sol';
+import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { IOrderType } from "./interfaces/IOrderType.sol";
 import { OrderDescription, Signature } from "./interfaces/Structs.sol";
 
+import { OrderClaimed } from "./interfaces/Events.sol";
+
 contract Settler {
+    using SafeTransferLib for ERC20;
+
     error IncorrectSourceChain(bytes32 actual, bytes32 order);
     error OrderTimedOut(uint64 timestamp, uint64 orderTimeout);
 
@@ -22,7 +29,8 @@ contract Settler {
             order.sourceAsset,
             order.minBond,
             order.timeout,
-            order.evaluationContract,
+            order.sourceEvaluationContract,
+            order.destinationEvaluationContract,
             order.evaluationContext
         ));
     }
@@ -41,7 +49,7 @@ contract Settler {
     
     function claimOrder(OrderDescription calldata order, Signature calldata signature) external {
         // Check that this is the appropiate source chain.
-        if (SOURCE_CHAIN != order.sourceChain) revert IncorrectSourceChain(SOURCE_CHAIN, order.source_chain);
+        if (SOURCE_CHAIN != order.sourceChain) revert IncorrectSourceChain(SOURCE_CHAIN, order.sourceChain);
         // Check that the order hasn't expired.
         if (uint64(block.timestamp) > order.timeout) revert OrderTimedOut(uint64(block.timestamp), order.timeout);
 
@@ -50,7 +58,17 @@ contract Settler {
         // Get the order owner.
         address orderOwner = _getOrderOwner(orderHash, signature);
 
-        
+        // Evaluate the order.
+        (uint256 sourceAmount, bytes memory evaluationContext) = IOrderType(order.sourceEvaluationContract).evaluate(order.evaluationContext, order.timeout);
 
+        ERC20(order.sourceAsset).safeTransferFrom(orderOwner, address(this), sourceAmount);
+
+        emit OrderClaimed(
+            msg.sender,
+            orderOwner,
+            sourceAmount,
+            orderHash,
+            evaluationContext
+        );
     }
 }

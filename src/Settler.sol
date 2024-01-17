@@ -4,15 +4,19 @@ pragma solidity ^0.8.22;
 import { ERC20 } from 'solmate/tokens/ERC20.sol';
 import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { IOrderType } from "./interfaces/IOrderType.sol";
-import { OrderDescription, Signature } from "./interfaces/Structs.sol";
+import { OrderDescription, OrderContext, Signature } from "./interfaces/Structs.sol";
 
 import { OrderClaimed } from "./interfaces/Events.sol";
 
 contract Settler {
     using SafeTransferLib for ERC20;
 
+    mapping(bytes32 orderHash => OrderContext orderContext) public claimedOrders; 
+    mapping(bytes32 orderHash => uint256 fill) public filledOrders; 
+
     error IncorrectSourceChain(bytes32 actual, bytes32 order);
     error OrderTimedOut(uint64 timestamp, uint64 orderTimeout);
+    error BondTooSmall(uint256 given, uint256 orderMinimum);
 
     bytes32 immutable SOURCE_CHAIN;
 
@@ -23,6 +27,7 @@ contract Settler {
 
     function _getOrderHash(OrderDescription calldata order) internal pure returns(bytes32 orderHash) {
         return orderHash = keccak256(abi.encodePacked(
+            order.destinationAccount,
             order.destinationChain,
             order.destinationAsset,
             order.sourceChain,
@@ -47,11 +52,12 @@ contract Settler {
         return orderOwner = _getOrderOwner(orderHash, signature);
     }
     
-    function claimOrder(OrderDescription calldata order, Signature calldata signature) external {
+    function claimOrder(OrderDescription calldata order, Signature calldata signature, uint256 doubleBond) external returns(uint256 sourceAmount, uint256 destinationAmount) {
         // Check that this is the appropiate source chain.
         if (SOURCE_CHAIN != order.sourceChain) revert IncorrectSourceChain(SOURCE_CHAIN, order.sourceChain);
         // Check that the order hasn't expired.
         if (uint64(block.timestamp) > order.timeout) revert OrderTimedOut(uint64(block.timestamp), order.timeout);
+        if (doubleBond < order.minBond) revert BondTooSmall(doubleBond, order.minBond);
 
         // Get order hash so we can check that the owner is correctly provided.
         bytes32 orderHash = _getOrderHash(order);
@@ -59,16 +65,26 @@ contract Settler {
         address orderOwner = _getOrderOwner(orderHash, signature);
 
         // Evaluate the order.
-        (uint256 sourceAmount, bytes memory evaluationContext) = IOrderType(order.sourceEvaluationContract).evaluate(order.evaluationContext, order.timeout);
+        (sourceAmount, destinationAmount) = IOrderType(order.sourceEvaluationContract).evaluate(order.evaluationContext, order.timeout);
+
+        // TODO: Store order.
+        // TODO: Reentry protection.
 
         ERC20(order.sourceAsset).safeTransferFrom(orderOwner, address(this), sourceAmount);
+
+        // TODO: Collect bond.
 
         emit OrderClaimed(
             msg.sender,
             orderOwner,
             sourceAmount,
-            orderHash,
-            evaluationContext
+            destinationAmount,
+            doubleBond,
+            orderHash
         );
+    }
+
+    function fillOrder(bytes32 orderHash, bytes calldata destinationAccount, bytes calldata destinationAsset, uint256 destinationAmount ) external {
+        ERC20(address(bytes20(destinationAsset))).safeTransferFrom(msg.sender, address(bytes20(destinationAccount)), destinationAmount);
     }
 }

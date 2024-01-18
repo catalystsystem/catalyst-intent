@@ -84,6 +84,10 @@ contract Settler {
         );
     }
 
+    // TODO: I don't think there is any realistic way to verify that the data belongs.
+    // Since not all envs might have access to the same hashing functions, we can't hash
+    // OrderDescription and check that it belong in orderHash. The best we can do is get all
+    // arguments, hash everything and use it to set storage.
     function fillOrder(bytes32 orderHash, bytes calldata destinationAccount, bytes calldata destinationAsset, uint256 destinationAmount ) external {
         ERC20(address(bytes20(destinationAsset))).safeTransferFrom(msg.sender, address(bytes20(destinationAccount)), destinationAmount);
     }

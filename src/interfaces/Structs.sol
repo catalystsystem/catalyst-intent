@@ -10,15 +10,17 @@ struct OrderDescription {
     uint256 minBond;
     uint64 timeout;
     address sourceEvaluationContract;
-    bytes32 destinationEvaluationContract;
     bytes evaluationContext;
 }
 
-struct FillContext {
-    address filler;
+struct OrderFill {
     bytes32 orderHash;
-    address destinationAccount;
-    address destinationAsset;
+    bytes32 sourceChain;
+    bytes32 destinationChain;
+    bytes destinationAccount;
+    bytes destinationAsset;
+    uint256 destinationAmount;
+    uint64 timeout;
 }
 
 struct OrderContext {

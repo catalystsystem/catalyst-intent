@@ -3,5 +3,4 @@ pragma solidity ^0.8.22;
 
 import { IOrderType } from "../interfaces/IOrderType.sol";
 
-abstract contract OrderTypeCommon is IOrderType {
-}
+abstract contract OrderType is IOrderType {}

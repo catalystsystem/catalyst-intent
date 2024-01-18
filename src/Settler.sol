@@ -24,7 +24,6 @@ contract Settler {
         SOURCE_CHAIN = source_chain;
     }
 
-
     function _getOrderHash(OrderDescription calldata order) internal pure returns(bytes32 orderHash) {
         return orderHash = keccak256(abi.encodePacked(
             order.destinationAccount,

@@ -12,17 +12,22 @@ contract Settler {
     using SafeTransferLib for ERC20;
 
     mapping(bytes32 orderHash => OrderContext orderContext) public claimedOrders; 
-    mapping(bytes32 orderFillHash => address filler) public filledOrders;
+
+    // TODO: Do we also want to set execution time here?
+    mapping(bytes32 orderFillHash => bytes32 fillerIdentifier) public filledOrders;
 
     error IncorrectSourceChain(bytes32 actual, bytes32 order);
     error OrderTimedOut(uint64 timestamp, uint64 orderTimeout);
     error BondTooSmall(uint256 given, uint256 orderMinimum);
+    error OrderAlreadyFilled(bytes32 orderFillHash, bytes32 filler);
 
     bytes32 immutable SOURCE_CHAIN;
 
     constructor(bytes32 source_chain) {
         SOURCE_CHAIN = source_chain;
     }
+
+    //--- Order Hashing ---//
 
     function _getOrderHash(OrderDescription calldata order) internal pure returns(bytes32 orderHash) {
         return orderHash = keccak256(abi.encodePacked(
@@ -50,9 +55,20 @@ contract Settler {
         ));
     }
 
+    //--- Expose Hashing ---//
+    // The reason 'public' isn't being used for the hashing functions is that it comes
+    // with additional checks that increases the gas cost. As a result, the hashing
+    // algorithms are cheaper internally but more expensive externally.
+
     function getOrderHash(OrderDescription calldata order) external pure returns(bytes32 orderHash) {
         return orderHash = _getOrderHash(order);
     }
+
+     function getOrderFillHash(OrderFill calldata orderFill) external pure returns(bytes32 orderFillHash) {
+        return orderFillHash = _getOrderFillHash(orderFill);
+    }
+
+    //--- Order Helper Functions ---//
 
     function _getOrderOwner(bytes32 orderHash, Signature calldata signature) internal pure returns (address orderOwner) {
         return orderOwner = ecrecover(orderHash, signature.v, signature.r, signature.s);
@@ -61,11 +77,13 @@ contract Settler {
     function getOrderOwner(bytes32 orderHash, Signature calldata signature) external pure returns(address orderOwner) {
         return orderOwner = _getOrderOwner(orderHash, signature);
     }
+
+    //--- Solver Functions ---//
     
     /// @notice Called by a solver when they want to claim the order
-    /// @dev Claming is needed since otherwise a user can signed an order and after the solver does the delivery they
-    /// can transfer the assets such that when the confirmation arrives the user cannot pay.
-    /// 
+    /// @dev Claming is needed since otherwise a user can signed an order and after
+    /// the solver does the delivery they can transfer the assets such that when the 
+    // confirmation arrives the user cannot pay.
     function claimOrder(OrderDescription calldata order, Signature calldata signature) external payable returns(uint256 sourceAmount, uint256 destinationAmount) {
         // Check that this is the appropiate source chain.
         if (SOURCE_CHAIN != order.sourceChain) revert IncorrectSourceChain(SOURCE_CHAIN, order.sourceChain);
@@ -78,7 +96,7 @@ contract Settler {
         // Get the order owner.
         address orderOwner = _getOrderOwner(orderHash, signature);
 
-        // Evaluate the order.
+        // Evaluate the order. This is an external static call.
         (sourceAmount, destinationAmount) = IOrderType(order.sourceEvaluationContract).evaluate(order.evaluationContext, order.timeout);
 
         // TODO: Store order.
@@ -96,31 +114,60 @@ contract Settler {
         );
     }
 
-    // TODO: I don't think there is any realistic way to verify that the data belongs.
-    // Since not all envs might have access to the same hashing functions, we can't hash
-    // OrderDescription and check that it belong in orderHash. The best we can do is get all
-    // arguments, hash everything and use it to set storage.
+    // TODO: which args?
+    function optimisticPayout(OrderDescription calldata order) external payable returns(uint256 sourceAmount) {
+
+    }
+
+    //--- Internal Orderfilling ---//
+
     function _fillOrder(OrderFill calldata orderFill) internal {
         ERC20(address(bytes20(orderFill.destinationAsset))).safeTransferFrom(msg.sender, address(bytes20(orderFill.destinationAccount)), orderFill.destinationAmount);
     }
 
     /// @notice Sends the verification to an AMB to the source chain.
-    function _verifyOrder(OrderFill calldata orderFill) internal {
+    function _verifyOrder(OrderFill calldata orderFill, bytes32 fillerIdentifier) internal {
         
     }
 
-    function fillOrder(OrderFill calldata orderFill) external {
-        _fillOrder(orderFill);
-        // TODO: save
+    //--- External Orderfilling ---//
+
+    function _setFiller(OrderFill calldata orderFill, bytes32 fillerIdentifier) internal returns(bytes32 orderFillHash) {
+        orderFillHash = _getOrderFillHash(orderFill);
+        // Check if the order was already filled.
+        if (filledOrders[orderFillHash] != bytes32(0)) 
+            revert OrderAlreadyFilled(orderFillHash, filledOrders[orderFillHash]);
+
+        // It wasn't filled, set the current filler.
+        // This is self-reentry protection.
+        filledOrders[orderFillHash] = fillerIdentifier;
     }
 
+    /// @notice Fill an order.
+    /// @dev There is no way to check if the order information is correct.
+    /// That is because 1. we don't know what the orderHash was computed with. For an Ethereum VM,
+    /// it is very likely it was keccak256. However, for CosmWasm, Solana, or ZK-VMs it might be different.
+    /// As a result, the best we can do is to hash orderFill here and use it to block other ful.fillments.
+    function fillOrder(OrderFill calldata orderFill, bytes32 fillerIdentifier) external {
+        bytes32 orderFillhash = _setFiller(orderFill, fillerIdentifier);
+
+        _fillOrder(orderFill);
+    }
+
+    /// @notice Verify an order. Is used if the order is challanged on the source chain.
     function verifyOrder(OrderFill calldata orderFill) external {
-        // TODO: load
-        _verifyOrder(orderFill);
+        bytes32 orderFillHash = _getOrderFillHash(orderFill);
+
+        bytes32 fillerIdentifier = filledOrders[orderFillHash];
+        _verifyOrder(orderFill, fillerIdentifier);
     }
 
-    function fillAndVerify(OrderFill calldata orderFill) external {
+    /// @notice Fill and immediately verify an order.
+    function fillAndVerify(OrderFill calldata orderFill, bytes32 fillerIdentifier) external {
+        bytes32 orderFillhash = _setFiller(orderFill, fillerIdentifier);
+
         _fillOrder(orderFill);
-        _verifyOrder(orderFill);
+
+        _verifyOrder(orderFill, fillerIdentifier);
     }
 }

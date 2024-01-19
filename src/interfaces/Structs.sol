@@ -23,10 +23,14 @@ struct OrderFill {
     uint64 timeout;
 }
 
+// Todo: compacting?
+/// @param relevantDate Is used as the optimistic payout by date if disputed is false. If disputed is true it is the date when the proof has to be delivered by.
 struct OrderContext {
-    address claimer;
-    uint256 sourceAssetsClaimed;
+    uint256 sourceAmount;
     address sourceAsset;
+    address claimer;
+    uint64 relevantDate;
+    bool disputed;
 }
 
 struct Signature {

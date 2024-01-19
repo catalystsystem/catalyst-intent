@@ -29,6 +29,9 @@ contract Settler is ICrossChainReceiver {
     error NotReadyForPayout(uint256 current, uint256 read);
     error NotReady(uint64 timestamp, uint64 orderTimeout);
 
+    uint64 constant public OPTIMISTIC_PERIOD = 48 hours;
+    uint64 constant public DISPUTE_PERIOD = 48 hours;
+
     /// @notice Identifier which identifies orders for this chain.
     bytes32 immutable SOURCE_CHAIN;
 
@@ -122,15 +125,17 @@ contract Settler is ICrossChainReceiver {
 
         // When setting the order context, we need to ensure claimer is not address(0).
         // However, msg.sender is never address(0).
-        claimedOrders[orderHash] = OrderContext({
-            bond: msg.value,
-            sourceAmount: sourceAmount,
-            sourceAsset: order.sourceAsset,
-            orderOwner: orderOwner,
-            claimer: msg.sender,
-            relevantDate: uint64(0), // TODO
-            disputer: address(0)
-        });
+        unchecked {
+            claimedOrders[orderHash] = OrderContext({
+                bond: msg.value,
+                sourceAmount: sourceAmount,
+                sourceAsset: order.sourceAsset,
+                orderOwner: orderOwner,
+                claimer: msg.sender,
+                relevantDate: uint64(block.timestamp) + OPTIMISTIC_PERIOD, // Any timestamp fits in uint64.
+                disputer: address(0)
+            });
+        }
 
         // The above lines act as a local reentry protection.
 
@@ -261,7 +266,9 @@ contract Settler is ICrossChainReceiver {
         if (msg.value != orderContext.bond) revert BondIncorrect(msg.value, orderContext.bond);
 
         orderContext.disputer = msg.sender;
-        orderContext.relevantDate = 0; // TODO.
+        unchecked {
+            orderContext.relevantDate = uint64(block.timestamp) + DISPUTE_PERIOD; // Any timestamp fits in uint64.
+        }
     }
 
     function completeDispute(bytes32 orderHash) external {

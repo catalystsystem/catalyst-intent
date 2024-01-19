@@ -21,15 +21,24 @@ contract Settler is ICrossChainReceiver {
     error IncorrectSourceChain(bytes32 actual, bytes32 order);
     error OrderTimedOut(uint64 timestamp, uint64 orderTimeout);
     error BondTooSmall(uint256 given, uint256 orderMinimum);
+    error BondIncorrect(uint256 given, uint256 setBond);
     error OrderAlreadyFilled(bytes32 orderFillHash, bytes32 filler);
     error OrderAlreadyClaimed(bytes32 orderHash);
     error OrderDisputed();
+    error OrderNotDisputed();
     error NotReadyForPayout(uint256 current, uint256 read);
+    error NotReady(uint64 timestamp, uint64 orderTimeout);
 
+    /// @notice Identifier which identifies orders for this chain.
     bytes32 immutable SOURCE_CHAIN;
 
-    constructor(bytes32 source_chain) {
+    /// @notice If a relayer or application provides an address which cannot accept gas and the transfer fails
+    /// the gas is sent here instead.
+    address immutable public SEND_LOST_GAS_TO;
+
+    constructor(bytes32 source_chain, address send_lost_gas_to) {
         SOURCE_CHAIN = source_chain;
+        SEND_LOST_GAS_TO = send_lost_gas_to;
     }
 
     //--- Order Hashing ---//
@@ -108,20 +117,22 @@ contract Settler is ICrossChainReceiver {
         // Ensure that the orderHash has not been claimed already.
         if (claimedOrders[orderHash].claimer != address(0)) revert OrderAlreadyClaimed(orderHash);
 
+        // Get the order owner.
+        address orderOwner = _getOrderOwner(orderHash, signature);
+
         // When setting the order context, we need to ensure claimer is not address(0).
         // However, msg.sender is never address(0).
         claimedOrders[orderHash] = OrderContext({
+            bond: msg.value,
             sourceAmount: sourceAmount,
             sourceAsset: order.sourceAsset,
-            claimer: msg.sender,  
+            orderOwner: orderOwner,
+            claimer: msg.sender,
             relevantDate: uint64(0), // TODO
-            disputed: false
+            disputer: address(0)
         });
 
         // The above lines act as a local reentry protection.
-
-        // Get the order owner.
-        address orderOwner = _getOrderOwner(orderHash, signature);
 
         // Collect tokens from owner.
         ERC20(order.sourceAsset).safeTransferFrom(orderOwner, address(this), sourceAmount);
@@ -142,17 +153,18 @@ contract Settler is ICrossChainReceiver {
 
     /// @dev Anyone can call this but the payout goes to the designated claimer.
     function optimisticPayout(bytes32 orderHash) external payable returns(uint256 sourceAmount) {
-        OrderContext storage orderContext = claimedOrders[orderHash];
 
         // TODO: how to read orderContext most efficiently?
+        OrderContext storage orderContext = claimedOrders[orderHash];
+
         sourceAmount = orderContext.sourceAmount;
         address claimer = orderContext.claimer;
         address sourceAsset = orderContext.sourceAsset;
         uint64 relevantDate = orderContext.relevantDate;
-        bool disputed = orderContext.disputed;
+        address disputer = orderContext.disputer;
 
-        // Check that the order wasn't disputed
-        if(disputed) revert OrderDisputed();
+        // Check that the order wasn't disputer
+        if(disputer != address(0)) revert OrderDisputed();
         if(block.timestamp < relevantDate ) revert NotReadyForPayout(block.timestamp, relevantDate);
 
         // Otherwise, payout:
@@ -184,6 +196,7 @@ contract Settler is ICrossChainReceiver {
     }
 
     //--- External Orderfilling ---//
+
     /// @notice Fill an order.
     /// @dev There is no way to check if the order information is correct.
     /// That is because 1. we don't know what the orderHash was computed with. For an Ethereum VM,
@@ -234,7 +247,60 @@ contract Settler is ICrossChainReceiver {
         );
     }
 
+    //--- Disputes ---//
+
+    // TODO: Do we want to input OrderDescription here or is it fine if we store the owner?
+    /// @dev Send exact bond.
+    function dispute(bytes32 orderHash) external payable {
+        OrderContext storage orderContext = claimedOrders[orderHash];
+
+        // Check that the order hasn't been challanged already.
+        if (orderContext.disputer != address(0)) revert OrderDisputed();
+        // Verify that the disputer provides an appropiate amount of bond.
+        // We don't want the trouble with sending the excess back, so send exact.
+        if (msg.value != orderContext.bond) revert BondIncorrect(msg.value, orderContext.bond);
+
+        orderContext.disputer = msg.sender;
+        orderContext.relevantDate = 0; // TODO.
+    }
+
+    function completeDispute(bytes32 orderHash) external {
+        OrderContext storage orderContext = claimedOrders[orderHash];
+
+        uint256 bond = orderContext.bond;
+        uint256 sourceAmount = orderContext.sourceAmount;
+        address sourceAsset = orderContext.sourceAsset;
+        address orderOwner = orderContext.orderOwner;
+        address disputer = orderContext.disputer;
+        uint64 relevantDate = orderContext.relevantDate;
+        // Check if the order has been disputed. Also acts as a existence check
+        // Since disputer == 0 when storage is empty.
+        if (disputer == address(0)) revert OrderNotDisputed();
+        // Check if the dispute period is over. 
+        if (block.timestamp > relevantDate) revert NotReady(uint64(block.timestamp), relevantDate);
+        // Delete the storage so it acts as a local reentry protection.
+        delete claimedOrders[orderHash];
+
+        // Send assets to order owner.
+        ERC20(sourceAsset).safeTransfer(orderOwner, sourceAmount);
+
+        unchecked {
+            // half of the bond is sent to the orderOwner for the trouble.
+            uint256 halfOfBond = bond/2;
+            if(!payable(orderOwner).send(halfOfBond)) {
+                payable(SEND_LOST_GAS_TO).transfer(halfOfBond);  // If we don't send the gas somewhere, the gas is lost forever.
+            }
+            // Send the rest. Remember that the disputer provided 1 extra bond.
+            // halfOfBond = bond / 2 => bond - halfOfBond = bond - bond/2 => bond > bond except 
+            // when bond = 0 then they are equal.
+            if (!payable(disputer).send(bond + bond - halfOfBond)) {
+                payable(SEND_LOST_GAS_TO).transfer(bond + bond - halfOfBond);  // If we don't send the gas somewhere, the gas is lost forever.
+            }
+        }
+    }
+
     //--- Cross Chain Messages ---//
+
     /**
      * @notice Handles the acknowledgement from the destination
      * @dev acknowledgement is exactly the output of receiveMessage except if receiveMessage failed, then it is error code (0xff or 0xfe) + original message.

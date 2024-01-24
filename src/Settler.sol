@@ -33,7 +33,7 @@ contract Settler is ICrossChainReceiver {
     uint64 constant public DISPUTE_PERIOD = 48 hours;
 
     /// @notice Identifier which identifies orders for this chain.
-    bytes32 immutable SOURCE_CHAIN;
+    bytes32 immutable public SOURCE_CHAIN;
 
     /// @notice If a relayer or application provides an address which cannot accept gas and the transfer fails
     /// the gas is sent here instead.
@@ -232,6 +232,7 @@ contract Settler is ICrossChainReceiver {
         );
     }
 
+    // TODO: Do we want double bonds. Yes: Keep. No: Remove.
     /// @notice Fill and immediately verify an order.
     function fillAndVerify(OrderFill calldata orderFill, bytes32 fillerIdentifier) external {
         bytes32 orderFillHash = _fillOrder(orderFill, fillerIdentifier);

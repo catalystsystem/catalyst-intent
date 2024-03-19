@@ -9,7 +9,9 @@ contract TestClaimOrder is TestCommon {
     address USER;
     uint256 PRIVATE_KEY;
 
-    function setUp() {
+    function setUp() override public {
+        super.setUp();
+        
         (USER, PRIVATEKEY) = makeAddrAndKey("user");
     }
 

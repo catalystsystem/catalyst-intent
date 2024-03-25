@@ -5,16 +5,15 @@ pragma solidity ^0.8.22;
  * @notice An order has been claimed.
  */
 event OrderClaimed(
-    bytes32 indexed orderHash,
-    address indexed claimer,
-    address indexed orderOwner,
-    address sourceAsset,
-    uint256 sourceAmount,
-    bytes32 destinationChain,
-    bytes destinationAccount,
-    bytes destinationAsset,
-    uint256 destiantionAmount,
-    uint256 bond
+    address indexed filler,
+    bytes32 indexed owner,
+    uint96 nonce,
+    uint256 inputAmount,
+    address inputToken,
+    address oracle,
+    bytes32 destinationChainIdentifier,
+    bytes32 destinationAddress,
+    uint256 amount
 );
 
 event OrderFilled(

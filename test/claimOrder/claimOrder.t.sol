@@ -38,6 +38,6 @@ contract TestClaimOrder is TestCommon {
             v: v
         });
 
-        settler.claimOrder(order, signature);
+        reactor.claimOrder(order, signature);
     }
 }

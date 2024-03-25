@@ -4,40 +4,58 @@ pragma solidity ^0.8.22;
 enum OrderStatus {
     Unfilled,
     Claimed,
-    Filled,
     Challenged,
-    Fraud
+    Fraud,
+    OPFilled,
+    Filled
 }
 
-
-struct Asset {
-    uint256 amount;
-    address asset;
-}
-
-struct OrderFill {
-    bytes32 orderHash;
-    bytes32 sourceChain;
-    bytes32 destinationChain;
-    bytes destinationAccount;
-    bytes destinationAsset;
-    uint256 destinationAmount;
-    uint64 timeout;
-}
-
-// Todo: compacting?
-/// @param relevantDate Is used as the optimistic payout by date if disputed is false. If disputed is true it is the date when the proof has to be delivered by.
 struct OrderContext {
-    uint256 bond;
-    uint256 sourceAmount;
-    address sourceAsset;
-    address orderOwner;
-    address claimer;
-    address disputer;
-    uint64 relevantDate;
+    OrderStatus status;
+    address challanger;
+    address filler;
 }
 
-struct SignedOrder {
-    bytes order;
-    bytes signature;
+struct ReactorInfo {
+    // The contract that is managing this order.
+    address reactor;
+    
+    // Order resolution times
+    uint40 fillByDeadline;
+    uint40 challangeDeadline;
+    uint40 proofDeadline;
+}
+
+struct Collateral {
+    address collateralToken; // TODO: Just use gas?
+    uint256 fillerCollateralAmount;
+    uint256 challangerCollateralAmount;
+}
+
+/**
+ * @notice This is the simplified order after it has been validated and evaluated.
+ * @dev 
+ * - Validated: We check that the signature of the order matches the relevant order.
+ * - Evaluated: The signed order has been evaluated for its respective inputs and outputs
+ */
+struct ResolvedOrder {
+    // The contract that is managing this order.
+    ReactorInfo reactorContext;
+
+    // Who this order was claimed by.
+    address owner;
+    uint96 nonce;
+
+    // Order inputs
+    uint256 inputAmount;
+    address inputToken;
+
+    // Collateral
+    Collateral collateral;
+
+    // Destination chain context
+    address oracle; // The oracle that can satisfy a dispute.
+    bytes32 destinationChainIdentifier;
+    bytes32 destinationAddress;
+    uint256 amount;
 }

@@ -16,7 +16,8 @@ struct LimitOrder {
     // Destination chain context
     address oracle;
     bytes32 destinationChainIdentifier;
-    bytes destinationAddress;
+    bytes32 destinationAsset; // TODO: Is this a waste? Can we use this better?
+    bytes32 destinationAddress;
     uint256 amount;
 }
 
@@ -45,7 +46,7 @@ library LimitOrderType {
             LIMIT_ORDER_TYPE_HASH,
             order.reactorContext.reactor,
             order.reactorContext.fillByDeadline,
-            order.reactorContext.challangePeriod
+            order.reactorContext.challangeDeadline
             // etc...
         ));
     }

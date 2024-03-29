@@ -38,7 +38,7 @@ struct Collateral {
  * - Validated: We check that the signature of the order matches the relevant order.
  * - Evaluated: The signed order has been evaluated for its respective inputs and outputs
  */
-struct ResolvedOrder {
+struct OrderKey {
     // The contract that is managing this order.
     ReactorInfo reactorContext;
 
@@ -54,8 +54,13 @@ struct ResolvedOrder {
     Collateral collateral;
 
     // Destination chain context
-    address oracle; // The oracle that can satisfy a dispute.
+    address localOracle; // The oracle that can satisfy a dispute.
     bytes32 destinationChainIdentifier;
-    bytes32 destinationAddress;
+    address remoteOracle;
+    bytes32 oracleProofHash;
+    // Contains the below:
+    // TODO: Figure out what is a good strucutre for how to generalise the destination target.
+    bytes32 destinationAsset; // TODO: Is this a waste? Can we use this better?
+    bytes32 destinationAddress; // TODO bytes? For better future compatability?
     uint256 amount;
 }

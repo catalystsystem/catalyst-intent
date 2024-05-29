@@ -5,14 +5,27 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { IOrderType } from "../interfaces/IOrderType.sol";
 import { OrderDescription, OrderFill, OrderContext, Signature } from "../interfaces/Structs.sol";
+import { OrderKeyLib } from "../libs/OrderKeyLib.sol";
+import { Permit2Lib } from "../libs/Permit2Lib.sol";
+import {ISignatureTransfer} from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 import { OrderClaimed, OrderFilled, OrderVerify, OptimisticPayout } from "../interfaces/Events.sol";
 
 abstract contract ReactorBase {
     using SafeTransferLib for ERC20;
+    using OrderKeyLib for OrderKey;
+    using Permit2Lib for OrderKey;
 
-    mapping(OrderKey order => OrderContext orderContext) internal _orders; 
     mapping(address owner => mapping(uint96 nonce => bool)) internal _nonces; 
+
+    ISignatureTransfer public immutable PERMIT2;
+
+    /** @notice Maps an orderkey hash to the relevant orderContext. */
+    mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders; 
+
+    constructor(permit2) {
+        PERMIT2 = ISignatureTransfer(permit2);
+    }
 
     // TODO: Do we also want to set execution time here?
     mapping(bytes32 orderFillHash => bytes32 fillerIdentifier) public filledOrders;
@@ -26,19 +39,24 @@ abstract contract ReactorBase {
     error ProofPeriodHasNotPassed();
     error OrderNotReadyForOptimisticPayout();
 
-    /// @notice Identifier which identifies orders for this chain.
-    bytes32 immutable public SOURCE_CHAIN;
-
-    constructor() {}
-
     //--- Expose Storage ---//
 
-    function order(OrderKey calldata order) external returns(OrderContext orderContext) {
-        return orderContext = _orders[order];
+    function orderKeyHash(OrderKey calldata orderKey) external returns(bytes32) {
+        return orderKey.hash();
+    }
+
+    function order(OrderKey calldata orderKey) external returns(OrderContext orderContext) {
+        return orderContext = _orders[orderKey.hash()];
     }
 
     function nonces(address owner, uint96 nonce) external returns(bool) {
         return _nonces[owner][nonce];
+    }
+
+    //--- Token Handling ---//
+
+    function _collectTokens(OrderKey memory orderKey) internal override {
+
     }
 
     //--- Order Handling ---//
@@ -51,9 +69,7 @@ abstract contract ReactorBase {
     }
 
     function _orderKeyValidation(OrderKey memory orderKey) internal {
-        // TODO: Check that this is the appropiate source chain.
-        // if (SOURCE_CHAIN != order.reactorContext) revert IncorrectSourceChain(SOURCE_CHAIN, order.sourceChain);
-        // Check that the order hasn't expired.
+        // We don't have to check that we are on the correct chain, since this is implicit when we verify the signature of the order.
         if (uint48(block.timestamp) > order.reactorContext.fillByDeadline) revert OrderTimedOut(uint48(block.timestamp), order.reactorContext.fillByDeadline);
 
         // TODO: Collateral if (msg.value < order.minBond) revert BondTooSmall(msg.value, order.minBond);
@@ -74,7 +90,7 @@ abstract contract ReactorBase {
         _nonce[orderKey.owner][orderKey.nonce] = true;
 
         // 2. Set the storage.
-        OrderContext storage orderContext = _orders[order];
+        OrderContext storage orderContext = _orders[order.hash()];
         if (orderContexet.status != OrderStatus.Unfilled) revert OrderClaimed(orderContext);
         orderContext.status == OrderContext.claimed;
         orderContext.filler = filler;
@@ -82,25 +98,13 @@ abstract contract ReactorBase {
         // 3. Collect tokens from the user.
         // TODO:
 
-        // 4. Emit relevant information about the claimed order.
-        // TODO: correct emitted order?
-        emit OrderClaimed(
-            filler,
-            orderKey.owner,
-            orderKey.nonce,
-            orderKey.inputAmount,
-            orderKey.inputToken,
-            orderKey.oracle,
-            orderKey.destinationChainIdentifier,
-            orderKey.destinationAddress,
-            orderKey.amount
-        );
+        // The implementating contract is responsible for emitting the relevant order context.
     }
 
     //--- Order Resolution Helpers ---//
 
     function oracle(OrderKey calldata orderKey) external {
-        OrderContext storage orderContext = _orders[orderKey];
+        OrderContext storage orderContext = _orders[orderKey.hash()];
 
         // Check if sender is oracle
         if (OrderKey.oracle != msg.sender) revert NotOracle();
@@ -142,7 +146,7 @@ abstract contract ReactorBase {
      * @dev Anyone can call this but the payout goes to the designated claimer.
      */
     function optimisticPayout(OrderKey calldata orderKey) external payable returns(uint256 sourceAmount) {
-        OrderContext storage orderContext = _orders[orderKey];
+        OrderContext storage orderContext = _orders[orderKey.hash()];
 
         // Check if order is challanged:
         if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
@@ -178,7 +182,7 @@ abstract contract ReactorBase {
      * @notice Disputes a claim.
      */
     function dispute(OrderKey calldata orderKey) external payable {
-        OrderContext storage orderContext = _orders[orderKey];
+        OrderContext storage orderContext = _orders[orderKey.hash()];
 
         // Check that the order hasn't been challanged already.
         if (orderContext.status != OrderStatus.claimed) revert WrongOrderStatus(orderContext.status);
@@ -198,7 +202,7 @@ abstract contract ReactorBase {
      * @notice Finalise the dispute.
      */
     function completeDispute(OrderKey calldata orderKey) external {
-        OrderContext storage orderContext = _orders[orderKey];
+        OrderContext storage orderContext = _orders[orderKey.hash()];
 
         // Check that the order is currently challanged
         if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);

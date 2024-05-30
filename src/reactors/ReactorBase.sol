@@ -4,7 +4,7 @@ pragma solidity ^0.8.22;
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { IOrderType } from "../interfaces/IOrderType.sol";
-import { OrderContext, OrderStatus, OrderContext, OrderStatus, OrderKey } from "../interfaces/structs.sol";
+import { OrderContext, OrderStatus, OrderContext, OrderStatus, OrderKey } from "../interfaces/Structs.sol";
 import { ISettlementContract, CrossChainOrder, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { CrossChainOrderLib } from "../libs/CrossChainOrderLib.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";

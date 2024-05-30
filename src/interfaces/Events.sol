@@ -24,11 +24,6 @@ event OrderFilled(
     uint256 destiantionAmount
 );
 
-event OrderVerify(
-    bytes32 indexed orderHash,
-    bytes32 fillOrderHash
-);
+event OrderVerify(bytes32 indexed orderHash, bytes32 fillOrderHash);
 
-event OptimisticPayout(
-    bytes32 indexed orderHash
-);
+event OptimisticPayout(bytes32 indexed orderHash);

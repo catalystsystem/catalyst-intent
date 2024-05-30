@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import {ERC20} from "solmate/tokens/ERC20.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import {IOrderType} from "../interfaces/IOrderType.sol";
-import {OrderContext, OrderStatus, OrderContext, OrderStatus, OrderKey} from "../interfaces/Structs.sol";
-import {ISettlementContract, CrossChainOrder, ResolvedCrossChainOrder} from "../interfaces/ISettlementContract.sol";
-import {CrossChainOrderLib} from "../libs/CrossChainOrderLib.sol";
-import {Permit2Lib} from "../libs/Permit2Lib.sol";
-import {ISignatureTransfer} from "permit2/src/interfaces/ISignatureTransfer.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { IOrderType } from "../interfaces/IOrderType.sol";
+import { OrderContext, OrderStatus, OrderContext, OrderStatus, OrderKey } from "../interfaces/Structs.sol";
+import { ISettlementContract, CrossChainOrder, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
+import { CrossChainOrderLib } from "../libs/CrossChainOrderLib.sol";
+import { Permit2Lib } from "../libs/Permit2Lib.sol";
+import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-import {OrderClaimed, OrderFilled, OrderVerify, OptimisticPayout} from "../interfaces/Events.sol";
+import { OrderClaimed, OrderFilled, OrderVerify, OptimisticPayout } from "../interfaces/Events.sol";
 
 abstract contract ReactorBase is ISettlementContract {
     using SafeTransferLib for ERC20;
@@ -46,7 +46,7 @@ abstract contract ReactorBase is ISettlementContract {
         return order.hash();
     }
 
-    function order(CrossChainOrder calldata order) external returns (OrderContext memory orderContext) {
+    function getOrderContext(CrossChainOrder calldata order) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[order.hash()];
     }
 

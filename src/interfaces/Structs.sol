@@ -19,7 +19,6 @@ struct OrderContext {
 struct ReactorInfo {
     // The contract that is managing this order.
     address reactor;
-    
     // Order resolution times
     uint40 fillByDeadline;
     uint40 challangeDeadline;
@@ -34,25 +33,21 @@ struct Collateral {
 
 /**
  * @notice This is the simplified order after it has been validated and evaluated.
- * @dev 
+ * @dev
  * - Validated: We check that the signature of the order matches the relevant order.
  * - Evaluated: The signed order has been evaluated for its respective inputs and outputs
  */
 struct OrderKey {
     // The contract that is managing this order.
     ReactorInfo reactorContext;
-
     // Who this order was claimed by.
     address owner;
     uint96 nonce;
-
     // Order inputs
     uint256 inputAmount;
     address inputToken;
-
     // Collateral
     Collateral collateral;
-
     // Destination chain context
     address localOracle; // The oracle that can satisfy a dispute.
     bytes32 destinationChainIdentifier;

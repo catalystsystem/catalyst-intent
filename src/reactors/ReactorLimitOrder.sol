@@ -8,10 +8,7 @@ abstract contract ReactorLimitOrder is ReactorBase {
     using LimitOrderType for LimitOrder;
 
     // TODO: optimise
-    event OrderClaimed(
-        address indexed claimer,
-        LimitOrder order
-    );
+    event OrderClaimed(address indexed claimer, LimitOrder order);
 
     function claim(LimitOrder calldata order, bytes calldata signature) external {
         address filler = msg.sender;
@@ -34,5 +31,4 @@ abstract contract ReactorLimitOrder is ReactorBase {
 
         // emit OrderClaimed(filler, order);
     }
-    
 }

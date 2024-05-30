@@ -6,16 +6,16 @@ struct BitcoinPayment {
     bytes outputScript;
 }
 
-import {IBtcPrism} from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
-import {NoBlock, TooFewConfirmations, InvalidProof} from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
-import {BtcProof, BtcTxProof, ScriptMismatch} from "bitcoinprism-evm/src/library/BtcProof.sol";
+import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
+import { NoBlock, TooFewConfirmations, InvalidProof } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
+import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 
-import {ICrossChainReceiver} from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
-import {IIncentivizedMessageEscrow} from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-import {IMessageEscrowStructs} from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
+import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
+import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
+import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import {OrderKey} from "../interfaces/Structs.sol";
-import {ReactorBase} from "../reactors/ReactorBase.sol";
+import { OrderKey } from "../interfaces/Structs.sol";
+import { ReactorBase } from "../reactors/ReactorBase.sol";
 
 /**
  * Bitcoin oracle can operate in 2 modes:

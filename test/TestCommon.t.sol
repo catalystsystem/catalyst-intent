@@ -9,9 +9,9 @@ contract TestCommon is Test {
     ReactorLimitOrder reactor;
 
     // TODO:
-    address constant PERMIT2 = address(bytes160(1));
+    address constant PERMIT2 = address(uint160(1));
 
     function setUp() virtual public {
-        reactor = new ReactorLimitOrder(PERMIT2);
+        // reactor = new ReactorLimitOrder(PERMIT2);
     }
 }

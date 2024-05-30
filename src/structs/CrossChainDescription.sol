@@ -37,7 +37,7 @@ library OrderDescriptionHash {
                 desc.fillPeriod,
                 desc.challangePeriod,
                 desc.proofPeriod,
-                keccak256(desc.approvedAmbs)
+                keccak256(abi.encode(desc)) // TODO: is supposed to be approved AMBs
             )
         );
     }

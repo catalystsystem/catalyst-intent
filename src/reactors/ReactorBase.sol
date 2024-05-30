@@ -4,7 +4,7 @@ pragma solidity ^0.8.22;
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { IOrderType } from "../interfaces/IOrderType.sol";
-import { OrderContext, OrderStatus } from "../interfaces/structs.sol";
+import { OrderContext, OrderStatus, OrderContext, OrderStatus, OrderKey } from "../interfaces/structs.sol";
 import { ISettlementContract, CrossChainOrder, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { CrossChainOrderLib } from "../libs/CrossChainOrderLib.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
@@ -44,7 +44,7 @@ abstract contract ReactorBase is ISettlementContract {
         return order.hash();
     }
 
-    function order(CrossChainOrder calldata order) external returns(OrderContext orderContext) {
+    function order(CrossChainOrder calldata order) external returns(OrderContext memory orderContext) {
         return orderContext = _orders[order.hash()];
     }
 
@@ -75,7 +75,7 @@ abstract contract ReactorBase is ISettlementContract {
         // TODO: Overwrite hash
         OrderContext storage orderContext = _orders[order.hash()];
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext);
-        orderContext.status == OrderContext.claimed;
+        orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
     
         _initiate(order, signature, fillerData);
@@ -85,7 +85,7 @@ abstract contract ReactorBase is ISettlementContract {
         CrossChainOrder calldata order,
         bytes calldata signature,
         bytes calldata fillerData
-    ) internal;
+    ) internal virtual;
 
     /**
 	 * @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
@@ -104,11 +104,11 @@ abstract contract ReactorBase is ISettlementContract {
     function _resolve(
         CrossChainOrder calldata order,
         bytes calldata fillerData
-    ) internal view returns (ResolvedCrossChainOrder memory);
+    ) internal view virtual returns (ResolvedCrossChainOrder memory);
 
     //--- Order Resolution Helpers ---//
 
-    // function oracle(OrderKey calldata orderKey) external {
+    function oracle(OrderKey calldata orderKey) external {
     //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
     //     // Check if sender is oracle
@@ -145,7 +145,7 @@ abstract contract ReactorBase is ISettlementContract {
     //         uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
     //         ERC20(collateralToken).safeTransfer(filler, challangerCollateralAmount);
     //     }
-    // }
+    }
 
     /**
      * @dev Anyone can call this but the payout goes to the designated claimer.

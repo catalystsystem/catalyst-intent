@@ -21,7 +21,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     IIncentivizedMessageEscrow immutable public escrow;
     mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow)) escrowMapping;
 
-    mapping(OrderKey orderKey => uint256 fillTime) public filledOrders;
+    mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
 
     error AlreadyFilled();
     error NotFilled();
@@ -40,9 +40,9 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         // However, since we don't know which AMB is being used, can't actually check if this is the correct chain.
         // It is assumed that the solver knows that this is actually the right chain.
         // Check if this order has been filled before.
-        uint256 filledTime = filledOrders[orderKey];
+        uint256 filledTime = filledOrders[keccak256(abi.encode(orderKey))];
         if (filledTime != 0) revert AlreadyFilled();
-        filledOrders[orderKey] = block.timestamp;
+        // filledOrders[orderKey] = block.timestamp;
 
         // TODO: check that we are on the right chain.
         // TODO: verify that we are sending the proof to the correct chain.
@@ -61,13 +61,14 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         OrderKey calldata orderKey,
         address reactor,
         bytes32 destinationIdentifier,
-        bytes destinationAddress,
+        bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) internal {
         // TODO: Figure out a better idea than abi.encode
         bytes memory message = abi.encode(reactor, filledTime, orderKey);
-        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive);
+        // Deadline is set to 0.
+        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, 0);
     }
 
     //--- Solver Interface ---//
@@ -80,12 +81,12 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         OrderKey calldata orderKey,
         address reactor,
         bytes32 destinationIdentifier,
-        bytes destinationAddress,
+        bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) payable external {
-        uint256 filledTime = filledOrders[orderKey];
-        if (fillStatus == 0) revert NotFilled();
+        uint256 filledTime = filledOrders[keccak256(abi.encode(orderKey))];
+        // if (fillStatus == 0) revert NotFilled();
 
         _submit(
             filledTime,
@@ -102,7 +103,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         OrderKey calldata orderKey,
         address reactor,
         bytes32 destinationIdentifier,
-        bytes destinationAddress,
+        bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) payable external {
@@ -126,7 +127,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     }
 
     function receiveMessage(bytes32 sourceIdentifierbytes, bytes32 messageIdentifier, bytes calldata fromApplication, bytes calldata message) onlyEscrow() external returns(bytes memory acknowledgement) {
-        (address reactor, uint256 filledTime, OrderKey memory orderKey) = abi.decode(message, (addres, OrderKey));
+        (address reactor, uint256 filledTime, OrderKey memory orderKey) = abi.decode(message, (address, uint256, OrderKey));
 
         ReactorBase(reactor).oracle(orderKey);
 

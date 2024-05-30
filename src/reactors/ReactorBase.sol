@@ -148,7 +148,7 @@ abstract contract ReactorBase is ISettlementContract {
     /**
      * @dev Anyone can call this but the payout goes to the designated claimer.
      */
-    // function optimisticPayout(OrderKey calldata orderKey) external payable returns(uint256 sourceAmount) {
+    function optimisticPayout(OrderKey calldata orderKey) external payable returns(uint256 sourceAmount) {
     //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
     //     // Check if order is challanged:
@@ -177,14 +177,14 @@ abstract contract ReactorBase is ISettlementContract {
     //     emit OptimisticPayout(
     //         orderHash
     //     );
-    // }
+    }
 
     //--- Disputes ---//
 
     /**
      * @notice Disputes a claim.
      */
-    // function dispute(OrderKey calldata orderKey) external payable {
+    function dispute(OrderKey calldata orderKey) external payable {
     //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
     //     // Check that the order hasn't been challanged already.
@@ -199,12 +199,12 @@ abstract contract ReactorBase is ISettlementContract {
 
     //     // Collect bond collateral.
     //     ERC20(orderKey.collateral.collateralToken).safeTransferFrom(msg.sender, address(this), orderKey.collateral.challangerCollateralAmount);
-    // }
+    }
 
     /**
      * @notice Finalise the dispute.
      */
-    // function completeDispute(OrderKey calldata orderKey) external {
+    function completeDispute(OrderKey calldata orderKey) external {
     //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
     //     // Check that the order is currently challanged
@@ -235,5 +235,5 @@ abstract contract ReactorBase is ISettlementContract {
 
     //     // Send the rest to the wallet that proof fraud:
     //     ERC20(collateralToken).safeTransfer(orderContext.challanger, fillerCollateralAmount - ownerCollateralAmount);
-    // }
+    }
 }

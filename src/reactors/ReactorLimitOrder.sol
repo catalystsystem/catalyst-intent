@@ -27,8 +27,7 @@ contract ReactorLimitOrder is ReactorBase {
             localOracle: order.oracle,
             destinationChainIdentifier: order.destinationChainIdentifier,
             remoteOracle: order.remoteOracle,
-            oracleProofHash: bytes32(0),
-            destinationAs
+            oracleProofHash: bytes32(0)
         });
 
         _claim(orderKey, filler);

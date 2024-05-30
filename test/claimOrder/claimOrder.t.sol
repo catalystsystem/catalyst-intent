@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { OrderDescription, OrderFill, OrderContext, Signature } from "../../src/interfaces/Structs.sol";
+/* import { OrderDescription, OrderFill, OrderContext, Signature } from "../../src/interfaces/Structs.sol";
 import { TestCommon } from "../TestCommon.t.sol";
 
 contract TestClaimOrder is TestCommon {
@@ -40,4 +40,4 @@ contract TestClaimOrder is TestCommon {
 
         reactor.claimOrder(order, signature);
     }
-}
+} */

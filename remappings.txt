@@ -5,3 +5,4 @@ forge-std/=lib/forge-std/src/
 openzeppelin-contracts/=lib/GeneralisedIncentives/lib/openzeppelin-contracts/
 openzeppelin/=lib/GeneralisedIncentives/lib/openzeppelin-contracts/contracts/
 solmate/=lib/solmate/src/
+bitcoinprism-evm/=lib/bitcoinprism-evm/

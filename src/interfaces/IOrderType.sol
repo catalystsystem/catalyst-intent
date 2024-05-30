@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import { OrderDescription } from "./Structs.sol";
-
 interface IOrderType {
     /**
      * @notice Evaluates an order to return the source amount along with evaluation options.

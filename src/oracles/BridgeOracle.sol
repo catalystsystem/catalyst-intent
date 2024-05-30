@@ -27,9 +27,9 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     error NotFilled();
     error NotApprovedEscrow();
 
-    constructor(address escrow) {
+    constructor(address _escrow) {
         // Solution 1: Set the escrow.
-        escrow = IIncentivizedMessageEscrow(escrow);
+        escrow = IIncentivizedMessageEscrow(_escrow);
     }
 
     /**

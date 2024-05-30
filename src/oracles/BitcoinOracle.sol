@@ -6,9 +6,9 @@ struct BitcoinPayment {
     bytes outputScript;
 }
 
-import { IBtcPrism } from "bitcoinprism-evm/interfaces/IBtcPrism.sol";
-import { NoBlock, TooFewConfirmations, InvalidProof } from "bitcoinprism-evm/interfaces/IBtcTxVerifier.sol";
-import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/library/BtcProof.sol";
+import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
+import { NoBlock, TooFewConfirmations, InvalidProof } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
+import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";

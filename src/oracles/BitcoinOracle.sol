@@ -14,7 +14,7 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { OrderKey } from "../interfaces/structs.sol";
+import { OrderKey } from "../interfaces/Structs.sol";
 import { ReactorBase } from "../reactors/ReactorBase.sol";
 
 /** 

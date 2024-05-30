@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
-import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
-import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
+import {ICrossChainReceiver} from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
+import {IIncentivizedMessageEscrow} from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
+import {IMessageEscrowStructs} from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { OrderKey } from "../interfaces/structs.sol";
-import { ReactorBase } from "../reactors/ReactorBase.sol";
+import {OrderKey} from "../interfaces/Structs.sol";
+import {ReactorBase} from "../reactors/ReactorBase.sol";
 
-/** 
+/**
  * @dev Oracles are also fillers
  */
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
     using SafeTransferLib for ERC20;
 
     // TODO: we need a way to do remote verification.
-    IIncentivizedMessageEscrow immutable public escrow;
-    mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow)) escrowMapping;
+    IIncentivizedMessageEscrow public immutable escrow;
+    mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow))
+        escrowMapping;
 
     mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
 
@@ -84,19 +85,11 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
-    ) payable external {
+    ) external payable {
         uint256 filledTime = filledOrders[keccak256(abi.encode(orderKey))];
         // if (fillStatus == 0) revert NotFilled();
 
-        _submit(
-            filledTime,
-            orderKey,
-            reactor,
-            destinationIdentifier,
-            destinationAddress,
-            incentive,
-            deadline
-        );
+        _submit(filledTime, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 
     function fillAndSubmit(
@@ -106,17 +99,9 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
-    ) payable external {
+    ) external payable {
         _fill(orderKey);
-        _submit(
-            block.timestamp,
-            orderKey,
-            reactor,
-            destinationIdentifier,
-            destinationAddress,
-            incentive,
-            deadline
-        );
+        _submit(block.timestamp, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 
     //--- Generalised Incentives ---//
@@ -126,8 +111,14 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         _;
     }
 
-    function receiveMessage(bytes32 sourceIdentifierbytes, bytes32 messageIdentifier, bytes calldata fromApplication, bytes calldata message) onlyEscrow() external returns(bytes memory acknowledgement) {
-        (address reactor, uint256 filledTime, OrderKey memory orderKey) = abi.decode(message, (address, uint256, OrderKey));
+    function receiveMessage(
+        bytes32 sourceIdentifierbytes,
+        bytes32 messageIdentifier,
+        bytes calldata fromApplication,
+        bytes calldata message
+    ) external onlyEscrow returns (bytes memory acknowledgement) {
+        (address reactor, uint256 filledTime, OrderKey memory orderKey) =
+            abi.decode(message, (address, uint256, OrderKey));
 
         ReactorBase(reactor).oracle(orderKey);
 
@@ -135,7 +126,10 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         return hex"";
     }
 
-    function receiveAck(bytes32 destinationIdentifier, bytes32 messageIdentifier, bytes calldata acknowledgement) onlyEscrow() external {
+    function receiveAck(bytes32 destinationIdentifier, bytes32 messageIdentifier, bytes calldata acknowledgement)
+        external
+        onlyEscrow
+    {
         // We don't actually do anything on ack.
     }
 }

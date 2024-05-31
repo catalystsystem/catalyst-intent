@@ -17,7 +17,7 @@ import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessage
 import { OrderKey } from "../interfaces/Structs.sol";
 import { ReactorBase } from "../reactors/ReactorBase.sol";
 
-/** 
+/**
  * Bitcoin oracle can operate in 2 modes:
  * 1. Directly Oracle. This requires a local light client along side the relevant reactor.
  * 2. Indirectly oracle through the bridge oracle. This requires a local light client and a bridge connection to the relevant reactor.
@@ -74,23 +74,15 @@ abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
         // if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
     }
 
-    function _verify(
-        OrderKey calldata orderKey,
-        uint256 blockNum,
-        BtcTxProof calldata inclusionProof,
-        uint256 txOutIx
-    ) internal {
-        // Check that the destinationChainIdentifier is Bitcoin 
+    function _verify(OrderKey calldata orderKey, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx)
+        internal
+    {
+        // Check that the destinationChainIdentifier is Bitcoin
         if (orderKey.destinationChainIdentifier != BITCOIN_DESTINATION_Identifier) revert BadDestinationIdentifier();
 
         bytes memory outputScript = bytes.concat(orderKey.destinationAddress);
-        (uint256 sats, uint256 timestamp) = _verifyPayment(
-            MIN_CONFIRMATIONS,
-            blockNum,
-            inclusionProof,
-            txOutIx,
-            outputScript
-        );
+        (uint256 sats, uint256 timestamp) =
+            _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript);
 
         if (sats != orderKey.amount) revert BadAmount();
 
@@ -125,18 +117,10 @@ abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
-    ) payable external {
+    ) external payable {
         uint256 filledTime = 0; // filledOrders[orderKey];
         // if (fillStatus == 0) revert NotFilled();
 
-        _submit(
-            filledTime,
-            orderKey,
-            reactor,
-            destinationIdentifier,
-            destinationAddress,
-            incentive,
-            deadline
-        );
+        _submit(filledTime, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 }

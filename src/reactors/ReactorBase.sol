@@ -8,7 +8,7 @@ import { OrderContext, OrderStatus, OrderContext, OrderStatus, OrderKey } from "
 import { ISettlementContract, CrossChainOrder, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { CrossChainOrderLib } from "../libs/CrossChainOrderLib.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
-import {ISignatureTransfer} from "permit2/src/interfaces/ISignatureTransfer.sol";
+import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 import { OrderClaimed, OrderFilled, OrderVerify, OptimisticPayout } from "../interfaces/Events.sol";
 
@@ -19,8 +19,10 @@ abstract contract ReactorBase is ISettlementContract {
 
     ISignatureTransfer public immutable PERMIT2;
 
-    /** @notice Maps an orderkey hash to the relevant orderContext. */
-    mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders; 
+    /**
+     * @notice Maps an orderkey hash to the relevant orderContext.
+     */
+    mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
 
     constructor(address permit2) {
         PERMIT2 = ISignatureTransfer(permit2);
@@ -40,11 +42,11 @@ abstract contract ReactorBase is ISettlementContract {
 
     //--- Expose Storage ---//
 
-    function orderHash(CrossChainOrder calldata order) external pure returns(bytes32) {
+    function orderHash(CrossChainOrder calldata order) external returns (bytes32) {
         return order.hash();
     }
 
-    function getOrderContext(CrossChainOrder calldata order) external view returns(OrderContext memory orderContext) {
+    function getOrderContext(CrossChainOrder calldata order) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[order.hash()];
     }
 
@@ -58,16 +60,12 @@ abstract contract ReactorBase is ISettlementContract {
 
     /**
      * @notice Initiates the settlement of a cross-chain order
-	 * @dev To be called by the filler
-	 * @param order The CrossChainOrder definition
-	 * @param signature The swapper's signature over the order
-	 * @param fillerData Any filler-defined data required by the settler
+     * @dev To be called by the filler
+     * @param order The CrossChainOrder definition
+     * @param signature The swapper's signature over the order
+     * @param fillerData Any filler-defined data required by the settler
      */
-	function initiate(
-        CrossChainOrder calldata order,
-        bytes calldata signature,
-        bytes calldata fillerData
-    ) external {
+    function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // TODO: read from fillerData.
         address filler = msg.sender;
         // Order validation is checked on PERMIT2 call later. For now, let mainly validate that
@@ -77,74 +75,74 @@ abstract contract ReactorBase is ISettlementContract {
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext);
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
-    
+
         _initiate(order, signature, fillerData);
     }
 
-    function _initiate(
-        CrossChainOrder calldata order,
-        bytes calldata signature,
-        bytes calldata fillerData
-    ) internal virtual;
+    function _initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData)
+        internal
+        virtual;
 
     /**
-	 * @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
-	 * @dev Intended to improve standardized integration of various order types and settlement contracts
-	 * @param order The CrossChainOrder definition
-	 * @param fillerData Any filler-defined data required by the settler
-	 * @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
+     * @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
+     * @dev Intended to improve standardized integration of various order types and settlement contracts
+     * @param order The CrossChainOrder definition
+     * @param fillerData Any filler-defined data required by the settler
+     * @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
      */
-	function resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) external view returns (ResolvedCrossChainOrder memory) {
+    function resolve(CrossChainOrder calldata order, bytes calldata fillerData)
+        external
+        view
+        returns (ResolvedCrossChainOrder memory)
+    {
         return _resolve(order, fillerData);
     }
 
-    function _resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal view virtual returns (ResolvedCrossChainOrder memory);
+    function _resolve(CrossChainOrder calldata order, bytes calldata fillerData)
+        internal
+        view
+        virtual
+        returns (ResolvedCrossChainOrder memory);
 
     //--- Order Resolution Helpers ---//
 
     function oracle(OrderKey calldata orderKey) external {
-    //     OrderContext storage orderContext = _orders[orderKey.hash()];
+        //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
-    //     // Check if sender is oracle
-    //     if (OrderKey.oracle != msg.sender) revert NotOracle();
+        //     // Check if sender is oracle
+        //     if (OrderKey.oracle != msg.sender) revert NotOracle();
 
-    //     OrderStatus status = orderContext.status;
+        //     OrderStatus status = orderContext.status;
 
-    //     // Only allow processing if order status is either claimed or Challenged
-    //     if (
-    //         status != OrderStatus.Claimed &&
-    //         status != OrderStatus.Challenged
-    //     ) revert WrongOrderStatus(orderContext.status);
-        
-    //     // Set order status to filled.
-    //     orderContext.status = OrderStatus.Filled;
+        //     // Only allow processing if order status is either claimed or Challenged
+        //     if (
+        //         status != OrderStatus.Claimed &&
+        //         status != OrderStatus.Challenged
+        //     ) revert WrongOrderStatus(orderContext.status);
 
-    //     // Payout input.
-    //     address filler = orderContext.filler;
-    //     // Get input tokens.
-    //     address sourceAsset = orderKey.inputToken;
-    //     uint256 inputAmount = orderKey.inputAmount;
+        //     // Set order status to filled.
+        //     orderContext.status = OrderStatus.Filled;
 
-    //     // Pay input tokens
-    //     ERC20(sourceAsset).safeTransfer(filler, inputAmount);
+        //     // Payout input.
+        //     address filler = orderContext.filler;
+        //     // Get input tokens.
+        //     address sourceAsset = orderKey.inputToken;
+        //     uint256 inputAmount = orderKey.inputAmount;
 
-    //     // Get order collateral.
-    //     address collateralToken = orderKey.collateral.collateralToken;
-    //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        //     // Pay input tokens
+        //     ERC20(sourceAsset).safeTransfer(filler, inputAmount);
 
-    //     // Pay collateral tokens
-    //     ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
-    //     // Check if someone challanged this order.
-    //     if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
-    //         uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
-    //         ERC20(collateralToken).safeTransfer(filler, challangerCollateralAmount);
-    //     }
+        //     // Get order collateral.
+        //     address collateralToken = orderKey.collateral.collateralToken;
+        //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+
+        //     // Pay collateral tokens
+        //     ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
+        //     // Check if someone challanged this order.
+        //     if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
+        //         uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
+        //         ERC20(collateralToken).safeTransfer(filler, challangerCollateralAmount);
+        //     }
     }
 
     /**
@@ -215,7 +213,7 @@ abstract contract ReactorBase is ISettlementContract {
 
     //     // Check if proof deadline has passed.
     //     if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
-        
+
     //     orderContext.status = OrderStatus.Fraud;
 
     //     // Get input tokens.

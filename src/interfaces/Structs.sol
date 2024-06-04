@@ -26,9 +26,9 @@ struct ReactorInfo {
 }
 
 struct Collateral {
-    address collateralToken; // TODO: Just use gas?
+    address collateralToken;
     uint256 fillerCollateralAmount;
-    uint256 challangerCollateralAmount;
+    uint256 challangerCollateralAmount; // TODO: use factor on fillerCollateralAmount
 }
 
 /**

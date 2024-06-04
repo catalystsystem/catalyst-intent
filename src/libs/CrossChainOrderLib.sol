@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder } from "../interfaces/ISettlementContract.sol";
-
-library CrossChainOrderLib {
-    function hash(CrossChainOrder calldata order) internal pure returns (bytes32) {
-        return keccak256(abi.encode(order));
-    }
-}
+bytes constant CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
+    "addres settlementContract",
+    "address swapper",
+    "uint256 nonce",
+    "uint32 originChainId",
+    "uint32 initiateDeadline",
+    "uint32 fillDeadline",
+    "address inputToken"
+);

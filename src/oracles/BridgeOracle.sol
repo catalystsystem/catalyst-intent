@@ -9,7 +9,7 @@ import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIn
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { OrderKey } from "../interfaces/Structs.sol";
-import { ReactorBase } from "../reactors/ReactorBase.sol";
+import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 /**
  * @dev Oracles are also fillers
@@ -120,7 +120,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         (address reactor, uint256 filledTime, OrderKey memory orderKey) =
             abi.decode(message, (address, uint256, OrderKey));
 
-        ReactorBase(reactor).oracle(orderKey);
+        BaseReactor(reactor).oracle(orderKey);
 
         // We don't care about the ack.
         return hex"";

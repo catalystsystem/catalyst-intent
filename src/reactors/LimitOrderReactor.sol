@@ -41,7 +41,7 @@ abstract contract LimitOrderReactor is BaseReactor {
 
     function _resolve(CrossChainOrder calldata order, bytes calldata fillerData)
         internal
-        view
+        pure
         override
         returns (ResolvedCrossChainOrder memory resolvedOrder) {
         LimitData memory limitData = order.orderData.decodeOrderData();
@@ -58,6 +58,12 @@ abstract contract LimitOrderReactor is BaseReactor {
             chainId: uint32(uint256(limitData.destinationChainId))
         });
 
+        Input[] memory swapperInputs = new Input[](1);
+        swapperInputs[0] = swapperInput;
+
+        Output[] memory swapperOutputs = new Output[](1);
+        swapperOutputs[0] = swapperOutput;
+
         resolvedOrder = ResolvedCrossChainOrder({
             settlementContract: order.settlementContract,
             swapper: order.swapper,
@@ -65,9 +71,9 @@ abstract contract LimitOrderReactor is BaseReactor {
             originChainId: order.originChainId,
             initiateDeadline: order.initiateDeadline,
             fillDeadline: order.fillDeadline,
-            swapperInputs: swapperInput,
-            swapperOutputs: swapperOutput,
-            fillerOutputs: swapperOutput
+            swapperInputs: swapperInputs,
+            swapperOutputs: swapperOutputs,
+            fillerOutputs: swapperOutputs
         });
     }
 }

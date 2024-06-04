@@ -40,12 +40,12 @@ abstract contract BaseReactor is ISettlementContract {
 
     //--- Expose Storage ---//
 
-    function orderHash(CrossChainOrder calldata order) external returns (bytes32) {
-        return order.hash();
+    function orderHash(CrossChainOrder calldata order) public pure returns (bytes32) {
+        return keccak256(abi.encode(order));
     }
 
     function getOrderContext(CrossChainOrder calldata order) external view returns (OrderContext memory orderContext) {
-        return orderContext = _orders[order.hash()];
+        return orderContext = _orders[orderHash(order)];
     }
 
     //--- Token Handling ---//
@@ -69,7 +69,7 @@ abstract contract BaseReactor is ISettlementContract {
         // Order validation is checked on PERMIT2 call later. For now, let mainly validate that
         // this order hasn't been claimed before:
         // TODO: Overwrite hash
-        OrderContext storage orderContext = _orders[order.hash()];
+        OrderContext storage orderContext = _orders[orderHash(order)];
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext);
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;

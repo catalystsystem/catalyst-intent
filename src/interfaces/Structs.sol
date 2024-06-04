@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
+//////////////////
+// Order types ///
+//////////////////
+
 enum OrderStatus {
     Unfilled,
     Claimed,
@@ -14,21 +18,6 @@ struct OrderContext {
     OrderStatus status;
     address challanger;
     address filler;
-}
-
-struct ReactorInfo {
-    // The contract that is managing this order.
-    address reactor;
-    // Order resolution times
-    uint40 fillByDeadline;
-    uint40 challangeDeadline;
-    uint40 proofDeadline;
-}
-
-struct Collateral {
-    address collateralToken; // TODO: Just use gas?
-    uint256 fillerCollateralAmount;
-    uint256 challangerCollateralAmount;
 }
 
 /**
@@ -58,4 +47,47 @@ struct OrderKey {
     bytes32 destinationAsset; // TODO: Is this a waste? Can we use this better?
     bytes32 destinationAddress; // TODO bytes? For better future compatability?
     uint256 amount;
+}
+
+///////////////////
+// Reactor types //
+///////////////////
+
+struct ReactorInfo {
+    // The contract that is managing this order.
+    address reactor;
+    // Order resolution times
+    uint40 fillByDeadline;
+    uint40 challangeDeadline;
+    uint40 proofDeadline;
+}
+
+struct Collateral {
+    address collateralToken; // TODO: Just use gas?
+    uint256 fillerCollateralAmount;
+    uint256 challangerCollateralAmount;
+}
+
+//////////////////
+// Script types //
+//////////////////
+
+enum AddressType {
+    UNKNOWN,
+    P2PKH,
+    P2SH,
+    P2WPKH,
+    P2WSH,
+    P2TR
+}
+
+/**
+ * @notice A Parsed Script address
+ */
+struct BitcoinAddress {
+    AddressType addressType;
+    /**
+     * @dev P2PKH, address hash or P2SH, script hash. Is empty if segwit transaction
+     */
+    bytes32 implementationHash;
 }

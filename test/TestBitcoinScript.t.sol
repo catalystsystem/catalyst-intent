@@ -2,11 +2,11 @@
 pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import { AddressType as ScriptAddressType, BitcoinAddress } from "../src/interfaces/Structs.sol";
-import { BtcScript } from "../src/libs/BtcScript.sol";
-import "../src/libs/BitcoinOpcodes.sol";
+import { AddressType as ScriptAddressType, BitcoinAddress } from "bitcoinprism-evm/src/library/BtcScript.sol";
+import { BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
+import "bitcoinprism-evm/src/library/BitcoinOpcodes.sol";
 
 contract TestBitcoinScript is Test {
     function test_script_from_BTCAddress() public {

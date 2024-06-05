@@ -67,27 +67,3 @@ struct Collateral {
     uint256 fillerCollateralAmount;
     uint256 challangerCollateralAmount;
 }
-
-//////////////////
-// Script types //
-//////////////////
-
-enum AddressType {
-    UNKNOWN,
-    P2PKH,
-    P2SH,
-    P2WPKH,
-    P2WSH,
-    P2TR
-}
-
-/**
- * @notice A Parsed Script address
- */
-struct BitcoinAddress {
-    AddressType addressType;
-    /**
-     * @dev P2PKH, address hash or P2SH, script hash. Is empty if segwit transaction
-     */
-    bytes32 implementationHash;
-}

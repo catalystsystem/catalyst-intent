@@ -20,9 +20,9 @@ struct ReactorInfo {
     // The contract that is managing this order.
     address reactor;
     // Order resolution times
-    uint40 fillByDeadline;
-    uint40 challangeDeadline;
-    uint40 proofDeadline;
+    uint32 fillByDeadline;
+    uint32 challangeDeadline;
+    uint32 proofDeadline;
 }
 
 struct Collateral {
@@ -58,4 +58,15 @@ struct OrderKey {
     bytes32 destinationAsset; // TODO: Is this a waste? Can we use this better?
     bytes32 destinationAddress; // TODO bytes? For better future compatability?
     uint256 amount;
+}
+
+struct OrderKeyTwo {
+    // Contract that is managing this order.
+    ReactorInfo reactorContext;
+    // The owner of the order: The signer.
+    address owner;
+    uint96 nonce;
+    // Order inputs
+    uint256 inputAmount;
+    address inputToken;
 }

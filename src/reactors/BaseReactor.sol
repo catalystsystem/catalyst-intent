@@ -50,9 +50,9 @@ abstract contract BaseReactor is ISettlementContract {
 
     //--- Token Handling ---//
 
-    // function _collectTokens(OrderKey memory orderKey) internal override {
-
-    // }
+    function _collectTokens(OrderKey memory orderKey) internal virtual {
+        // PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witness, witnessTypeString, signature);
+    }
 
     //--- Order Handling ---//
 
@@ -64,8 +64,7 @@ abstract contract BaseReactor is ISettlementContract {
      * @param fillerData Any filler-defined data required by the settler
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
-        // TODO: read from fillerData.
-        address filler = msg.sender;
+        address filler = abi.decode(fillerData, (address));
         // Order validation is checked on PERMIT2 call later. For now, let mainly validate that
         // this order hasn't been claimed before:
         // TODO: Overwrite hash

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { BaseReactor } from "./BaseReactor.sol";
-import { CrossChainLimitOrder, LimitData, CrossChainLimitOrderType } from "../libs/CrossChainLimitOrderType.sol";
+import { LimitOrderData, CrossChainLimitOrderType } from "../libs/CrossChainLimitOrderType.sol";
 import { CrossChainOrder, ResolvedCrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
 
 abstract contract LimitOrderReactor is BaseReactor {
@@ -12,7 +12,7 @@ abstract contract LimitOrderReactor is BaseReactor {
     function _initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData)
         internal
         override {
-            LimitData memory limitData = order.orderData.decodeOrderData();
+            LimitOrderData memory limitData = order.orderData.decodeOrderData();
 
 
         }
@@ -44,7 +44,7 @@ abstract contract LimitOrderReactor is BaseReactor {
         pure
         override
         returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        LimitData memory limitData = order.orderData.decodeOrderData();
+        LimitOrderData memory limitData = order.orderData.decodeOrderData();
 
         Input memory swapperInput = Input({
             token: address(bytes20(limitData.destinationAsset)), // TODO: This is not set in the order type.

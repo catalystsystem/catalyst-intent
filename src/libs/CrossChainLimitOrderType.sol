@@ -7,15 +7,12 @@ import { CROSS_CHAIN_ORDER_TYPE_STUB } from "./CrossChainOrderLib.sol";
 
 struct LimitOrderData {
     uint32 proofDeadline;
-
     address collateralToken;
     uint256 fillerCollateralAmount;
     uint256 challangerCollateralAmount; // TODO: use factor on fillerCollateralAmount
-
     address localOracle;
     bytes32 remoteOracle;
     bytes32 destinationChainId;
-
     bytes32 destinationAsset; // TODO: Is this a waste? Can we use this better?
     bytes32 destinationAddress; // TODO bytes? For better future compatability?
     uint256 amount;
@@ -28,27 +25,26 @@ struct LimitOrderData {
 library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
         "LimitOrderData(",
-            "uint32 proofDeadline,",
-            "address collateralToken,",
-            "uint256 fillerCollateralAmount,",
-            "uint256 challangerCollateralAmount,",
-            "address localOracle,",
-            "bytes32 remoteOracle,",
-            "bytes32 destinationChainId,",
-            "bytes32 destinationAsset,",
-            "bytes32 destinationAddress,",
-            "uint256 amount",
+        "uint32 proofDeadline,",
+        "address collateralToken,",
+        "uint256 fillerCollateralAmount,",
+        "uint256 challangerCollateralAmount,",
+        "address localOracle,",
+        "bytes32 remoteOracle,",
+        "bytes32 destinationChainId,",
+        "bytes32 destinationAsset,",
+        "bytes32 destinationAddress,",
+        "uint256 amount",
         ")"
     );
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
 
-    bytes constant CROSS_CHAIN_ORDER_TYPE =
-        abi.encodePacked(
-            CROSS_CHAIN_ORDER_TYPE_STUB,
-            "LimitOrderData orderData)",  // New order types need to replace this field.
-            LIMIT_ORDER_DATA_TYPE_HASH
-        );
+    bytes constant CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
+        CROSS_CHAIN_ORDER_TYPE_STUB,
+        "LimitOrderData orderData)", // New order types need to replace this field.
+        LIMIT_ORDER_DATA_TYPE_HASH
+    );
 
     bytes32 internal constant CROSS_CHAIN_ORDER_TYPE_HASH = keccak256(CROSS_CHAIN_ORDER_TYPE);
 
@@ -70,7 +66,7 @@ library CrossChainLimitOrderType {
             )
         );
     }
-    
+
     function hashOrderData(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked( // todo: bytes.concat
@@ -89,7 +85,7 @@ library CrossChainLimitOrderType {
         );
     }
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns(LimitOrderData memory limitData) {
+    function decodeOrderData(bytes calldata orderBytes) internal pure returns (LimitOrderData memory limitData) {
         return limitData = abi.decode(orderBytes, (LimitOrderData));
     }
 }

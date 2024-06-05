@@ -11,45 +11,47 @@ abstract contract LimitOrderReactor is BaseReactor {
 
     function _initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData)
         internal
-        override {
-            LimitOrderData memory limitData = order.orderData.decodeOrderData();
-
-
-        }
+        override
+    {
+        LimitOrderData memory limitData = order.orderData.decodeOrderData();
+        address filler = abi.decode(fillerData, (address));
+    }
 
     // function claim(LimitOrder calldata order, bytes calldata signature) external {
-        // address filler = msg.sender;
-        // (bytes32 orderHash, address orderSigner) = order.verify(signature);
+    // address filler = msg.sender;
+    // (bytes32 orderHash, address orderSigner) = order.verify(signature);
 
-        // OrderKey memory orderKey = orderKey({
-        //     reactorContext: order.reactorContext,
-        //     owner: orderSigner,
-        //     nonce: order.nonce,
-        //     inputAmount: order.inputAmount,
-        //     inputToken: order.inputToken,
-        //     collateral: order.collateral,
-        //     localOracle: order.oracle,
-        //     destinationChainIdentifier: order.destinationChainIdentifier,
-        //     remoteOracle: order.remoteOracle,
-        //     oracleProofHash: bytes32(0)
-        // });
+    // OrderKey memory orderKey = orderKey({
+    //     reactorContext: order.reactorContext,
+    //     owner: orderSigner,
+    //     nonce: order.nonce,
+    //     inputAmount: order.inputAmount,
+    //     inputToken: order.inputToken,
+    //     collateral: order.collateral,
+    //     localOracle: order.oracle,
+    //     destinationChainIdentifier: order.destinationChainIdentifier,
+    //     remoteOracle: order.remoteOracle,
+    //     oracleProofHash: bytes32(0)
+    // });
 
-        // _claim(orderKey, filler);
+    // _claim(orderKey, filler);
 
-        // emit OrderClaimed(filler, order);
+    // emit OrderClaimed(filler, order);
     // }
 
     function _resolve(CrossChainOrder calldata order, bytes calldata fillerData)
         internal
-        pure
+        view
         override
-        returns (ResolvedCrossChainOrder memory resolvedOrder) {
+        returns (ResolvedCrossChainOrder memory resolvedOrder)
+    {
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
+        address filler = abi.decode(fillerData, (address));
 
         Input memory swapperInput = Input({
             token: address(bytes20(limitData.destinationAsset)), // TODO: This is not set in the order type.
-            amount: limitData.amount
-        });
+            amount: limitData.amount // TODO: This is not set in the order type.
+         });
 
         Output memory swapperOutput = Output({
             token: address(bytes20(limitData.destinationAsset)),
@@ -58,11 +60,21 @@ abstract contract LimitOrderReactor is BaseReactor {
             chainId: uint32(uint256(limitData.destinationChainId))
         });
 
+        Output memory fillerOutput = Output({
+            token: address(bytes20(limitData.destinationAsset)), // TODO: This is not set in the order type.
+            amount: limitData.amount, // TODO: This is not set in the order type.
+            recipient: filler,
+            chainId: uint32(block.chainid)
+        });
+
         Input[] memory swapperInputs = new Input[](1);
         swapperInputs[0] = swapperInput;
 
         Output[] memory swapperOutputs = new Output[](1);
         swapperOutputs[0] = swapperOutput;
+
+        Output[] memory fillerOutputs = new Output[](1);
+        fillerOutputs[0] = fillerOutput;
 
         resolvedOrder = ResolvedCrossChainOrder({
             settlementContract: order.settlementContract,
@@ -73,7 +85,7 @@ abstract contract LimitOrderReactor is BaseReactor {
             fillDeadline: order.fillDeadline,
             swapperInputs: swapperInputs,
             swapperOutputs: swapperOutputs,
-            fillerOutputs: swapperOutputs
+            fillerOutputs: fillerOutputs
         });
     }
 }

@@ -145,35 +145,35 @@ abstract contract BaseReactor is ISettlementContract {
     /**
      * @dev Anyone can call this but the payout goes to the designated claimer.
      */
-    function optimisticPayout(OrderKey calldata orderKey) external payable returns(uint256 sourceAmount) {
-    //     OrderContext storage orderContext = _orders[orderKey.hash()];
+    function optimisticPayout(OrderKey calldata orderKey) external payable returns (uint256 sourceAmount) {
+        //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
-    //     // Check if order is challanged:
-    //     if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
-    //     orderContext.status = OrderStatus.OPFilled;
+        //     // Check if order is challanged:
+        //     if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
+        //     orderContext.status = OrderStatus.OPFilled;
 
-    //     // Check if time is post challange deadline
-    //     uint40 challangeDeadline = orderKey.reactorContext.challangeDeadline;
-    //     if (uint40(block.timestamp) > challangeDeadline) revert OrderNotReadyForOptimisticPayout();
+        //     // Check if time is post challange deadline
+        //     uint40 challangeDeadline = orderKey.reactorContext.challangeDeadline;
+        //     if (uint40(block.timestamp) > challangeDeadline) revert OrderNotReadyForOptimisticPayout();
 
-    //     address filler = orderContext.filler;
-    //     // Get input tokens.
-    //     address sourceAsset = orderKey.inputToken;
-    //     inputAmount = orderKey.inputAmount;
+        //     address filler = orderContext.filler;
+        //     // Get input tokens.
+        //     address sourceAsset = orderKey.inputToken;
+        //     inputAmount = orderKey.inputAmount;
 
-    //     // Pay input tokens
-    //     ERC20(sourceAsset).safeTransfer(filler, inputAmount);
+        //     // Pay input tokens
+        //     ERC20(sourceAsset).safeTransfer(filler, inputAmount);
 
-    //     // Get order collateral.
-    //     address collateralToken = orderKey.collateral.collateralToken;
-    //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        //     // Get order collateral.
+        //     address collateralToken = orderKey.collateral.collateralToken;
+        //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
-    //     // Pay collateral tokens
-    //     ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
+        //     // Pay collateral tokens
+        //     ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
 
-    //     emit OptimisticPayout(
-    //         orderHash
-    //     );
+        //     emit OptimisticPayout(
+        //         orderHash
+        //     );
     }
 
     //--- Disputes ---//
@@ -182,55 +182,55 @@ abstract contract BaseReactor is ISettlementContract {
      * @notice Disputes a claim.
      */
     function dispute(OrderKey calldata orderKey) external payable {
-    //     OrderContext storage orderContext = _orders[orderKey.hash()];
+        //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
-    //     // Check that the order hasn't been challanged already.
-    //     if (orderContext.status != OrderStatus.claimed) revert WrongOrderStatus(orderContext.status);
-    //     if (orderContext.challanger == address(0)) revert OrderAlreadyChallanged();
+        //     // Check that the order hasn't been challanged already.
+        //     if (orderContext.status != OrderStatus.claimed) revert WrongOrderStatus(orderContext.status);
+        //     if (orderContext.challanger == address(0)) revert OrderAlreadyChallanged();
 
-    //     // Check if challange deadline hasn't been passed.
-    //     if (orderKey.reactorContext.challangeDeadline > uint40(block.timestamp)) revert ChallangeDeadlinePassed();
+        //     // Check if challange deadline hasn't been passed.
+        //     if (orderKey.reactorContext.challangeDeadline > uint40(block.timestamp)) revert ChallangeDeadlinePassed();
 
-    //     orderContext.status = OrderStatus.Challenged;
-    //     orderContext.challanger = msg.sender;
+        //     orderContext.status = OrderStatus.Challenged;
+        //     orderContext.challanger = msg.sender;
 
-    //     // Collect bond collateral.
-    //     ERC20(orderKey.collateral.collateralToken).safeTransferFrom(msg.sender, address(this), orderKey.collateral.challangerCollateralAmount);
+        //     // Collect bond collateral.
+        //     ERC20(orderKey.collateral.collateralToken).safeTransferFrom(msg.sender, address(this), orderKey.collateral.challangerCollateralAmount);
     }
 
     /**
      * @notice Finalise the dispute.
      */
     function completeDispute(OrderKey calldata orderKey) external {
-    //     OrderContext storage orderContext = _orders[orderKey.hash()];
+        //     OrderContext storage orderContext = _orders[orderKey.hash()];
 
-    //     // Check that the order is currently challanged
-    //     if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
-    //     if (orderContext.challanger != address(0)) revert OrderAlreadyChallanged();
+        //     // Check that the order is currently challanged
+        //     if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
+        //     if (orderContext.challanger != address(0)) revert OrderAlreadyChallanged();
 
-    //     // Check if proof deadline has passed.
-    //     if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
+        //     // Check if proof deadline has passed.
+        //     if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
 
-    //     orderContext.status = OrderStatus.Fraud;
+        //     orderContext.status = OrderStatus.Fraud;
 
-    //     // Get input tokens.
-    //     address sourceAsset = orderKey.inputToken;
-    //     inputAmount = orderKey.inputAmount;
-    //     // Get order collateral.
-    //     address collateralToken = orderKey.collateral.collateralToken;
-    //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-    //     uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
+        //     // Get input tokens.
+        //     address sourceAsset = orderKey.inputToken;
+        //     inputAmount = orderKey.inputAmount;
+        //     // Get order collateral.
+        //     address collateralToken = orderKey.collateral.collateralToken;
+        //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        //     uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
 
-    //     address owner = orderKey.owner;
+        //     address owner = orderKey.owner;
 
-    //     // Send inputs assets back to the user.
-    //     ERC20(sourceAsset).safeTransfer(owner, inputAmount);
+        //     // Send inputs assets back to the user.
+        //     ERC20(sourceAsset).safeTransfer(owner, inputAmount);
 
-    //     // Send partical collateral back to user
-    //     uint256 ownerCollateralAmount = fillerCollateralAmount/2;
-    //     ERC20(collateralToken).safeTransfer(owner, ownerCollateralAmount);
+        //     // Send partical collateral back to user
+        //     uint256 ownerCollateralAmount = fillerCollateralAmount/2;
+        //     ERC20(collateralToken).safeTransfer(owner, ownerCollateralAmount);
 
-    //     // Send the rest to the wallet that proof fraud:
-    //     ERC20(collateralToken).safeTransfer(orderContext.challanger, fillerCollateralAmount - ownerCollateralAmount);
+        //     // Send the rest to the wallet that proof fraud:
+        //     ERC20(collateralToken).safeTransfer(orderContext.challanger, fillerCollateralAmount - ownerCollateralAmount);
     }
 }

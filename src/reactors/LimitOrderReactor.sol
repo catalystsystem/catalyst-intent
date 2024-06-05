@@ -54,16 +54,16 @@ abstract contract LimitOrderReactor is BaseReactor {
          });
 
         Output memory swapperOutput = Output({
-            token: address(bytes20(limitData.destinationAsset)),
+            token: limitData.destinationAsset,
             amount: limitData.amount,
-            recipient: address(bytes20(limitData.destinationAddress)),
+            recipient: limitData.destinationAddress,
             chainId: uint32(uint256(limitData.destinationChainId))
         });
 
         Output memory fillerOutput = Output({
-            token: address(bytes20(limitData.destinationAsset)), // TODO: This is not set in the order type.
+            token: limitData.destinationAsset, // TODO: This is not set in the order type.
             amount: limitData.amount, // TODO: This is not set in the order type.
-            recipient: filler,
+            recipient: bytes32(uint256(uint160(filler))),
             chainId: uint32(block.chainid)
         });
 

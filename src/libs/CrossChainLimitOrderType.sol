@@ -67,6 +67,7 @@ library CrossChainLimitOrderType {
         );
     }
 
+    // TODO: Make a bytes calldata version of this functon.
     function hashOrderData(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked( // todo: bytes.concat

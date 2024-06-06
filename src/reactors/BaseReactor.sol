@@ -40,12 +40,14 @@ abstract contract BaseReactor is ISettlementContract {
 
     //--- Expose Storage ---//
 
-    function orderHash(CrossChainOrder calldata order) public pure returns (bytes32) {
-        return keccak256(abi.encode(order));
+    function orderHash(CrossChainOrder calldata order) external pure returns (bytes32) {
+        return _orderHash(order);
     }
 
+    function _orderHash(CrossChainOrder calldata order) internal pure virtual returns (bytes32);
+
     function getOrderContext(CrossChainOrder calldata order) external view returns (OrderContext memory orderContext) {
-        return orderContext = _orders[orderHash(order)];
+        return orderContext = _orders[_orderHash(order)];
     }
 
     //--- Token Handling ---//
@@ -146,7 +148,8 @@ abstract contract BaseReactor is ISettlementContract {
      * @dev Anyone can call this but the payout goes to the designated claimer.
      */
     function optimisticPayout(OrderKey calldata orderKey) external payable returns (uint256 sourceAmount) {
-        //     OrderContext storage orderContext = _orders[orderKey.hash()];
+        // TODO: Figure out a better hashing method?
+        OrderContext storage orderContext = _orders[keccak256(abi.encode(orderKey))];
 
         //     // Check if order is challanged:
         //     if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);

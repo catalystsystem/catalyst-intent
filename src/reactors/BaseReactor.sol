@@ -70,7 +70,7 @@ abstract contract BaseReactor is ISettlementContract {
         // Order validation is checked on PERMIT2 call later. For now, let mainly validate that
         // this order hasn't been claimed before:
         // TODO: Overwrite hash
-        OrderContext storage orderContext = _orders[orderHash(order)];
+        OrderContext storage orderContext = _orders[_orderHash(order)];
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext);
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;

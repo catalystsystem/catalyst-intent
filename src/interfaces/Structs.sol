@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
+//////////////////
+// Order types ///
+//////////////////
+
 enum OrderStatus {
     Unfilled,
     Claimed,
@@ -14,21 +18,6 @@ struct OrderContext {
     OrderStatus status;
     address challanger;
     address filler;
-}
-
-struct ReactorInfo {
-    // The contract that is managing this order.
-    address reactor;
-    // Order resolution times
-    uint32 fillByDeadline;
-    uint32 challangeDeadline;
-    uint32 proofDeadline;
-}
-
-struct Collateral {
-    address collateralToken;
-    uint256 fillerCollateralAmount;
-    uint256 challangerCollateralAmount; // TODO: use factor on fillerCollateralAmount
 }
 
 /**
@@ -60,13 +49,21 @@ struct OrderKey {
     uint256 amount;
 }
 
-struct OrderKeyTwo {
-    // Contract that is managing this order.
-    ReactorInfo reactorContext;
-    // The owner of the order: The signer.
-    address owner;
-    uint96 nonce;
-    // Order inputs
-    uint256 inputAmount;
-    address inputToken;
+///////////////////
+// Reactor types //
+///////////////////
+
+struct ReactorInfo {
+    // The contract that is managing this order.
+    address reactor;
+    // Order resolution times
+    uint40 fillByDeadline;
+    uint40 challangeDeadline;
+    uint40 proofDeadline;
+}
+
+struct Collateral {
+    address collateralToken; // TODO: Just use gas?
+    uint256 fillerCollateralAmount;
+    uint256 challangerCollateralAmount;
 }

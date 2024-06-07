@@ -10,7 +10,7 @@ abstract contract LimitOrderReactor is BaseReactor {
     using CrossChainLimitOrderType for LimitOrderData;
     using CrossChainLimitOrderType for bytes;
 
-    function _orderHash(CrossChainOrder calldata order) internal override pure returns (bytes32) {
+    function _orderHash(CrossChainOrder calldata order) internal pure override returns (bytes32) {
         LimitOrderData memory orderData = order.orderData.decodeOrderData();
         bytes32 orderDataHash = orderData.hashOrderData();
         return order.hash(orderDataHash);

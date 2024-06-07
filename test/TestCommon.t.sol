@@ -13,4 +13,6 @@ contract TestCommon is Test {
     function setUp() public virtual {
         // reactor = new LimitOrderReactor(PERMIT2);
     }
+
+    function test() external pure { }
 }

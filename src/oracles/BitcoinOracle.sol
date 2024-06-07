@@ -15,7 +15,7 @@ import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIn
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { OrderKey } from "../interfaces/Structs.sol";
-import { ReactorBase } from "../reactors/ReactorBase.sol";
+import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 /**
  * Bitcoin oracle can operate in 2 modes:

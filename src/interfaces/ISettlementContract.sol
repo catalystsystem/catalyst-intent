@@ -61,11 +61,11 @@ struct Input {
 struct Output {
     /// @dev The address of the ERC20 token on the destination chain
     /// @dev address(0) used as a sentinel for the native token
-    address token;
+    bytes32 token; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
     /// @dev The amount of the token to be sent
     uint256 amount;
     /// @dev The address to receive the output tokens
-    address recipient;
+    bytes32 recipient; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
     /// @dev The destination chain for this output
     uint32 chainId;
 }

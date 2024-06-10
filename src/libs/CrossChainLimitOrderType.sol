@@ -11,8 +11,8 @@ struct LimitOrderData {
     uint256 fillerCollateralAmount;
     uint256 challangerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
-    bytes32 remoteOracle;
-    bytes32 destinationChainId;
+    bytes32 remoteOracle; // TODO: figure out how to trustless.
+    bytes32 destinationChainId; // TODO: size
     bytes32 destinationAsset; // TODO: Is this a waste? Can we use this better?
     bytes32 destinationAddress; // TODO bytes? For better future compatability?
     uint256 amount;

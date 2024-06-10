@@ -88,7 +88,7 @@ abstract contract BaseReactor is ISettlementContract {
         address owner,
         bytes32 witness,
         string memory witnessTypeString,
-        bytes memory signature
+        bytes calldata signature
     ) internal virtual {
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
@@ -109,7 +109,7 @@ abstract contract BaseReactor is ISettlementContract {
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // TODO: solve permit2 context
-        (OrderKey memory orderKey, bytes32 permit2Context) = _initiate(order, fillerData);
+        (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData);
 
         address filler = abi.decode(fillerData, (address));
 
@@ -120,8 +120,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
 
-        // TODO: Collect tokens.
-        // _collectTokens(orderKey);
+        _collectTokens(orderKey, order.swapper, witness, witnessTypeString, signature);
     }
 
     /**
@@ -133,7 +132,7 @@ abstract contract BaseReactor is ISettlementContract {
     function _initiate(CrossChainOrder calldata order, bytes calldata fillerData)
         internal
         virtual
-        returns (OrderKey memory, bytes32);
+        returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
 
     /**
      * @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder

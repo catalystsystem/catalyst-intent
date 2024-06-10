@@ -9,12 +9,14 @@ struct BitcoinPayment {
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
 import { NoBlock, TooFewConfirmations, InvalidProof } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
+import { BitcoinAddress, AddressType, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { OrderKey } from "../interfaces/Structs.sol";
+import { Output } from "../interfaces/ISettlementContract.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 /**
@@ -23,10 +25,12 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
  * 2. Indirectly oracle through the bridge oracle. This requires a local light client and a bridge connection to the relevant reactor.
  */
 abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
+    bytes1 constant BITCOIN_PREFIX = 0xBB;
     IBtcPrism public immutable mirror;
 
     error BadDestinationIdentifier();
     error BadAmount();
+    error BadTokenFormat();
 
     bytes32 constant BITCOIN_DESTINATION_Identifier = bytes32(uint256(0x0B17C012)); // Bitcoin
 
@@ -36,6 +40,16 @@ abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
 
     constructor(IBtcPrism _mirror) {
         mirror = _mirror;
+    }
+
+    function _bitcoinScript(bytes32 token, bytes32 scriptHash) internal pure returns (bytes memory script) {
+        // TODO: Check the 12'th byte (as if it was an address?)
+        // Check for the Bitcoin signifier:
+        if (bytes1(token) != BITCOIN_PREFIX) revert BadTokenFormat();
+
+        AddressType bitcoinAddressType = AddressType(uint8(uint256(token)));
+
+        return BtcScript.getBitcoinScript(bitcoinAddressType, scriptHash);
     }
 
     // TODO: Implement a way to provide the previous block header.
@@ -74,17 +88,22 @@ abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
         // if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
     }
 
-    function _verify(OrderKey calldata orderKey, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx)
-        internal
-    {
-        // Check that the destinationChainIdentifier is Bitcoin
-        if (orderKey.destinationChainIdentifier != BITCOIN_DESTINATION_Identifier) revert BadDestinationIdentifier();
+    // TODO: convert to verifying a single output + some identifier.
+    function _verify(
+        Output calldata output,
+        OrderKey calldata orderKey,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx
+    ) internal {
+        // TODO: use output.chainId to verify that this is the correct SPV client
+        if (output.chainId != block.chainid) revert BadDestinationIdentifier();
 
-        bytes memory outputScript = bytes.concat(orderKey.destinationAddress);
+        bytes memory outputScript = bytes.concat(output.recipient);
         (uint256 sats, uint256 timestamp) =
             _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript);
 
-        if (sats != orderKey.amount) revert BadAmount();
+        if (sats != output.amount) revert BadAmount();
 
         // We don't check if the transaction has been verified before (since there isn't actually any filling being done).
         // instead we just set it as filled.

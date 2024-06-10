@@ -10,11 +10,12 @@ library Permit2Lib {
      * @notice Converts OrderKey into a PermitTransferFrom
      */
     function toPermit(OrderKey memory order) internal pure returns (ISignatureTransfer.PermitTransferFrom memory) {
-        return ISignatureTransfer.PermitTransferFrom({
+        // Probably should use a batch here.
+        /* return ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({ token: order.inputToken, amount: order.inputAmount }),
             nonce: order.nonce,
             deadline: order.reactorContext.fillByDeadline
-        });
+        }); */
     }
 
     /**
@@ -25,6 +26,6 @@ library Permit2Lib {
         pure
         returns (ISignatureTransfer.SignatureTransferDetails memory)
     {
-        return ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: order.inputAmount });
+        // return ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: order.inputAmount });
     }
 }

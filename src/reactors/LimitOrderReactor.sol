@@ -2,6 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { BaseReactor } from "./BaseReactor.sol";
+import { OrderKey } from "../interfaces/Structs.sol";
 import { LimitOrderData, CrossChainLimitOrderType } from "../libs/CrossChainLimitOrderType.sol";
 import { CrossChainOrder, ResolvedCrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
 
@@ -16,9 +17,10 @@ abstract contract LimitOrderReactor is BaseReactor {
         return order.hash(orderDataHash);
     }
 
-    function _initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData)
+    function _initiate(CrossChainOrder calldata order, bytes calldata fillerData)
         internal
         override
+        returns (OrderKey memory, bytes32)
     {
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
         address filler = abi.decode(fillerData, (address));

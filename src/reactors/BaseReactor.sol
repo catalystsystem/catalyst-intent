@@ -4,12 +4,23 @@ pragma solidity ^0.8.22;
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { IOrderType } from "../interfaces/IOrderType.sol";
-import { OrderContext, OrderStatus, OrderContext, OrderStatus, OrderKey } from "../interfaces/Structs.sol";
+import { OrderContext, OrderStatus, OrderKey } from "../interfaces/Structs.sol";
 import { ISettlementContract, CrossChainOrder, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-import { OrderClaimed, OrderFilled, OrderVerify, OptimisticPayout } from "../interfaces/Events.sol";
+import { OrderClaimed, OrderFilled, OrderVerify, OptimisticPayout, OrderChallenged } from "../interfaces/Events.sol";
+import {
+    OrderNotClaimed,
+    OrderAlreadyClaimed,
+    WrongOrderStatus,
+    NonceClaimed,
+    NotOracle,
+    ChallangeDeadlinePassed,
+    OrderAlreadyChallanged,
+    ProofPeriodHasNotPassed,
+    OrderNotReadyForOptimisticPayout
+} from "../interfaces/Errors.sol";
 
 abstract contract BaseReactor is ISettlementContract {
     using SafeTransferLib for ERC20;
@@ -29,26 +40,35 @@ abstract contract BaseReactor is ISettlementContract {
     // TODO: Do we also want to set execution time here?
     mapping(bytes32 orderFillHash => bytes32 fillerIdentifier) public filledOrders;
 
-    error OrderAlreadyClaimed(OrderContext orderContext);
-    error WrongOrderStatus(OrderStatus actual);
-    error NonceClaimed();
-    error NotOracle();
-    error ChallangeDeadlinePassed();
-    error OrderAlreadyChallanged();
-    error ProofPeriodHasNotPassed();
-    error OrderNotReadyForOptimisticPayout();
-
     //--- Expose Storage ---//
 
+    function orderKeyHash(OrderKey calldata orderKey) internal pure returns (bytes32) {
+        return _orderKeyHash(orderKey);
+    }
+
+    // Most probably will not need to override the hashing mechanism and settle it here
+    function _orderKeyHash(OrderKey calldata orderKey) internal pure virtual returns (bytes32);
+
+    //Can be used
+    function getOrderKeyInfo(OrderKey calldata orderKey)
+        internal
+        returns (bytes32 orderKeyHash, OrderContext memory orderContext)
+    {
+        orderKeyHash = _orderKeyHash(orderKey);
+        orderContext = _orders[orderKeyHash];
+    }
+
+    //TODO: Do we need this?, we already have oderHash function for CrossChainOrder in CrossChainOrderLib.sol
     function orderHash(CrossChainOrder calldata order) external pure returns (bytes32) {
         return _orderHash(order);
     }
 
     function _orderHash(CrossChainOrder calldata order) internal pure virtual returns (bytes32);
 
-    function getOrderContext(CrossChainOrder calldata order) external view returns (OrderContext memory orderContext) {
-        return orderContext = _orders[_orderHash(order)];
-    }
+    // //TODO: Do we really need this? we get context from orderkey not CrossChainOrder
+    // function getOrderContext(CrossChainOrder calldata order) external view returns (OrderContext memory orderContext) {
+    //     return orderContext = _orders[_orderHash(order)];
+    // }
 
     //--- Token Handling ---//
 
@@ -148,35 +168,37 @@ abstract contract BaseReactor is ISettlementContract {
      * @dev Anyone can call this but the payout goes to the designated claimer.
      */
     function optimisticPayout(OrderKey calldata orderKey) external payable returns (uint256 sourceAmount) {
-        // TODO: Figure out a better hashing method?
-        OrderContext storage orderContext = _orders[keccak256(abi.encode(orderKey))];
+        bytes32 orderKeyHash = orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
 
-        //     // Check if order is challanged:
-        //     if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
-        //     orderContext.status = OrderStatus.OPFilled;
+        // Check if order is claimed:
+        if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
+        // Do we need this check here?
+        if (orderContext.challanger == address(0)) revert OrderAlreadyChallanged(orderContext);
+        orderContext.status = OrderStatus.OPFilled;
 
-        //     // Check if time is post challange deadline
-        //     uint40 challangeDeadline = orderKey.reactorContext.challangeDeadline;
-        //     if (uint40(block.timestamp) > challangeDeadline) revert OrderNotReadyForOptimisticPayout();
+        // Check if time is post challange deadline
+        uint40 challangeDeadline = orderKey.reactorContext.challangeDeadline;
+        if (uint40(block.timestamp) > challangeDeadline) revert OrderNotReadyForOptimisticPayout();
 
-        //     address filler = orderContext.filler;
-        //     // Get input tokens.
-        //     address sourceAsset = orderKey.inputToken;
-        //     inputAmount = orderKey.inputAmount;
+        address filler = orderContext.filler;
+        // Get input tokens.
+        address sourceAsset = orderKey.inputToken;
+        uint256 inputAmount = orderKey.inputAmount;
 
-        //     // Pay input tokens
-        //     ERC20(sourceAsset).safeTransfer(filler, inputAmount);
+        // Pay input tokens
+        ERC20(sourceAsset).safeTransfer(filler, inputAmount);
 
-        //     // Get order collateral.
-        //     address collateralToken = orderKey.collateral.collateralToken;
-        //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        // Get order collateral.
+        address collateralToken = orderKey.collateral.collateralToken;
+        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
-        //     // Pay collateral tokens
-        //     ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
+        // Pay collateral tokens
+        ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
 
-        //     emit OptimisticPayout(
-        //         orderHash
-        //     );
+        emit OptimisticPayout(orderKeyHash);
+
+        return inputAmount;
     }
 
     //--- Disputes ---//
@@ -185,20 +207,25 @@ abstract contract BaseReactor is ISettlementContract {
      * @notice Disputes a claim.
      */
     function dispute(OrderKey calldata orderKey) external payable {
-        //     OrderContext storage orderContext = _orders[orderKey.hash()];
+        bytes32 orderKeyHash = orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
 
-        //     // Check that the order hasn't been challanged already.
-        //     if (orderContext.status != OrderStatus.claimed) revert WrongOrderStatus(orderContext.status);
-        //     if (orderContext.challanger == address(0)) revert OrderAlreadyChallanged();
+        // Check if order is claimed and hasn't been challenged:
+        if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
+        if (orderContext.challanger == address(0)) revert OrderAlreadyChallanged(orderContext);
 
-        //     // Check if challange deadline hasn't been passed.
-        //     if (orderKey.reactorContext.challangeDeadline > uint40(block.timestamp)) revert ChallangeDeadlinePassed();
+        // Check if challange deadline hasn't been passed.
+        if (orderKey.reactorContext.challangeDeadline > uint40(block.timestamp)) revert ChallangeDeadlinePassed();
 
-        //     orderContext.status = OrderStatus.Challenged;
-        //     orderContext.challanger = msg.sender;
+        orderContext.status = OrderStatus.Challenged;
+        orderContext.challanger = msg.sender;
 
-        //     // Collect bond collateral.
-        //     ERC20(orderKey.collateral.collateralToken).safeTransferFrom(msg.sender, address(this), orderKey.collateral.challangerCollateralAmount);
+        // Collect bond collateral.
+        ERC20(orderKey.collateral.collateralToken).safeTransferFrom(
+            msg.sender, address(this), orderKey.collateral.challangerCollateralAmount
+        );
+
+        emit OrderChallenged(orderKeyHash, msg.sender);
     }
 
     /**

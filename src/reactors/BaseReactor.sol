@@ -30,7 +30,7 @@ import {
 
 abstract contract BaseReactor is ISettlementContract {
     using SafeTransferLib for ERC20;
-    // todo: using Permit2Lib for OrderKey;
+    using Permit2Lib for OrderKey;
 
     ISignatureTransfer public immutable PERMIT2;
 
@@ -82,8 +82,20 @@ abstract contract BaseReactor is ISettlementContract {
 
     //--- Token Handling ---//
 
-    function _collectTokens(OrderKey memory orderKey) internal virtual {
-        // PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witness, witnessTypeString, signature);
+    // TODO: check these for memory to calldata
+    function _collectTokens(
+        OrderKey memory orderKey,
+        address owner,
+        bytes32 witness,
+        string memory witnessTypeString,
+        bytes memory signature
+    ) internal virtual {
+        (
+            ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
+            ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
+        ) = orderKey.toPermit(address(this));
+
+        PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, owner, witness, witnessTypeString, signature);
     }
 
     //--- Order Handling ---//
@@ -109,7 +121,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.filler = filler;
 
         // TODO: Collect tokens.
-        _collectTokens(orderKey);
+        // _collectTokens(orderKey);
     }
 
     /**

@@ -15,19 +15,19 @@ library Permit2Lib {
         internal
         pure
         returns (
-            ISignatureTransfer.SignatureTransferDetails[] memory batchSignatureTransfer,
-            ISignatureTransfer.PermitBatchTransferFrom memory permitBatch
+            ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
+            ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
         )
     {
         uint256 numInputs = order.inputs.length;
         ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](numInputs);
-        batchSignatureTransfer = new ISignatureTransfer.SignatureTransferDetails[](numInputs);
+        transferDetails = new ISignatureTransfer.SignatureTransferDetails[](numInputs);
 
         for (uint256 i; i < numInputs; ++i) {
             address token = order.inputs[i].token;
             uint256 amount = order.inputs[i].amount;
-            batchSignatureTransfer[i] = ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
             permitted[i] = ISignatureTransfer.TokenPermissions({ token: token, amount: amount });
+            transferDetails[i] = ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
         }
 
         // Probably should use a batch here.

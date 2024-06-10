@@ -146,43 +146,49 @@ abstract contract BaseReactor is ISettlementContract {
 
     //--- Order Resolution Helpers ---//
 
-    function oracle(OrderKey calldata orderKey) external {
-        //     OrderContext storage orderContext = _orders[orderKey.hash()];
+    // TODO: figure out correct inputs here.
+    function oracle(Output[] calldata outputs, bytes32 orderKeyHash) external {
+        bytes32 outputHash = _outputsHash(outputs);
+        bytes32 expectedOutputHash = _outputToOrder[outputHash];
+        // TODO: add some more structure surrounding this.
+        require(orderKeyHash == expectedOutputHash);
 
-        //     // Check if sender is oracle
-        //     if (OrderKey.oracle != msg.sender) revert NotOracle();
+        // OrderContext storage orderContext = _orders[orderKey.hash()];
 
-        //     OrderStatus status = orderContext.status;
+        // // Check if sender is oracle
+        // if (OrderKey.oracle != msg.sender) revert NotOracle();
 
-        //     // Only allow processing if order status is either claimed or Challenged
-        //     if (
-        //         status != OrderStatus.Claimed &&
-        //         status != OrderStatus.Challenged
-        //     ) revert WrongOrderStatus(orderContext.status);
+        // OrderStatus status = orderContext.status;
 
-        //     // Set order status to filled.
-        //     orderContext.status = OrderStatus.Filled;
+        // // Only allow processing if order status is either claimed or Challenged
+        // if (
+        //     status != OrderStatus.Claimed &&
+        //     status != OrderStatus.Challenged
+        // ) revert WrongOrderStatus(orderContext.status);
 
-        //     // Payout input.
-        //     address filler = orderContext.filler;
-        //     // Get input tokens.
-        //     address sourceAsset = orderKey.inputToken;
-        //     uint256 inputAmount = orderKey.inputAmount;
+        // // Set order status to filled.
+        // orderContext.status = OrderStatus.Filled;
 
-        //     // Pay input tokens
-        //     ERC20(sourceAsset).safeTransfer(filler, inputAmount);
+        // // Payout input.
+        // address filler = orderContext.filler;
+        // // Get input tokens.
+        // address sourceAsset = orderKey.inputToken;
+        // uint256 inputAmount = orderKey.inputAmount;
 
-        //     // Get order collateral.
-        //     address collateralToken = orderKey.collateral.collateralToken;
-        //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        // // Pay input tokens
+        // ERC20(sourceAsset).safeTransfer(filler, inputAmount);
 
-        //     // Pay collateral tokens
-        //     ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
-        //     // Check if someone challanged this order.
-        //     if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
-        //         uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
-        //         ERC20(collateralToken).safeTransfer(filler, challangerCollateralAmount);
-        //     }
+        // // Get order collateral.
+        // address collateralToken = orderKey.collateral.collateralToken;
+        // uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+
+        // // Pay collateral tokens
+        // ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
+        // // Check if someone challanged this order.
+        // if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
+        //     uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
+        //     ERC20(collateralToken).safeTransfer(filler, challangerCollateralAmount);
+        // }
     }
 
     /**

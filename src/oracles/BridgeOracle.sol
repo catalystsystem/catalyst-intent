@@ -122,7 +122,8 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         (address reactor, uint256 filledTime, OrderKey memory orderKey) =
             abi.decode(message, (address, uint256, OrderKey));
 
-        BaseReactor(reactor).oracle(orderKey);
+        // TODO: figure out the structure the oracle call.
+        // BaseReactor(reactor).oracle(orderKey);
 
         // We don't care about the ack.
         return hex"";

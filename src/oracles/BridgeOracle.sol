@@ -9,6 +9,7 @@ import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIn
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { OrderKey } from "../interfaces/Structs.sol";
+import { Output } from "../interfaces/ISettlementContract.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 /**
@@ -36,7 +37,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     /**
      * @notice Fills an order but does not automatically submit the fill for evaluation on the source chain.
      */
-    function _fill(OrderKey calldata orderKey) internal {
+    function _fill(Output calldata output, OrderKey calldata orderKey) internal {
         // Since we see this as submitted to the EVM chain, we can make some assumptions on what the orderKey specified.
         // However, since we don't know which AMB is being used, can't actually check if this is the correct chain.
         // It is assumed that the solver knows that this is actually the right chain.
@@ -48,9 +49,9 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         // TODO: check that we are on the right chain.
         // TODO: verify that we are sending the proof to the correct chain.
 
-        address destination = address(uint160(uint256(orderKey.destinationAddress)));
-        address asset = address(uint160(uint256(orderKey.destinationAsset)));
-        uint256 amount = orderKey.amount;
+        address destination = address(uint160(uint256(output.recipient)));
+        address asset = address(uint160(uint256(output.token)));
+        uint256 amount = output.amount;
         ERC20(asset).safeTransferFrom(msg.sender, destination, amount);
     }
 
@@ -74,8 +75,8 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
 
     //--- Solver Interface ---//
 
-    function fill(OrderKey calldata orderKey) external {
-        _fill(orderKey);
+    function fill(Output calldata output, OrderKey calldata orderKey) external {
+        _fill(output, orderKey);
     }
 
     function submit(
@@ -93,6 +94,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     }
 
     function fillAndSubmit(
+        Output calldata output,
         OrderKey calldata orderKey,
         address reactor,
         bytes32 destinationIdentifier,
@@ -100,7 +102,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) external payable {
-        _fill(orderKey);
+        _fill(output, orderKey);
         _submit(block.timestamp, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 
@@ -120,7 +122,8 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         (address reactor, uint256 filledTime, OrderKey memory orderKey) =
             abi.decode(message, (address, uint256, OrderKey));
 
-        BaseReactor(reactor).oracle(orderKey);
+        // TODO: figure out the structure the oracle call.
+        // BaseReactor(reactor).oracle(orderKey);
 
         // We don't care about the ack.
         return hex"";

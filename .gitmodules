@@ -13,3 +13,6 @@
 [submodule "lib/bitcoinprism-evm"]
 	path = lib/bitcoinprism-evm
 	url = https://github.com/catalystdao/bitcoinprism-evm
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/Vectorized/solady

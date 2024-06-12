@@ -43,7 +43,7 @@ library CrossChainLimitOrderType {
     bytes constant CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
         CROSS_CHAIN_ORDER_TYPE_STUB,
         "LimitOrderData orderData)", // New order types need to replace this field.
-        LIMIT_ORDER_DATA_TYPE_HASH
+        LIMIT_ORDER_DATA_TYPE
     );
 
     bytes32 internal constant CROSS_CHAIN_ORDER_TYPE_HASH = keccak256(CROSS_CHAIN_ORDER_TYPE);
@@ -72,7 +72,7 @@ library CrossChainLimitOrderType {
     function hashOrderData(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked( // todo: bytes.concat
-                LIMIT_ORDER_DATA_TYPE,
+                LIMIT_ORDER_DATA_TYPE_HASH,
                 orderData.proofDeadline,
                 orderData.collateralToken,
                 orderData.fillerCollateralAmount,

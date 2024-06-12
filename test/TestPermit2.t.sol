@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
+import { Permit2 } from "permit2/src/Permit2.sol";
 
 interface Permit2DomainSeparator {
     function DOMAIN_SEPARATOR() external view returns (bytes32);

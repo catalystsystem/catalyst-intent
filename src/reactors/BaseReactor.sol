@@ -83,6 +83,19 @@ abstract contract BaseReactor is ISettlementContract {
 
     //--- Token Handling ---//
 
+    event CollectTion(
+        OrderKey orderKey,
+        address owner,
+        bytes32 witness,
+        string witnessTypeString,
+        bytes signature
+    );
+
+    event PermitBatch(
+        ISignatureTransfer.PermitBatchTransferFrom permitBatch,
+        ISignatureTransfer.SignatureTransferDetails[] transferDetails
+    );
+
     // TODO: check these for memory to calldata
     function _collectTokens(
         OrderKey memory orderKey,
@@ -91,15 +104,29 @@ abstract contract BaseReactor is ISettlementContract {
         string memory witnessTypeString,
         bytes calldata signature
     ) internal virtual {
+        emit CollectTion(
+            orderKey,
+            owner,
+            witness,
+            witnessTypeString,
+            signature
+        );
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
             ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
         ) = orderKey.toPermit(address(this));
+        emit PermitBatch(
+            permitBatch,
+            transferDetails
+        );
 
         PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, owner, witness, witnessTypeString, signature);
+        emit Debug(12);
     }
 
     //--- Order Handling ---//
+
+    event Debug(uint256);
 
     /**
      * @notice Initiates the settlement of a cross-chain order
@@ -114,14 +141,17 @@ abstract contract BaseReactor is ISettlementContract {
 
         address filler = abi.decode(fillerData, (address));
 
+        emit Debug(1);
         // Check that the order hasn't been claimed yet. We will then set the order status
         // so other can't claim it. This acts as a local reentry check.
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext);
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
+        emit Debug(1);
 
         _collectTokens(orderKey, order.swapper, witness, witnessTypeString, signature);
+        emit Debug(2);
     }
 
     /**

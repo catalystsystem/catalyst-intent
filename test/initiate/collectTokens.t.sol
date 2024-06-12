@@ -11,7 +11,8 @@ import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 import { LimitOrderReactor } from "../../src/reactors/LimitOrderReactor.sol";
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
-
+event Debug(address);
+event Debug(string);
 contract TestCollectTokens is TestPermit2 {
     bytes32 public constant FULL_LIMIT_ORDER_PERMIT2_TYPE = keccak256(
         abi.encodePacked(
@@ -19,6 +20,8 @@ contract TestCollectTokens is TestPermit2 {
             CrossChainLimitOrderType.PERMIT2_WITNESS_TYPE // TODO: generalise
         )
     );
+
+    string permit2_type = string.concat(_PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, CrossChainLimitOrderType.PERMIT2_WITNESS_TYPE);
 
     LimitOrderReactor reactor;
 
@@ -34,6 +37,8 @@ contract TestCollectTokens is TestPermit2 {
     }
 
     function test_claim_order() external {
+        emit Debug(USER);
+        emit Debug(permit2_type);
         LimitOrderData memory limitData = LimitOrderData({
             proofDeadline: 0,
             collateralToken: address(0),
@@ -57,23 +62,22 @@ contract TestCollectTokens is TestPermit2 {
             orderData: abi.encode(limitData)
         });
 
-        bytes32 orderHash = CrossChainLimitOrderType.hashOrderData(limitData);
+        bytes32 orderHash = this._getHash(order);
 
         OrderKey memory orderKey = reactor.resolveKey(order, hex"");
 
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
-            ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
         ) = Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = getPermitBatchWitnessSignature(
             permitBatch, PRIVATE_KEY, FULL_LIMIT_ORDER_PERMIT2_TYPE, orderHash, DOMAIN_SEPARATOR
         );
 
-        reactor.initiate(order, signature, hex"");
+        reactor.initiate(order, signature, abi.encode(address(this)));
     }
 
-    function _getHash(CrossChainOrder calldata order) internal pure returns (bytes32) {
+    function _getHash(CrossChainOrder calldata order) public pure returns (bytes32) {
         bytes32 orderDataHash = CrossChainLimitOrderType.hashOrderData(abi.decode(order.orderData, (LimitOrderData)));
         return CrossChainLimitOrderType.hash(order, orderDataHash);
     }

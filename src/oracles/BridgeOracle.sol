@@ -15,7 +15,6 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
  * @dev Oracles are also fillers
  */
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
-
     // TODO: we need a way to do remote verification.
     IIncentivizedMessageEscrow public immutable escrow;
     mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow))

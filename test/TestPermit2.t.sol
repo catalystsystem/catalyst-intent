@@ -5,7 +5,6 @@ import { Test } from "forge-std/Test.sol";
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
-import { Permit2 } from "permit2/src/Permit2.sol";
 
 interface Permit2DomainSeparator {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
@@ -32,8 +31,9 @@ contract TestPermit2 is Test, DeployPermit2 {
         uint256 privateKey,
         bytes32 typeHash,
         bytes32 witness,
-        bytes32 domainSeparator
-    ) internal view returns (bytes memory sig) {
+        bytes32 domainSeparator,
+        address sender
+    ) internal pure returns (bytes memory sig) {
         bytes32[] memory tokenPermissions = new bytes32[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
             tokenPermissions[i] = keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, permit.permitted[i]));
@@ -47,7 +47,7 @@ contract TestPermit2 is Test, DeployPermit2 {
                     abi.encode(
                         typeHash,
                         keccak256(abi.encodePacked(tokenPermissions)),
-                        address(this),
+                        sender,
                         permit.nonce,
                         permit.deadline,
                         witness

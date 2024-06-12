@@ -13,8 +13,7 @@ import {
 import { OrderContext, OrderKey, OrderStatus } from "../interfaces/Structs.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import {
     ChallangeDeadlinePassed,
@@ -30,7 +29,6 @@ import {
 import { OptimisticPayout, OrderChallenged, OrderClaimed, OrderFilled, OrderVerify } from "../interfaces/Events.sol";
 
 abstract contract BaseReactor is ISettlementContract {
-    using SafeTransferLib for ERC20;
     using Permit2Lib for OrderKey;
 
     ISignatureTransfer public immutable PERMIT2;
@@ -273,7 +271,7 @@ abstract contract BaseReactor is ISettlementContract {
             uint256 inputAmount = input.amount;
 
             // TODO: subtract gov fee?
-            ERC20(sourceAsset).safeTransfer(filler, inputAmount);
+            SafeTransferLib.safeTransfer(sourceAsset, filler, inputAmount);
         }
 
         // Get order collateral.
@@ -281,7 +279,7 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
         // Pay collateral tokens
-        ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
+        SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
 
         emit OptimisticPayout(orderKeyHash);
     }
@@ -311,7 +309,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.challanger = msg.sender;
 
         // Collect bond collateral.
-        ERC20(orderKey.collateral.collateralToken).safeTransferFrom(
+        SafeTransferLib.safeTransferFrom(orderKey.collateral.collateralToken, 
             msg.sender, address(this), orderKey.collateral.challangerCollateralAmount
         );
 

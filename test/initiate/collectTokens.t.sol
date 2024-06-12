@@ -13,8 +13,9 @@ import { LimitOrderReactor } from "../../src/reactors/LimitOrderReactor.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 event Debug(address);
 event Debug(string);
+event Debug(bytes32);
 contract TestCollectTokens is TestPermit2 {
-    bytes32 public constant FULL_LIMIT_ORDER_PERMIT2_TYPE = keccak256(
+    bytes32 public constant FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH = keccak256(
         abi.encodePacked(
             _PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
             CrossChainLimitOrderType.PERMIT2_WITNESS_TYPE // TODO: generalise
@@ -39,6 +40,7 @@ contract TestCollectTokens is TestPermit2 {
     function test_claim_order() external {
         emit Debug(USER);
         emit Debug(permit2_type);
+        emit Debug(FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH);
         LimitOrderData memory limitData = LimitOrderData({
             proofDeadline: 0,
             collateralToken: address(0),
@@ -63,6 +65,7 @@ contract TestCollectTokens is TestPermit2 {
         });
 
         bytes32 orderHash = this._getHash(order);
+        emit Debug(orderHash);
 
         OrderKey memory orderKey = reactor.resolveKey(order, hex"");
 
@@ -71,7 +74,7 @@ contract TestCollectTokens is TestPermit2 {
         ) = Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = getPermitBatchWitnessSignature(
-            permitBatch, PRIVATE_KEY, FULL_LIMIT_ORDER_PERMIT2_TYPE, orderHash, DOMAIN_SEPARATOR
+            permitBatch, PRIVATE_KEY, FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
 
         reactor.initiate(order, signature, abi.encode(address(this)));

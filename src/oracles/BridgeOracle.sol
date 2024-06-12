@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
@@ -16,7 +15,6 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
  * @dev Oracles are also fillers
  */
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
-    using SafeTransferLib for ERC20;
 
     // TODO: we need a way to do remote verification.
     IIncentivizedMessageEscrow public immutable escrow;
@@ -52,7 +50,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         address destination = address(uint160(uint256(output.recipient)));
         address asset = address(uint160(uint256(output.token)));
         uint256 amount = output.amount;
-        ERC20(asset).safeTransferFrom(msg.sender, destination, amount);
+        SafeTransferLib.safeTransferFrom(asset, msg.sender, destination, amount);
     }
 
     //--- Sending Proofs ---//

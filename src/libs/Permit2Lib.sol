@@ -3,15 +3,18 @@ pragma solidity ^0.8.22;
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-import { OrderKey } from "../interfaces/Structs.sol";
 import { Input } from "../interfaces/ISettlementContract.sol";
+import { OrderKey } from "../interfaces/Structs.sol";
 
 /// @notice Gets the Permit2 context for an orderkey
 library Permit2Lib {
     /**
      * @notice Converts OrderKey into a PermitTransferFrom
      */
-    function toPermit(OrderKey memory order, address to)
+    function toPermit(
+        OrderKey memory order,
+        address to
+    )
         internal
         pure
         returns (

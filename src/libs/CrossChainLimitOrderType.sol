@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { Collateral } from "../interfaces/Structs.sol";
 import { CrossChainOrder } from "../interfaces/ISettlementContract.sol";
+import { Collateral } from "../interfaces/Structs.sol";
 import { CROSS_CHAIN_ORDER_TYPE_STUB } from "./CrossChainOrderLib.sol";
 
 struct LimitOrderData {
@@ -52,6 +52,7 @@ library CrossChainLimitOrderType {
     string constant PERMIT2_WITNESS_TYPE =
         string(abi.encodePacked("CrossChainOrder witness)", CROSS_CHAIN_ORDER_TYPE, TOKEN_PERMISSIONS_TYPE));
 
+    // TODO: include orderDataHash here?
     function hash(CrossChainOrder calldata order, bytes32 orderDataHash) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked( // TODO: bytes.concat

@@ -8,8 +8,8 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { OrderKey } from "../interfaces/Structs.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
+import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 /**
@@ -129,10 +129,11 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         return hex"";
     }
 
-    function receiveAck(bytes32 destinationIdentifier, bytes32 messageIdentifier, bytes calldata acknowledgement)
-        external
-        onlyEscrow
-    {
+    function receiveAck(
+        bytes32 destinationIdentifier,
+        bytes32 messageIdentifier,
+        bytes calldata acknowledgement
+    ) external onlyEscrow {
         // We don't actually do anything on ack.
     }
 }

@@ -7,16 +7,16 @@ struct BitcoinPayment {
 }
 
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
-import { NoBlock, TooFewConfirmations, InvalidProof } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
+import { InvalidProof, NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
-import { BitcoinAddress, AddressType, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
+import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { OrderKey } from "../interfaces/Structs.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
+import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 /**

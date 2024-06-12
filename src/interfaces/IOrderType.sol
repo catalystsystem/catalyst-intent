@@ -7,8 +7,8 @@ interface IOrderType {
      * @return sourceAmount The value of the order in source tokens.
      * @return destinationAmount The cost of the order in destination tokens.
      */
-    function evaluate(bytes calldata evaluationContext, uint64 timeout)
-        external
-        view
-        returns (uint256 sourceAmount, uint256 destinationAmount);
+    function evaluate(
+        bytes calldata evaluationContext,
+        uint64 timeout
+    ) external view returns (uint256 sourceAmount, uint256 destinationAmount);
 }

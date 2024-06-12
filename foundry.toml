@@ -4,5 +4,14 @@ out = "out"
 libs = ["lib"]
 evm_version = "paris"
 solc_version = "0.8.22"
+via_ir = true
+optimizer = true
+optimizer_runs = 10000
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[fmt]
+
+sort_imports = true
+bracket_spacing = true
+multiline_func_header = "params_first"

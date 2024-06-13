@@ -31,90 +31,29 @@ contract LimitOrderReactor is BaseReactor {
         witness = order.hash(witness);
         witnessTypeString = CrossChainLimitOrderType.PERMIT2_WITNESS_TYPE;
 
-        Input[] memory inputs = new Input[](1);
-        Output[] memory outputs = new Output[](1);
-
-        inputs[0] = Input({
-            token: address(0), // TODO:
-            amount: uint256(0) // TODO:
-         });
-        outputs[0] = Output({
-            token: limitData.destinationAddress,
-            amount: limitData.amount,
-            recipient: limitData.destinationAddress,
-            chainId: uint32(uint256(limitData.destinationChainId)) // TODO: size
-         });
-
-        // TODO: initiateDeadline.
         // Set orderKey:
-        orderKey = OrderKey({
-            reactorContext: ReactorInfo({
-                reactor: order.settlementContract,
-                // Order resolution times
-                fillByDeadline: order.fillDeadline,
-                challangeDeadline: limitData.proofDeadline, // TODO: fix
-                proofDeadline: limitData.proofDeadline
-            }),
-            swapper: order.swapper,
-            nonce: uint96(order.nonce),
-            collateral: Collateral({
-                collateralToken: limitData.collateralToken,
-                fillerCollateralAmount: limitData.fillerCollateralAmount,
-                challangerCollateralAmount: limitData.challangerCollateralAmount
-            }),
-            originChainId: order.originChainId,
-            // Proof Context
-            localOracle: limitData.localOracle,
-            oracleProofHash: bytes32(0),
-            inputs: inputs,
-            outputs: outputs
-        });
+        orderKey = _resolveKey(order, limitData);
     }
-
-    // function claim(LimitOrder calldata order, bytes calldata signature) external {
-    // address filler = msg.sender;
-    // (bytes32 orderHash, address orderSigner) = order.verify(signature);
-
-    // OrderKey memory orderKey = orderKey({
-    //     reactorContext: order.reactorContext,
-    //     owner: orderSigner,
-    //     nonce: order.nonce,
-    //     inputAmount: order.inputAmount,
-    //     inputToken: order.inputToken,
-    //     collateral: order.collateral,
-    //     localOracle: order.oracle,
-    //     destinationChainIdentifier: order.destinationChainIdentifier,
-    //     remoteOracle: order.remoteOracle,
-    //     oracleProofHash: bytes32(0)
-    // });
-
-    // _claim(orderKey, filler);
-
-    // emit OrderClaimed(filler, order);
-    // }
 
     function _resolveKey(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
     ) internal pure override returns (OrderKey memory orderKey) {
-        // Permit2 context
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
+        return _resolveKey(order, limitData);
+    }
+
+    function _resolveKey(
+        CrossChainOrder calldata order,
+        LimitOrderData memory limitData
+    ) internal pure returns (OrderKey memory orderKey) {
 
         Input[] memory inputs = new Input[](1);
         Output[] memory outputs = new Output[](1);
 
-        inputs[0] = Input({
-            token: address(0), // TODO:
-            amount: uint256(0) // TODO:
-         });
-        outputs[0] = Output({
-            token: limitData.destinationAddress,
-            amount: limitData.amount,
-            recipient: limitData.destinationAddress,
-            chainId: uint32(uint256(limitData.destinationChainId)) // TODO: size
-         });
+        inputs[0] = limitData.input;
+        outputs[0] = limitData.output;
 
-        // TODO: initiateDeadline.
         // Set orderKey:
         orderKey = OrderKey({
             reactorContext: ReactorInfo({
@@ -147,21 +86,13 @@ contract LimitOrderReactor is BaseReactor {
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
         address filler = abi.decode(fillerData, (address));
 
-        Input memory swapperInput = Input({
-            token: address(bytes20(limitData.destinationAsset)), // TODO: This is not set in the order type.
-            amount: limitData.amount // TODO: This is not set in the order type.
-         });
+        Input memory swapperInput = limitData.input;
 
-        Output memory swapperOutput = Output({
-            token: limitData.destinationAsset,
-            amount: limitData.amount,
-            recipient: limitData.destinationAddress,
-            chainId: uint32(uint256(limitData.destinationChainId))
-        });
+        Output memory swapperOutput = limitData.output;
 
         Output memory fillerOutput = Output({
-            token: limitData.destinationAsset, // TODO: This is not set in the order type.
-            amount: limitData.amount, // TODO: This is not set in the order type.
+            token: bytes32(uint256(uint160(limitData.input.token))),
+            amount: limitData.input.amount,
             recipient: bytes32(uint256(uint160(filler))),
             chainId: uint32(block.chainid)
         });

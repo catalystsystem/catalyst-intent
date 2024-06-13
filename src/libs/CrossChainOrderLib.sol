@@ -10,3 +10,19 @@ bytes constant CROSS_CHAIN_ORDER_TYPE_STUB = abi.encodePacked(
     "uint32 initiateDeadline,",
     "uint32 fillDeadline,"
 );
+
+bytes constant INPUT_TYPE_STUB = abi.encodePacked(
+    "Input(",
+    "address token,",
+    "uint256 amount",
+    ")"
+);
+
+bytes constant OUTPUT_TYPE_STUB = abi.encodePacked(
+    "Output(",
+    "bytes32 token,",
+    "uint256 amount,",
+    "bytes32 recipient,",
+    "uint32 chainId,",
+    ")"
+);

@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import { TestPermit2 } from "../TestPermit2.t.sol";
 
-import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
 
 import { OrderKey } from "../../src/interfaces/Structs.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
@@ -37,6 +37,17 @@ contract TestCollectTokens is TestPermit2 {
     }
 
     function test_claim_order() external {
+        Input memory input = Input({
+            token: address(0),
+            amount: uint256(0)
+        });
+        Output memory output = Output({
+            token: bytes32(0),
+            amount: uint256(0),
+            recipient: bytes32(0),
+            chainId: uint32(0)
+        });
+
         LimitOrderData memory limitData = LimitOrderData({
             proofDeadline: 0,
             collateralToken: address(0),
@@ -44,10 +55,8 @@ contract TestCollectTokens is TestPermit2 {
             challangerCollateralAmount: uint256(0),
             localOracle: address(0),
             remoteOracle: bytes32(0),
-            destinationChainId: bytes32(0),
-            destinationAsset: bytes32(0),
-            destinationAddress: bytes32(0),
-            amount: uint256(0)
+            input: input,
+            output: output
         });
 
         CrossChainOrder memory order = CrossChainOrder({

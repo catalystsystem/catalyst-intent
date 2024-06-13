@@ -36,7 +36,7 @@ contract TestCollectTokens is TestPermit2 {
         reactor = new LimitOrderReactor(PERMIT2);
     }
 
-    function test_claim_order() external {
+    function test_initiate_no_order() external {
         Input memory input = Input({
             token: address(0),
             amount: uint256(0)

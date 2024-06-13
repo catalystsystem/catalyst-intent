@@ -30,8 +30,7 @@ library CrossChainLimitOrderType {
         "address localOracle,",
         "bytes32 remoteOracle,",
         "Input input",
-        "Output output"
-        ")",
+        "Output output" ")",
         OUTPUT_TYPE_STUB,
         INPUT_TYPE_STUB
     );
@@ -66,26 +65,13 @@ library CrossChainLimitOrderType {
         );
     }
 
-    function hashInput(Input memory input) internal pure returns(bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                INPUT_TYPE_STUB,
-                input.token,
-                input.amount
-            )
-        );
+    function hashInput(Input memory input) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(INPUT_TYPE_STUB, input.token, input.amount));
     }
 
-    function hashOutput(Output memory output) internal pure returns(bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                OUTPUT_TYPE_STUB,
-                output.token,
-                output.amount,
-                output.recipient,
-                output.chainId
-            )
-        );
+    function hashOutput(Output memory output) internal pure returns (bytes32) {
+        return
+            keccak256(abi.encodePacked(OUTPUT_TYPE_STUB, output.token, output.amount, output.recipient, output.chainId));
     }
 
     // TODO: Make a bytes calldata version of this functon.

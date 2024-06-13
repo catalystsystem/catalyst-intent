@@ -15,6 +15,9 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
  * @dev Oracles are also fillers
  */
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
+
+    mapping(bytes32 outputHash => bool proven) internal _provenOutput;
+
     // TODO: we need a way to do remote verification.
     IIncentivizedMessageEscrow public immutable escrow;
     mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow))
@@ -29,6 +32,36 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     constructor(address _escrow) {
         // Solution 1: Set the escrow.
         escrow = IIncentivizedMessageEscrow(_escrow);
+    }
+
+    /**
+     * TODO: define an output salt which is some value (time + nonce?) that allows us to
+     * discriminate between different outputs in time & space.
+     */
+    function _outputHash(Output calldata output, bytes32 outputSalt) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+    }
+
+    // TODO: A function that forwards an OrderKey to the reactor?
+    function oracle(OrderKey calldata orderKey) external {
+        // Check if orderKeyOutputs are proven.
+        
+    }
+
+    function provenOutput(Output calldata output) external view returns(bool proven) {
+        bytes32 outputHash = _outputHash(output, bytes32(0));
+        return _provenOutput[outputHash];
+    }
+
+    function isProven(Output[] calldata outputs) public view returns(bool proven) {
+        uint256 numOutputs = outputs.length;
+        for (uint256 i; i < numOutputs; ++i) {
+            bytes32 outputHash = _outputHash(outputs[i], bytes32(0)); // TODO: output salt potentiall also by adding the orderKeyHash to it.
+            if (!_provenOutput[outputHash]) {
+                return proven = false;
+            }
+        }
+        return proven = true;
     }
 
     /**

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
+import { CrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
 import { Collateral } from "../interfaces/Structs.sol";
-import { CrossChainOrder } from "../interfaces/ISettlementContract.sol";
-import { CROSS_CHAIN_ORDER_TYPE_STUB } from "./CrossChainOrderLib.sol";
+import { CROSS_CHAIN_ORDER_TYPE_STUB, INPUT_TYPE_STUB, OUTPUT_TYPE_STUB } from "./CrossChainOrderLib.sol";
 
 struct LimitOrderData {
     uint32 proofDeadline;
@@ -12,10 +12,8 @@ struct LimitOrderData {
     uint256 challangerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
     bytes32 remoteOracle; // TODO: figure out how to trustless.
-    bytes32 destinationChainId; // TODO: size
-    bytes32 destinationAsset; // TODO: Is this a waste? Can we use this better?
-    bytes32 destinationAddress; // TODO bytes? For better future compatability?
-    uint256 amount;
+    Input input;
+    Output output;
 }
 
 /**
@@ -31,11 +29,11 @@ library CrossChainLimitOrderType {
         "uint256 challangerCollateralAmount,",
         "address localOracle,",
         "bytes32 remoteOracle,",
-        "bytes32 destinationChainId,",
-        "bytes32 destinationAsset,",
-        "bytes32 destinationAddress,",
-        "uint256 amount",
-        ")"
+        "Input input",
+        "Output output"
+        ")",
+        OUTPUT_TYPE_STUB,
+        INPUT_TYPE_STUB
     );
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
@@ -43,7 +41,7 @@ library CrossChainLimitOrderType {
     bytes constant CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
         CROSS_CHAIN_ORDER_TYPE_STUB,
         "LimitOrderData orderData)", // New order types need to replace this field.
-        LIMIT_ORDER_DATA_TYPE_HASH
+        LIMIT_ORDER_DATA_TYPE
     );
 
     bytes32 internal constant CROSS_CHAIN_ORDER_TYPE_HASH = keccak256(CROSS_CHAIN_ORDER_TYPE);
@@ -52,6 +50,7 @@ library CrossChainLimitOrderType {
     string constant PERMIT2_WITNESS_TYPE =
         string(abi.encodePacked("CrossChainOrder witness)", CROSS_CHAIN_ORDER_TYPE, TOKEN_PERMISSIONS_TYPE));
 
+    // TODO: include orderDataHash here?
     function hash(CrossChainOrder calldata order, bytes32 orderDataHash) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked( // TODO: bytes.concat
@@ -67,21 +66,41 @@ library CrossChainLimitOrderType {
         );
     }
 
+    function hashInput(Input memory input) internal pure returns(bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                INPUT_TYPE_STUB,
+                input.token,
+                input.amount
+            )
+        );
+    }
+
+    function hashOutput(Output memory output) internal pure returns(bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                OUTPUT_TYPE_STUB,
+                output.token,
+                output.amount,
+                output.recipient,
+                output.chainId
+            )
+        );
+    }
+
     // TODO: Make a bytes calldata version of this functon.
     function hashOrderData(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked( // todo: bytes.concat
-                LIMIT_ORDER_DATA_TYPE,
+                LIMIT_ORDER_DATA_TYPE_HASH,
                 orderData.proofDeadline,
                 orderData.collateralToken,
                 orderData.fillerCollateralAmount,
                 orderData.challangerCollateralAmount,
                 orderData.localOracle,
                 orderData.remoteOracle,
-                orderData.destinationChainId,
-                orderData.destinationAsset,
-                orderData.destinationAddress,
-                orderData.amount
+                hashInput(orderData.input),
+                hashOutput(orderData.output)
             )
         );
     }

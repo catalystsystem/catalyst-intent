@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { OrderKey } from "../interfaces/Structs.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
+import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 /**
  * @dev Oracles are also fillers
  */
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
-    using SafeTransferLib for ERC20;
-
     // TODO: we need a way to do remote verification.
     IIncentivizedMessageEscrow public immutable escrow;
     mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow))
@@ -52,7 +49,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         address destination = address(uint160(uint256(output.recipient)));
         address asset = address(uint160(uint256(output.token)));
         uint256 amount = output.amount;
-        ERC20(asset).safeTransferFrom(msg.sender, destination, amount);
+        SafeTransferLib.safeTransferFrom(asset, msg.sender, destination, amount);
     }
 
     //--- Sending Proofs ---//
@@ -129,10 +126,11 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         return hex"";
     }
 
-    function receiveAck(bytes32 destinationIdentifier, bytes32 messageIdentifier, bytes calldata acknowledgement)
-        external
-        onlyEscrow
-    {
+    function receiveAck(
+        bytes32 destinationIdentifier,
+        bytes32 messageIdentifier,
+        bytes calldata acknowledgement
+    ) external onlyEscrow {
         // We don't actually do anything on ack.
     }
 }

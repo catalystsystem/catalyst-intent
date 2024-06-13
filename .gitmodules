@@ -4,12 +4,12 @@
 [submodule "lib/GeneralisedIncentives"]
 	path = lib/GeneralisedIncentives
 	url = https://github.com/catalystdao/GeneralisedIncentives
-[submodule "lib/solmate"]
-	path = lib/solmate
-	url = https://github.com/transmissions11/solmate
 [submodule "lib/permit2"]
 	path = lib/permit2
 	url = https://github.com/Uniswap/permit2
 [submodule "lib/bitcoinprism-evm"]
 	path = lib/bitcoinprism-evm
 	url = https://github.com/catalystdao/bitcoinprism-evm
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/Vectorized/solady

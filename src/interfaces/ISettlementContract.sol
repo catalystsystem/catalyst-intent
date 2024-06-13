@@ -85,8 +85,8 @@ interface ISettlementContract {
     /// @param order The CrossChainOrder definition
     /// @param fillerData Any filler-defined data required by the settler
     /// @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
-    function resolve(CrossChainOrder calldata order, bytes calldata fillerData)
-        external
-        view
-        returns (ResolvedCrossChainOrder memory);
+    function resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) external view returns (ResolvedCrossChainOrder memory);
 }

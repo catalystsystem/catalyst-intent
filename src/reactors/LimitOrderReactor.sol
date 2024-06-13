@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { BaseReactor } from "./BaseReactor.sol";
-import { OrderKey, ReactorInfo, Collateral } from "../interfaces/Structs.sol";
 import { Input, Output } from "../interfaces/ISettlementContract.sol";
-import { LimitOrderData, CrossChainLimitOrderType } from "../libs/CrossChainLimitOrderType.sol";
-import { CrossChainOrder, ResolvedCrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
 
-abstract contract LimitOrderReactor is BaseReactor {
+import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
+import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
+import { CrossChainLimitOrderType, LimitOrderData } from "../libs/CrossChainLimitOrderType.sol";
+import { BaseReactor } from "./BaseReactor.sol";
+
+contract LimitOrderReactor is BaseReactor {
     using CrossChainLimitOrderType for CrossChainOrder;
     using CrossChainLimitOrderType for LimitOrderData;
     using CrossChainLimitOrderType for bytes;
+
+    constructor(address permit2) BaseReactor(permit2) { }
 
     function _orderHash(CrossChainOrder calldata order) internal pure override returns (bytes32) {
         LimitOrderData memory orderData = order.orderData.decodeOrderData();
@@ -18,32 +21,39 @@ abstract contract LimitOrderReactor is BaseReactor {
         return order.hash(orderDataHash);
     }
 
-    function _initiate(CrossChainOrder calldata order, bytes calldata /* fillerData */ )
-        internal
-        override
-        returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString)
-    {
+    function _initiate(
+        CrossChainOrder calldata order,
+        bytes calldata /* fillerData */
+    ) internal pure override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
         witness = limitData.hashOrderData();
         witness = order.hash(witness);
         witnessTypeString = CrossChainLimitOrderType.PERMIT2_WITNESS_TYPE;
 
+        // Set orderKey:
+        orderKey = _resolveKey(order, limitData);
+    }
+
+    function _resolveKey(
+        CrossChainOrder calldata order,
+        bytes calldata /* fillerData */
+    ) internal pure override returns (OrderKey memory orderKey) {
+        LimitOrderData memory limitData = order.orderData.decodeOrderData();
+        return _resolveKey(order, limitData);
+    }
+
+    function _resolveKey(
+        CrossChainOrder calldata order,
+        LimitOrderData memory limitData
+    ) internal pure returns (OrderKey memory orderKey) {
+
         Input[] memory inputs = new Input[](1);
         Output[] memory outputs = new Output[](1);
 
-        inputs[0] = Input({
-            token: address(0), // TODO:
-            amount: uint256(0) // TODO:
-         });
-        outputs[0] = Output({
-            token: limitData.destinationAddress,
-            amount: limitData.amount,
-            recipient: limitData.destinationAddress,
-            chainId: uint32(uint256(limitData.destinationChainId)) // TODO: size
-         });
+        inputs[0] = limitData.input;
+        outputs[0] = limitData.output;
 
-        // TODO: initiateDeadline.
         // Set orderKey:
         orderKey = OrderKey({
             reactorContext: ReactorInfo({
@@ -69,52 +79,20 @@ abstract contract LimitOrderReactor is BaseReactor {
         });
     }
 
-    // function claim(LimitOrder calldata order, bytes calldata signature) external {
-    // address filler = msg.sender;
-    // (bytes32 orderHash, address orderSigner) = order.verify(signature);
-
-    // OrderKey memory orderKey = orderKey({
-    //     reactorContext: order.reactorContext,
-    //     owner: orderSigner,
-    //     nonce: order.nonce,
-    //     inputAmount: order.inputAmount,
-    //     inputToken: order.inputToken,
-    //     collateral: order.collateral,
-    //     localOracle: order.oracle,
-    //     destinationChainIdentifier: order.destinationChainIdentifier,
-    //     remoteOracle: order.remoteOracle,
-    //     oracleProofHash: bytes32(0)
-    // });
-
-    // _claim(orderKey, filler);
-
-    // emit OrderClaimed(filler, order);
-    // }
-
-    function _resolve(CrossChainOrder calldata order, bytes calldata fillerData)
-        internal
-        view
-        override
-        returns (ResolvedCrossChainOrder memory resolvedOrder)
-    {
+    function _resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal view override returns (ResolvedCrossChainOrder memory resolvedOrder) {
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
         address filler = abi.decode(fillerData, (address));
 
-        Input memory swapperInput = Input({
-            token: address(bytes20(limitData.destinationAsset)), // TODO: This is not set in the order type.
-            amount: limitData.amount // TODO: This is not set in the order type.
-         });
+        Input memory swapperInput = limitData.input;
 
-        Output memory swapperOutput = Output({
-            token: limitData.destinationAsset,
-            amount: limitData.amount,
-            recipient: limitData.destinationAddress,
-            chainId: uint32(uint256(limitData.destinationChainId))
-        });
+        Output memory swapperOutput = limitData.output;
 
         Output memory fillerOutput = Output({
-            token: limitData.destinationAsset, // TODO: This is not set in the order type.
-            amount: limitData.amount, // TODO: This is not set in the order type.
+            token: bytes32(uint256(uint160(limitData.input.token))),
+            amount: limitData.input.amount,
             recipient: bytes32(uint256(uint160(filler))),
             chainId: uint32(block.chainid)
         });

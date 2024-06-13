@@ -1,35 +1,34 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { IOrderType } from "../interfaces/IOrderType.sol";
-import { OrderContext, OrderStatus, OrderKey } from "../interfaces/Structs.sol";
+
 import {
-    ISettlementContract,
     CrossChainOrder,
-    ResolvedCrossChainOrder,
+    ISettlementContract,
+    Input,
     Output,
-    Input
+    ResolvedCrossChainOrder
 } from "../interfaces/ISettlementContract.sol";
+import { OrderContext, OrderKey, OrderStatus } from "../interfaces/Structs.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { OrderClaimed, OrderFilled, OrderVerify, OptimisticPayout, OrderChallenged } from "../interfaces/Events.sol";
 import {
-    OrderNotClaimed,
-    OrderAlreadyClaimed,
-    WrongOrderStatus,
+    ChallangeDeadlinePassed,
     NonceClaimed,
     NotOracle,
-    ChallangeDeadlinePassed,
     OrderAlreadyChallanged,
+    OrderAlreadyClaimed,
+    OrderNotClaimed,
+    OrderNotReadyForOptimisticPayout,
     ProofPeriodHasNotPassed,
-    OrderNotReadyForOptimisticPayout
+    WrongOrderStatus
 } from "../interfaces/Errors.sol";
+import { OptimisticPayout, OrderChallenged, OrderClaimed, OrderFilled, OrderVerify } from "../interfaces/Events.sol";
 
 abstract contract BaseReactor is ISettlementContract {
-    using SafeTransferLib for ERC20;
     using Permit2Lib for OrderKey;
 
     ISignatureTransfer public immutable PERMIT2;
@@ -129,10 +128,10 @@ abstract contract BaseReactor is ISettlementContract {
      * @dev This function shouldn't check if the signature is correct but instead return information
      * such that we can make a permit2 call.
      */
-    function _initiate(CrossChainOrder calldata order, bytes calldata fillerData)
-        internal
-        virtual
-        returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
+    function _initiate(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal virtual returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
 
     /**
      * @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
@@ -141,19 +140,32 @@ abstract contract BaseReactor is ISettlementContract {
      * @param fillerData Any filler-defined data required by the settler
      * @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
      */
-    function resolve(CrossChainOrder calldata order, bytes calldata fillerData)
-        external
-        view
-        returns (ResolvedCrossChainOrder memory)
-    {
+    function resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) external view returns (ResolvedCrossChainOrder memory) {
         return _resolve(order, fillerData);
     }
 
-    function _resolve(CrossChainOrder calldata order, bytes calldata fillerData)
-        internal
-        view
-        virtual
-        returns (ResolvedCrossChainOrder memory);
+    function _resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal view virtual returns (ResolvedCrossChainOrder memory);
+
+    /**
+     * TODO: docs
+     */
+    function resolveKey(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) external view returns (OrderKey memory) {
+        return _resolveKey(order, fillerData);
+    }
+
+    function _resolveKey(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal view virtual returns (OrderKey memory);
 
     //--- Order Resolution Helpers ---//
 
@@ -229,7 +241,7 @@ abstract contract BaseReactor is ISettlementContract {
             uint256 inputAmount = input.amount;
 
             // TODO: subtract gov fee?
-            ERC20(sourceAsset).safeTransfer(filler, inputAmount);
+            SafeTransferLib.safeTransfer(sourceAsset, filler, inputAmount);
         }
 
         // Get order collateral.
@@ -237,7 +249,7 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
         // Pay collateral tokens
-        ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
+        SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
 
         emit OptimisticPayout(orderKeyHash);
     }
@@ -267,8 +279,11 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.challanger = msg.sender;
 
         // Collect bond collateral.
-        ERC20(orderKey.collateral.collateralToken).safeTransferFrom(
-            msg.sender, address(this), orderKey.collateral.challangerCollateralAmount
+        SafeTransferLib.safeTransferFrom(
+            orderKey.collateral.collateralToken,
+            msg.sender,
+            address(this),
+            orderKey.collateral.challangerCollateralAmount
         );
 
         emit OrderChallenged(orderKeyHash, msg.sender);

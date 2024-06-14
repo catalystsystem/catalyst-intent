@@ -16,6 +16,8 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
  */
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
 
+    uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
+
     mapping(bytes32 outputHash => bool proven) internal _provenOutput;
 
     // TODO: we need a way to do remote verification.
@@ -73,6 +75,9 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     function _fill(Output calldata output, uint32 fillTime) internal {
         // FillTime may not be in the past.
         if (fillTime < block.timestamp) require(false, "FillTimeInPast()"); // TODO: custom error.
+        // Check that fillTime isn't far in the future.
+        // The idea is to protect users against random transfers through this contract.
+        if (fillTime > block.timestamp + MAX_FUTURE_FILL_TIME) require(false, "FillTimeFarInFuture()");
 
         // Check if this is the correct chain.
         // TODO: immutable chainid?
@@ -89,7 +94,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
     }
 
-    function _fill(Output[] calldata outputs, uint32[] calldata fillTimes) internal returns(bool set) {
+    function _fill(Output[] calldata outputs, uint32[] calldata fillTimes) internal {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             Output calldata output = outputs[i];

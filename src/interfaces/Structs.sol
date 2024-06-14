@@ -28,6 +28,7 @@ enum OrderStatus {
     Filled
 }
 // @param initTimestamp is for blocking previous fillings.
+
 struct OrderContext {
     OrderStatus status;
     address challanger;

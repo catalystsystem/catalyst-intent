@@ -163,10 +163,7 @@ abstract contract BaseReactor is ISettlementContract {
         bytes calldata fillerData
     ) internal view virtual returns (OrderKey memory);
 
-    function _deliverInputs(
-        Input[] calldata inputs,
-        address to
-    ) internal {
+    function _deliverInputs(Input[] calldata inputs, address to) internal {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             Input calldata input = inputs[i];
@@ -183,10 +180,9 @@ abstract contract BaseReactor is ISettlementContract {
         OrderStatus status = orderContext.status;
 
         // Only allow processing if order status is either claimed or Challenged
-        if (
-            status != OrderStatus.Claimed &&
-            status != OrderStatus.Challenged
-        ) revert WrongOrderStatus(orderContext.status);
+        if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
+            revert WrongOrderStatus(orderContext.status);
+        }
 
         // TODO: custom error // TODO: salting of outputs.
         if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs)) require(false, "CannotProveOrder()");

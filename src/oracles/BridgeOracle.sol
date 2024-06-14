@@ -15,7 +15,6 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
  * @dev Oracles are also fillers
  */
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
-
     uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
 
     mapping(bytes32 outputHash => bool proven) internal _provenOutput;
@@ -47,15 +46,14 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     // TODO: A function that forwards an OrderKey to the reactor?
     function oracle(OrderKey calldata orderKey) external {
         // Check if orderKeyOutputs are proven.
-        
     }
 
-    function provenOutput(Output calldata output) external view returns(bool proven) {
+    function provenOutput(Output calldata output) external view returns (bool proven) {
         bytes32 outputHash = _outputHash(output, bytes32(0));
         return _provenOutput[outputHash];
     }
 
-    function isProven(Output[] calldata outputs) public view returns(bool proven) {
+    function isProven(Output[] calldata outputs) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             bytes32 outputHash = _outputHash(outputs[i], bytes32(0)); // TODO: output salt potentiall also by adding the orderKeyHash to it.
@@ -70,7 +68,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
      * @notice Fills an order but does not automatically submit the fill for evaluation on the source chain.
      * @param output The output to fill.
      * @param fillTime The filltime to match. This is used when verifying
-     * the transaction took place. 
+     * the transaction took place.
      */
     function _fill(Output calldata output, uint32 fillTime) internal {
         // FillTime may not be in the past.
@@ -123,7 +121,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
 
     //--- Solver Interface ---//
 
-     function fill(Output[] calldata outputs, uint32[] calldata fillTimes) external {
+    function fill(Output[] calldata outputs, uint32[] calldata fillTimes) external {
         _fill(outputs, fillTimes);
     }
 

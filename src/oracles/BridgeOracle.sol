@@ -23,10 +23,6 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow))
         escrowMapping;
 
-    mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
-
-    error AlreadyFilled();
-    error NotFilled();
     error NotApprovedEscrow();
 
     constructor(address _escrow) {
@@ -39,6 +35,10 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
      * discriminate between different outputs in time & space.
      */
     function _outputHash(Output calldata output, bytes32 outputSalt) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+    }
+
+    function _outputHashM(Output memory output, bytes32 outputSalt) internal pure returns (bytes32) {
         return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
     }
 
@@ -66,31 +66,44 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
 
     /**
      * @notice Fills an order but does not automatically submit the fill for evaluation on the source chain.
+     * @param output The output to fill.
+     * @param fillTime The filltime to match. This is used when verifying
+     * the transaction took place. 
      */
-    function _fill(Output calldata output, OrderKey calldata orderKey) internal {
-        // Since we see this as submitted to the EVM chain, we can make some assumptions on what the orderKey specified.
-        // However, since we don't know which AMB is being used, can't actually check if this is the correct chain.
-        // It is assumed that the solver knows that this is actually the right chain.
-        // Check if this order has been filled before.
-        uint256 filledTime = filledOrders[keccak256(abi.encode(orderKey))];
-        if (filledTime != 0) revert AlreadyFilled();
-        // filledOrders[orderKey] = block.timestamp;
+    function _fill(Output calldata output, uint32 fillTime) internal {
+        // FillTime may not be in the past.
+        if (fillTime < block.timestamp) require(false, "FillTimeInPast()"); // TODO: custom error.
 
-        // TODO: check that we are on the right chain.
-        // TODO: verify that we are sending the proof to the correct chain.
+        // Check if this is the correct chain.
+        // TODO: immutable chainid?
+        if (uint32(block.chainid) != output.chainId) require(false, "WrongChain()"); // TODO: custom error
 
-        address destination = address(uint160(uint256(output.recipient)));
-        address asset = address(uint160(uint256(output.token)));
+        // Check if this has already been filled. If it hasn't return set = false.
+        bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
+        bool alreadyProven = _provenOutput[outputHash];
+        if (alreadyProven) return;
+
+        address recipient = address(uint160(uint256(output.recipient)));
+        address token = address(uint160(uint256(output.token)));
         uint256 amount = output.amount;
-        SafeTransferLib.safeTransferFrom(asset, msg.sender, destination, amount);
+        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
+    }
+
+    function _fill(Output[] calldata outputs, uint32[] calldata fillTimes) internal returns(bool set) {
+        uint256 numOutputs = outputs.length;
+        for (uint256 i; i < numOutputs; ++i) {
+            Output calldata output = outputs[i];
+            uint32 fillTime = fillTimes[i];
+            _fill(output, fillTime);
+        }
     }
 
     //--- Sending Proofs ---//
 
     // TODO: figure out what the best best interface for this function is
     function _submit(
-        uint256 filledTime,
-        OrderKey calldata orderKey,
+        Output[] calldata outputs,
+        uint32[] calldata filledTimes,
         address reactor,
         bytes32 destinationIdentifier,
         bytes memory destinationAddress,
@@ -98,42 +111,28 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         uint64 deadline
     ) internal {
         // TODO: Figure out a better idea than abi.encode
-        bytes memory message = abi.encode(reactor, filledTime, orderKey);
+        bytes memory message = abi.encode(reactor, outputs, filledTimes);
         // Deadline is set to 0.
-        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, 0);
+        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, deadline);
     }
 
     //--- Solver Interface ---//
 
-    function fill(Output calldata output, OrderKey calldata orderKey) external {
-        _fill(output, orderKey);
-    }
-
-    function submit(
-        OrderKey calldata orderKey,
-        address reactor,
-        bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
-    ) external payable {
-        uint256 filledTime = filledOrders[keccak256(abi.encode(orderKey))];
-        // if (fillStatus == 0) revert NotFilled();
-
-        _submit(filledTime, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
+     function fill(Output[] calldata outputs, uint32[] calldata fillTimes) external {
+        _fill(outputs, fillTimes);
     }
 
     function fillAndSubmit(
-        Output calldata output,
-        OrderKey calldata orderKey,
+        Output[] calldata outputs,
+        uint32[] calldata fillTimes,
         address reactor,
         bytes32 destinationIdentifier,
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) external payable {
-        _fill(output, orderKey);
-        _submit(block.timestamp, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
+        _fill(outputs, fillTimes);
+        _submit(outputs, fillTimes, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 
     //--- Generalised Incentives ---//
@@ -149,11 +148,18 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        (address reactor, uint256 filledTime, OrderKey memory orderKey) =
-            abi.decode(message, (address, uint256, OrderKey));
+        (address reactor, Output[] memory outputs, uint32[] memory fillTimes) =
+            abi.decode(message, (address, Output[], uint32[]));
 
-        // TODO: figure out the structure the oracle call.
-        // BaseReactor(reactor).oracle(orderKey);
+        // TODO: how to verify remote oracle?
+        // set the proof locally.
+        uint256 numOutputs = outputs.length;
+        for (uint256 i; i < numOutputs; ++i) {
+            Output memory output = outputs[i];
+            uint32 fillTime = fillTimes[i];
+            bytes32 outputHash = _outputHashM(output, bytes32(0)); // TODO: salt
+            _provenOutput[outputHash] = true;
+        }
 
         // We don't care about the ack.
         return hex"";

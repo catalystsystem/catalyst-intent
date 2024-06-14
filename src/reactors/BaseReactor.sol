@@ -189,7 +189,7 @@ abstract contract BaseReactor is ISettlementContract {
         ) revert WrongOrderStatus(orderContext.status);
 
         // TODO: custom error // TODO: salting of outputs.
-        if (!IOracle(orderKey.localOracle).proven(orderKey.outputs)) require(false, "CannotProveOrder()");
+        if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs)) require(false, "CannotProveOrder()");
 
         // Set order status to filled.
         orderContext.status = OrderStatus.Filled;
@@ -198,17 +198,17 @@ abstract contract BaseReactor is ISettlementContract {
         address filler = orderContext.filler;
         _deliverInputs(orderKey.inputs, filler);
 
-        // TODO: Collateral Get order collateral.
-        // address collateralToken = orderKey.collateral.collateralToken;
-        // uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        // Pay collateral
+        address collateralToken = orderKey.collateral.collateralToken;
+        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+
+        // Check if someone challanged this order.
+        if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
+            fillerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
+        }
 
         // Pay collateral tokens
-        // ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
-        // // Check if someone challanged this order.
-        // if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
-        //     uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
-        //     ERC20(collateralToken).safeTransfer(filler, challangerCollateralAmount);
-        // }
+        SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
     }
 
     /**

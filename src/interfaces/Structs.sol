@@ -27,11 +27,12 @@ enum OrderStatus {
     Proven,
     Filled
 }
-
+// @param initTimestamp is for blocking previous fillings.
 struct OrderContext {
     OrderStatus status;
     address challanger;
     address filler;
+    uint32 initTimestamp; // TODO: move to orderkey.
 }
 
 /**

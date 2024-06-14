@@ -6,6 +6,7 @@ struct BitcoinPayment {
     bytes outputScript;
 }
 
+import { Endian } from "bitcoinprism-evm/src/Endian.sol";
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
 import { InvalidProof, NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
@@ -18,13 +19,14 @@ import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessage
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
+import { BaseOracle } from "./BaseOracle.sol";
 
 /**
  * Bitcoin oracle can operate in 2 modes:
  * 1. Directly Oracle. This requires a local light client along side the relevant reactor.
  * 2. Indirectly oracle through the bridge oracle. This requires a local light client and a bridge connection to the relevant reactor.
  */
-abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
+contract BitcoinOracle is BaseOracle {
     bytes1 constant BITCOIN_PREFIX = 0xBB;
     IBtcPrism public immutable mirror;
 
@@ -38,7 +40,7 @@ abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
 
     mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
 
-    constructor(IBtcPrism _mirror) {
+    constructor(IBtcPrism _mirror, address _escrow) BaseOracle(_escrow) {
         mirror = _mirror;
     }
 
@@ -61,85 +63,65 @@ abstract contract BitcoinOracle is ICrossChainReceiver, IMessageEscrowStructs {
         uint256 txOutIx,
         bytes memory outputScript
     ) internal view returns (uint256 sats, uint256 timestamp) {
-        // TODO: See Bitcoin Prism's payment validator.
-        // {
-        //     uint256 currentHeight = mirror.getLatestBlockHeight();
+        {
+            uint256 currentHeight = mirror.getLatestBlockHeight();
 
-        //     if (currentHeight < blockNum) revert NoBlock(currentHeight, blockNum);
+            if (currentHeight < blockNum) revert NoBlock(currentHeight, blockNum);
 
-        //     unchecked {
-        //         if (currentHeight + 1 - blockNum < minConfirmations) revert TooFewConfirmations(currentHeight + 1 - blockNum, minConfirmations);
-        //     }
-        // }
+            unchecked {
+                if (currentHeight + 1 - blockNum < minConfirmations) {
+                    revert TooFewConfirmations(currentHeight + 1 - blockNum, minConfirmations);
+                }
+            }
+        }
 
-        // bytes32 blockHash = mirror.getBlockHash(blockNum);
+        bytes32 blockHash = mirror.getBlockHash(blockNum);
 
-        // bytes memory txOutScript;
-        // (sats, txOutScript) = BtcProof.validateTx(
-        //     blockHash,
-        //     inclusionProof,
-        //     txOutIx
-        // );
+        bytes memory txOutScript;
+        (sats, txOutScript) = BtcProof.validateTx(blockHash, inclusionProof, txOutIx);
 
-        // // TODO: Do we want to also get the timestamp of the previous block? What if there is just not a block for a very long time?
-        // uint32 time = uint32(bytes4(inclusionProof.blockHeader[ixT:ixT + 4]));
-        // timestamp = Endian.reverse32(time);
+        if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
 
-        // if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
+        // TODO: Get timestamp of previous block. This is pretty hard but doable. It requries us to get the "relevant" header and then check if that is a valid block.
+        uint256 ixT = inclusionProof.blockHeader.length - 12;
+        uint32 time = uint32(bytes4(inclusionProof.blockHeader[ixT:ixT + 4]));
+        timestamp = Endian.reverse32(time);
     }
 
     // TODO: convert to verifying a single output + some identifier.
     function _verify(
         Output calldata output,
-        OrderKey calldata orderKey,
+        uint32 fillTime,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
     ) internal {
-        // TODO: use output.chainId to verify that this is the correct SPV client
         if (output.chainId != block.chainid) revert BadDestinationIdentifier();
 
-        bytes memory outputScript = bytes.concat(output.recipient);
+        bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
+
         (uint256 sats, uint256 timestamp) =
             _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript);
 
+        _validateTimestamp(uint32(timestamp), fillTime);
+
         if (sats != output.amount) revert BadAmount();
 
-        // We don't check if the transaction has been verified before (since there isn't actually any filling being done).
-        // instead we just set it as filled.
-        // filledOrders[orderKey] = block.timestamp; // TODO: Use correct timestamp
-    }
-
-    //--- Sending Proofs ---//
-
-    // TODO: figure out what the best best interface for this function is
-    function _submit(
-        uint256 filledTime,
-        OrderKey calldata orderKey,
-        address reactor,
-        bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
-    ) internal {
-        // TODO: Figure out a better idea than abi.encode
-        bytes memory message = abi.encode(reactor, filledTime, orderKey);
-        // escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive);
+        bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
+        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
 
     //--- Solver Interface ---//
 
     function submit(
-        OrderKey calldata orderKey,
-        address reactor,
+        Output[] calldata outputs,
+        uint32[] calldata fillTimes,
         bytes32 destinationIdentifier,
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) external payable {
-        uint256 filledTime = 0; // filledOrders[orderKey];
-        // if (fillStatus == 0) revert NotFilled();
-
-        _submit(filledTime, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
+        // TODO: verify the output first.
+        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 }

@@ -5,65 +5,17 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { IOracle } from "../interfaces/IOracle.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
+import { BaseOracle } from "./BaseOracle.sol";
 
 /**
  * @dev Oracles are also fillers
  */
-contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs, IOracle {
-    uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
-
-    mapping(bytes32 outputHash => mapping(uint32 fillTime => mapping(bytes32 oracle => bool proven))) internal
-        _provenOutput;
-
-    // TODO: we need a way to do remote verification.
-    IIncentivizedMessageEscrow public immutable escrow;
-    mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow))
-        escrowMapping;
-
-    error NotApprovedEscrow();
-
-    constructor(address _escrow) {
-        // Solution 1: Set the escrow.
-        escrow = IIncentivizedMessageEscrow(_escrow);
-    }
-
-    /**
-     * TODO: define an output salt which is some value (time + nonce?) that allows us to
-     * discriminate between different outputs in time & space.
-     */
-    function _outputHash(Output calldata output, bytes32 outputSalt) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
-    }
-
-    function _outputHashM(Output memory output, bytes32 outputSalt) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
-    }
-
-    function provenOutput(
-        Output calldata output,
-        uint32 fillTime,
-        bytes32 oracle
-    ) external view returns (bool proven) {
-        bytes32 outputHash = _outputHash(output, bytes32(0));
-        return _provenOutput[outputHash][fillTime][oracle];
-    }
-
-    function isProven(Output[] calldata outputs, uint32 fillTime, bytes32 oracle) public view returns (bool proven) {
-        uint256 numOutputs = outputs.length;
-        for (uint256 i; i < numOutputs; ++i) {
-            bytes32 outputHash = _outputHash(outputs[i], bytes32(0)); // TODO: output salt potentiall also by adding the orderKeyHash to it.
-            if (!_provenOutput[outputHash][fillTime][oracle]) {
-                return proven = false;
-            }
-        }
-        return proven = true;
-    }
+contract GeneralisedIncentivesOracle is ICrossChainReceiver, BaseOracle {
+    constructor(address _escrow) BaseOracle(_escrow) { }
 
     /**
      * @notice Fills an order but does not automatically submit the fill for evaluation on the source chain.
@@ -72,11 +24,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
      * the transaction took place.
      */
     function _fill(Output calldata output, uint32 fillTime) internal {
-        // FillTime may not be in the past.
-        if (fillTime < block.timestamp) require(false, "FillTimeInPast()"); // TODO: custom error.
-        // Check that fillTime isn't far in the future.
-        // The idea is to protect users against random transfers through this contract.
-        if (fillTime > block.timestamp + MAX_FUTURE_FILL_TIME) require(false, "FillTimeFarInFuture()");
+        _validateTimestamp(uint32(block.timestamp), fillTime);
 
         // Check if this is the correct chain.
         // TODO: immutable chainid?
@@ -91,6 +39,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         address token = address(uint160(uint256(output.token)));
         uint256 amount = output.amount;
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
+        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
 
     function _fill(Output[] calldata outputs, uint32[] calldata fillTimes) internal {
@@ -102,29 +51,14 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         }
     }
 
-    //--- Sending Proofs ---//
-
-    // TODO: figure out what the best best interface for this function is
-    function _submit(
-        Output[] calldata outputs,
-        uint32[] calldata filledTimes,
-        bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
-    ) internal {
-        // TODO: Figure out a better idea than abi.encode
-        bytes memory message = abi.encode(outputs, filledTimes);
-        // Deadline is set to 0.
-        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, deadline);
-    }
-
     //--- Solver Interface ---//
 
     function fill(Output[] calldata outputs, uint32[] calldata fillTimes) external {
         _fill(outputs, fillTimes);
     }
 
+    // TODO: just submit?
+    // TODO: How do we standardize the submit interface?
     function fillAndSubmit(
         Output[] calldata outputs,
         uint32[] calldata fillTimes,
@@ -139,11 +73,6 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
 
     //--- Generalised Incentives ---//
 
-    modifier onlyEscrow() {
-        if (msg.sender != address(escrow)) revert NotApprovedEscrow();
-        _;
-    }
-
     function receiveMessage(
         bytes32 sourceIdentifierbytes,
         bytes32, /* messageIdentifier */
@@ -152,13 +81,12 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     ) external onlyEscrow returns (bytes memory acknowledgement) {
         (Output[] memory outputs, uint32[] memory fillTimes) = abi.decode(message, (Output[], uint32[]));
 
-        // TODO: how to verify remote oracle?
         // set the proof locally.
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             Output memory output = outputs[i];
             // Check if sourceIdentifierbytes
-            // TODO: unify chainIdentifiers.
+            // TODO: unify chainIdentifiers. (types)
             if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) require(false, "wrongChain");
             uint32 fillTime = fillTimes[i];
             bytes32 outputHash = _outputHashM(output, bytes32(0)); // TODO: salt

@@ -101,6 +101,9 @@ abstract contract BaseReactor is ISettlementContract {
      * @param order The CrossChainOrder definition
      * @param signature The swapper's signature over the order
      * @param fillerData Any filler-defined data required by the settler
+     *  // TODO: validate that this is using nonces. We may also have
+     *  // to burn fillTimestamps as they are used on the bridges
+     *  // to identify transfers.
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // TODO: solve permit2 context

@@ -7,6 +7,7 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
+import { IOracle } from "../interfaces/IOracle.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -14,10 +15,11 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
 /**
  * @dev Oracles are also fillers
  */
-contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
+contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs, IOracle {
     uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
 
-    mapping(bytes32 outputHash => mapping(uint32 fillTime => bool proven)) internal _provenOutput;
+    mapping(bytes32 outputHash => mapping(uint32 fillTime => mapping(bytes32 oracle => bool proven))) internal
+        _provenOutput;
 
     // TODO: we need a way to do remote verification.
     IIncentivizedMessageEscrow public immutable escrow;
@@ -43,21 +45,20 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
     }
 
-    // TODO: A function that forwards an OrderKey to the reactor?
-    function oracle(OrderKey calldata orderKey) external {
-        // Check if orderKeyOutputs are proven.
-    }
-
-    function provenOutput(Output calldata output, uint32 fillTime) external view returns (bool proven) {
+    function provenOutput(
+        Output calldata output,
+        uint32 fillTime,
+        bytes32 oracle
+    ) external view returns (bool proven) {
         bytes32 outputHash = _outputHash(output, bytes32(0));
-        return _provenOutput[outputHash][fillTime];
+        return _provenOutput[outputHash][fillTime][oracle];
     }
 
-    function isProven(Output[] calldata outputs, uint32 fillTime) public view returns (bool proven) {
+    function isProven(Output[] calldata outputs, uint32 fillTime, bytes32 oracle) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             bytes32 outputHash = _outputHash(outputs[i], bytes32(0)); // TODO: output salt potentiall also by adding the orderKeyHash to it.
-            if (!_provenOutput[outputHash][fillTime]) {
+            if (!_provenOutput[outputHash][fillTime][oracle]) {
                 return proven = false;
             }
         }
@@ -83,7 +84,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
 
         // Check if this has already been filled. If it hasn't return set = false.
         bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
-        bool alreadyProven = _provenOutput[outputHash][fillTime];
+        bool alreadyProven = _provenOutput[outputHash][fillTime][bytes32(0)];
         if (alreadyProven) return;
 
         address recipient = address(uint160(uint256(output.recipient)));
@@ -107,14 +108,13 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     function _submit(
         Output[] calldata outputs,
         uint32[] calldata filledTimes,
-        address reactor,
         bytes32 destinationIdentifier,
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) internal {
         // TODO: Figure out a better idea than abi.encode
-        bytes memory message = abi.encode(reactor, outputs, filledTimes);
+        bytes memory message = abi.encode(outputs, filledTimes);
         // Deadline is set to 0.
         escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, deadline);
     }
@@ -128,14 +128,13 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
     function fillAndSubmit(
         Output[] calldata outputs,
         uint32[] calldata fillTimes,
-        address reactor,
         bytes32 destinationIdentifier,
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) external payable {
         _fill(outputs, fillTimes);
-        _submit(outputs, fillTimes, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
+        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 
     //--- Generalised Incentives ---//
@@ -147,21 +146,23 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
 
     function receiveMessage(
         bytes32 sourceIdentifierbytes,
-        bytes32 messageIdentifier,
+        bytes32, /* messageIdentifier */
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        (address reactor, Output[] memory outputs, uint32[] memory fillTimes) =
-            abi.decode(message, (address, Output[], uint32[]));
+        (Output[] memory outputs, uint32[] memory fillTimes) = abi.decode(message, (Output[], uint32[]));
 
         // TODO: how to verify remote oracle?
         // set the proof locally.
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             Output memory output = outputs[i];
+            // Check if sourceIdentifierbytes
+            // TODO: unify chainIdentifiers.
+            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) require(false, "wrongChain");
             uint32 fillTime = fillTimes[i];
             bytes32 outputHash = _outputHashM(output, bytes32(0)); // TODO: salt
-            _provenOutput[outputHash][fillTime] = true;
+            _provenOutput[outputHash][fillTime][bytes32(fromApplication)] = true;
         }
 
         // We don't care about the ack.

@@ -17,7 +17,7 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
 contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
     uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
 
-    mapping(bytes32 outputHash => bool proven) internal _provenOutput;
+    mapping(bytes32 outputHash => mapping(uint32 fillTime => bool proven)) internal _provenOutput;
 
     // TODO: we need a way to do remote verification.
     IIncentivizedMessageEscrow public immutable escrow;
@@ -48,16 +48,16 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
         // Check if orderKeyOutputs are proven.
     }
 
-    function provenOutput(Output calldata output) external view returns (bool proven) {
+    function provenOutput(Output calldata output, uint32 fillTime) external view returns (bool proven) {
         bytes32 outputHash = _outputHash(output, bytes32(0));
-        return _provenOutput[outputHash];
+        return _provenOutput[outputHash][fillTime];
     }
 
-    function isProven(Output[] calldata outputs) public view returns (bool proven) {
+    function isProven(Output[] calldata outputs, uint32 fillTime) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             bytes32 outputHash = _outputHash(outputs[i], bytes32(0)); // TODO: output salt potentiall also by adding the orderKeyHash to it.
-            if (!_provenOutput[outputHash]) {
+            if (!_provenOutput[outputHash][fillTime]) {
                 return proven = false;
             }
         }
@@ -83,7 +83,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
 
         // Check if this has already been filled. If it hasn't return set = false.
         bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
-        bool alreadyProven = _provenOutput[outputHash];
+        bool alreadyProven = _provenOutput[outputHash][fillTime];
         if (alreadyProven) return;
 
         address recipient = address(uint160(uint256(output.recipient)));
@@ -161,7 +161,7 @@ contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStruc
             Output memory output = outputs[i];
             uint32 fillTime = fillTimes[i];
             bytes32 outputHash = _outputHashM(output, bytes32(0)); // TODO: salt
-            _provenOutput[outputHash] = true;
+            _provenOutput[outputHash][fillTime] = true;
         }
 
         // We don't care about the ack.

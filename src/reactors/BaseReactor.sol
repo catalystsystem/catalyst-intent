@@ -185,7 +185,7 @@ abstract contract BaseReactor is ISettlementContract {
         }
 
         // TODO: custom error // TODO: salting of outputs.
-        if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs)) require(false, "CannotProveOrder()");
+        if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs, orderKey.reactorContext.fillByDeadline)) require(false, "CannotProveOrder()");
 
         // Set order status to filled.
         orderContext.status = OrderStatus.Filled;

@@ -47,7 +47,6 @@ contract LimitOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         LimitOrderData memory limitData
     ) internal pure returns (OrderKey memory orderKey) {
-
         Input[] memory inputs = new Input[](1);
         Output[] memory outputs = new Output[](1);
 
@@ -73,6 +72,7 @@ contract LimitOrderReactor is BaseReactor {
             originChainId: order.originChainId,
             // Proof Context
             localOracle: limitData.localOracle,
+            remoteOracle: limitData.remoteOracle,
             oracleProofHash: bytes32(0),
             inputs: inputs,
             outputs: outputs

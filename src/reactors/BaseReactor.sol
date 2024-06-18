@@ -3,6 +3,8 @@ pragma solidity ^0.8.22;
 
 import { IOrderType } from "../interfaces/IOrderType.sol";
 
+import { IOracle } from "../interfaces/IOracle.sol";
+
 import {
     CrossChainOrder,
     ISettlementContract,
@@ -38,8 +40,6 @@ abstract contract BaseReactor is ISettlementContract {
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
 
-    mapping(bytes32 outputHash => bytes32 orderKeyHash) internal _outputToOrder;
-
     constructor(address permit2) {
         PERMIT2 = ISignatureTransfer(permit2);
     }
@@ -52,10 +52,6 @@ abstract contract BaseReactor is ISettlementContract {
     // todo: Profile with seperate functions for memory and calldata
     function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32) {
         return keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
-    }
-
-    function _outputsHash(Output[] calldata outputs) internal pure returns (bytes32) {
-        return keccak256(abi.encode(outputs)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
     }
 
     //Can be used
@@ -105,6 +101,9 @@ abstract contract BaseReactor is ISettlementContract {
      * @param order The CrossChainOrder definition
      * @param signature The swapper's signature over the order
      * @param fillerData Any filler-defined data required by the settler
+     *  // TODO: validate that this is using nonces. We may also have
+     *  // to burn fillTimestamps as they are used on the bridges
+     *  // to identify transfers.
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // TODO: solve permit2 context
@@ -167,51 +166,54 @@ abstract contract BaseReactor is ISettlementContract {
         bytes calldata fillerData
     ) internal view virtual returns (OrderKey memory);
 
+    function _deliverInputs(Input[] calldata inputs, address to) internal {
+        uint256 numInputs = inputs.length;
+        for (uint256 i; i < numInputs; ++i) {
+            Input calldata input = inputs[i];
+            SafeTransferLib.safeTransfer(input.token, to, input.amount);
+        }
+    }
+
     //--- Order Resolution Helpers ---//
 
     // TODO: figure out correct inputs here.
-    function oracle(Output[] calldata outputs, bytes32 orderKeyHash) external {
-        bytes32 outputHash = _outputsHash(outputs);
-        bytes32 expectedOutputHash = _outputToOrder[outputHash];
-        // TODO: add some more structure surrounding this.
-        require(orderKeyHash == expectedOutputHash);
+    function oracle(OrderKey calldata orderKey) external {
+        OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
 
-        // OrderContext storage orderContext = _orders[orderKey.hash()];
+        OrderStatus status = orderContext.status;
 
-        // // Check if sender is oracle
-        // if (OrderKey.oracle != msg.sender) revert NotOracle();
+        // Only allow processing if order status is either claimed or Challenged
+        if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
+            revert WrongOrderStatus(orderContext.status);
+        }
 
-        // OrderStatus status = orderContext.status;
+        // TODO: custom error // TODO: salting of outputs.
+        if (
+            !IOracle(orderKey.localOracle).isProven(
+                orderKey.outputs, orderKey.reactorContext.fillByDeadline, orderKey.remoteOracle
+            )
+        ) {
+            require(false, "CannotProveOrder()");
+        }
 
-        // // Only allow processing if order status is either claimed or Challenged
-        // if (
-        //     status != OrderStatus.Claimed &&
-        //     status != OrderStatus.Challenged
-        // ) revert WrongOrderStatus(orderContext.status);
+        // Set order status to filled.
+        orderContext.status = OrderStatus.Filled;
 
-        // // Set order status to filled.
-        // orderContext.status = OrderStatus.Filled;
+        // Payout input.
+        address filler = orderContext.filler;
+        _deliverInputs(orderKey.inputs, filler);
 
-        // // Payout input.
-        // address filler = orderContext.filler;
-        // // Get input tokens.
-        // address sourceAsset = orderKey.inputToken;
-        // uint256 inputAmount = orderKey.inputAmount;
+        // Pay collateral
+        address collateralToken = orderKey.collateral.collateralToken;
+        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
-        // // Pay input tokens
-        // ERC20(sourceAsset).safeTransfer(filler, inputAmount);
+        // Check if someone challanged this order.
+        if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
+            fillerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
+        }
 
-        // // Get order collateral.
-        // address collateralToken = orderKey.collateral.collateralToken;
-        // uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-
-        // // Pay collateral tokens
-        // ERC20(collateralToken).safeTransfer(filler, fillerCollateralAmount);
-        // // Check if someone challanged this order.
-        // if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
-        //     uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
-        //     ERC20(collateralToken).safeTransfer(filler, challangerCollateralAmount);
-        // }
+        // Pay collateral tokens
+        SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
     }
 
     /**
@@ -262,11 +264,6 @@ abstract contract BaseReactor is ISettlementContract {
     function dispute(OrderKey calldata orderKey) external payable {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
-
-        bytes32 outputHash = _outputsHash(orderKey.outputs);
-        // TODO: add some more structure surrounding this.
-        // potentiall also by adding the orderKeyHash to it.
-        _outputToOrder[outputHash] = orderKeyHash;
 
         // Check if order is claimed and hasn't been challenged:
         if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);

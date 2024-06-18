@@ -27,11 +27,13 @@ enum OrderStatus {
     Proven,
     Filled
 }
+// @param initTimestamp is for blocking previous fillings.
 
 struct OrderContext {
     OrderStatus status;
     address challanger;
     address filler;
+    uint32 initTimestamp; // TODO: move to orderkey.
 }
 
 /**
@@ -51,6 +53,7 @@ struct OrderKey {
     uint32 originChainId;
     // Proof Context
     address localOracle; // The oracle that can satisfy a dispute.
+    bytes32 remoteOracle; // Remote oracle. If address(0), is local.
     bytes32 oracleProofHash; // TODO: figure out the best way to store proof details. Is the below enough?
     // TODO: Figure out how to do remote calls (gas limit + fallback + calldata)
     Input[] inputs;

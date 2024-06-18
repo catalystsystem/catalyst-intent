@@ -37,16 +37,9 @@ contract TestCollectTokens is TestPermit2 {
     }
 
     function test_initiate_no_order() external {
-        Input memory input = Input({
-            token: address(0),
-            amount: uint256(0)
-        });
-        Output memory output = Output({
-            token: bytes32(0),
-            amount: uint256(0),
-            recipient: bytes32(0),
-            chainId: uint32(0)
-        });
+        Input memory input = Input({ token: address(0), amount: uint256(0) });
+        Output memory output =
+            Output({ token: bytes32(0), amount: uint256(0), recipient: bytes32(0), chainId: uint32(0) });
 
         LimitOrderData memory limitData = LimitOrderData({
             proofDeadline: 0,

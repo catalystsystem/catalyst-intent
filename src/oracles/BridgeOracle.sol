@@ -5,122 +5,93 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
+import { BaseOracle } from "./BaseOracle.sol";
 
 /**
  * @dev Oracles are also fillers
  */
-contract GeneralisedIncentivesOracle is ICrossChainReceiver, IMessageEscrowStructs {
-    // TODO: we need a way to do remote verification.
-    IIncentivizedMessageEscrow public immutable escrow;
-    mapping(bytes32 destinationIdentifier => mapping(bytes destinationAddress => IIncentivizedMessageEscrow escrow))
-        escrowMapping;
-
-    mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
-
-    error AlreadyFilled();
-    error NotFilled();
-    error NotApprovedEscrow();
-
-    constructor(address _escrow) {
-        // Solution 1: Set the escrow.
-        escrow = IIncentivizedMessageEscrow(_escrow);
-    }
+contract GeneralisedIncentivesOracle is ICrossChainReceiver, BaseOracle {
+    constructor(address _escrow) BaseOracle(_escrow) { }
 
     /**
      * @notice Fills an order but does not automatically submit the fill for evaluation on the source chain.
+     * @param output The output to fill.
+     * @param fillTime The filltime to match. This is used when verifying
+     * the transaction took place.
      */
-    function _fill(Output calldata output, OrderKey calldata orderKey) internal {
-        // Since we see this as submitted to the EVM chain, we can make some assumptions on what the orderKey specified.
-        // However, since we don't know which AMB is being used, can't actually check if this is the correct chain.
-        // It is assumed that the solver knows that this is actually the right chain.
-        // Check if this order has been filled before.
-        uint256 filledTime = filledOrders[keccak256(abi.encode(orderKey))];
-        if (filledTime != 0) revert AlreadyFilled();
-        // filledOrders[orderKey] = block.timestamp;
+    function _fill(Output calldata output, uint32 fillTime) internal {
+        _validateTimestamp(uint32(block.timestamp), fillTime);
 
-        // TODO: check that we are on the right chain.
-        // TODO: verify that we are sending the proof to the correct chain.
+        // Check if this is the correct chain.
+        // TODO: immutable chainid?
+        if (uint32(block.chainid) != output.chainId) require(false, "WrongChain()"); // TODO: custom error
 
-        address destination = address(uint160(uint256(output.recipient)));
-        address asset = address(uint160(uint256(output.token)));
+        // Check if this has already been filled. If it hasn't return set = false.
+        bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
+        bool alreadyProven = _provenOutput[outputHash][fillTime][bytes32(0)];
+        if (alreadyProven) return;
+
+        address recipient = address(uint160(uint256(output.recipient)));
+        address token = address(uint160(uint256(output.token)));
         uint256 amount = output.amount;
-        SafeTransferLib.safeTransferFrom(asset, msg.sender, destination, amount);
+        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
+        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
 
-    //--- Sending Proofs ---//
-
-    // TODO: figure out what the best best interface for this function is
-    function _submit(
-        uint256 filledTime,
-        OrderKey calldata orderKey,
-        address reactor,
-        bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
-    ) internal {
-        // TODO: Figure out a better idea than abi.encode
-        bytes memory message = abi.encode(reactor, filledTime, orderKey);
-        // Deadline is set to 0.
-        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, 0);
+    function _fill(Output[] calldata outputs, uint32[] calldata fillTimes) internal {
+        uint256 numOutputs = outputs.length;
+        for (uint256 i; i < numOutputs; ++i) {
+            Output calldata output = outputs[i];
+            uint32 fillTime = fillTimes[i];
+            _fill(output, fillTime);
+        }
     }
 
     //--- Solver Interface ---//
 
-    function fill(Output calldata output, OrderKey calldata orderKey) external {
-        _fill(output, orderKey);
+    function fill(Output[] calldata outputs, uint32[] calldata fillTimes) external {
+        _fill(outputs, fillTimes);
     }
 
-    function submit(
-        OrderKey calldata orderKey,
-        address reactor,
-        bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
-    ) external payable {
-        uint256 filledTime = filledOrders[keccak256(abi.encode(orderKey))];
-        // if (fillStatus == 0) revert NotFilled();
-
-        _submit(filledTime, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
-    }
-
+    // TODO: just submit?
+    // TODO: How do we standardize the submit interface?
     function fillAndSubmit(
-        Output calldata output,
-        OrderKey calldata orderKey,
-        address reactor,
+        Output[] calldata outputs,
+        uint32[] calldata fillTimes,
         bytes32 destinationIdentifier,
         bytes memory destinationAddress,
         IncentiveDescription calldata incentive,
         uint64 deadline
     ) external payable {
-        _fill(output, orderKey);
-        _submit(block.timestamp, orderKey, reactor, destinationIdentifier, destinationAddress, incentive, deadline);
+        _fill(outputs, fillTimes);
+        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 
     //--- Generalised Incentives ---//
 
-    modifier onlyEscrow() {
-        if (msg.sender != address(escrow)) revert NotApprovedEscrow();
-        _;
-    }
-
     function receiveMessage(
         bytes32 sourceIdentifierbytes,
-        bytes32 messageIdentifier,
+        bytes32, /* messageIdentifier */
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        (address reactor, uint256 filledTime, OrderKey memory orderKey) =
-            abi.decode(message, (address, uint256, OrderKey));
+        (Output[] memory outputs, uint32[] memory fillTimes) = abi.decode(message, (Output[], uint32[]));
 
-        // TODO: figure out the structure the oracle call.
-        // BaseReactor(reactor).oracle(orderKey);
+        // set the proof locally.
+        uint256 numOutputs = outputs.length;
+        for (uint256 i; i < numOutputs; ++i) {
+            Output memory output = outputs[i];
+            // Check if sourceIdentifierbytes
+            // TODO: unify chainIdentifiers. (types)
+            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) require(false, "wrongChain");
+            uint32 fillTime = fillTimes[i];
+            bytes32 outputHash = _outputHashM(output, bytes32(0)); // TODO: salt
+            _provenOutput[outputHash][fillTime][bytes32(fromApplication)] = true;
+        }
 
         // We don't care about the ack.
         return hex"";

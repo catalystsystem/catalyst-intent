@@ -15,7 +15,7 @@ import {
 import { OrderContext, OrderKey, OrderStatus } from "../interfaces/Structs.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import {
     CannotProveOrder,

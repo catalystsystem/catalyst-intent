@@ -19,6 +19,8 @@ import { Permit2Lib } from "../src/libs/Permit2Lib.sol";
 import { LimitOrderReactor } from "../src/reactors/LimitOrderReactor.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
+import { InvalidDeadline } from "../src/interfaces/Errors.sol";
+
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
@@ -62,14 +64,20 @@ contract TestLimitOrder is Test {
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
+    // Will be used when we test funtionalities after initalization like challenges
     //TODO: Parameterize the modifier
     modifier orderInitiaited() {
-        LimitOrderData memory limitOrderData = _getLimitOrder(tokenToSwap);
-        CrossChainOrder memory order = _getCrossChainOrder(limitOrderData);
-
-        bytes32 orderHash = this._getHash(order);
-
-        OrderKey memory orderKey = limitOrderReactor.resolveKey(order, hex"");
+        LimitOrderData memory limitOrderData =
+            _getLimitOrder(tokenToSwap, 1 ether, 0, ALICE, 1 ether, 0, address(0), address(0));
+        CrossChainOrder memory order = _getCrossChainOrder(
+            limitOrderData,
+            ALICE,
+            0,
+            uint32(block.chainid),
+            uint32(block.timestamp + 1 hours),
+            uint32(block.timestamp + 1 hours)
+        );
+        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
@@ -82,14 +90,21 @@ contract TestLimitOrder is Test {
     }
 
     function test_crossOrder_to_orderKey() public {
-        LimitOrderData memory limitOrderData = _getLimitOrder(tokenToSwap);
-        CrossChainOrder memory order = _getCrossChainOrder(limitOrderData);
-
+        LimitOrderData memory limitOrderData =
+            _getLimitOrder(tokenToSwap, 1 ether, 0, ALICE, 1 ether, 0, address(0), address(0));
+        CrossChainOrder memory order = _getCrossChainOrder(
+            limitOrderData,
+            ALICE,
+            0,
+            uint32(block.chainid),
+            uint32(block.timestamp + 1 hours),
+            uint32(block.timestamp + 1 hours)
+        );
         OrderKey memory orderKey = limitOrderReactor.resolveKey(order, hex"");
 
         //Input tests
         assertEq(orderKey.inputs.length, 1);
-        Input memory expectedInput = Input({ token: tokenToSwap, amount: uint256(1e18) });
+        Input memory expectedInput = Input({ token: tokenToSwap, amount: 1 ether });
         Input memory actualInput = orderKey.inputs[0];
         assertEq(keccak256(abi.encode(actualInput)), keccak256(abi.encode(expectedInput)));
 
@@ -113,11 +128,8 @@ contract TestLimitOrder is Test {
         assertEq(orderKey.remoteOracle, bytes32(0));
 
         //Collateral test
-        Collateral memory expectedCollateral = Collateral({
-            collateralToken: tokenToSwap,
-            fillerCollateralAmount: 15 ether,
-            challangerCollateralAmount: 1 ether
-        });
+        Collateral memory expectedCollateral =
+            Collateral({ collateralToken: tokenToSwap, fillerCollateralAmount: 1 ether, challangerCollateralAmount: 0 });
         Collateral memory actualCollateral = orderKey.collateral;
         assertEq(keccak256(abi.encode(actualCollateral)), keccak256(abi.encode(expectedCollateral)));
     }
@@ -127,43 +139,136 @@ contract TestLimitOrder is Test {
         assertEq(MockERC20(tokenToSwap).balanceOf(limitOrderReactorAddress), 1 ether);
     }
 
+    /////////////////
+    //Invalid cases//
+    /////////////////
+
+    function test_not_enough_balance() public {
+        LimitOrderData memory limitOrderData =
+            _getLimitOrder(tokenToSwap, 20 ether, 0, ALICE, 1 ether, 0, address(0), address(0));
+        CrossChainOrder memory order = _getCrossChainOrder(
+            limitOrderData,
+            ALICE,
+            0,
+            uint32(block.chainid),
+            uint32(block.timestamp + 1 hours),
+            uint32(block.timestamp + 1 hours)
+        );
+        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            ALICE_PRIVATE_KEY, FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, limitOrderReactorAddress
+        );
+        vm.expectRevert("TRANSFER_FROM_FAILED");
+        limitOrderReactor.initiate(order, signature, abi.encode(FILLER));
+    }
+
+    function test_not_enough_allowance() public {
+        (address BOB, uint256 BOB_KEY) = makeAddrAndKey("blob");
+        MockERC20(tokenToSwap).mint(BOB, 15 ether);
+        vm.prank(BOB);
+        MockERC20(tokenToSwap).approve(permit2, 1 ether);
+        LimitOrderData memory limitOrderData =
+            _getLimitOrder(tokenToSwap, 10 ether, 0, BOB, 1 ether, 0, address(0), address(0));
+        CrossChainOrder memory order = _getCrossChainOrder(
+            limitOrderData,
+            BOB,
+            0,
+            uint32(block.chainid),
+            uint32(block.timestamp + 1 hours),
+            uint32(block.timestamp + 1 hours)
+        );
+        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            BOB_KEY, FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, limitOrderReactorAddress
+        );
+        vm.expectRevert("TRANSFER_FROM_FAILED");
+        limitOrderReactor.initiate(order, signature, abi.encode(FILLER));
+    }
+
+    function test_invalid_deadline() public {
+        LimitOrderData memory limitOrderData =
+            _getLimitOrder(tokenToSwap, 20 ether, 0, ALICE, 1 ether, 0, address(0), address(0));
+        CrossChainOrder memory order = _getCrossChainOrder(
+            limitOrderData, ALICE, uint32(block.chainid), uint32(block.timestamp), uint32(block.timestamp), 0
+        );
+        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            ALICE_PRIVATE_KEY, FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, limitOrderReactorAddress
+        );
+        vm.expectRevert(InvalidDeadline.selector);
+        limitOrderReactor.initiate(order, signature, abi.encode(FILLER));
+    }
+
     //TODO: Parameterize the function
-    function _getLimitOrder(address _tokenToSwap) internal view returns (LimitOrderData memory limitOrderData) {
-        Input memory input = Input({ token: tokenToSwap, amount: uint256(1 ether) });
+    function _getLimitOrder(
+        address _tokenToSwap,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        address _recipient,
+        uint256 _fillerAmount,
+        uint256 _challengerAmount,
+        address _localOracle,
+        address _remoteOracle
+    ) internal view returns (LimitOrderData memory limitOrderData) {
+        Input memory input = Input({ token: tokenToSwap, amount: _inputAmount });
         Output memory output = Output({
             token: bytes32(abi.encode(_tokenToSwap)),
-            amount: uint256(0),
-            recipient: bytes32(abi.encode(ALICE)),
+            amount: _outputAmount,
+            recipient: bytes32(abi.encode(_recipient)),
             chainId: uint32(0)
         });
 
         limitOrderData = LimitOrderData({
             proofDeadline: 0,
             collateralToken: _tokenToSwap,
-            fillerCollateralAmount: 15 ether,
-            challangerCollateralAmount: 1 ether,
-            localOracle: address(0),
-            remoteOracle: bytes32(0),
+            fillerCollateralAmount: _fillerAmount,
+            challangerCollateralAmount: _challengerAmount,
+            localOracle: _localOracle,
+            remoteOracle: bytes32(abi.encode(_remoteOracle)),
             input: input,
             output: output
         });
     }
 
     //TODO: Parameterize the function
-    function _getCrossChainOrder(LimitOrderData memory limitOrderData)
-        internal
-        view
-        returns (CrossChainOrder memory crossChainOrder)
-    {
+    function _getCrossChainOrder(
+        LimitOrderData memory limitOrderData,
+        address _swapper,
+        uint256 _nonce,
+        uint32 _originChainId,
+        uint32 _initiatedDeadline,
+        uint32 _fillDeadline
+    ) internal view returns (CrossChainOrder memory crossChainOrder) {
         crossChainOrder = CrossChainOrder({
             settlementContract: limitOrderReactorAddress,
-            swapper: ALICE,
-            nonce: 0,
-            originChainId: uint32(block.chainid),
-            initiateDeadline: uint32(block.timestamp + 1 hours),
-            fillDeadline: uint32(block.timestamp + 1 hours),
+            swapper: _swapper,
+            nonce: _nonce,
+            originChainId: _originChainId,
+            initiateDeadline: _initiatedDeadline,
+            fillDeadline: _fillDeadline,
             orderData: abi.encode(limitOrderData)
         });
+    }
+
+    function _getOrderKeyInfo(CrossChainOrder memory order)
+        public
+        view
+        returns (bytes32 orderHash, OrderKey memory orderKey)
+    {
+        orderHash = this._getHash(order);
+        orderKey = limitOrderReactor.resolveKey(order, hex"");
     }
 
     function _getHash(CrossChainOrder calldata order) public pure returns (bytes32) {

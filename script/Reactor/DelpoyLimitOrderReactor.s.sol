@@ -8,7 +8,7 @@ import { Script } from "forge-std/Script.sol";
 contract DeployLimitOrderReactor is Script {
     function run() external returns (LimitOrderReactor, ReactorHelperConfig) {
         ReactorHelperConfig helperConfig = new ReactorHelperConfig();
-        (, address permit2, uint256 deployerKey) = helperConfig.currentConfig();
+        (,, address permit2, uint256 deployerKey) = helperConfig.currentConfig();
         vm.startBroadcast(deployerKey);
         LimitOrderReactor limitOrderReactor = new LimitOrderReactor(permit2);
         vm.stopBroadcast();

@@ -68,6 +68,7 @@ abstract contract BaseReactor is ISettlementContract {
     //Can be used
     function getOrderKeyInfo(OrderKey calldata orderKey)
         internal
+        view
         returns (bytes32 orderKeyHash, OrderContext memory orderContext)
     {
         orderKeyHash = _orderKeyHash(orderKey);

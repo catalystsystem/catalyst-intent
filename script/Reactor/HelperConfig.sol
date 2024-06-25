@@ -15,7 +15,8 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
     // We can also add the domain seprator here.
     struct NetworkConfig {
         //TODO: Possible to make it array in the future;
-        address tokenToSwap;
+        address tokenToSwapInput;
+        address tokenToSwapOutput;
         address permit2;
         uint256 deployerKey;
     }
@@ -33,20 +34,26 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
 
     function _getSepoliaConfig() internal view returns (NetworkConfig memory sepoliaConfig) {
         sepoliaConfig = NetworkConfig({
-            tokenToSwap: 0xdd13E55209Fd76AfE204dBda4007C227904f0a81, //WETH address on sepolia
+            tokenToSwapInput: 0xdd13E55209Fd76AfE204dBda4007C227904f0a81, //WETH address on sepolia
+            tokenToSwapOutput: 0x61EDCDf5bb737ADffE5043706e7C5bb1f1a56eEA, //BETH address on sepolia
             permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3, //Permit2 multichain address
             deployerKey: vm.envUint("PK")
         });
     }
 
     function _getAnvilConfig() internal returns (NetworkConfig memory anvilConfig) {
-        if (currentConfig.tokenToSwap != address(0)) return currentConfig;
+        if (currentConfig.tokenToSwapInput != address(0)) return currentConfig;
         vm.startBroadcast();
-        MockERC20 mockERC20 = new MockERC20("TestToken", "TT", 18);
+        MockERC20 input = new MockERC20("TestTokenInput", "TTI", 18);
+        MockERC20 output = new MockERC20("TestTokenOutput", "TTO", 18);
         address permit2 = deployPermit2();
         vm.stopBroadcast();
 
-        anvilConfig =
-            NetworkConfig({ tokenToSwap: address(mockERC20), permit2: permit2, deployerKey: ANVIL_PRIVATE_KEY });
+        anvilConfig = NetworkConfig({
+            tokenToSwapInput: address(input),
+            tokenToSwapOutput: address(output),
+            permit2: permit2,
+            deployerKey: ANVIL_PRIVATE_KEY
+        });
     }
 }

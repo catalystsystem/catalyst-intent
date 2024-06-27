@@ -30,6 +30,18 @@ import {
 } from "../interfaces/Errors.sol";
 import { OptimisticPayout, OrderChallenged, OrderClaimed, OrderFilled, OrderVerify } from "../interfaces/Events.sol";
 
+/**
+ * @title Base Cross-chain intent Reactor
+ * @notice Cross-chain intent resolver. Implements core logic that is shared between all
+ * reactors like: Token collection, order interfaces, order resolution:
+ * - Optimistic Payout: Orders are assumed to have been filled correctly by the solver if not disputed.
+ * - Order Dispute: Orders can be disputed such that proof of fillment has to be made.
+ * - Oracle Interfaction: To provide the relevant proofs against order disputes.
+ * 
+ * It is expected that proper order reactors implement:
+ * - _initiate. To convert partially structured orders into order keys that describe fulfillment conditions.
+ * - _resolveKey. Helper function to convert an order into an order key.
+ */
 abstract contract BaseReactor is ISettlementContract {
     using Permit2Lib for OrderKey;
 
@@ -43,9 +55,6 @@ abstract contract BaseReactor is ISettlementContract {
     constructor(address permit2) {
         PERMIT2 = ISignatureTransfer(permit2);
     }
-
-    // TODO: Do we also want to set execution time here?
-    mapping(bytes32 orderFillHash => bytes32 fillerIdentifier) public filledOrders;
 
     //--- Expose Storage ---//
 
@@ -78,6 +87,12 @@ abstract contract BaseReactor is ISettlementContract {
     //--- Token Handling ---//
 
     // TODO: check these for memory to calldata
+    /**
+     * @notice Multi purpose order flow function that:
+     * - Orders the collection of tokens. This includes checking if the user has enough & approval.
+     * - Verification of the signature for the order. This ensures the user has accepted the order conditions.
+     * - Spend nonces. Disallow the same order from being claimed twice.  // TODO <- Check 
+     */
     function _collectTokens(
         OrderKey memory orderKey,
         address owner,
@@ -96,14 +111,11 @@ abstract contract BaseReactor is ISettlementContract {
     //--- Order Handling ---//
 
     /**
-     * @notice Initiates the settlement of a cross-chain order
-     * @dev To be called by the filler
+     * @notice Initiates a cross-chain order
+     * @dev Called by the filler
      * @param order The CrossChainOrder definition
-     * @param signature The swapper's signature over the order
+     * @param signature The end user signature for the order
      * @param fillerData Any filler-defined data required by the settler
-     *  // TODO: validate that this is using nonces. We may also have
-     *  // to burn fillTimestamps as they are used on the bridges
-     *  // to identify transfers.
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // TODO: solve permit2 context
@@ -122,50 +134,111 @@ abstract contract BaseReactor is ISettlementContract {
     }
 
     /**
-     * @notice Reactor types needs to implement this function to initiate their orders.
+     * @notice Reactor Order implementations needs to implement this function to initiate their orders.
      * Return an orderKey with the relevant information to solve for.
      * @dev This function shouldn't check if the signature is correct but instead return information
-     * such that we can make a permit2 call.
+     * to be used by _collectTokens to verify the order (through PERMIT2).
      */
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata fillerData
     ) internal virtual returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
 
+
     /**
-     * @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
-     * @dev Intended to improve standardized integration of various order types and settlement contracts
-     * @param order The CrossChainOrder definition
+     * @notice Resolves a specific CrossChainOrder into a Catalyst specific OrderKey.
+     * @dev This provides a more precise description of the cost of the order compared to the generic resolve(...).
+     * @param order CrossChainOrder to resolve.
      * @param fillerData Any filler-defined data required by the settler
-     * @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
-     */
-    function resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) external view returns (ResolvedCrossChainOrder memory) {
-        return _resolve(order, fillerData);
-    }
-
-    function _resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal view virtual returns (ResolvedCrossChainOrder memory);
-
-    /**
-     * TODO: docs
+     * @return orderKey The full description of the order, including the inputs and outputs of the order
      */
     function resolveKey(
         CrossChainOrder calldata order,
         bytes calldata fillerData
-    ) external view returns (OrderKey memory) {
-        return _resolveKey(order, fillerData);
+    ) external view returns (OrderKey memory orderKey) {
+        return orderKey = _resolveKey(order, fillerData);
     }
 
+    /**
+     * @notice Logic function for resolveKey(...).
+     * @dev Order implementations of this reactor are required to implement this function.
+     */
     function _resolveKey(
         CrossChainOrder calldata order,
         bytes calldata fillerData
     ) internal view virtual returns (OrderKey memory);
 
+    /**
+     * @notice ERC-7683: Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
+     * @dev Intended to improve standardized integration of various order types and settlement contracts
+     * @param order CrossChainOrder to resolve.
+     * @param fillerData Any filler-defined data required by the settler
+     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
+     */
+    function resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
+        return _resolve(order, fillerData);
+    }
+
+    /**
+     * @notice Resolves an order into an ERC-7683 compatible order struct.
+     * By default relies on _resolveKey to convert OrderKey into a ResolvedCrossChainOrder
+     * @dev Can be overwritten if there isn't a translation of an orderKey into resolvedOrder.
+     * @param order CrossChainOrder to resolve.
+     * @param  fillerData Any filler-defined data required by the settler
+     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
+     */
+    function _resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
+        OrderKey memory orderKey = _resolveKey(order, fillerData);
+        address filler = abi.decode(fillerData, (address));
+
+        // Inputs can be taken directly from the orderKey.
+        Input[] memory swapperInputs = orderKey.inputs;
+        // Likewise for outputs.
+        Output[] memory swapperOutputs = orderKey.outputs;
+
+        // fillerOutputs are of the Output type and as a result, we can't just
+        // load swapperInputs into fillerOutputs. As a result, we need to parse
+        // the individual inputs and make a new struct.
+        uint256 numInputs = swapperInputs.length;
+        Output[] memory fillerOutputs = new Output[](numInputs);
+        Output memory fillerOutput;
+        for (uint256 i; i < numInputs; ++i) {
+            Input memory input = swapperInputs[i];
+            fillerOutput = Output({
+                token: bytes32(uint256(uint160(input.token))),
+                amount: input.amount,
+                recipient: bytes32(uint256(uint160(filler))),
+                chainId: uint32(block.chainid)
+            });
+            fillerOutputs[i] = fillerOutput;
+        }
+
+        // Lastly, complete the ResolvedCrossChainOrder struct.
+        resolvedOrder = ResolvedCrossChainOrder({
+            settlementContract: order.settlementContract,
+            swapper: order.swapper,
+            nonce: order.nonce,
+            originChainId: order.originChainId,
+            initiateDeadline: order.initiateDeadline,
+            fillDeadline: order.fillDeadline,
+            swapperInputs: swapperInputs,
+            swapperOutputs: swapperOutputs,
+            fillerOutputs: fillerOutputs
+        });
+    }
+
+    /**
+     * @notice Sends a list of inputs to the target address.
+     * @dev This function can be used for paying the filler or refunding the user in case of disputes.
+     * @param inputs List of inputs that are to be paid.
+     * @param to Destination address.
+     */
     function _deliverInputs(Input[] calldata inputs, address to) internal {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {

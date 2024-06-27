@@ -78,44 +78,4 @@ contract LimitOrderReactor is BaseReactor {
             outputs: outputs
         });
     }
-
-    function _resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal view override returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        LimitOrderData memory limitData = order.orderData.decodeOrderData();
-        address filler = abi.decode(fillerData, (address));
-
-        Input memory swapperInput = limitData.input;
-
-        Output memory swapperOutput = limitData.output;
-
-        Output memory fillerOutput = Output({
-            token: bytes32(uint256(uint160(limitData.input.token))),
-            amount: limitData.input.amount,
-            recipient: bytes32(uint256(uint160(filler))),
-            chainId: uint32(block.chainid)
-        });
-
-        Input[] memory swapperInputs = new Input[](1);
-        swapperInputs[0] = swapperInput;
-
-        Output[] memory swapperOutputs = new Output[](1);
-        swapperOutputs[0] = swapperOutput;
-
-        Output[] memory fillerOutputs = new Output[](1);
-        fillerOutputs[0] = fillerOutput;
-
-        resolvedOrder = ResolvedCrossChainOrder({
-            settlementContract: order.settlementContract,
-            swapper: order.swapper,
-            nonce: order.nonce,
-            originChainId: order.originChainId,
-            initiateDeadline: order.initiateDeadline,
-            fillDeadline: order.fillDeadline,
-            swapperInputs: swapperInputs,
-            swapperOutputs: swapperOutputs,
-            fillerOutputs: fillerOutputs
-        });
-    }
 }

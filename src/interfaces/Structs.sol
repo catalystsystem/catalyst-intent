@@ -11,10 +11,10 @@ import { Input, Output } from "./ISettlementContract.sol";
  * @notice The progressive order status of cross-chain orders
  *
  * - Unfilled: Default state. Progresses to Claimed.
- * - Claimed: A solver has claimed this order. Progresses to Challanged or OPFilled.
+ * - Claimed: A solver has claimed this order. Progresses to Challenged or OPFilled.
  * - Challenged: A claimed order was challenged. Progresses to Fraud or Proven.
  * - Fraud: The solver did not prove delivery & Challenger claiemd the collateral. Final.
- * - OPFilled: A claimed order was not challenged. Payed inputs to solver. Final.
+ * - OPFilled: A claimed order was not challenged. Paid inputs to solver. Final.
  * - Proven: A solver proved settlement. Progresses to Filled.
  * - Filled: A proven settlement was paid. Final.
  */
@@ -31,7 +31,7 @@ enum OrderStatus {
 
 struct OrderContext {
     OrderStatus status;
-    address challanger;
+    address challenger;
     address filler;
     uint32 initTimestamp; // TODO: move to orderkey.
 }
@@ -46,7 +46,7 @@ struct OrderKey {
     // The contract that is managing this order.
     ReactorInfo reactorContext;
     // Who this order was claimed by.
-    address swapper;
+    address swapper; // TODO: Include filler in this order?
     uint96 nonce;
     // Collateral
     Collateral collateral;
@@ -57,7 +57,7 @@ struct OrderKey {
     bytes32 oracleProofHash; // TODO: figure out the best way to store proof details. Is the below enough?
     // TODO: Figure out how to do remote calls (gas limit + fallback + calldata)
     Input[] inputs;
-    // Lets say the challanger maps keccak256(abi.encode(outputs)) => keccak256(OrderKey).
+    // Lets say the challenger maps keccak256(abi.encode(outputs)) => keccak256(OrderKey).
     // Then we can easily check if these outputs have all been matched.
     Output[] outputs;
 }
@@ -71,12 +71,12 @@ struct ReactorInfo {
     address reactor;
     // Order resolution times
     uint32 fillByDeadline;
-    uint32 challangeDeadline;
+    uint32 challengedeadline;
     uint32 proofDeadline;
 }
 
 struct Collateral {
     address collateralToken; // TODO: Just use gas?
     uint256 fillerCollateralAmount;
-    uint256 challangerCollateralAmount;
+    uint256 challengerCollateralAmount;
 }

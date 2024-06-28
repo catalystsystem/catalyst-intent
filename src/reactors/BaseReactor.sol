@@ -18,10 +18,11 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import {
-    ChallangeDeadlinePassed,
+    CannotProveOrder,
+    ChallengedeadlinePassed,
     NonceClaimed,
     NotOracle,
-    OrderAlreadyChallanged,
+    OrderAlreadyChallenged,
     OrderAlreadyClaimed,
     OrderNotClaimed,
     OrderNotReadyForOptimisticPayout,
@@ -30,6 +31,18 @@ import {
 } from "../interfaces/Errors.sol";
 import { OptimisticPayout, OrderChallenged, OrderClaimed, OrderFilled, OrderVerify } from "../interfaces/Events.sol";
 
+/**
+ * @title Base Cross-chain intent Reactor
+ * @notice Cross-chain intent resolver. Implements core logic that is shared between all
+ * reactors like: Token collection, order interfaces, order resolution:
+ * - Optimistic Payout: Orders are assumed to have been filled correctly by the solver if not disputed.
+ * - Order Dispute: Orders can be disputed such that proof of fillment has to be made.
+ * - Oracle Interfaction: To provide the relevant proofs against order disputes.
+ *
+ * It is expected that proper order reactors implement:
+ * - _initiate. To convert partially structured orders into order keys that describe fulfillment conditions.
+ * - _resolveKey. Helper function to convert an order into an order key.
+ */
 abstract contract BaseReactor is ISettlementContract {
     using Permit2Lib for OrderKey;
 
@@ -44,12 +57,9 @@ abstract contract BaseReactor is ISettlementContract {
         PERMIT2 = ISignatureTransfer(permit2);
     }
 
-    // TODO: Do we also want to set execution time here?
-    mapping(bytes32 orderFillHash => bytes32 fillerIdentifier) public filledOrders;
-
     //--- Expose Storage ---//
 
-    // todo: Profile with seperate functions for memory and calldata
+    // todo: Profile with separate functions for memory and calldata
     function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32) {
         return keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
     }
@@ -63,7 +73,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext = _orders[orderKeyHash];
     }
 
-    //TODO: Do we need this?, we already have oderHash function for CrossChainOrder in CrossChainOrderLib.sol
+    //TODO: Do we need this?, we already have orderHash function for CrossChainOrder in CrossChainOrderLib.sol
     function orderHash(CrossChainOrder calldata order) external pure returns (bytes32) {
         return _orderHash(order);
     }
@@ -78,6 +88,12 @@ abstract contract BaseReactor is ISettlementContract {
     //--- Token Handling ---//
 
     // TODO: check these for memory to calldata
+    /**
+     * @notice Multi purpose order flow function that:
+     * - Orders the collection of tokens. This includes checking if the user has enough & approval.
+     * - Verification of the signature for the order. This ensures the user has accepted the order conditions.
+     * - Spend nonces. Disallow the same order from being claimed twice.  // TODO <- Check
+     */
     function _collectTokens(
         OrderKey memory orderKey,
         address owner,
@@ -96,18 +112,25 @@ abstract contract BaseReactor is ISettlementContract {
     //--- Order Handling ---//
 
     /**
-     * @notice Initiates the settlement of a cross-chain order
-     * @dev To be called by the filler
+     * @notice Initiates a cross-chain order
+     * @dev Called by the filler.
+     * When a filler initiates a transaction it is important that they do the following:
+     * 1. Trust the reactor. Technically, anyone can deploy a reactor that takes these interfaces.
+     * As the filler has to provide collateral, this collateral could be at risk.
+     * 2. Verify that the deadlines provided in the order are sane. If proof - challenge is small
+     * then it may impossible to prove thus free to challenge.
+     * 3. Trust the oracles. Any oracles can be provided but they may not signal that the proof
+     * is or isn't valid.
      * @param order The CrossChainOrder definition
-     * @param signature The swapper's signature over the order
+     * @param signature The end user signature for the order
      * @param fillerData Any filler-defined data required by the settler
-     *  // TODO: validate that this is using nonces. We may also have
-     *  // to burn fillTimestamps as they are used on the bridges
-     *  // to identify transfers.
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // TODO: solve permit2 context
         (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData);
+        // TODO: verify the deadlines are sane.
+        // TODO: Do we implement a forced minimum difference between proof and challenge?
+        // Init < fill < challenge < proof
 
         address filler = abi.decode(fillerData, (address));
 
@@ -122,10 +145,10 @@ abstract contract BaseReactor is ISettlementContract {
     }
 
     /**
-     * @notice Reactor types needs to implement this function to initiate their orders.
+     * @notice Reactor Order implementations needs to implement this function to initiate their orders.
      * Return an orderKey with the relevant information to solve for.
      * @dev This function shouldn't check if the signature is correct but instead return information
-     * such that we can make a permit2 call.
+     * to be used by _collectTokens to verify the order (through PERMIT2).
      */
     function _initiate(
         CrossChainOrder calldata order,
@@ -133,39 +156,100 @@ abstract contract BaseReactor is ISettlementContract {
     ) internal virtual returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
 
     /**
-     * @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
-     * @dev Intended to improve standardized integration of various order types and settlement contracts
-     * @param order The CrossChainOrder definition
+     * @notice Resolves a specific CrossChainOrder into a Catalyst specific OrderKey.
+     * @dev This provides a more precise description of the cost of the order compared to the generic resolve(...).
+     * @param order CrossChainOrder to resolve.
      * @param fillerData Any filler-defined data required by the settler
-     * @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
-     */
-    function resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) external view returns (ResolvedCrossChainOrder memory) {
-        return _resolve(order, fillerData);
-    }
-
-    function _resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal view virtual returns (ResolvedCrossChainOrder memory);
-
-    /**
-     * TODO: docs
+     * @return orderKey The full description of the order, including the inputs and outputs of the order
      */
     function resolveKey(
         CrossChainOrder calldata order,
         bytes calldata fillerData
-    ) external view returns (OrderKey memory) {
-        return _resolveKey(order, fillerData);
+    ) external view returns (OrderKey memory orderKey) {
+        return orderKey = _resolveKey(order, fillerData);
     }
 
+    /**
+     * @notice Logic function for resolveKey(...).
+     * @dev Order implementations of this reactor are required to implement this function.
+     */
     function _resolveKey(
         CrossChainOrder calldata order,
         bytes calldata fillerData
     ) internal view virtual returns (OrderKey memory);
 
+    /**
+     * @notice ERC-7683: Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
+     * @dev Intended to improve standardized integration of various order types and settlement contracts
+     * @param order CrossChainOrder to resolve.
+     * @param fillerData Any filler-defined data required by the settler
+     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
+     */
+    function resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
+        return _resolve(order, fillerData);
+    }
+
+    /**
+     * @notice Resolves an order into an ERC-7683 compatible order struct.
+     * By default relies on _resolveKey to convert OrderKey into a ResolvedCrossChainOrder
+     * @dev Can be overwritten if there isn't a translation of an orderKey into resolvedOrder.
+     * @param order CrossChainOrder to resolve.
+     * @param  fillerData Any filler-defined data required by the settler
+     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
+     */
+    function _resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
+        OrderKey memory orderKey = _resolveKey(order, fillerData);
+        address filler = abi.decode(fillerData, (address));
+
+        // Inputs can be taken directly from the orderKey.
+        Input[] memory swapperInputs = orderKey.inputs;
+        // Likewise for outputs.
+        Output[] memory swapperOutputs = orderKey.outputs;
+
+        // fillerOutputs are of the Output type and as a result, we can't just
+        // load swapperInputs into fillerOutputs. As a result, we need to parse
+        // the individual inputs and make a new struct.
+        uint256 numInputs = swapperInputs.length;
+        Output[] memory fillerOutputs = new Output[](numInputs);
+        Output memory fillerOutput;
+        for (uint256 i; i < numInputs; ++i) {
+            Input memory input = swapperInputs[i];
+            fillerOutput = Output({
+                token: bytes32(uint256(uint160(input.token))),
+                amount: input.amount,
+                recipient: bytes32(uint256(uint160(filler))),
+                chainId: uint32(block.chainid)
+            });
+            fillerOutputs[i] = fillerOutput;
+        }
+
+        // Lastly, complete the ResolvedCrossChainOrder struct.
+        resolvedOrder = ResolvedCrossChainOrder({
+            settlementContract: order.settlementContract,
+            swapper: order.swapper,
+            nonce: order.nonce,
+            originChainId: order.originChainId,
+            initiateDeadline: order.initiateDeadline,
+            fillDeadline: order.fillDeadline,
+            swapperInputs: swapperInputs,
+            swapperOutputs: swapperOutputs,
+            fillerOutputs: fillerOutputs
+        });
+    }
+
+    /**
+     * TODO: Do we want to function overload with a governance fee?
+     * @notice Sends a list of inputs to the target address.
+     * @dev This function can be used for paying the filler or refunding the user in case of disputes.
+     * @param inputs List of inputs that are to be paid.
+     * @param to Destination address.
+     */
     function _deliverInputs(Input[] calldata inputs, address to) internal {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
@@ -176,7 +260,12 @@ abstract contract BaseReactor is ISettlementContract {
 
     //--- Order Resolution Helpers ---//
 
-    // TODO: figure out correct inputs here.
+    /**
+     * TODO: figure out if we can reduce the argument size (make simpler).
+     * @notice Prove that an order was filled. Requires that the order oracle exposes
+     * a function, isProven(...), that returns true when called with the order details.
+     * @dev 
+     */
     function oracle(OrderKey calldata orderKey) external {
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
 
@@ -186,38 +275,45 @@ abstract contract BaseReactor is ISettlementContract {
         if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
             revert WrongOrderStatus(orderContext.status);
         }
+        // Immediately set order status to filled. If the order hasn't been filled
+        // then the next line will fail. This acts as a LOCAL reentry check.
+        orderContext.status = OrderStatus.Filled;
 
-        // TODO: custom error // TODO: salting of outputs.
+        // The following call is a external call to an untrusted contract. As a result,
+        // it is important that we protect this contract against reentry calls, even if read-only.
         if (
             !IOracle(orderKey.localOracle).isProven(
                 orderKey.outputs, orderKey.reactorContext.fillByDeadline, orderKey.remoteOracle
             )
-        ) {
-            require(false, "CannotProveOrder()");
-        }
-
-        // Set order status to filled.
-        orderContext.status = OrderStatus.Filled;
+        ) revert CannotProveOrder();
 
         // Payout input.
         address filler = orderContext.filler;
+        // TODO: governance fee?
         _deliverInputs(orderKey.inputs, filler);
 
-        // Pay collateral
+        // Return collateral to the filler. Load the collateral details from the order.
+        // (Filler provided collateral).
         address collateralToken = orderKey.collateral.collateralToken;
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
-        // Check if someone challanged this order.
-        if (status == OrderStatus.Challenged && orderContext.challanger != address(0)) {
-            fillerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
+        // If the order was challenged, then the challenger also provided collateral.
+        // All of this goes to the filler.
+        // TODO: Prove `status == OrderStatus.Challenged IFF orderContext.challenger != address(0)`
+        if (status == OrderStatus.Challenged && orderContext.challenger != address(0)) {
+            // Add collateral amount. Both collaterals were paid in the same tokens.
+            // This lets us do only a single transfer call.
+            fillerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
         }
 
         // Pay collateral tokens
+        // TODO: What if this fails. Do we want to implement a kind of callback?
         SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
     }
 
     /**
-     * @dev Anyone can call this but the payout goes to the designated claimer.
+     * @notice Collect the order result
+     * @dev Anyone can call this but the payout goes to the filler of the order.
      */
     function optimisticPayout(OrderKey calldata orderKey) external payable {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
@@ -225,26 +321,21 @@ abstract contract BaseReactor is ISettlementContract {
 
         // Check if order is claimed:
         if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
-        // Do we need this check here?
-        if (orderContext.challanger == address(0)) revert OrderAlreadyChallanged(orderContext);
+        // TODO: Do we need this check here?
+        if (orderContext.challenger == address(0)) revert OrderAlreadyChallenged(orderContext);
         orderContext.status = OrderStatus.OPFilled;
 
-        // Check if time is post challange deadline
-        uint40 challangeDeadline = orderKey.reactorContext.challangeDeadline;
-        if (uint40(block.timestamp) > challangeDeadline) revert OrderNotReadyForOptimisticPayout();
+        // If time is post challenge deadline, then the order can only progress to optimistic payout.
+        uint40 challengedeadline = orderKey.reactorContext.challengedeadline;
+        if (uint40(block.timestamp) <= challengedeadline) {
+            revert OrderNotReadyForOptimisticPayout(challengedeadline - uint40(block.timestamp));
+        }
 
         address filler = orderContext.filler;
 
         // Pay input tokens to filler.
-        uint256 numInputTokens = orderKey.inputs.length;
-        for (uint256 i; i < numInputTokens; ++i) {
-            Input calldata input = orderKey.inputs[i];
-            address sourceAsset = input.token;
-            uint256 inputAmount = input.amount;
-
-            // TODO: subtract gov fee?
-            SafeTransferLib.safeTransfer(sourceAsset, filler, inputAmount);
-        }
+        // TODO: governance fee?
+        _deliverInputs(orderKey.inputs, filler);
 
         // Get order collateral.
         address collateralToken = orderKey.collateral.collateralToken;
@@ -259,7 +350,16 @@ abstract contract BaseReactor is ISettlementContract {
     //--- Disputes ---//
 
     /**
-     * @notice Disputes a claim.
+     * @notice Disputes a claim. If a claimed order hasn't been delivered post the fill deadline
+     * then the order should be challenged. This allows anyone to attempt to claim the collateral
+     * the filler provided (at the risk of losing their own collateral).
+     * @dev For challengers it is important to properly verify transactions:
+     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able 
+     * to toggle between is verified and not. This makes it possible for the filler to steal 
+     * the challenger's collateral
+     * 2. Remote Oracle. Likewise for the local oracle, remote oracles may be controllable by
+     * the filler.
+     * TODO: Are there more risks?
      */
     function dispute(OrderKey calldata orderKey) external payable {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
@@ -267,20 +367,20 @@ abstract contract BaseReactor is ISettlementContract {
 
         // Check if order is claimed and hasn't been challenged:
         if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
-        if (orderContext.challanger == address(0)) revert OrderAlreadyChallanged(orderContext);
+        if (orderContext.challenger == address(0)) revert OrderAlreadyChallenged(orderContext);
 
-        // Check if challange deadline hasn't been passed.
-        if (orderKey.reactorContext.challangeDeadline > uint40(block.timestamp)) revert ChallangeDeadlinePassed();
+        // Check if challenge deadline hasn't been passed.
+        if (orderKey.reactorContext.challengedeadline > uint40(block.timestamp)) revert ChallengedeadlinePassed();
 
         orderContext.status = OrderStatus.Challenged;
-        orderContext.challanger = msg.sender;
+        orderContext.challenger = msg.sender;
 
         // Collect bond collateral.
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken,
             msg.sender,
             address(this),
-            orderKey.collateral.challangerCollateralAmount
+            orderKey.collateral.challengerCollateralAmount
         );
 
         emit OrderChallenged(orderKeyHash, msg.sender);
@@ -290,35 +390,39 @@ abstract contract BaseReactor is ISettlementContract {
      * @notice Finalise the dispute.
      */
     function completeDispute(OrderKey calldata orderKey) external {
-        //     OrderContext storage orderContext = _orders[orderKey.hash()];
+        bytes32 orderKeyHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
 
-        //     // Check that the order is currently challanged
-        //     if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
-        //     if (orderContext.challanger != address(0)) revert OrderAlreadyChallanged();
+        // Check if proof deadline has passed. If this is the case, (& the order hasn't been proven)
+        // it has to be assumed that the order was not filled.
+        if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
 
-        //     // Check if proof deadline has passed.
-        //     if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
+        // Check that the order is currently challenged. If is it currently challenged,
+        // it implies that the fulfillment was not proven.
+        // TODO: Prove `status == OrderStatus.Challenged IFF orderContext.challenger != address(0)`
+        if (orderContext.challenger != address(0)) revert OrderAlreadyChallenged(orderContext);
+        // TODO: fix custom error.
+        if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
 
-        //     orderContext.status = OrderStatus.Fraud;
+        // Update the status of the order. This disallows local re-entries.
+        // It is important that no external logic is made between the below & above lines.
+        orderContext.status = OrderStatus.Fraud;
 
-        //     // Get input tokens.
-        //     address sourceAsset = orderKey.inputToken;
-        //     inputAmount = orderKey.inputAmount;
-        //     // Get order collateral.
-        //     address collateralToken = orderKey.collateral.collateralToken;
-        //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-        //     uint256 challangerCollateralAmount = orderKey.collateral.challangerCollateralAmount;
+        // Send the input tokens back to the user.
+        _deliverInputs(orderKey.inputs, orderKey.swapper);
+        // Divide the collateral between challenger and user. // TODO: figure out ration to each.
+        // Get order collateral.
+        address collateralToken = orderKey.collateral.collateralToken;
+        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
 
-        //     address owner = orderKey.owner;
+        // Send partial collateral back to user
+        uint256 swapperCollateralAmount = fillerCollateralAmount/2;
+        // TODO: implement some kind of fallback if this fails.
+        SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
-        //     // Send inputs assets back to the user.
-        //     ERC20(sourceAsset).safeTransfer(owner, inputAmount);
-
-        //     // Send partical collateral back to user
-        //     uint256 ownerCollateralAmount = fillerCollateralAmount/2;
-        //     ERC20(collateralToken).safeTransfer(owner, ownerCollateralAmount);
-
-        //     // Send the rest to the wallet that proof fraud:
-        //     ERC20(collateralToken).safeTransfer(orderContext.challanger, fillerCollateralAmount - ownerCollateralAmount);
+        // Send the rest to the wallet that proof fraud:
+        // TODO: implement some kind of fallback if this fails.
+        SafeTransferLib.safeTransfer(collateralToken, orderContext.challenger,  challengerCollateralAmount + fillerCollateralAmount- swapperCollateralAmount);
     }
 }

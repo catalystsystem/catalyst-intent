@@ -20,8 +20,8 @@ event OrderFilled(
     bytes32 indexed orderHash,
     bytes32 indexed fillerIdentifier,
     bytes32 fillOrderHash,
-    bytes destiantionAsset,
-    uint256 destiantionAmount
+    bytes destinationAsset,
+    uint256 destinationAmount
 );
 
 event OrderVerify(bytes32 indexed orderHash, bytes32 fillOrderHash);

@@ -82,7 +82,7 @@ contract BitcoinOracle is BaseOracle {
 
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
 
-        // TODO: Get timestamp of previous block. This is pretty hard but doable. It requries us to get the "relevant" header and then check if that is a valid block.
+        // TODO: Get timestamp of previous block. This is pretty hard but doable. It requires us to get the "relevant" header and then check if that is a valid block.
         uint256 ixT = inclusionProof.blockHeader.length - 12;
         uint32 time = uint32(bytes4(inclusionProof.blockHeader[ixT:ixT + 4]));
         timestamp = Endian.reverse32(time);

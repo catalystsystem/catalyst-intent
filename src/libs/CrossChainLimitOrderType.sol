@@ -9,7 +9,7 @@ struct LimitOrderData {
     uint32 proofDeadline;
     address collateralToken;
     uint256 fillerCollateralAmount;
-    uint256 challangerCollateralAmount; // TODO: use factor on fillerCollateralAmount
+    uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
     bytes32 remoteOracle; // TODO: figure out how to trustless.
     Input input;
@@ -26,7 +26,7 @@ library CrossChainLimitOrderType {
         "uint32 proofDeadline,",
         "address collateralToken,",
         "uint256 fillerCollateralAmount,",
-        "uint256 challangerCollateralAmount,",
+        "uint256 challengerCollateralAmount,",
         "address localOracle,",
         "bytes32 remoteOracle,",
         "Input input,",
@@ -75,7 +75,7 @@ library CrossChainLimitOrderType {
             keccak256(abi.encodePacked(OUTPUT_TYPE_STUB, output.token, output.amount, output.recipient, output.chainId));
     }
 
-    // TODO: Make a bytes calldata version of this functon.
+    // TODO: Make a bytes calldata version of this function.
     function hashOrderData(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked( // todo: bytes.concat
@@ -83,7 +83,7 @@ library CrossChainLimitOrderType {
                 orderData.proofDeadline,
                 orderData.collateralToken,
                 orderData.fillerCollateralAmount,
-                orderData.challangerCollateralAmount,
+                orderData.challengerCollateralAmount,
                 orderData.localOracle,
                 orderData.remoteOracle,
                 hashInput(orderData.input),

@@ -50,8 +50,8 @@ library Permit2Lib {
         pure
         returns (ISignatureTransfer.SignatureTransferDetails[] memory batchSignatureTransfer)
     {
-        uint256 numOuputs = outputs.length;
-        batchSignatureTransfer = new ISignatureTransfer.SignatureTransferDetails[](numOuputs);
+        uint256 numOutputs = outputs.length;
+        batchSignatureTransfer = new ISignatureTransfer.SignatureTransferDetails[](numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             batchSignatureTransfer[i] = new ISignatureTransfer.SignatureTransferDetails({
                 to: to,

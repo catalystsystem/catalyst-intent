@@ -29,7 +29,7 @@ uint256 constant CONTEXT_POS = 0;
 uint256 constant NUM_OUTPUTS_START = 1;
 uint256 constant NUM_OUTPUTS_END = 3;
 
-// Output Entires ***************************************************************************************************************
+// Output Entries ***************************************************************************************************************
 
 uint256 constant OUTPUT_LENGTH = 132;
 

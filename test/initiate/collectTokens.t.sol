@@ -45,7 +45,7 @@ contract TestCollectTokens is TestPermit2 {
             proofDeadline: 0,
             collateralToken: address(0),
             fillerCollateralAmount: uint256(0),
-            challangerCollateralAmount: uint256(0),
+            challengerCollateralAmount: uint256(0),
             localOracle: address(0),
             remoteOracle: bytes32(0),
             input: input,

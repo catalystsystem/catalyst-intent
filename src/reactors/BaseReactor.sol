@@ -370,35 +370,39 @@ abstract contract BaseReactor is ISettlementContract {
      * @notice Finalise the dispute.
      */
     function completeDispute(OrderKey calldata orderKey) external {
-        //     OrderContext storage orderContext = _orders[orderKey.hash()];
+        bytes32 orderKeyHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
 
-        //     // Check that the order is currently challenged
-        //     if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
-        //     if (orderContext.challenger != address(0)) revert OrderAlreadyChallenged();
+        // Check if proof deadline has passed. If this is the case, (& the order hasn't been proven)
+        // it has to be assumed that the order was not filled.
+        if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
 
-        //     // Check if proof deadline has passed.
-        //     if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
+        // Check that the order is currently challenged. If is it currently challenged,
+        // it implies that the fulfillment was not proven.
+        // TODO: Prove `status == OrderStatus.Challenged IFF orderContext.challenger != address(0)`
+        if (orderContext.challenger != address(0)) revert OrderAlreadyChallenged(orderContext);
+        // TODO: fix custom error.
+        if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
 
-        //     orderContext.status = OrderStatus.Fraud;
+        // Update the status of the order. This disallows local re-entries.
+        // It is important that no external logic is made between the below & above lines.
+        orderContext.status = OrderStatus.Fraud;
 
-        //     // Get input tokens.
-        //     address sourceAsset = orderKey.inputToken;
-        //     inputAmount = orderKey.inputAmount;
-        //     // Get order collateral.
-        //     address collateralToken = orderKey.collateral.collateralToken;
-        //     uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-        //     uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
+        // Send the input tokens back to the user.
+        _deliverInputs(orderKey.inputs, orderKey.swapper);
+        // Divide the collateral between challenger and user. // TODO: figure out ration to each.
+        // Get order collateral.
+        address collateralToken = orderKey.collateral.collateralToken;
+        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
 
-        //     address owner = orderKey.owner;
+        // Send partial collateral back to user
+        uint256 swapperCollateralAmount = fillerCollateralAmount/2;
+        // TODO: implement some kind of fallback if this fails.
+        SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
-        //     // Send inputs assets back to the user.
-        //     ERC20(sourceAsset).safeTransfer(owner, inputAmount);
-
-        //     // Send partial collateral back to user
-        //     uint256 ownerCollateralAmount = fillerCollateralAmount/2;
-        //     ERC20(collateralToken).safeTransfer(owner, ownerCollateralAmount);
-
-        //     // Send the rest to the wallet that proof fraud:
-        //     ERC20(collateralToken).safeTransfer(orderContext.challenger, fillerCollateralAmount - ownerCollateralAmount);
+        // Send the rest to the wallet that proof fraud:
+        // TODO: implement some kind of fallback if this fails.
+        SafeTransferLib.safeTransfer(collateralToken, orderContext.challenger,  challengerCollateralAmount + fillerCollateralAmount- swapperCollateralAmount);
     }
 }

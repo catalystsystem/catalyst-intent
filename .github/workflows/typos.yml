@@ -14,12 +14,12 @@ jobs:
       with:
         files: ./src
 
-  - name: Check spelling of tests
+    - name: Check spelling of tests
       uses: crate-ci/typos@master
       with:
         files: ./test
-  
-  - name: Check spelling of scripts
+    
+    - name: Check spelling of scripts
       uses: crate-ci/typos@master
       with:
         files: ./script

@@ -7,6 +7,7 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
+import { FillTimeFarInFuture, FillTimeInPast, WrongChain } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
@@ -70,10 +71,10 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     function _validateTimestamp(uint32 timestamp, uint32 fillTime) internal pure {
         // FillTime may not be in the past.
-        if (fillTime < timestamp) require(false, "FillTimeInPast()"); // TODO: custom error.
+        if (fillTime < timestamp) revert FillTimeInPast();
         // Check that fillTime isn't far in the future.
         // The idea is to protect users against random transfers through this contract.
-        if (fillTime > timestamp + MAX_FUTURE_FILL_TIME) require(false, "FillTimeFarInFuture()");
+        if (fillTime > timestamp + MAX_FUTURE_FILL_TIME) revert FillTimeFarInFuture();
     }
 
     //--- Sending Proofs & Generalised Incentives ---//
@@ -107,7 +108,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             Output memory output = outputs[i];
             // Check if sourceIdentifierbytes
             // TODO: unify chainIdentifiers. (types)
-            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) require(false, "wrongChain");
+            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain();
             uint32 fillTime = fillTimes[i];
             bytes32 outputHash = _outputHashM(output, bytes32(0)); // TODO: salt
             _provenOutput[outputHash][fillTime][bytes32(fromApplication)] = true;

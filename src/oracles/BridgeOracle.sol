@@ -5,6 +5,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 
+import { WrongChain } from "../interfaces/Errors.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -32,7 +33,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
     function _fill(Output calldata output, uint32 fillTime) internal {
         // Check if this is the correct chain.
         // TODO: immutable chainid?
-        if (uint32(block.chainid) != output.chainId) require(false, "WrongChain()"); // TODO: custom error
+        if (uint32(block.chainid) != output.chainId) revert WrongChain();
 
         // Check if this has already been filled. If it hasn't return set = false.
         bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt

@@ -72,8 +72,6 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         _fill(outputs, fillTimes);
     }
 
-    // TODO: just submit?
-    // TODO: How do we standardize the submit interface?
     function fillAndSubmit(
         Output[] calldata outputs,
         uint32[] calldata fillTimes,

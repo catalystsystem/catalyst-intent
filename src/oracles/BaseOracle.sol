@@ -7,7 +7,7 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { FillTimeFarInFuture, FillTimeInPast, WrongChain } from "../interfaces/Errors.sol";
+import { CannotProveOrder, FillTimeFarInFuture, FillTimeInPast, WrongChain } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
@@ -92,6 +92,25 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes memory message = _encode(outputs, fillTimes);
         // Deadline is set to 0.
         escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, deadline);
+    }
+
+    function submit(
+        Output[] calldata outputs,
+        uint32[] calldata fillTimes,
+        bytes32 destinationIdentifier,
+        bytes memory destinationAddress,
+        IncentiveDescription calldata incentive,
+        uint64 deadline
+    ) external payable {
+        // The follow code chunk will fail if fillTimes.length > outputs.length.
+        uint256 numFillTimes = fillTimes.length;
+        for (uint256 i; i < numFillTimes; ++i) {
+            if (!_isProven(outputs[i], fillTimes[i], bytes32(0))) {
+                revert CannotProveOrder();
+            }
+        }
+        // The submit call will fail if fillTimes.length < outputs.length
+        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive, deadline);
     }
 
     function receiveMessage(

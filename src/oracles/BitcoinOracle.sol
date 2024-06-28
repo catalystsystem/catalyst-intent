@@ -110,18 +110,4 @@ contract BitcoinOracle is BaseOracle {
         bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
         _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
-
-    //--- Solver Interface ---//
-
-    function submit(
-        Output[] calldata outputs,
-        uint32[] calldata fillTimes,
-        bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
-    ) external payable {
-        // TODO: verify the output first.
-        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive, deadline);
-    }
 }

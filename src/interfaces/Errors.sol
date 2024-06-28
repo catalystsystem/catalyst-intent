@@ -5,10 +5,11 @@ import { OrderContext, OrderStatus } from "../interfaces/Structs.sol";
 
 error OrderNotClaimed(OrderContext orderContext);
 error OrderAlreadyClaimed(OrderContext orderContext);
-error OrderAlreadyChallanged(OrderContext orderContext);
+error OrderAlreadyChallenged(OrderContext orderContext);
 error WrongOrderStatus(OrderStatus actual);
 error NonceClaimed();
 error NotOracle();
-error ChallangeDeadlinePassed();
+error ChallengedeadlinePassed();
 error ProofPeriodHasNotPassed();
-error OrderNotReadyForOptimisticPayout();
+error OrderNotReadyForOptimisticPayout(uint40 timeRemaining);
+error CannotProveOrder();

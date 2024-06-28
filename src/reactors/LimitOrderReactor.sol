@@ -59,7 +59,7 @@ contract LimitOrderReactor is BaseReactor {
                 reactor: order.settlementContract,
                 // Order resolution times
                 fillByDeadline: order.fillDeadline,
-                challangeDeadline: limitData.proofDeadline, // TODO: fix
+                challengedeadline: limitData.proofDeadline, // TODO: fix
                 proofDeadline: limitData.proofDeadline
             }),
             swapper: order.swapper,
@@ -67,7 +67,7 @@ contract LimitOrderReactor is BaseReactor {
             collateral: Collateral({
                 collateralToken: limitData.collateralToken,
                 fillerCollateralAmount: limitData.fillerCollateralAmount,
-                challangerCollateralAmount: limitData.challangerCollateralAmount
+                challengerCollateralAmount: limitData.challengerCollateralAmount
             }),
             originChainId: order.originChainId,
             // Proof Context

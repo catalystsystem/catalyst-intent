@@ -113,7 +113,14 @@ abstract contract BaseReactor is ISettlementContract {
 
     /**
      * @notice Initiates a cross-chain order
-     * @dev Called by the filler
+     * @dev Called by the filler.
+     * When a filler initiates a transaction it is important that they do the following:
+     * 1. Trust the reactor. Technically, anyone can deploy a reactor that takes these interfaces.
+     * As the filler has to provide collateral, this collateral could be at risk.
+     * 2. Verify that the deadlines provided in the order are sane. If proof - challenge is small
+     * then it may impossible to prove thus free to challenge.
+     * 3. Trust the oracles. Any oracles can be provided but they may not signal that the proof
+     * is or isn't valid.
      * @param order The CrossChainOrder definition
      * @param signature The end user signature for the order
      * @param fillerData Any filler-defined data required by the settler
@@ -121,6 +128,9 @@ abstract contract BaseReactor is ISettlementContract {
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // TODO: solve permit2 context
         (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData);
+        // TODO: verify the deadlines are sane.
+        // TODO: Do we implement a forced minimum difference between proof and challenge?
+        // Init < fill < challenge < proof
 
         address filler = abi.decode(fillerData, (address));
 
@@ -254,7 +264,7 @@ abstract contract BaseReactor is ISettlementContract {
      * TODO: figure out if we can reduce the argument size (make simpler).
      * @notice Prove that an order was filled. Requires that the order oracle exposes
      * a function, isProven(...), that returns true when called with the order details.
-     * @dev
+     * @dev 
      */
     function oracle(OrderKey calldata orderKey) external {
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
@@ -302,7 +312,8 @@ abstract contract BaseReactor is ISettlementContract {
     }
 
     /**
-     * @dev Anyone can call this but the payout goes to the designated claimer.
+     * @notice Collect the order result
+     * @dev Anyone can call this but the payout goes to the filler of the order.
      */
     function optimisticPayout(OrderKey calldata orderKey) external payable {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
@@ -339,7 +350,16 @@ abstract contract BaseReactor is ISettlementContract {
     //--- Disputes ---//
 
     /**
-     * @notice Disputes a claim.
+     * @notice Disputes a claim. If a claimed order hasn't been delivered post the fill deadline
+     * then the order should be challenged. This allows anyone to attempt to claim the collateral
+     * the filler provided (at the risk of losing their own collateral).
+     * @dev For challengers it is important to properly verify transactions:
+     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able 
+     * to toggle between is verified and not. This makes it possible for the filler to steal 
+     * the challenger's collateral
+     * 2. Remote Oracle. Likewise for the local oracle, remote oracles may be controllable by
+     * the filler.
+     * TODO: Are there more risks?
      */
     function dispute(OrderKey calldata orderKey) external payable {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);

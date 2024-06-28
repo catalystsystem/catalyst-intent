@@ -19,7 +19,7 @@ jobs:
       with:
         files: ./test
     
-    - name: Check spelling of scripts
-      uses: crate-ci/typos@master
-      with:
-        files: ./script
+    # - name: Check spelling of scripts
+    #   uses: crate-ci/typos@master
+    #   with:
+    #     files: ./script

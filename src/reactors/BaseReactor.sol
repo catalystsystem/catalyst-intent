@@ -264,7 +264,7 @@ abstract contract BaseReactor is ISettlementContract {
      * TODO: figure out if we can reduce the argument size (make simpler).
      * @notice Prove that an order was filled. Requires that the order oracle exposes
      * a function, isProven(...), that returns true when called with the order details.
-     * @dev 
+     * @dev
      */
     function oracle(OrderKey calldata orderKey) external {
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
@@ -354,8 +354,8 @@ abstract contract BaseReactor is ISettlementContract {
      * then the order should be challenged. This allows anyone to attempt to claim the collateral
      * the filler provided (at the risk of losing their own collateral).
      * @dev For challengers it is important to properly verify transactions:
-     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able 
-     * to toggle between is verified and not. This makes it possible for the filler to steal 
+     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able
+     * to toggle between is verified and not. This makes it possible for the filler to steal
      * the challenger's collateral
      * 2. Remote Oracle. Likewise for the local oracle, remote oracles may be controllable by
      * the filler.
@@ -417,12 +417,16 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
 
         // Send partial collateral back to user
-        uint256 swapperCollateralAmount = fillerCollateralAmount/2;
+        uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
         // TODO: implement some kind of fallback if this fails.
         SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
         // Send the rest to the wallet that proof fraud:
         // TODO: implement some kind of fallback if this fails.
-        SafeTransferLib.safeTransfer(collateralToken, orderContext.challenger,  challengerCollateralAmount + fillerCollateralAmount- swapperCollateralAmount);
+        SafeTransferLib.safeTransfer(
+            collateralToken,
+            orderContext.challenger,
+            challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount
+        );
     }
 }

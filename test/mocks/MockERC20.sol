@@ -2,9 +2,8 @@
 pragma solidity ^0.8.22;
 
 import { ERC20 } from "solady/src/tokens/ERC20.sol";
-import { Brutalizer } from "solady/test/utils/Brutalizer.sol";
 
-contract MockERC20 is ERC20, Brutalizer {
+contract MockERC20 is ERC20 {
     string internal _name;
     string internal _symbol;
     uint8 internal _decimals;
@@ -34,26 +33,26 @@ contract MockERC20 is ERC20, Brutalizer {
     }
 
     function mint(address to, uint256 value) public virtual {
-        _mint(_brutalized(to), value);
+        _mint(to, value);
     }
 
     function burn(address from, uint256 value) public virtual {
-        _burn(_brutalized(from), value);
+        _burn(from, value);
     }
 
     function directTransfer(address from, address to, uint256 amount) public virtual {
-        _transfer(_brutalized(from), _brutalized(to), amount);
+        _transfer(from, to, amount);
     }
 
     function directSpendAllowance(address owner, address spender, uint256 amount) public virtual {
-        _spendAllowance(_brutalized(owner), _brutalized(spender), amount);
+        _spendAllowance(owner, spender, amount);
     }
 
     function transfer(address to, uint256 amount) public virtual override returns (bool) {
-        return super.transfer(_brutalized(to), amount);
+        return super.transfer(to, amount);
     }
 
     function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
-        return super.transferFrom(_brutalized(from), _brutalized(to), amount);
+        return super.transferFrom(from, to, amount);
     }
 }

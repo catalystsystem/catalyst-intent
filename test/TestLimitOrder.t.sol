@@ -3,12 +3,12 @@ pragma solidity ^0.8.22;
 
 import { DeployLimitOrderReactor } from "../script/Reactor/DelpoyLimitOrderReactor.s.sol";
 
-import { ReactorHelperConfig } from "../script/Reactor/HelperConfig.sol";
+import { ReactorHelperConfig } from "../script/Reactor/HelperConfig.s.sol";
 
 import { LimitOrderReactor } from "../src/reactors/LimitOrderReactor.sol";
 
 import { MockERC20 } from "./mocks/MockERC20.sol";
-import { SigTransfer } from "./utils/SigTransfer.sol";
+import { SigTransfer } from "./utils/SigTransfer.t.sol";
 
 import { CrossChainOrder, Input, Output } from "../src/interfaces/ISettlementContract.sol";
 
@@ -41,10 +41,6 @@ contract TestLimitOrder is Test {
     address FILLER = address(1);
     bytes32 DOMAIN_SEPARATOR;
 
-    uint256 constant INPUT_START_AMOUNT = 15 ether;
-    uint256 constant OUTPUT_START_AMOUNT = 10 ether;
-    uint256 constant DEFAULT_SWAP_AMOUNT = 1 ether;
-
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     bytes32 public constant FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH = keccak256(
@@ -61,42 +57,57 @@ contract TestLimitOrder is Test {
         limitOrderReactorAddress = address(limitOrderReactor);
 
         (SWAPPER, SWAPPER_PRIVATE_KEY) = makeAddrAndKey("swapper");
-        vm.prank(SWAPPER);
-        MockERC20(tokenToSwapInput).approve(permit2, type(uint256).max);
-        MockERC20(tokenToSwapInput).mint(SWAPPER, INPUT_START_AMOUNT);
-        MockERC20(tokenToSwapInput).mint(FILLER, INPUT_START_AMOUNT);
-        MockERC20(tokenToSwapOutput).mint(SWAPPER, OUTPUT_START_AMOUNT);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
-    // Will be used when we test funtionalities after initalization like challenges
-    //TODO: Parameterize the modifier
-    modifier orderInitiaited() {
-        _initiateOrder(0, DEFAULT_SWAP_AMOUNT, SWAPPER);
+    //Will be used when we test funtionalities after initalization like challenges
+    modifier orderInitiaited(uint256 _nonce, address _swapper, uint256 _amount) {
+        _initiateOrder(_nonce, _swapper, _amount);
+        _;
+    }
+
+    modifier approvedAndMinted(address _user, address _token, uint256 _amount) {
+        vm.prank(_user);
+        MockERC20(_token).approve(permit2, type(uint256).max);
+        MockERC20(_token).mint(_user, _amount);
         _;
     }
 
     /////////////////
-    //Valid cases//
+    //Valid cases////
     /////////////////
 
-    function test_crossOrder_to_orderKey() public {
+    function test_crossOrder_to_orderKey(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerAmount,
+        uint256 challengerAmount,
+        uint16 deadlineIncrement
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount) {
         LimitOrderData memory limitOrderData = _getLimitOrder(
-            tokenToSwapInput, tokenToSwapOutput, DEFAULT_SWAP_AMOUNT, 0, SWAPPER, 1 ether, 0, address(0), address(0)
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerAmount,
+            challengerAmount,
+            address(0),
+            address(0)
         );
         CrossChainOrder memory order = _getCrossChainOrder(
             limitOrderData,
             SWAPPER,
             0,
             uint32(block.chainid),
-            uint32(block.timestamp + 1 hours),
-            uint32(block.timestamp + 1 hours)
+            uint32(block.timestamp + deadlineIncrement),
+            uint32(block.timestamp + deadlineIncrement)
         );
         OrderKey memory orderKey = limitOrderReactor.resolveKey(order, hex"");
 
         //Input tests
         assertEq(orderKey.inputs.length, 1);
-        Input memory expectedInput = Input({ token: tokenToSwapInput, amount: DEFAULT_SWAP_AMOUNT });
+        Input memory expectedInput = Input({ token: tokenToSwapInput, amount: inputAmount });
         Input memory actualInput = orderKey.inputs[0];
         assertEq(keccak256(abi.encode(actualInput)), keccak256(abi.encode(expectedInput)));
 
@@ -104,7 +115,7 @@ contract TestLimitOrder is Test {
         assertEq(orderKey.outputs.length, 1);
         Output memory expectedOutput = Output({
             token: bytes32(abi.encode(tokenToSwapOutput)),
-            amount: uint256(0),
+            amount: outputAmount,
             recipient: bytes32(abi.encode(SWAPPER)),
             chainId: uint32(0)
         });
@@ -112,8 +123,8 @@ contract TestLimitOrder is Test {
         assertEq(keccak256(abi.encode(actualOutput)), keccak256(abi.encode(expectedOutput)));
 
         //Swapper test
-        address actualSWAPPERer = orderKey.swapper;
-        assertEq(actualSWAPPERer, SWAPPER);
+        address actualSWAPPER = orderKey.swapper;
+        assertEq(actualSWAPPER, SWAPPER);
 
         //Oracles tests
         assertEq(orderKey.localOracle, address(0));
@@ -122,22 +133,28 @@ contract TestLimitOrder is Test {
         //Collateral test
         Collateral memory expectedCollateral = Collateral({
             collateralToken: tokenToSwapInput,
-            fillerCollateralAmount: 1 ether,
-            challangerCollateralAmount: 0
+            fillerCollateralAmount: fillerAmount,
+            challangerCollateralAmount: challengerAmount
         });
         Collateral memory actualCollateral = orderKey.collateral;
         assertEq(keccak256(abi.encode(actualCollateral)), keccak256(abi.encode(expectedCollateral)));
     }
 
-    function test_collect_tokens() public orderInitiaited {
-        assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), INPUT_START_AMOUNT - DEFAULT_SWAP_AMOUNT);
-        assertEq(MockERC20(tokenToSwapInput).balanceOf(limitOrderReactorAddress), DEFAULT_SWAP_AMOUNT);
+    function test_collect_tokens(uint256 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        (uint256 swapperInputBalance,, uint256 reactorInputBalance,) = _getCurrentBalances();
+        _initiateOrder(0, SWAPPER, amount);
+        assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
+        assertEq(MockERC20(tokenToSwapInput).balanceOf(limitOrderReactorAddress), reactorInputBalance + amount);
     }
 
-    function test_balances_multiple_orders() public orderInitiaited {
+    function test_balances_multiple_orders(uint160 amount)
+        public
+        approvedAndMinted(SWAPPER, tokenToSwapInput, amount)
+    {
+        _initiateOrder(0, SWAPPER, amount);
+        MockERC20(tokenToSwapInput).mint(SWAPPER, amount);
         (uint256 swapperInputBalance,, uint256 reactorInputBalance,) = _getCurrentBalances();
-        uint256 amount = 5 ether;
-        _initiateOrder(1, amount, SWAPPER);
+        _initiateOrder(1, SWAPPER, amount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(limitOrderReactorAddress), reactorInputBalance + amount);
     }
@@ -146,9 +163,11 @@ contract TestLimitOrder is Test {
     //Invalid cases//
     /////////////////
 
-    function test_not_enough_balance() public {
+    function test_not_enough_balance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        uint256 amountToTransfer = uint256(amount) + 1 ether;
+
         LimitOrderData memory limitOrderData = _getLimitOrder(
-            tokenToSwapInput, tokenToSwapOutput, 20 ether, 0, SWAPPER, 1 ether, 0, address(0), address(0)
+            tokenToSwapInput, tokenToSwapOutput, amountToTransfer, 0, SWAPPER, 1 ether, 0, address(0), address(0)
         );
         CrossChainOrder memory order = _getCrossChainOrder(
             limitOrderData,
@@ -174,13 +193,15 @@ contract TestLimitOrder is Test {
         limitOrderReactor.initiate(order, signature, abi.encode(FILLER));
     }
 
-    function test_not_enough_allowance() public {
+    function test_not_enough_allowance(uint160 amount) public {
         (address BOB, uint256 BOB_KEY) = makeAddrAndKey("bob");
-        MockERC20(tokenToSwapInput).mint(BOB, INPUT_START_AMOUNT);
+        uint256 amountToTransfer = uint256(amount) + 1 ether;
+        MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
-        MockERC20(tokenToSwapInput).approve(permit2, 1 ether);
-        LimitOrderData memory limitOrderData =
-            _getLimitOrder(tokenToSwapInput, tokenToSwapOutput, 10 ether, 0, BOB, 1 ether, 0, address(0), address(0));
+        MockERC20(tokenToSwapInput).approve(permit2, amount);
+        LimitOrderData memory limitOrderData = _getLimitOrder(
+            tokenToSwapInput, tokenToSwapOutput, amountToTransfer, 0, BOB, 1 ether, 0, address(0), address(0)
+        );
         CrossChainOrder memory order = _getCrossChainOrder(
             limitOrderData,
             BOB,
@@ -224,16 +245,18 @@ contract TestLimitOrder is Test {
         limitOrderReactor.initiate(order, signature, abi.encode(FILLER));
     }
 
-    // function test_invalid_nonce() public orderInitiaited {
+    // function test_invalid_nonce(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    //     _initiateOrder(0, SWAPPER, amount);
+    //     MockERC20(tokenToSwapInput).mint(SWAPPER, amount);
     //     vm.expectRevert(
     //         abi.encodeWithSelector(
     //             OrderAlreadyClaimed.selector, OrderContext(OrderStatus.Claimed, address(0), FILLER, 0)
     //         )
     //     );
-    //     _initiateOrder(0, DEFAULT_SWAP_AMOUNT, SWAPPER);
+    //     _initiateOrder(0, SWAPPER, DEFAULT_SWAP_AMOUNT);
     // }
 
-    function _initiateOrder(uint256 _nonce, uint256 _amount, address _swapper) internal {
+    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount) internal {
         LimitOrderData memory limitOrderData = _getLimitOrder(
             tokenToSwapInput, tokenToSwapOutput, _amount, 0, _swapper, 1 ether, 0, address(0), address(0)
         );
@@ -311,7 +334,7 @@ contract TestLimitOrder is Test {
     }
 
     function _getOrderKeyInfo(CrossChainOrder memory order)
-        public
+        internal
         view
         returns (bytes32 orderHash, OrderKey memory orderKey)
     {

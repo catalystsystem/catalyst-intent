@@ -2,7 +2,9 @@ name: Find Typos
 on: [pull_request]
 
 jobs:
-  run:
+  check:
+    strategy:
+      fail-fast: false
     name: Spell Check with Typos
     runs-on: ubuntu-latest
     steps:

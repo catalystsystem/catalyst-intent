@@ -13,3 +13,6 @@ error ChallengedeadlinePassed();
 error ProofPeriodHasNotPassed();
 error OrderNotReadyForOptimisticPayout(uint40 timeRemaining);
 error CannotProveOrder();
+error WrongChain();
+error FillTimeInPast();
+error FillTimeFarInFuture();

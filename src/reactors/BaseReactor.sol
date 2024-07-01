@@ -141,6 +141,9 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
 
+        // TODO: Collect collateral from filler.
+        // TODO: Disallow if not deployed contract?
+
         _collectTokens(orderKey, order.swapper, witness, witnessTypeString, signature);
     }
 
@@ -254,6 +257,8 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             Input calldata input = inputs[i];
+            // We don't need to check if token is deployed since we
+            // got here. Reverting here would also freeze collateral.
             SafeTransferLib.safeTransfer(input.token, to, input.amount);
         }
     }
@@ -264,7 +269,7 @@ abstract contract BaseReactor is ISettlementContract {
      * TODO: figure out if we can reduce the argument size (make simpler).
      * @notice Prove that an order was filled. Requires that the order oracle exposes
      * a function, isProven(...), that returns true when called with the order details.
-     * @dev 
+     * @dev
      */
     function oracle(OrderKey calldata orderKey) external {
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
@@ -307,6 +312,8 @@ abstract contract BaseReactor is ISettlementContract {
         }
 
         // Pay collateral tokens
+        // No need to check if collateralToken is a deployed contract.
+        // It has already been entered into our contract.
         // TODO: What if this fails. Do we want to implement a kind of callback?
         SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
     }
@@ -342,6 +349,8 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
         // Pay collateral tokens
+        // collateralToken has already been entered so no need to check if
+        // it is a valid token.
         SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
 
         emit OptimisticPayout(orderKeyHash);
@@ -354,8 +363,8 @@ abstract contract BaseReactor is ISettlementContract {
      * then the order should be challenged. This allows anyone to attempt to claim the collateral
      * the filler provided (at the risk of losing their own collateral).
      * @dev For challengers it is important to properly verify transactions:
-     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able 
-     * to toggle between is verified and not. This makes it possible for the filler to steal 
+     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able
+     * to toggle between is verified and not. This makes it possible for the filler to steal
      * the challenger's collateral
      * 2. Remote Oracle. Likewise for the local oracle, remote oracles may be controllable by
      * the filler.
@@ -376,6 +385,8 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.challenger = msg.sender;
 
         // Collect bond collateral.
+        // collateralToken has already been entered so no need to check if
+        // it is a valid token.
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken,
             msg.sender,
@@ -417,12 +428,19 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
 
         // Send partial collateral back to user
-        uint256 swapperCollateralAmount = fillerCollateralAmount/2;
+        uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
+        // We don't check if collateralToken is a token, since we don't
+        // want this call to fail.
         // TODO: implement some kind of fallback if this fails.
         SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
         // Send the rest to the wallet that proof fraud:
+        // Similar to the above. We don't want this to fail.
         // TODO: implement some kind of fallback if this fails.
-        SafeTransferLib.safeTransfer(collateralToken, orderContext.challenger,  challengerCollateralAmount + fillerCollateralAmount- swapperCollateralAmount);
+        SafeTransferLib.safeTransfer(
+            collateralToken,
+            orderContext.challenger,
+            challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount
+        );
     }
 }

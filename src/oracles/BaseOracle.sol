@@ -29,7 +29,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     error NotApprovedEscrow();
 
     constructor(address _escrow) {
-        // Solution 1: Set the escrow.
         escrow = IIncentivizedMessageEscrow(_escrow);
     }
 

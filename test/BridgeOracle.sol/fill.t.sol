@@ -96,14 +96,59 @@ contract TestBridgeOracle is Test {
         assertFalse(status);
     }
 
-    // function test_multiple_single(Output[] calldata outputs) external {
-    //     uint32[] memory fillTimes = new uint32[](outputs.length);
-    //     for (uint256 i; i < outputs.length; ++i) {
-    //         fillTimes[i] = uint32(block.timestamp);
-    //     }
+    struct AmountRecipient {
+        uint256 amount;
+        bytes32 recipient;
+    }
 
-    //     oracle.fill(outputs, fillTimes);
+    function test_multiple_single(AmountRecipient[] memory amountRecipient) external {
+        address token;
+        uint32[] memory fillTimes = new uint32[](amountRecipient.length);
+        Output[] memory outputs = new Output[](amountRecipient.length);
+        for (uint256 i; i < amountRecipient.length; ++i) {
+            fillTimes[i] = uint32(block.timestamp);
+            outputs[i] = Output({
+                token: bytes32(abi.encode(token)),
+                amount: amountRecipient[i].amount,
+                recipient: amountRecipient[i].recipient,
+                chainId: uint32(block.chainid)
+            });
+        }
 
-    //     // TODO:
-    // }
+        oracle.fill(outputs, fillTimes);
+
+        for (uint256 i; i < outputs.length; ++i) {
+            bool status = oracle.isProven(outputs[i], fillTimes[i], bytes32(0));
+            assertTrue(status);
+        }
+    }
+
+    function test_check_already_filled(address sender, uint256 amount, address recipient) external {
+        address token; // TODO: Needs to be mocked with token.
+        Output memory output = Output({
+            token: bytes32(abi.encode(token)),
+            amount: amount,
+            recipient: bytes32(abi.encode(recipient)),
+            chainId: uint32(block.chainid)
+        });
+        Output[] memory outputs = new Output[](2);
+        outputs[0] = output;
+        outputs[1] = output;
+
+        uint32[] memory fillTimes = new uint32[](2);
+        fillTimes[0] = uint32(block.timestamp);
+        fillTimes[1] = uint32(block.timestamp);
+
+        vm.expectCall(
+            token,
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount),
+            1
+        );
+
+        vm.prank(sender);
+        oracle.fill(outputs, fillTimes);
+
+        bool status = oracle.isProven(output, fillTimes[0], bytes32(0));
+        assertTrue(status);
+    }
 }

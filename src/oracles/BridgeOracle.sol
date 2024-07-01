@@ -55,6 +55,8 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
         // TODO: Check if token is deployed contract?
+        // TODO: The disadvantage of checking is that it may invalidate a
+        // TODO: ongoing order putting the collateral at risk.
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
     }
 

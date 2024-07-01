@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-
 import "forge-std/Test.sol";
 
 import { Output } from "../../src/interfaces/ISettlementContract.sol";
@@ -11,7 +10,6 @@ import { GeneralisedIncentivesOracle } from "../../src/oracles/BridgeOracle.sol"
  * @dev Oracles are also fillers
  */
 contract TestBridgeOracle is Test {
-
     GeneralisedIncentivesOracle oracle;
 
     function setUp() external {
@@ -36,8 +34,7 @@ contract TestBridgeOracle is Test {
         fillTimes[0] = uint32(block.timestamp);
 
         vm.expectCall(
-            token,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount)
+            token, abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount)
         );
 
         vm.prank(sender);
@@ -49,7 +46,7 @@ contract TestBridgeOracle is Test {
         assertTrue(status);
     }
 
-    function test_fill_single_modified_output( uint256 amount, address recipient) external {
+    function test_fill_single_modified_output(uint256 amount, address recipient) external {
         vm.assume(amount > 0);
         address token;
         Output memory output = Output({
@@ -72,7 +69,11 @@ contract TestBridgeOracle is Test {
         assertFalse(status);
     }
 
-    function test_fill_single_modified_recipient(uint256 amount, address sentToRecipient, address actualRecipient) external {
+    function test_fill_single_modified_recipient(
+        uint256 amount,
+        address sentToRecipient,
+        address actualRecipient
+    ) external {
         vm.assume(sentToRecipient != actualRecipient);
         address token;
         Output memory output = Output({
@@ -103,6 +104,6 @@ contract TestBridgeOracle is Test {
 
     //     oracle.fill(outputs, fillTimes);
 
-    //     // TODO: 
+    //     // TODO:
     // }
 }

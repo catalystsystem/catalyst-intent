@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { DeployLimitOrderReactor } from "../script/Reactor/DelpoyLimitOrderReactor.s.sol";
+import { DeployLimitOrderReactor } from "../script/Reactor/DeployLimitOrderReactor.s.sol";
 
 import { ReactorHelperConfig } from "../script/Reactor/HelperConfig.s.sol";
 
 import { LimitOrderReactor } from "../src/reactors/LimitOrderReactor.sol";
 
 import { MockERC20 } from "./mocks/MockERC20.sol";
+
+import { OrderKeyInfo } from "./utils/OrderKeyInfo.t.sol";
 import { SigTransfer } from "./utils/SigTransfer.t.sol";
 
 import { CrossChainOrder, Input, Output } from "../src/interfaces/ISettlementContract.sol";
@@ -20,6 +22,9 @@ import { LimitOrderReactor } from "../src/reactors/LimitOrderReactor.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 import { InvalidDeadline, OrderAlreadyClaimed } from "../src/interfaces/Errors.sol";
+
+import { CrossChainBuilder } from "./utils/CrossChainBuilder.t.sol";
+import { OrderDataBuilder } from "./utils/OrderDataBuilder.t.sol";
 
 import "forge-std/Test.sol";
 import { Test, console } from "forge-std/Test.sol";
@@ -60,7 +65,7 @@ contract TestLimitOrder is Test {
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
-    //Will be used when we test funtionalities after initalization like challenges
+    //Will be used when we test functionalities after initialization like challenges
     modifier orderInitiaited(uint256 _nonce, address _swapper, uint256 _amount) {
         _initiateOrder(_nonce, _swapper, _amount);
         _;
@@ -84,7 +89,7 @@ contract TestLimitOrder is Test {
         uint256 challengerAmount,
         uint16 deadlineIncrement
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount) {
-        LimitOrderData memory limitOrderData = _getLimitOrder(
+        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
             inputAmount,
@@ -95,8 +100,9 @@ contract TestLimitOrder is Test {
             address(0),
             address(0)
         );
-        CrossChainOrder memory order = _getCrossChainOrder(
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
             limitOrderData,
+            limitOrderReactorAddress,
             SWAPPER,
             0,
             uint32(block.chainid),
@@ -134,7 +140,7 @@ contract TestLimitOrder is Test {
         Collateral memory expectedCollateral = Collateral({
             collateralToken: tokenToSwapInput,
             fillerCollateralAmount: fillerAmount,
-            challangerCollateralAmount: challengerAmount
+            challengerCollateralAmount: challengerAmount
         });
         Collateral memory actualCollateral = orderKey.collateral;
         assertEq(keccak256(abi.encode(actualCollateral)), keccak256(abi.encode(expectedCollateral)));
@@ -166,18 +172,20 @@ contract TestLimitOrder is Test {
     function test_not_enough_balance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
         uint256 amountToTransfer = uint256(amount) + 1 ether;
 
-        LimitOrderData memory limitOrderData = _getLimitOrder(
+        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput, tokenToSwapOutput, amountToTransfer, 0, SWAPPER, 1 ether, 0, address(0), address(0)
         );
-        CrossChainOrder memory order = _getCrossChainOrder(
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
             limitOrderData,
+            limitOrderReactorAddress,
             SWAPPER,
             0,
             uint32(block.chainid),
             uint32(block.timestamp + 1 hours),
             uint32(block.timestamp + 1 hours)
         );
-        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, limitOrderReactor);
+        bytes32 orderHash = this._getLimitOrderHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
@@ -199,18 +207,20 @@ contract TestLimitOrder is Test {
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, amount);
-        LimitOrderData memory limitOrderData = _getLimitOrder(
+        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput, tokenToSwapOutput, amountToTransfer, 0, BOB, 1 ether, 0, address(0), address(0)
         );
-        CrossChainOrder memory order = _getCrossChainOrder(
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
             limitOrderData,
+            limitOrderReactorAddress,
             BOB,
             0,
             uint32(block.chainid),
             uint32(block.timestamp + 1 hours),
             uint32(block.timestamp + 1 hours)
         );
-        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, limitOrderReactor);
+        bytes32 orderHash = this._getLimitOrderHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
@@ -223,13 +233,20 @@ contract TestLimitOrder is Test {
     }
 
     function test_invalid_deadline() public {
-        LimitOrderData memory limitOrderData = _getLimitOrder(
+        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput, tokenToSwapOutput, 20 ether, 0, SWAPPER, 1 ether, 0, address(0), address(0)
         );
-        CrossChainOrder memory order = _getCrossChainOrder(
-            limitOrderData, SWAPPER, uint32(block.chainid), uint32(block.timestamp), uint32(block.timestamp), 0
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
+            limitOrderData,
+            limitOrderReactorAddress,
+            SWAPPER,
+            uint32(block.chainid),
+            uint32(block.timestamp),
+            uint32(block.timestamp),
+            0
         );
-        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, limitOrderReactor);
+        bytes32 orderHash = this._getLimitOrderHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
@@ -257,18 +274,20 @@ contract TestLimitOrder is Test {
     // }
 
     function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount) internal {
-        LimitOrderData memory limitOrderData = _getLimitOrder(
+        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput, tokenToSwapOutput, _amount, 0, _swapper, 1 ether, 0, address(0), address(0)
         );
-        CrossChainOrder memory order = _getCrossChainOrder(
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
             limitOrderData,
+            limitOrderReactorAddress,
             SWAPPER,
             _nonce,
             uint32(block.chainid),
             uint32(block.timestamp + 1 hours),
             uint32(block.timestamp + 1 hours)
         );
-        (bytes32 orderHash, OrderKey memory orderKey) = _getOrderKeyInfo(order);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, limitOrderReactor);
+        bytes32 orderHash = this._getLimitOrderHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, limitOrderReactorAddress);
@@ -283,66 +302,7 @@ contract TestLimitOrder is Test {
         limitOrderReactor.initiate(order, signature, abi.encode(FILLER));
     }
 
-    function _getLimitOrder(
-        address _tokenToSwapInput,
-        address _tokenToSwapOutput,
-        uint256 _inputAmount,
-        uint256 _outputAmount,
-        address _recipient,
-        uint256 _fillerAmount,
-        uint256 _challengerAmount,
-        address _localOracle,
-        address _remoteOracle
-    ) internal view returns (LimitOrderData memory limitOrderData) {
-        Input memory input = Input({ token: tokenToSwapInput, amount: _inputAmount });
-        Output memory output = Output({
-            token: bytes32(abi.encode(_tokenToSwapOutput)),
-            amount: _outputAmount,
-            recipient: bytes32(abi.encode(_recipient)),
-            chainId: uint32(0)
-        });
-
-        limitOrderData = LimitOrderData({
-            proofDeadline: 0,
-            collateralToken: _tokenToSwapInput,
-            fillerCollateralAmount: _fillerAmount,
-            challangerCollateralAmount: _challengerAmount,
-            localOracle: _localOracle,
-            remoteOracle: bytes32(abi.encode(_remoteOracle)),
-            input: input,
-            output: output
-        });
-    }
-
-    function _getCrossChainOrder(
-        LimitOrderData memory limitOrderData,
-        address _swapper,
-        uint256 _nonce,
-        uint32 _originChainId,
-        uint32 _initiatedDeadline,
-        uint32 _fillDeadline
-    ) internal view returns (CrossChainOrder memory crossChainOrder) {
-        crossChainOrder = CrossChainOrder({
-            settlementContract: limitOrderReactorAddress,
-            swapper: _swapper,
-            nonce: _nonce,
-            originChainId: _originChainId,
-            initiateDeadline: _initiatedDeadline,
-            fillDeadline: _fillDeadline,
-            orderData: abi.encode(limitOrderData)
-        });
-    }
-
-    function _getOrderKeyInfo(CrossChainOrder memory order)
-        internal
-        view
-        returns (bytes32 orderHash, OrderKey memory orderKey)
-    {
-        orderHash = this._getHash(order);
-        orderKey = limitOrderReactor.resolveKey(order, hex"");
-    }
-
-    function _getHash(CrossChainOrder calldata order) public pure returns (bytes32) {
+    function _getLimitOrderHash(CrossChainOrder calldata order) public pure returns (bytes32) {
         bytes32 orderDataHash = CrossChainLimitOrderType.hashOrderData(abi.decode(order.orderData, (LimitOrderData)));
         return CrossChainLimitOrderType.hash(order, orderDataHash);
     }

@@ -12,7 +12,7 @@ interface Permit2DomainSeparator {
 contract ReactorHelperConfig is Script, DeployPermit2 {
     NetworkConfig public currentConfig;
 
-    // We can also add the domain seprator here.
+    // We can also add the domain separator here.
     struct NetworkConfig {
         //TODO: Possible to make it array in the future;
         address tokenToSwapInput;
@@ -45,7 +45,7 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
         if (currentConfig.tokenToSwapInput != address(0)) return currentConfig;
         vm.startBroadcast();
         MockERC20 input = new MockERC20("TestTokenInput", "TTI", 18);
-        MockERC20 output = new MockERC20("TestTokenOutput", "TTO", 18);
+        MockERC20 output = new MockERC20("TestTokenOutput", "ERC", 18);
         address permit2 = deployPermit2();
         vm.stopBroadcast();
 

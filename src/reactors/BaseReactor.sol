@@ -141,6 +141,9 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
 
+        // TODO: Collect collateral from filler.
+        // TODO: Disallow if not deployed contract?
+
         _collectTokens(orderKey, order.swapper, witness, witnessTypeString, signature);
     }
 
@@ -254,6 +257,8 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             Input calldata input = inputs[i];
+            // We don't need to check if token is deployed since we
+            // got here. Reverting here would also freeze collateral.
             SafeTransferLib.safeTransfer(input.token, to, input.amount);
         }
     }
@@ -307,6 +312,8 @@ abstract contract BaseReactor is ISettlementContract {
         }
 
         // Pay collateral tokens
+        // No need to check if collateralToken is a deployed contract.
+        // It has already been entered into our contract.
         // TODO: What if this fails. Do we want to implement a kind of callback?
         SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
     }
@@ -342,6 +349,8 @@ abstract contract BaseReactor is ISettlementContract {
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
         // Pay collateral tokens
+        // collateralToken has already been entered so no need to check if
+        // it is a valid token.
         SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
 
         emit OptimisticPayout(orderKeyHash);
@@ -376,6 +385,8 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.challenger = msg.sender;
 
         // Collect bond collateral.
+        // collateralToken has already been entered so no need to check if
+        // it is a valid token.
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken,
             msg.sender,
@@ -418,10 +429,13 @@ abstract contract BaseReactor is ISettlementContract {
 
         // Send partial collateral back to user
         uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
+        // We don't check if collateralToken is a token, since we don't
+        // want this call to fail.
         // TODO: implement some kind of fallback if this fails.
         SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
         // Send the rest to the wallet that proof fraud:
+        // Similar to the above. We don't want this to fail.
         // TODO: implement some kind of fallback if this fails.
         SafeTransferLib.safeTransfer(
             collateralToken,

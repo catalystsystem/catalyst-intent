@@ -101,12 +101,13 @@ contract TestBridgeOracle is Test {
         bytes32 recipient;
     }
 
-    function test_multiple_single(AmountRecipient[] memory amountRecipient) external {
+    function test_fill_multiple_single_verify(AmountRecipient[] memory amountRecipient) external {
         address token;
         uint32[] memory fillTimes = new uint32[](amountRecipient.length);
         Output[] memory outputs = new Output[](amountRecipient.length);
+        uint32 fillTime = uint32(block.timestamp);
         for (uint256 i; i < amountRecipient.length; ++i) {
-            fillTimes[i] = uint32(block.timestamp);
+            fillTimes[i] = fillTime;
             outputs[i] = Output({
                 token: bytes32(abi.encode(token)),
                 amount: amountRecipient[i].amount,
@@ -118,9 +119,30 @@ contract TestBridgeOracle is Test {
         oracle.fill(outputs, fillTimes);
 
         for (uint256 i; i < outputs.length; ++i) {
-            bool status = oracle.isProven(outputs[i], fillTimes[i], bytes32(0));
+            bool status = oracle.isProven(outputs[i], fillTime, bytes32(0));
             assertTrue(status);
         }
+    }
+
+    function test_fill_multiple_batch_verify(AmountRecipient[] memory amountRecipient) external {
+        address token;
+        uint32[] memory fillTimes = new uint32[](amountRecipient.length);
+        Output[] memory outputs = new Output[](amountRecipient.length);
+        uint32 fillTime = uint32(block.timestamp);
+        for (uint256 i; i < amountRecipient.length; ++i) {
+            fillTimes[i] = fillTime;
+            outputs[i] = Output({
+                token: bytes32(abi.encode(token)),
+                amount: amountRecipient[i].amount,
+                recipient: amountRecipient[i].recipient,
+                chainId: uint32(block.chainid)
+            });
+        }
+
+        oracle.fill(outputs, fillTimes);
+
+        // Batch verify
+        oracle.isProven(outputs, fillTime, bytes32(0));
     }
 
     function test_check_already_filled(address sender, uint256 amount, address recipient) external {
@@ -142,7 +164,7 @@ contract TestBridgeOracle is Test {
         vm.expectCall(
             token,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount),
-            1
+            1 // Exactly only 1 transfer to be made.
         );
 
         vm.prank(sender);

@@ -21,10 +21,8 @@ contract TestBridgeOracle is Test {
         // TODO: mock with ERC20.
     }
 
-    function test_fill_single(address sender, address token, uint256 amount, address recipient) external {
-        vm.assume(uint160(token) > 16);
-        vm.assume(token != address(oracle));
-        vm.assume(token != address(this));
+    function test_fill_single(address sender, uint256 amount, address recipient) external {
+        address token;
         Output memory output = Output({
             token: bytes32(abi.encode(token)),
             amount: amount,
@@ -51,11 +49,9 @@ contract TestBridgeOracle is Test {
         assertTrue(status);
     }
 
-    function test_fill_single_modified_output(address token, uint256 amount, address recipient) external {
-        vm.assume(uint160(token) > 16);
-        vm.assume(token != address(oracle));
-        vm.assume(token != address(this));
+    function test_fill_single_modified_output( uint256 amount, address recipient) external {
         vm.assume(amount > 0);
+        address token;
         Output memory output = Output({
             token: bytes32(abi.encode(token)),
             amount: amount - 1,
@@ -76,10 +72,9 @@ contract TestBridgeOracle is Test {
         assertFalse(status);
     }
 
-    function test_fill_single_modified_recipient(address token, uint256 amount, address sentToRecipient, address actualRecipient) external {
-        vm.assume(uint160(token) > 16);
-        vm.assume(token != address(oracle));
-        vm.assume(token != address(this));
+    function test_fill_single_modified_recipient(uint256 amount, address sentToRecipient, address actualRecipient) external {
+        vm.assume(sentToRecipient != actualRecipient);
+        address token;
         Output memory output = Output({
             token: bytes32(abi.encode(token)),
             amount: amount,

@@ -15,11 +15,12 @@ import {
 import { OrderContext, OrderKey, OrderStatus } from "../interfaces/Structs.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import {
     CannotProveOrder,
     ChallengedeadlinePassed,
+    InvalidDeadline,
     NonceClaimed,
     NotOracle,
     OrderAlreadyChallenged,
@@ -67,6 +68,7 @@ abstract contract BaseReactor is ISettlementContract {
     //Can be used
     function getOrderKeyInfo(OrderKey calldata orderKey)
         internal
+        view
         returns (bytes32 orderKeyHash, OrderContext memory orderContext)
     {
         orderKeyHash = _orderKeyHash(orderKey);
@@ -126,6 +128,9 @@ abstract contract BaseReactor is ISettlementContract {
      * @param fillerData Any filler-defined data required by the settler
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
+        if ((order.initiateDeadline <= block.timestamp) || (order.fillDeadline <= block.timestamp)) {
+            revert InvalidDeadline();
+        }
         // TODO: solve permit2 context
         (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData);
         // TODO: verify the deadlines are sane.

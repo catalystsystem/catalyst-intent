@@ -16,3 +16,4 @@ error CannotProveOrder();
 error WrongChain();
 error FillTimeInPast();
 error FillTimeFarInFuture();
+error InvalidDeadline();

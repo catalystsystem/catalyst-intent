@@ -15,6 +15,7 @@ import { SigTransfer } from "./utils/SigTransfer.t.sol";
 import { CrossChainOrder, Input, Output } from "../src/interfaces/ISettlementContract.sol";
 
 import { CrossChainLimitOrderType, LimitOrderData } from "../src/libs/CrossChainLimitOrderType.sol";
+import { CrossChainOrderType } from "../src/libs/CrossChainOrderType.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../src/interfaces/Structs.sol";
 import { Permit2Lib } from "../src/libs/Permit2Lib.sol";
@@ -47,11 +48,12 @@ contract TestLimitOrder is Test {
     bytes32 DOMAIN_SEPARATOR;
 
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
+    using CrossChainOrderType for CrossChainOrder;
 
-    bytes32 public constant FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH = keccak256(
+    bytes32 public FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH = keccak256(
         abi.encodePacked(
             SigTransfer._PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
-            CrossChainLimitOrderType.PERMIT2_WITNESS_TYPE // TODO: generalise
+            CrossChainLimitOrderType.permit2WitnessType() // TODO: generalise
         )
     );
 
@@ -304,7 +306,8 @@ contract TestLimitOrder is Test {
 
     function _getLimitOrderHash(CrossChainOrder calldata order) public pure returns (bytes32) {
         bytes32 orderDataHash = CrossChainLimitOrderType.hashOrderData(abi.decode(order.orderData, (LimitOrderData)));
-        return CrossChainLimitOrderType.hash(order, orderDataHash);
+        bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
+        return order.hash(orderTypeHash, orderDataHash);
     }
 
     function _getCurrentBalances()

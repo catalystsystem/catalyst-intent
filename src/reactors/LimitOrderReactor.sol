@@ -6,10 +6,12 @@ import { Input, Output } from "../interfaces/ISettlementContract.sol";
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../libs/CrossChainLimitOrderType.sol";
+import { CrossChainOrderType } from "../libs/CrossChainOrderType.sol";
+// import { test } from "../libs/test.sol";
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract LimitOrderReactor is BaseReactor {
-    using CrossChainLimitOrderType for CrossChainOrder;
+    using CrossChainOrderType for CrossChainOrder;
     using CrossChainLimitOrderType for LimitOrderData;
     using CrossChainLimitOrderType for bytes;
 
@@ -18,7 +20,8 @@ contract LimitOrderReactor is BaseReactor {
     function _orderHash(CrossChainOrder calldata order) internal pure override returns (bytes32) {
         LimitOrderData memory orderData = order.orderData.decodeOrderData();
         bytes32 orderDataHash = orderData.hashOrderData();
-        return order.hash(orderDataHash);
+        bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
+        return order.hash(orderTypeHash, orderDataHash);
     }
 
     function _initiate(
@@ -28,8 +31,9 @@ contract LimitOrderReactor is BaseReactor {
         // Permit2 context
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
         witness = limitData.hashOrderData();
-        witness = order.hash(witness);
-        witnessTypeString = CrossChainLimitOrderType.PERMIT2_WITNESS_TYPE;
+        bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
+        witness = order.hash(orderTypeHash, witness);
+        witnessTypeString = CrossChainLimitOrderType.permit2WitnessType();
 
         // Set orderKey:
         orderKey = _resolveKey(order, limitData);

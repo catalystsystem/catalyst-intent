@@ -12,7 +12,7 @@ import {
     Output,
     ResolvedCrossChainOrder
 } from "../interfaces/ISettlementContract.sol";
-import { OrderContext, OrderKey, OrderStatus } from "../interfaces/Structs.sol";
+import { OrderContext, OrderKey, OrderStatus, ReactorInfo } from "../interfaces/Structs.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
@@ -20,6 +20,7 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 import {
     CannotProveOrder,
     ChallengedeadlinePassed,
+    DeadlinesNotSane,
     InvalidDeadline,
     NonceClaimed,
     NotOracle,
@@ -128,14 +129,23 @@ abstract contract BaseReactor is ISettlementContract {
      * @param fillerData Any filler-defined data required by the settler
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
-        if ((order.initiateDeadline <= block.timestamp) || (order.fillDeadline <= block.timestamp)) {
+        if (
+            (order.initiateDeadline <= block.timestamp) || (order.fillDeadline <= block.timestamp)
+                || (order.fillDeadline < order.initiateDeadline)
+        ) {
             revert InvalidDeadline();
         }
         // TODO: solve permit2 context
         (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData);
-        // TODO: verify the deadlines are sane.
-        // TODO: Do we implement a forced minimum difference between proof and challenge?
-        // Init < fill < challenge < proof
+        ReactorInfo memory reactorInfo = orderKey.reactorContext;
+        if (
+            !(
+                (order.fillDeadline < reactorInfo.challengeDeadline)
+                    || (reactorInfo.challengeDeadline < reactorInfo.proofDeadline)
+            )
+        ) {
+            revert DeadlinesNotSane();
+        }
 
         address filler = abi.decode(fillerData, (address));
 
@@ -338,7 +348,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.OPFilled;
 
         // If time is post challenge deadline, then the order can only progress to optimistic payout.
-        uint40 challengedeadline = orderKey.reactorContext.challengedeadline;
+        uint40 challengedeadline = orderKey.reactorContext.challengeDeadline;
         if (uint40(block.timestamp) <= challengedeadline) {
             revert OrderNotReadyForOptimisticPayout(challengedeadline - uint40(block.timestamp));
         }
@@ -384,7 +394,7 @@ abstract contract BaseReactor is ISettlementContract {
         if (orderContext.challenger == address(0)) revert OrderAlreadyChallenged(orderContext);
 
         // Check if challenge deadline hasn't been passed.
-        if (orderKey.reactorContext.challengedeadline > uint40(block.timestamp)) revert ChallengedeadlinePassed();
+        if (orderKey.reactorContext.challengeDeadline > uint40(block.timestamp)) revert ChallengedeadlinePassed();
 
         orderContext.status = OrderStatus.Challenged;
         orderContext.challenger = msg.sender;

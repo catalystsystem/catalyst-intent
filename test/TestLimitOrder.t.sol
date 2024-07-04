@@ -8,6 +8,7 @@ import { ReactorHelperConfig } from "../script/Reactor/HelperConfig.s.sol";
 import { LimitOrderReactor } from "../src/reactors/LimitOrderReactor.sol";
 
 import { MockERC20 } from "./mocks/MockERC20.sol";
+import { MockUtils } from "./utils/MockUtils.sol";
 
 import { OrderKeyInfo } from "./utils/OrderKeyInfo.t.sol";
 import { SigTransfer } from "./utils/SigTransfer.t.sol";
@@ -22,7 +23,7 @@ import { Permit2Lib } from "../src/libs/Permit2Lib.sol";
 import { LimitOrderReactor } from "../src/reactors/LimitOrderReactor.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-import { ChellengeAfterProofDeadline, InvalidDeadline, OrderAlreadyClaimed } from "../src/interfaces/Errors.sol";
+import { DeadlinesNotSane, InvalidDeadline, OrderAlreadyClaimed } from "../src/interfaces/Errors.sol";
 
 import { CrossChainBuilder } from "./utils/CrossChainBuilder.t.sol";
 import { OrderDataBuilder } from "./utils/OrderDataBuilder.t.sol";
@@ -151,7 +152,8 @@ contract TestLimitOrder is Test {
     }
 
     function test_collect_tokens(uint256 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        (uint256 swapperInputBalance,, uint256 reactorInputBalance,) = _getCurrentBalances();
+        (uint256 swapperInputBalance, uint256 reactorInputBalance) =
+            MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, limitOrderReactorAddress);
         _initiateOrder(0, SWAPPER, amount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(limitOrderReactorAddress), reactorInputBalance + amount);
@@ -163,7 +165,8 @@ contract TestLimitOrder is Test {
     {
         _initiateOrder(0, SWAPPER, amount);
         MockERC20(tokenToSwapInput).mint(SWAPPER, amount);
-        (uint256 swapperInputBalance,, uint256 reactorInputBalance,) = _getCurrentBalances();
+        (uint256 swapperInputBalance, uint256 reactorInputBalance) =
+            MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, limitOrderReactorAddress);
         _initiateOrder(1, SWAPPER, amount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(limitOrderReactorAddress), reactorInputBalance + amount);
@@ -295,7 +298,7 @@ contract TestLimitOrder is Test {
             DOMAIN_SEPARATOR,
             limitOrderReactorAddress
         );
-        vm.expectRevert(ChellengeAfterProofDeadline.selector);
+        vm.expectRevert(DeadlinesNotSane.selector);
         limitOrderReactor.initiate(order, signature, abi.encode(FILLER));
     }
 
@@ -340,24 +343,8 @@ contract TestLimitOrder is Test {
     }
 
     function _getLimitOrderHash(CrossChainOrder calldata order) public pure returns (bytes32) {
-        bytes32 orderDataHash = CrossChainLimitOrderType.hashOrderData(abi.decode(order.orderData, (LimitOrderData)));
+        bytes32 orderDataHash = CrossChainLimitOrderType.hashOrderDataM(abi.decode(order.orderData, (LimitOrderData)));
         bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
         return order.hash(orderTypeHash, orderDataHash);
-    }
-
-    function _getCurrentBalances()
-        public
-        view
-        returns (
-            uint256 swapperInputBalance,
-            uint256 swapperOutputBalance,
-            uint256 reactorInputBalance,
-            uint256 reactorOutputBalance
-        )
-    {
-        swapperInputBalance = MockERC20(tokenToSwapInput).balanceOf(SWAPPER);
-        swapperOutputBalance = MockERC20(tokenToSwapOutput).balanceOf(SWAPPER);
-        reactorInputBalance = MockERC20(tokenToSwapInput).balanceOf(limitOrderReactorAddress);
-        reactorOutputBalance = MockERC20(tokenToSwapOutput).balanceOf(limitOrderReactorAddress);
     }
 }

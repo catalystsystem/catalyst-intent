@@ -71,7 +71,7 @@ struct ReactorInfo {
     address reactor;
     // Order resolution times
     uint32 fillByDeadline;
-    uint32 challengedeadline;
+    uint32 challengeDeadline;
     uint32 proofDeadline;
 }
 

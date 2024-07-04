@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { Input, Output } from "../interfaces/ISettlementContract.sol";
-
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../libs/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/CrossChainOrderType.sol";
-// import { test } from "../libs/test.sol";
 
-import { ChellengeAfterProofDeadline } from "../interfaces/Errors.sol";
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract LimitOrderReactor is BaseReactor {
@@ -21,7 +17,7 @@ contract LimitOrderReactor is BaseReactor {
 
     function _orderHash(CrossChainOrder calldata order) internal pure override returns (bytes32) {
         LimitOrderData memory orderData = order.orderData.decodeOrderData();
-        bytes32 orderDataHash = orderData.hashOrderData();
+        bytes32 orderDataHash = orderData.hashOrderDataM();
         bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
         return order.hash(orderTypeHash, orderDataHash);
     }
@@ -32,9 +28,8 @@ contract LimitOrderReactor is BaseReactor {
     ) internal pure override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
-        if (limitData.challengeDeadline >= limitData.proofDeadline) revert ChellengeAfterProofDeadline();
 
-        witness = limitData.hashOrderData();
+        witness = limitData.hashOrderDataM();
         bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
         witness = order.hash(orderTypeHash, witness);
         witnessTypeString = CrossChainLimitOrderType.permit2WitnessType();
@@ -67,7 +62,7 @@ contract LimitOrderReactor is BaseReactor {
                 reactor: order.settlementContract,
                 // Order resolution times
                 fillByDeadline: order.fillDeadline,
-                challengedeadline: limitData.challengeDeadline,
+                challengeDeadline: limitData.challengeDeadline,
                 proofDeadline: limitData.proofDeadline
             }),
             swapper: order.swapper,

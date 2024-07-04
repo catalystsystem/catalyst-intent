@@ -4,20 +4,22 @@ pragma solidity ^0.8.22;
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
 import { CrossChainDutchOrderType, DutchOrderData } from "../libs/CrossChainDutchOrderType.sol";
+import { CrossChainOrderType } from "../libs/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract DutchOrderReactor is BaseReactor {
+    using CrossChainOrderType for CrossChainOrder;
     using CrossChainDutchOrderType for DutchOrderData;
-    using CrossChainDutchOrderType for CrossChainOrder;
     using CrossChainDutchOrderType for bytes;
 
     constructor(address permit2) BaseReactor(permit2) { }
 
     function _orderHash(CrossChainOrder calldata order) internal pure override returns (bytes32) {
         DutchOrderData memory orderData = order.orderData.decodeOrderData();
-        bytes32 orderDataHash = orderData.hashOrderData();
-        return order.hash(orderDataHash);
+        bytes32 orderDataHash = orderData.hashOrderDataM();
+        bytes32 orderTypeHash = CrossChainDutchOrderType.orderTypeHash();
+        return order.hash(orderTypeHash, orderDataHash);
     }
 
     function _initiate(
@@ -26,9 +28,11 @@ contract DutchOrderReactor is BaseReactor {
     ) internal view override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
         DutchOrderData memory dutchData = order.orderData.decodeOrderData();
-        witness = dutchData.hashOrderData();
-        witness = order.hash(witness);
-        witnessTypeString = CrossChainDutchOrderType.PERMIT2_WITNESS_TYPE;
+
+        witness = dutchData.hashOrderDataM();
+        bytes32 orderTypeHash = CrossChainDutchOrderType.orderTypeHash();
+        witness = order.hash(orderTypeHash, witness);
+        witnessTypeString = CrossChainDutchOrderType.permit2WitnessType();
 
         // Set orderKey:
         orderKey = _resolveKey(order, dutchData);
@@ -58,7 +62,7 @@ contract DutchOrderReactor is BaseReactor {
                 reactor: order.settlementContract,
                 // Order resolution times
                 fillByDeadline: order.fillDeadline,
-                challengedeadline: dutchData.proofDeadline, // TODO: fix
+                challengeDeadline: dutchData.challengeDeadline,
                 proofDeadline: dutchData.proofDeadline
             }),
             swapper: order.swapper,

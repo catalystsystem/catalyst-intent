@@ -17,5 +17,5 @@ error WrongChain();
 error FillTimeInPast();
 error FillTimeFarInFuture();
 error InvalidDeadline();
-error ChellengeAfterProofDeadline();
+error DeadlinesNotSane();
 error StartTimeAfterEndTime();

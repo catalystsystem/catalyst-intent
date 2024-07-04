@@ -6,6 +6,7 @@ import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
 struct LimitOrderData {
     uint32 proofDeadline;
+    uint32 challengeDeadline;
     address collateralToken;
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
@@ -23,6 +24,7 @@ library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
         "LimitOrderData(",
         "uint32 proofDeadline,",
+        "uint32 challengeDeadline",
         "address collateralToken,",
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
@@ -53,6 +55,7 @@ library CrossChainLimitOrderType {
             abi.encodePacked( // todo: bytes.concat
                 LIMIT_ORDER_DATA_TYPE_HASH,
                 orderData.proofDeadline,
+                orderData.challengeDeadline,
                 orderData.collateralToken,
                 orderData.fillerCollateralAmount,
                 orderData.challengerCollateralAmount,

@@ -8,6 +8,8 @@ import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../libs/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/CrossChainOrderType.sol";
 // import { test } from "../libs/test.sol";
+
+import { ChellengeAfterProofDeadline } from "../interfaces/Errors.sol";
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract LimitOrderReactor is BaseReactor {
@@ -30,6 +32,8 @@ contract LimitOrderReactor is BaseReactor {
     ) internal pure override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
         LimitOrderData memory limitData = order.orderData.decodeOrderData();
+        if (limitData.challengeDeadline >= limitData.proofDeadline) revert ChellengeAfterProofDeadline();
+
         witness = limitData.hashOrderData();
         bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
         witness = order.hash(orderTypeHash, witness);
@@ -63,7 +67,7 @@ contract LimitOrderReactor is BaseReactor {
                 reactor: order.settlementContract,
                 // Order resolution times
                 fillByDeadline: order.fillDeadline,
-                challengedeadline: limitData.proofDeadline, // TODO: fix
+                challengedeadline: limitData.challengeDeadline,
                 proofDeadline: limitData.proofDeadline
             }),
             swapper: order.swapper,

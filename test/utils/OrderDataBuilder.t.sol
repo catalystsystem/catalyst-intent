@@ -13,6 +13,8 @@ library OrderDataBuilder {
         address recipient,
         uint256 fillerAmount,
         uint256 challengerAmount,
+        uint32 proofDeadline,
+        uint32 challengeDeadline,
         address localOracle,
         address remoteOracle
     ) internal pure returns (LimitOrderData memory limitOrderData) {
@@ -25,7 +27,8 @@ library OrderDataBuilder {
         });
 
         limitOrderData = LimitOrderData({
-            proofDeadline: 0,
+            proofDeadline: proofDeadline,
+            challengeDeadline: challengeDeadline,
             collateralToken: tokenToSwapInput,
             fillerCollateralAmount: fillerAmount,
             challengerCollateralAmount: challengerAmount,

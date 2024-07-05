@@ -80,6 +80,11 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     //--- Sending Proofs & Generalised Incentives ---//
 
+    //todo: onlyOwner
+    function setRemoteImplementation(bytes32 chainIdentifier, bytes calldata implementation) external {
+        escrow.setRemoteImplementation(chainIdentifier, implementation);
+    }
+
     // TODO: figure out what the best best interface for this function is
     function _submit(
         Output[] calldata outputs,
@@ -92,7 +97,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         // TODO: Figure out a better idea than abi.encode
         bytes memory message = _encode(outputs, fillTimes);
         // Deadline is set to 0.
-        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, deadline);
+        escrow.submitMessage{ value: msg.value }(
+            destinationIdentifier, destinationAddress, message, incentive, deadline
+        );
     }
 
     function submit(

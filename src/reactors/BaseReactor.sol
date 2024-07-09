@@ -22,6 +22,7 @@ import {
     ChallengedeadlinePassed,
     DeadlinesNotSane,
     InvalidDeadline,
+    LengthsNotEqual,
     NonceClaimed,
     NotOracle,
     OrderAlreadyChallenged,
@@ -137,6 +138,11 @@ abstract contract BaseReactor is ISettlementContract {
         }
         // TODO: solve permit2 context
         (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData);
+
+        if (orderKey.inputs.length != orderKey.outputs.length) {
+            revert LengthsNotEqual();
+        }
+
         ReactorInfo memory reactorInfo = orderKey.reactorContext;
         if (
             !(

@@ -38,6 +38,34 @@ library CrossChainOrderType {
             keccak256(abi.encodePacked(OUTPUT_TYPE_STUB, output.token, output.amount, output.recipient, output.chainId));
     }
 
+    function hashInputs(Input[] memory inputs) internal pure returns (bytes32) {
+        unchecked {
+            bytes memory currentHash = new bytes(32 * inputs.length);
+
+            for (uint256 i = 0; i < inputs.length; i++) {
+                bytes32 inputHash = hashInput(inputs[i]);
+                assembly {
+                    mstore(add(add(currentHash, 0x20), mul(i, 0x20)), inputHash)
+                }
+            }
+            return keccak256(currentHash);
+        }
+    }
+
+    function hashOutputs(Output[] memory outputs) internal pure returns (bytes32) {
+        unchecked {
+            bytes memory currentHash = new bytes(32 * outputs.length);
+
+            for (uint256 i = 0; i < outputs.length; i++) {
+                bytes32 outputHash = hashOutput(outputs[i]);
+                assembly {
+                    mstore(add(add(currentHash, 0x20), mul(i, 0x20)), outputHash)
+                }
+            }
+            return keccak256(currentHash);
+        }
+    }
+
     // TODO: include orderDataHash here?
     function hash(
         CrossChainOrder calldata order,

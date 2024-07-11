@@ -85,4 +85,13 @@ library CrossChainOrderType {
             )
         );
     }
+
+    function permit2WitnessType(bytes memory orderType)
+        internal
+        pure
+        returns (string memory permit2WitnessTypeString)
+    {
+        permit2WitnessTypeString =
+            string(abi.encodePacked("CrossChainOrder witness)", orderType, TOKEN_PERMISSIONS_TYPE));
+    }
 }

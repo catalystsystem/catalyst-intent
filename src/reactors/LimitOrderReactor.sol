@@ -32,7 +32,7 @@ contract LimitOrderReactor is BaseReactor {
         witness = limitData.hashOrderDataM();
         bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
         witness = order.hash(orderTypeHash, witness);
-        witnessTypeString = CrossChainLimitOrderType.permit2WitnessType();
+        witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainLimitOrderType.getOrderType());
 
         // Set orderKey:
         orderKey = _resolveKey(order, limitData);

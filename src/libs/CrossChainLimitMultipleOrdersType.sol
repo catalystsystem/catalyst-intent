@@ -18,7 +18,7 @@ struct LimitMultipleOrdersData {
 
 library CrossChainLimitMultipleOrdersType {
     bytes constant LIMIT_Multiple_ORDERS_DATA_TYPE = abi.encodePacked(
-        "LimitOrderData(",
+        "LimitMultipleOrdersData(",
         "uint32 proofDeadline,",
         "uint32 challengeDeadline",
         "address collateralToken,",
@@ -35,14 +35,8 @@ library CrossChainLimitMultipleOrdersType {
 
     bytes32 constant LIMIT_MULTIPLE_ORDERS_DATA_TYPE_HASH = keccak256(LIMIT_Multiple_ORDERS_DATA_TYPE);
 
-    function permit2WitnessType() internal pure returns (string memory permit2WitnessTypeString) {
-        permit2WitnessTypeString = string(
-            abi.encodePacked("CrossChainOrder witness)", _getOrderType(), CrossChainOrderType.TOKEN_PERMISSIONS_TYPE)
-        );
-    }
-
     function orderTypeHash() internal pure returns (bytes32) {
-        return keccak256(_getOrderType());
+        return keccak256(getOrderType());
     }
 
     function hashOrderDataM(LimitMultipleOrdersData memory orderData) internal pure returns (bytes32) {
@@ -87,7 +81,7 @@ library CrossChainLimitMultipleOrdersType {
         return limitData = abi.decode(orderBytes, (LimitMultipleOrdersData));
     }
 
-    function _getOrderType() private pure returns (bytes memory) {
+    function getOrderType() internal pure returns (bytes memory) {
         return CrossChainOrderType.crossOrderType("LimitMultipleOrdersData orderData", LIMIT_Multiple_ORDERS_DATA_TYPE);
     }
 }

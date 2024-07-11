@@ -7,7 +7,7 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 library SigTransfer {
     bytes32 private constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    string public constant _PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB =
+    string public constant PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB =
         "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,";
 
     function getPermitBatchWitnessSignature(

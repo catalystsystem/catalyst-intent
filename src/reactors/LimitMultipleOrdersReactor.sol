@@ -34,7 +34,7 @@ contract LimitMultipleOrdersReactor is BaseReactor {
         witness = limitMultipleData.hashOrderDataM();
         bytes32 orderTypeHash = CrossChainLimitMultipleOrdersType.orderTypeHash();
         witness = order.hash(orderTypeHash, witness);
-        witnessTypeString = CrossChainLimitMultipleOrdersType.permit2WitnessType();
+        witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainLimitMultipleOrdersType.getOrderType());
 
         // Set orderKey:
         orderKey = _resolveKey(order, limitMultipleData);

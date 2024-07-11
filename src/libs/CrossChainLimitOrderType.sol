@@ -39,14 +39,8 @@ library CrossChainLimitOrderType {
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
 
-    function permit2WitnessType() internal pure returns (string memory permit2WitnessTypeString) {
-        permit2WitnessTypeString = string(
-            abi.encodePacked("CrossChainOrder witness)", _getOrderType(), CrossChainOrderType.TOKEN_PERMISSIONS_TYPE)
-        );
-    }
-
     function orderTypeHash() internal pure returns (bytes32) {
-        return keccak256(_getOrderType());
+        return keccak256(getOrderType());
     }
 
     function hashOrderDataM(LimitOrderData memory orderData) internal pure returns (bytes32) {
@@ -87,7 +81,7 @@ library CrossChainLimitOrderType {
         return limitData = abi.decode(orderBytes, (LimitOrderData));
     }
 
-    function _getOrderType() private pure returns (bytes memory) {
+    function getOrderType() internal pure returns (bytes memory) {
         return CrossChainOrderType.crossOrderType("LimitOrderData orderData", LIMIT_ORDER_DATA_TYPE);
     }
 }

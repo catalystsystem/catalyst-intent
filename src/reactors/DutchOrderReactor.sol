@@ -32,7 +32,7 @@ contract DutchOrderReactor is BaseReactor {
         witness = dutchData.hashOrderDataM();
         bytes32 orderTypeHash = CrossChainDutchOrderType.orderTypeHash();
         witness = order.hash(orderTypeHash, witness);
-        witnessTypeString = CrossChainDutchOrderType.permit2WitnessType();
+        witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainDutchOrderType.getOrderType());
 
         // Set orderKey:
         orderKey = _resolveKey(order, dutchData);

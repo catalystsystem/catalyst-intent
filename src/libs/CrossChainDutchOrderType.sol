@@ -42,14 +42,8 @@ library CrossChainDutchOrderType {
     );
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
-    function permit2WitnessType() internal pure returns (string memory permit2WitnessTypeString) {
-        permit2WitnessTypeString = string(
-            abi.encodePacked("CrossChainOrder witness)", _getOrderType(), CrossChainOrderType.TOKEN_PERMISSIONS_TYPE)
-        );
-    }
-
     function orderTypeHash() internal pure returns (bytes32) {
-        return keccak256(_getOrderType());
+        return keccak256(getOrderType());
     }
 
     function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
@@ -96,8 +90,8 @@ library CrossChainDutchOrderType {
         dutchData = abi.decode(orderBytes, (DutchOrderData));
     }
 
-    function _getOrderType() private pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("LimitOrderData orderData", DUTCH_ORDER_DATA_TYPE);
+    function getOrderType() internal pure returns (bytes memory) {
+        return CrossChainOrderType.crossOrderType("DutchOrderData orderData", DUTCH_ORDER_DATA_TYPE);
     }
 
     //Get input amount after decay

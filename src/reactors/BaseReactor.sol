@@ -130,6 +130,7 @@ abstract contract BaseReactor is ISettlementContract {
      * @param fillerData Any filler-defined data required by the settler
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
+        // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
         if (
             (order.initiateDeadline <= block.timestamp) || (order.fillDeadline <= block.timestamp)
                 || (order.fillDeadline < order.initiateDeadline)
@@ -142,7 +143,8 @@ abstract contract BaseReactor is ISettlementContract {
         if (orderKey.inputs.length != orderKey.outputs.length) {
             revert LengthsNotEqual();
         }
-
+        // The proof deadline should be the last deadline and it must be after the challenge deadline.
+        // The challenger should be able to challenge after the order is filled.
         ReactorInfo memory reactorInfo = orderKey.reactorContext;
         if (
             !(

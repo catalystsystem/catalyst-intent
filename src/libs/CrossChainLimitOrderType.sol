@@ -12,8 +12,8 @@ struct LimitOrderData {
     uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
     bytes32 remoteOracle; // TODO: figure out how to trustless.
-    Input input;
-    Output output;
+    Input[] inputs;
+    Output[] outputs;
 }
 
 /**
@@ -30,8 +30,8 @@ library CrossChainLimitOrderType {
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
         "bytes32 remoteOracle,",
-        "Input input,",
-        "Output output",
+        "Input[] input,",
+        "Output[] output",
         ")",
         CrossChainOrderType.OUTPUT_TYPE_STUB,
         CrossChainOrderType.INPUT_TYPE_STUB
@@ -54,8 +54,8 @@ library CrossChainLimitOrderType {
                 bytes32(orderData.challengerCollateralAmount),
                 bytes20(orderData.localOracle),
                 orderData.remoteOracle,
-                CrossChainOrderType.hashInput(orderData.input),
-                CrossChainOrderType.hashOutput(orderData.output)
+                CrossChainOrderType.hashInputs(orderData.inputs),
+                CrossChainOrderType.hashOutputs(orderData.outputs)
             )
         );
     }
@@ -71,8 +71,8 @@ library CrossChainLimitOrderType {
                 bytes32(orderData.challengerCollateralAmount),
                 bytes20(orderData.localOracle),
                 orderData.remoteOracle,
-                CrossChainOrderType.hashInput(orderData.input),
-                CrossChainOrderType.hashOutput(orderData.output)
+                CrossChainOrderType.hashInputs(orderData.inputs),
+                CrossChainOrderType.hashOutputs(orderData.outputs)
             )
         );
     }

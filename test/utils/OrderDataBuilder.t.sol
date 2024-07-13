@@ -18,8 +18,10 @@ library OrderDataBuilder {
         address localOracle,
         address remoteOracle
     ) internal pure returns (LimitOrderData memory limitOrderData) {
-        Input memory input = Input({ token: tokenToSwapInput, amount: inputAmount });
-        Output memory output = Output({
+        Input[] memory inputs = new Input[](1);
+        inputs[0] = Input({ token: tokenToSwapInput, amount: inputAmount });
+        Output[] memory outputs = new Output[](1);
+        outputs[0] = Output({
             token: bytes32(abi.encode(tokenToSwapOutput)),
             amount: outputAmount,
             recipient: bytes32(abi.encode(recipient)),
@@ -34,8 +36,8 @@ library OrderDataBuilder {
             challengerCollateralAmount: challengerAmount,
             localOracle: localOracle,
             remoteOracle: bytes32(abi.encode(remoteOracle)),
-            input: input,
-            output: output
+            inputs: inputs,
+            outputs: outputs
         });
     }
 

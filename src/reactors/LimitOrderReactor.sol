@@ -50,11 +50,8 @@ contract LimitOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         LimitOrderData memory limitData
     ) internal pure returns (OrderKey memory orderKey) {
-        Input[] memory inputs = new Input[](1);
-        Output[] memory outputs = new Output[](1);
-
-        inputs[0] = limitData.input;
-        outputs[0] = limitData.output;
+        Input[] memory inputs = limitData.inputs;
+        Output[] memory outputs = limitData.outputs;
 
         // Set orderKey:
         orderKey = OrderKey({

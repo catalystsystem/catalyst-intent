@@ -15,8 +15,8 @@ struct DutchOrderData {
     address localOracle;
     bytes32 remoteOracle; // TODO: figure out how to trustless.
     uint32 slopeStartingTime;
-    uint256 inputSlope; // The rate of input that is increasing. Should always be positive
-    uint256 outputSlope; // The rate of output that is decreasing. Should always be positive
+    int256 inputSlope; // The rate of input that is increasing. Should always be positive
+    int256 outputSlope; // The rate of output that is decreasing. Should always be positive
     Input input;
     Output output;
 }
@@ -58,8 +58,8 @@ library CrossChainDutchOrderType {
                 bytes20(orderData.localOracle),
                 orderData.remoteOracle,
                 bytes4(orderData.slopeStartingTime),
-                bytes32(orderData.inputSlope),
-                bytes32(orderData.outputSlope),
+                bytes32(uint256(orderData.inputSlope)),
+                bytes32(uint256(orderData.outputSlope)),
                 CrossChainOrderType.hashInput(orderData.input),
                 CrossChainOrderType.hashOutput(orderData.output)
             )
@@ -78,8 +78,8 @@ library CrossChainDutchOrderType {
                 bytes20(orderData.localOracle),
                 orderData.remoteOracle,
                 bytes4(orderData.slopeStartingTime),
-                bytes32(orderData.inputSlope),
-                bytes32(orderData.outputSlope),
+                bytes32(uint256(orderData.inputSlope)),
+                bytes32(uint256(orderData.outputSlope)),
                 CrossChainOrderType.hashInput(orderData.input),
                 CrossChainOrderType.hashOutput(orderData.output)
             )
@@ -94,32 +94,45 @@ library CrossChainDutchOrderType {
         return CrossChainOrderType.crossOrderType("DutchOrderData orderData", DUTCH_ORDER_DATA_TYPE);
     }
 
-    //Get input amount after decay
+    /**
+     * @dev This functions calculates the the current amount the user pay in the source chain based on the time passed.
+     * The order is treated as Limit Order if the slope did not start.
+     * @param dutchOrderData The order data to calculate the current input value from.
+     * @return orderInput The input after applying the decay function based on the time passed
+     */
     function getInputAfterDecay(DutchOrderData memory dutchOrderData) internal view returns (Input memory orderInput) {
-        if (block.timestamp <= dutchOrderData.slopeStartingTime) revert StartTimeAfterEndTime();
-
         orderInput = dutchOrderData.input;
-
-        unchecked {
-            orderInput.amount =
-                orderInput.amount + dutchOrderData.inputSlope * (block.timestamp - dutchOrderData.slopeStartingTime);
+        // Treat it as limit order if the slope time did not start.
+        if (block.timestamp >= dutchOrderData.slopeStartingTime) {
+            // We know that the minimum and the maximum input are within the limits and the amount will never exceed the maximum so it is okay to do unchecked.
+            //TODO: will ever there be a problem if we convert int256 to uint256 here?
+            unchecked {
+                orderInput.amount = orderInput.amount
+                    + uint256(dutchOrderData.inputSlope) * (block.timestamp - dutchOrderData.slopeStartingTime);
+            }
         }
     }
 
-    //Get output amount after decay
+    /**
+     * @dev This functions calculates the the current amount the user will get in the destination chain based on the time passed.
+     * The order is treated as Limit Order if the slope did not start.
+     * @param dutchOrderData The order data to calculate the current output value from.
+     * @return orderOutput The output after applying the decay function based on the time passed
+     */
     function getOutputAfterDecay(DutchOrderData memory dutchOrderData)
         internal
         view
         returns (Output memory orderOutput)
     {
-        // TODO: Replace with max value for flat line before slopStaringTime?
-        if (block.timestamp <= dutchOrderData.slopeStartingTime) revert StartTimeAfterEndTime();
-
         orderOutput = dutchOrderData.output;
-
-        unchecked {
-            orderOutput.amount =
-                orderOutput.amount - dutchOrderData.outputSlope * (block.timestamp - dutchOrderData.slopeStartingTime);
+        // Treat it as limit order if the slope time did not start.
+        if (block.timestamp >= dutchOrderData.slopeStartingTime) {
+            // We know that the minimum and the maximum input are within the limits and the amount will never exceed the maximum so it is okay to do unchecked.
+            //TODO: will ever there be a problem if we convert int256 to uint256 here?
+            unchecked {
+                orderOutput.amount = orderOutput.amount
+                    - uint256(dutchOrderData.outputSlope) * (block.timestamp - dutchOrderData.slopeStartingTime);
+            }
         }
     }
 }

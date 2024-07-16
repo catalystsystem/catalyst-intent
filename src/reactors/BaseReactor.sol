@@ -77,7 +77,6 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext = _orders[orderKeyHash];
     }
 
-    //TODO: Do we need this?, we already have orderHash function for CrossChainOrder in CrossChainOrderLib.sol
     function orderHash(CrossChainOrder calldata order) external pure returns (bytes32) {
         return _orderHash(order);
     }

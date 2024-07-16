@@ -29,11 +29,12 @@ import { OrderDataBuilder } from "./utils/OrderDataBuilder.t.sol";
 
 import { BaseReactorTest, Permit2DomainSeparator } from "./Reactors/BaseReactorTest.t.sol";
 import "forge-std/Test.sol";
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
 contract TestLimitOrder is BaseReactorTest {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
     using CrossChainOrderType for CrossChainOrder;
+    using CrossChainLimitOrderType for LimitOrderData;
 
     function setUp() public {
         DeployLimitOrderReactor deployer = new DeployLimitOrderReactor();
@@ -54,28 +55,9 @@ contract TestLimitOrder is BaseReactorTest {
         uint256 challengerAmount,
         uint16 deadlineIncrement
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount) {
-        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
-            tokenToSwapInput,
-            tokenToSwapOutput,
-            inputAmount,
-            outputAmount,
-            SWAPPER,
-            fillerAmount,
-            challengerAmount,
-            1,
-            0,
-            address(0),
-            address(0)
-        );
-        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
-            limitOrderData,
-            reactorAddress,
-            SWAPPER,
-            0,
-            uint32(block.chainid),
-            uint32(block.timestamp + deadlineIncrement),
-            uint32(block.timestamp + deadlineIncrement)
-        );
+        CrossChainOrder memory order =
+            _getCrossOrder(inputAmount, outputAmount, fillerAmount, challengerAmount, deadlineIncrement);
+
         OrderKey memory orderKey = reactor.resolveKey(order, hex"");
 
         //Input tests
@@ -133,7 +115,7 @@ contract TestLimitOrder is BaseReactorTest {
             uint32(block.timestamp + 1 hours)
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 orderHash = this._getLimitOrderHash(order);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
@@ -162,7 +144,7 @@ contract TestLimitOrder is BaseReactorTest {
             uint32(block.timestamp + 1 hours)
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 orderHash = this._getLimitOrderHash(order);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
 
@@ -187,7 +169,7 @@ contract TestLimitOrder is BaseReactorTest {
             0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 orderHash = this._getLimitOrderHash(order);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
 
@@ -215,7 +197,7 @@ contract TestLimitOrder is BaseReactorTest {
             uint32(block.timestamp + 1 hours)
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 orderHash = this._getLimitOrderHash(order);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
 
@@ -255,7 +237,7 @@ contract TestLimitOrder is BaseReactorTest {
             uint32(block.timestamp + 1 hours)
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 orderHash = this._getLimitOrderHash(order);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
 
@@ -265,9 +247,46 @@ contract TestLimitOrder is BaseReactorTest {
         reactor.initiate(order, signature, abi.encode(FILLER));
     }
 
-    function _getLimitOrderHash(CrossChainOrder calldata order) public pure returns (bytes32) {
-        bytes32 orderDataHash = CrossChainLimitOrderType.hashOrderDataM(abi.decode(order.orderData, (LimitOrderData)));
-        bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
-        return order.hash(orderTypeHash, orderDataHash);
+    function _getTypeAndDataHashes(CrossChainOrder calldata order)
+        public
+        pure
+        override
+        returns (bytes32 typeHash, bytes32 dataHash, bytes32 orderHash)
+    {
+        LimitOrderData memory limitOrderData = abi.decode(order.orderData, (LimitOrderData));
+        typeHash = CrossChainLimitOrderType.orderTypeHash();
+        dataHash = limitOrderData.hashOrderDataM();
+        orderHash = order.hash(typeHash, dataHash);
+    }
+
+    function _getCrossOrder(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerAmount,
+        uint256 challengerAmount,
+        uint16 deadlineIncrement
+    ) internal view override returns (CrossChainOrder memory order) {
+        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerAmount,
+            challengerAmount,
+            1,
+            0,
+            address(0),
+            address(0)
+        );
+        order = CrossChainBuilder.getCrossChainOrder(
+            limitOrderData,
+            reactorAddress,
+            SWAPPER,
+            0,
+            uint32(block.chainid),
+            uint32(block.timestamp + deadlineIncrement),
+            uint32(block.timestamp + deadlineIncrement)
+        );
     }
 }

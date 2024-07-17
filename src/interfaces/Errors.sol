@@ -18,5 +18,4 @@ error FillTimeInPast();
 error FillTimeFarInFuture();
 error InvalidDeadline();
 error DeadlinesNotSane();
-error StartTimeAfterEndTime();
 error LengthsNotEqual();

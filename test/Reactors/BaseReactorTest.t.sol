@@ -15,11 +15,24 @@ import { MockUtils } from "../utils/MockUtils.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
 import { Test } from "forge-std/Test.sol";
 
+import { OrderKey } from "../../src/interfaces/Structs.sol";
+
+import {
+    DeadlinesNotSane, DeadlinesNotSane, InvalidDeadline, OrderAlreadyClaimed
+} from "../../src/interfaces/Errors.sol";
+
+import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
+
+import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
+import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
+
 interface Permit2DomainSeparator {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 }
 
 abstract contract BaseReactorTest is Test {
+    using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
+
     BaseReactor reactor;
     ReactorHelperConfig reactorHelperConfig;
     address tokenToSwapInput;
@@ -52,7 +65,7 @@ abstract contract BaseReactorTest is Test {
         (SWAPPER, SWAPPER_PRIVATE_KEY) = makeAddrAndKey("swapper");
     }
 
-    bytes32 public FULL_LIMIT_ORDER_PERMIT2_TYPE_HASH = keccak256(
+    bytes32 public FULL_ORDER_PERMIT2_TYPE_HASH = keccak256(
         abi.encodePacked(
             SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
             CrossChainOrderType.permit2WitnessType(_orderType())
@@ -87,8 +100,9 @@ abstract contract BaseReactorTest is Test {
         uint256 challengerAmount,
         uint16 deadlineIncrement
     ) public {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, fillerAmount, challengerAmount, deadlineIncrement);
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, deadlineIncrement, 1, 0, 0, 1, 0
+        );
         (bytes32 typeHash, bytes32 dataHash,) = this._getTypeAndDataHashes(order);
         bytes32 expected = reactor.orderHash(order);
         bytes32 actual = keccak256(
@@ -107,6 +121,50 @@ abstract contract BaseReactorTest is Test {
         assertEq(expected, actual);
     }
 
+    function test_invalid_initiate_deadline(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerAmount,
+        uint256 challengerAmount,
+        uint16 deadlineIncrement
+    ) public {
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, deadlineIncrement, 0, 1, 10, 5, 0
+        );
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+        );
+        vm.expectRevert(InvalidDeadline.selector);
+        reactor.initiate(order, signature, abi.encode(FILLER));
+    }
+
+    function test_invalid_challenge_deadline(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerAmount,
+        uint256 challengerAmount,
+        uint16 deadlineIncrement
+    ) public {
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, deadlineIncrement, 0, 1, 5, 10, 0
+        );
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+        );
+        vm.expectRevert(DeadlinesNotSane.selector);
+        reactor.initiate(order, signature, abi.encode(FILLER));
+    }
+
     function _orderType() internal virtual returns (bytes memory);
 
     function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount) internal virtual;
@@ -119,8 +177,14 @@ abstract contract BaseReactorTest is Test {
     function _getCrossOrder(
         uint256 inputAmount,
         uint256 outputAmount,
+        address recipient,
         uint256 fillerAmount,
         uint256 challengerAmount,
-        uint16 deadlineIncrement
+        uint16 deadlineIncrement,
+        uint32 proofDeadline,
+        uint32 challengeDeadline,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint256 nonce
     ) internal view virtual returns (CrossChainOrder memory order);
 }

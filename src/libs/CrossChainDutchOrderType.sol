@@ -3,7 +3,6 @@ pragma solidity ^0.8.22;
 
 import { CrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
 
-import { StartTimeAfterEndTime } from "../interfaces/Errors.sol";
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
 struct DutchOrderData {

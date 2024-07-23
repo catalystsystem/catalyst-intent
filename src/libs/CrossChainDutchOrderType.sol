@@ -14,8 +14,8 @@ struct DutchOrderData {
     address localOracle;
     bytes32 remoteOracle; // TODO: figure out how to trustless.
     uint32 slopeStartingTime;
-    int256 inputSlope; // The rate of input that is increasing. Should always be positive
-    int256 outputSlope; // The rate of output that is decreasing. Should always be positive
+    int256 inputSlope; // The rate of input that is changing.
+    int256 outputSlope; // The rate of output that is changing.
     Input input;
     Output output;
 }
@@ -31,8 +31,8 @@ library CrossChainDutchOrderType {
         "address localOracle,",
         "bytes32 remoteOracle,",
         "uint32 slopeStartingTime,",
-        "uint256 inputSlope,",
-        "uint256 outputSlope,",
+        "int256 inputSlope,",
+        "int256 outputSlope,",
         "Input input,",
         "Output output",
         ")",
@@ -94,6 +94,28 @@ library CrossChainDutchOrderType {
     }
 
     /**
+     * @notice Computes the slope for a simple dutch order.
+     * @dev For inputs, slope should generally be positive where for outputs it should be negative.
+     * However, no limitations are applied to how orders are structured.
+     * @param slope Change in amount per second.
+     * @param startingTime Timestamp for when the order started. Is compared against block.timestamp.
+     * @param startingAmount Initial amount.
+     * @return currentAmount Amount after the slope has been applied.
+     */
+    function _calcSlope(int256 slope, uint256 startingTime, uint256 startingAmount) internal view returns (uint256 currentAmount) {
+        uint256 currTime = block.timestamp;
+        if (currTime <= startingTime) return currentAmount = startingAmount;
+
+        uint256 timePassed;
+        unchecked {
+            // It is known: currTime > startingTime
+            timePassed = currTime - startingTime;
+        }
+        // If slope > 0, then add delta (slope * time). If slope < 0 then subtract delta (slope * time).
+        currentAmount = slope > 0 ? startingAmount + uint256(slope) * timePassed : startingAmount - uint256(-slope) * timePassed;
+    }
+
+    /**
      * @dev This functions calculates the the current amount the user pay in the source chain based on the time passed.
      * The order is treated as Limit Order if the slope did not start.
      * @param dutchOrderData The order data to calculate the current input value from.
@@ -101,15 +123,10 @@ library CrossChainDutchOrderType {
      */
     function getInputAfterDecay(DutchOrderData memory dutchOrderData) internal view returns (Input memory orderInput) {
         orderInput = dutchOrderData.input;
-        // Treat it as limit order if the slope time did not start.
-        if (block.timestamp >= dutchOrderData.slopeStartingTime) {
-            // We know that the minimum and the maximum input are within the limits and the amount will never exceed the maximum so it is okay to do unchecked.
-            //TODO: will ever there be a problem if we convert int256 to uint256 here?
-            unchecked {
-                orderInput.amount = orderInput.amount
-                    + uint256(dutchOrderData.inputSlope) * (block.timestamp - dutchOrderData.slopeStartingTime);
-            }
-        }
+        int256 inputSlope = dutchOrderData.inputSlope;
+        if (inputSlope == 0) return orderInput; // Early exit if inputSlope == 0.
+
+        orderInput.amount = _calcSlope(inputSlope, dutchOrderData.slopeStartingTime, orderInput.amount);
     }
 
     /**
@@ -124,14 +141,9 @@ library CrossChainDutchOrderType {
         returns (Output memory orderOutput)
     {
         orderOutput = dutchOrderData.output;
-        // Treat it as limit order if the slope time did not start.
-        if (block.timestamp >= dutchOrderData.slopeStartingTime) {
-            // We know that the minimum and the maximum input are within the limits and the amount will never exceed the maximum so it is okay to do unchecked.
-            //TODO: will ever there be a problem if we convert int256 to uint256 here?
-            unchecked {
-                orderOutput.amount = orderOutput.amount
-                    - uint256(dutchOrderData.outputSlope) * (block.timestamp - dutchOrderData.slopeStartingTime);
-            }
-        }
+        int256 outputSlope = dutchOrderData.outputSlope;
+        if (outputSlope == 0) return orderOutput; // Early exit if inputSlope == 0.
+
+        orderOutput.amount = _calcSlope(outputSlope, dutchOrderData.slopeStartingTime, orderOutput.amount);
     }
 }

@@ -66,21 +66,20 @@ library CrossChainOrderType {
         }
     }
 
-    // TODO: include orderDataHash here?
     function hash(
         CrossChainOrder calldata order,
         bytes32 orderTypeHash,
         bytes32 orderDataHash
     ) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked( // TODO: bytes.concat
+            bytes.concat(
                 orderTypeHash,
-                order.settlementContract,
-                order.swapper,
-                order.nonce,
-                order.originChainId,
-                order.initiateDeadline,
-                order.fillDeadline,
+                bytes20(order.settlementContract),
+                bytes20(order.swapper),
+                bytes32(order.nonce),
+                bytes4(order.originChainId),
+                bytes4(order.initiateDeadline),
+                bytes4(order.fillDeadline),
                 orderDataHash
             )
         );

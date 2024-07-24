@@ -84,6 +84,7 @@ contract TestDutchAuction is BaseReactorTest {
             inputAmount,
             outputAmount,
             recipient,
+            tokenToSwapOutput,
             fillerAmount,
             challengerAmount,
             proofDeadline,

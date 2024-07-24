@@ -45,7 +45,7 @@ library CrossChainLimitOrderType {
 
     function hashOrderDataM(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(
+            bytes.concat(
                 LIMIT_ORDER_DATA_TYPE_HASH,
                 bytes4(orderData.proofDeadline),
                 bytes4(orderData.challengeDeadline),
@@ -62,7 +62,7 @@ library CrossChainLimitOrderType {
 
     function hashOrderData(LimitOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(
+            bytes.concat(
                 LIMIT_ORDER_DATA_TYPE_HASH,
                 bytes4(orderData.proofDeadline),
                 bytes4(orderData.challengeDeadline),

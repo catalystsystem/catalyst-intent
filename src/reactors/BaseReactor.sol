@@ -159,6 +159,7 @@ abstract contract BaseReactor is ISettlementContract {
             revert InvalidDeadlineOrder();
         }
 
+        //TODO: Will we have only the address encoded in the data?
         address filler = abi.decode(fillerData, (address));
 
         // Check that the order hasn't been claimed yet. We will then set the order status
@@ -168,7 +169,10 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
 
-        // TODO: Collect collateral from filler.
+        SafeTransferLib.safeTransferFrom(
+            orderKey.collateral.collateralToken, filler, address(this), orderKey.collateral.fillerCollateralAmount
+        );
+
         // TODO: Disallow if not deployed contract?
 
         _collectTokens(orderKey, order.swapper, witness, witnessTypeString, signature);

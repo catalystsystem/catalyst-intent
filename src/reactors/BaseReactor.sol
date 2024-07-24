@@ -20,8 +20,9 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 import {
     CannotProveOrder,
     ChallengedeadlinePassed,
-    DeadlinesNotSane,
-    InvalidDeadline,
+    InitiateDeadlineAfterFill,
+    InitiateDeadlinePassed,
+    InvalidDeadlineOrder,
     LengthsNotEqual,
     NonceClaimed,
     NotOracle,
@@ -130,28 +131,32 @@ abstract contract BaseReactor is ISettlementContract {
      */
     function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
         // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
-        if (
-            (order.initiateDeadline <= block.timestamp) || (order.fillDeadline <= block.timestamp)
-                || (order.fillDeadline < order.initiateDeadline)
-        ) {
-            revert InvalidDeadline();
+        // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
+        if (order.fillDeadline < order.initiateDeadline) {
+            revert InitiateDeadlineAfterFill();
         }
+
+        // Check if initiate Deadline has passed.
+        if (order.initiateDeadline < block.timestamp) {
+            revert InitiateDeadlinePassed();
+        }
+        // Notice that the 2 above checks also check if order.fillDeadline < block.timestamp since
+        // (order.fillDeadline < order.initiateDeadline) U (order.initiateDeadline < block.timestamp)
+        // => order.fillDeadline < block.timestamp is disallowed.
         // TODO: solve permit2 context
         (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData);
 
-        if (orderKey.inputs.length != orderKey.outputs.length) {
-            revert LengthsNotEqual();
-        }
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
         ReactorInfo memory reactorInfo = orderKey.reactorContext;
+        // Check if order.fillDeadline < reactorInfo.challengeDeadline && reactorInfo.challengeDeadline < reactorInfo.proofDeadline.
+        // So if order.fillDeadline >= reactorInfo.challengeDeadline || reactorInfo.challengeDeadline >= reactorInfo.proofDeadline
+        // then the deadlines are invalid.
         if (
-            !(
-                (order.fillDeadline < reactorInfo.challengeDeadline)
-                    || (reactorInfo.challengeDeadline < reactorInfo.proofDeadline)
-            )
+            order.fillDeadline >= reactorInfo.challengeDeadline
+                || reactorInfo.challengeDeadline >= reactorInfo.proofDeadline
         ) {
-            revert DeadlinesNotSane();
+            revert InvalidDeadlineOrder();
         }
 
         address filler = abi.decode(fillerData, (address));
@@ -355,9 +360,11 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.OPFilled;
 
         // If time is post challenge deadline, then the order can only progress to optimistic payout.
-        uint40 challengedeadline = orderKey.reactorContext.challengeDeadline;
-        if (uint40(block.timestamp) <= challengedeadline) {
-            revert OrderNotReadyForOptimisticPayout(challengedeadline - uint40(block.timestamp));
+        uint256 challengedeadline = orderKey.reactorContext.challengeDeadline;
+        if (block.timestamp <= challengedeadline) {
+            unchecked {
+                revert OrderNotReadyForOptimisticPayout(uint40(challengedeadline - block.timestamp));
+            }
         }
 
         address filler = orderContext.filler;
@@ -401,7 +408,7 @@ abstract contract BaseReactor is ISettlementContract {
         if (orderContext.challenger == address(0)) revert OrderAlreadyChallenged(orderContext);
 
         // Check if challenge deadline hasn't been passed.
-        if (orderKey.reactorContext.challengeDeadline > uint40(block.timestamp)) revert ChallengedeadlinePassed();
+        if (uint256(orderKey.reactorContext.challengeDeadline) > block.timestamp) revert ChallengedeadlinePassed();
 
         orderContext.status = OrderStatus.Challenged;
         orderContext.challenger = msg.sender;

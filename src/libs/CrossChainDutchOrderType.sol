@@ -102,7 +102,11 @@ library CrossChainDutchOrderType {
      * @param startingAmount Initial amount.
      * @return currentAmount Amount after the slope has been applied.
      */
-    function _calcSlope(int256 slope, uint256 startingTime, uint256 startingAmount) internal view returns (uint256 currentAmount) {
+    function _calcSlope(
+        int256 slope,
+        uint256 startingTime,
+        uint256 startingAmount
+    ) internal view returns (uint256 currentAmount) {
         uint256 currTime = block.timestamp;
         if (currTime <= startingTime) return currentAmount = startingAmount;
 
@@ -112,7 +116,8 @@ library CrossChainDutchOrderType {
             timePassed = currTime - startingTime;
         }
         // If slope > 0, then add delta (slope * time). If slope < 0 then subtract delta (slope * time).
-        currentAmount = slope > 0 ? startingAmount + uint256(slope) * timePassed : startingAmount - uint256(-slope) * timePassed;
+        currentAmount =
+            slope > 0 ? startingAmount + uint256(slope) * timePassed : startingAmount - uint256(-slope) * timePassed;
     }
 
     /**

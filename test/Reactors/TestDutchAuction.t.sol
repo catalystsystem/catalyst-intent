@@ -41,7 +41,7 @@ contract TestDutchAuction is BaseReactorTest {
     }
 
     function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount) internal virtual override {
-        CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 1 hours, 1, 0, 5, 10, _nonce);
+        CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 1, 5, 10, 11, _nonce);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -72,11 +72,10 @@ contract TestDutchAuction is BaseReactorTest {
         address recipient,
         uint256 fillerAmount,
         uint256 challengerAmount,
-        uint16 deadlineIncrement,
-        uint32 proofDeadline,
-        uint32 challengeDeadline,
         uint32 initiateDeadline,
         uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
         uint256 nonce
     ) internal view virtual override returns (CrossChainOrder memory order) {
         DutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
@@ -99,8 +98,8 @@ contract TestDutchAuction is BaseReactorTest {
             recipient,
             nonce,
             uint32(block.chainid),
-            uint32(initiateDeadline + deadlineIncrement),
-            uint32(fillDeadline + deadlineIncrement)
+            uint32(initiateDeadline),
+            uint32(fillDeadline)
         );
     }
     //TODO: add private functions to set slopes for dutch order and  test the dutch order when we fuzz the slopes

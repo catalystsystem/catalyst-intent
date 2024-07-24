@@ -20,7 +20,7 @@ import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/inter
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-import { DeadlinesNotSane, InvalidDeadline, OrderAlreadyClaimed } from "../../src/interfaces/Errors.sol";
+import { InvalidDeadlineOrder, InitiateDeadlineAfterFill, InitiateDeadlinePassed, OrderAlreadyClaimed } from "../../src/interfaces/Errors.sol";
 
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
@@ -50,11 +50,10 @@ contract TestLimitOrder is BaseReactorTest {
         uint256 inputAmount,
         uint256 outputAmount,
         uint256 fillerAmount,
-        uint256 challengerAmount,
-        uint16 deadlineIncrement
+        uint256 challengerAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount) {
         CrossChainOrder memory order = _getCrossOrder(
-            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, deadlineIncrement, 1, 0, 5, 10, 0
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 5, 10, 11, 0
         );
 
         OrderKey memory orderKey = reactor.resolveKey(order, hex"");
@@ -100,7 +99,7 @@ contract TestLimitOrder is BaseReactorTest {
 
     function test_not_enough_balance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
         uint256 amountToTransfer = uint256(amount) + 1 ether;
-        CrossChainOrder memory order = _getCrossOrder(amountToTransfer, 0, SWAPPER, 1 ether, 0, 1 hours, 1, 0, 5, 10, 0);
+        CrossChainOrder memory order = _getCrossOrder(amountToTransfer, 0, SWAPPER, 1 ether, 0, 5, 6, 10, 11, 0);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -119,7 +118,7 @@ contract TestLimitOrder is BaseReactorTest {
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, amount);
-        CrossChainOrder memory order = _getCrossOrder(amountToTransfer, 0, BOB, 1 ether, 0, 1 hours, 1, 0, 5, 10, 0);
+        CrossChainOrder memory order = _getCrossOrder(amountToTransfer, 0, BOB, 1 ether, 0, 5, 6, 10, 11, 0);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -138,7 +137,7 @@ contract TestLimitOrder is BaseReactorTest {
     }
 
     function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount) internal override {
-        CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 1 hours, 1, 0, 5, 10, _nonce);
+        CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 5, 6, 10, 11, _nonce);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -169,11 +168,10 @@ contract TestLimitOrder is BaseReactorTest {
         address recipient,
         uint256 fillerAmount,
         uint256 challengerAmount,
-        uint16 deadlineIncrement,
-        uint32 proofDeadline,
-        uint32 challengeDeadline,
         uint32 initiateDeadline,
         uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
         uint256 nonce
     ) internal view override returns (CrossChainOrder memory order) {
         LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
@@ -195,8 +193,8 @@ contract TestLimitOrder is BaseReactorTest {
             recipient,
             nonce,
             uint32(block.chainid),
-            uint32(initiateDeadline + deadlineIncrement),
-            uint32(fillDeadline + deadlineIncrement)
+            uint32(initiateDeadline),
+            uint32(fillDeadline)
         );
     }
 }

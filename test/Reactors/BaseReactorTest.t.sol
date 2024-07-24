@@ -18,7 +18,7 @@ import { Test } from "forge-std/Test.sol";
 import { OrderKey } from "../../src/interfaces/Structs.sol";
 
 import {
-    DeadlinesNotSane, DeadlinesNotSane, InvalidDeadline, OrderAlreadyClaimed
+    InvalidDeadlineOrder, InitiateDeadlineAfterFill, InitiateDeadlinePassed, OrderAlreadyClaimed
 } from "../../src/interfaces/Errors.sol";
 
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
@@ -97,11 +97,10 @@ abstract contract BaseReactorTest is Test {
         uint256 inputAmount,
         uint256 outputAmount,
         uint256 fillerAmount,
-        uint256 challengerAmount,
-        uint16 deadlineIncrement
+        uint256 challengerAmount
     ) public {
         CrossChainOrder memory order = _getCrossOrder(
-            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, deadlineIncrement, 1, 0, 0, 1, 0
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 0, 0, 1, 0
         );
         (bytes32 typeHash, bytes32 dataHash,) = this._getTypeAndDataHashes(order);
         bytes32 expected = reactor.orderHash(order);
@@ -121,15 +120,14 @@ abstract contract BaseReactorTest is Test {
         assertEq(expected, actual);
     }
 
-    function test_invalid_initiate_deadline(
+    function test_revert_passed_initiate_deadline(
         uint256 inputAmount,
         uint256 outputAmount,
         uint256 fillerAmount,
-        uint256 challengerAmount,
-        uint16 deadlineIncrement
+        uint256 challengerAmount
     ) public {
         CrossChainOrder memory order = _getCrossOrder(
-            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, deadlineIncrement, 0, 1, 10, 5, 0
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 0, 1, 5, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -139,19 +137,18 @@ abstract contract BaseReactorTest is Test {
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
-        vm.expectRevert(InvalidDeadline.selector);
+        vm.expectRevert(InitiateDeadlinePassed.selector);
         reactor.initiate(order, signature, abi.encode(FILLER));
     }
 
-    function test_invalid_challenge_deadline(
+    function test_revert_challenge_deadline_after_prove(
         uint256 inputAmount,
         uint256 outputAmount,
         uint256 fillerAmount,
-        uint256 challengerAmount,
-        uint16 deadlineIncrement
+        uint256 challengerAmount
     ) public {
         CrossChainOrder memory order = _getCrossOrder(
-            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, deadlineIncrement, 0, 1, 5, 10, 0
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 2, 11, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -161,7 +158,28 @@ abstract contract BaseReactorTest is Test {
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
-        vm.expectRevert(DeadlinesNotSane.selector);
+        vm.expectRevert(InvalidDeadlineOrder.selector);
+        reactor.initiate(order, signature, abi.encode(FILLER));
+    }
+
+    function test_revert_challenge_deadline_before_fill(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerAmount,
+        uint256 challengerAmount
+    ) public {
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 3, 2, 10, 0
+        );
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+        );
+        vm.expectRevert(InvalidDeadlineOrder.selector);
         reactor.initiate(order, signature, abi.encode(FILLER));
     }
 
@@ -180,11 +198,10 @@ abstract contract BaseReactorTest is Test {
         address recipient,
         uint256 fillerAmount,
         uint256 challengerAmount,
-        uint16 deadlineIncrement,
-        uint32 proofDeadline,
-        uint32 challengeDeadline,
         uint32 initiateDeadline,
         uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
         uint256 nonce
     ) internal view virtual returns (CrossChainOrder memory order);
 }

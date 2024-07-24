@@ -50,7 +50,7 @@ contract DutchOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         DutchOrderData memory dutchData
     ) internal view returns (OrderKey memory orderKey) {
-        // The current Dutch auction has only Input and Output
+        // The Dutch auction order type has a single Input and Output
         Input[] memory inputs = new Input[](1);
         Output[] memory outputs = new Output[](1);
 

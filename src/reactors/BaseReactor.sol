@@ -170,7 +170,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.Claimed;
         orderContext.filler = filler;
 
-        //Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
+        // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
         _checkCodeSize(orderKey.collateral.collateralToken);
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken, filler, address(this), orderKey.collateral.fillerCollateralAmount
@@ -298,7 +298,6 @@ abstract contract BaseReactor is ISettlementContract {
      * @dev this function is used to check if an address is not EOA or undeployed contract.
      * @param addr is the token contract address needs to be checked against.
      */
-
     function _checkCodeSize(address addr) private view {
         uint256 size;
         assembly {

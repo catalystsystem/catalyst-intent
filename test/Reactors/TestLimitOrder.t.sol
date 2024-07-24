@@ -180,6 +180,7 @@ contract TestLimitOrder is BaseReactorTest {
             inputAmount,
             outputAmount,
             recipient,
+            tokenToSwapOutput,
             fillerAmount,
             challengerAmount,
             proofDeadline,

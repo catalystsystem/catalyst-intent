@@ -20,3 +20,4 @@ error InitiateDeadlineAfterFill();
 error InitiateDeadlinePassed();
 error InvalidDeadlineOrder();
 error LengthsNotEqual();
+error CodeSize0();

@@ -59,6 +59,8 @@ contract TestBridgeOracle is TestCommonGARP {
         oracle.fill(outputs, fillTimes);
 
         bytes memory encodedDestinationAddress = bytes.concat(bytes1(0x14), bytes32(0), abi.encode(destinationAddress));
-        oracle.submit{value: _getTotalIncentive(DEFAULT_INCENTIVE)}(outputs, fillTimes, destinationIdentifier, encodedDestinationAddress, DEFAULT_INCENTIVE, deadline);
+        oracle.submit{ value: _getTotalIncentive(DEFAULT_INCENTIVE) }(
+            outputs, fillTimes, destinationIdentifier, encodedDestinationAddress, DEFAULT_INCENTIVE, deadline
+        );
     }
 }

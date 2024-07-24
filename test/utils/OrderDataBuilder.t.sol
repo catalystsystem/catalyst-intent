@@ -2,9 +2,9 @@
 pragma solidity ^0.8.22;
 
 import { Input, Output } from "../../src/interfaces/ISettlementContract.sol";
-import { FillerData } from "../../src/interfaces/Structs.sol";
 import { DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
 import { LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
+import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 
 library OrderDataBuilder {
     function getLimitOrder(
@@ -71,17 +71,6 @@ library OrderDataBuilder {
         });
     }
 
-    function getFillerData(
-        address fillerAddress,
-        uint32 timeToSellOrder,
-        uint16 costPercentage
-    ) internal pure returns (FillerData memory fillerData) {
-        fillerData = FillerData({
-            fillerAddress: fillerAddress,
-            timeToSellOrder: timeToSellOrder,
-            costPercentage: costPercentage
-        });
-    }
 
     function getInput(address tokenToSwapInput, uint256 inputAmount) internal pure returns (Input memory input) {
         input = Input({ token: tokenToSwapInput, amount: inputAmount });

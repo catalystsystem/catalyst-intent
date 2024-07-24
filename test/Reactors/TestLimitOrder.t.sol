@@ -20,7 +20,12 @@ import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/inter
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-import { InvalidDeadlineOrder, InitiateDeadlineAfterFill, InitiateDeadlinePassed, OrderAlreadyClaimed } from "../../src/interfaces/Errors.sol";
+import {
+    InitiateDeadlineAfterFill,
+    InitiateDeadlinePassed,
+    InvalidDeadlineOrder,
+    OrderAlreadyClaimed
+} from "../../src/interfaces/Errors.sol";
 
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
@@ -52,9 +57,8 @@ contract TestLimitOrder is BaseReactorTest {
         uint256 fillerAmount,
         uint256 challengerAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount) {
-        CrossChainOrder memory order = _getCrossOrder(
-            inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 5, 10, 11, 0
-        );
+        CrossChainOrder memory order =
+            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 5, 10, 11, 0);
 
         OrderKey memory orderKey = reactor.resolveKey(order, hex"");
 
@@ -109,7 +113,8 @@ contract TestLimitOrder is BaseReactorTest {
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
-        reactor.initiate(order, signature, abi.encode(fillerData));
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, fillerData);
     }
 
     function test_not_enough_allowance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
@@ -129,14 +134,15 @@ contract TestLimitOrder is BaseReactorTest {
             BOB_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
-        reactor.initiate(order, signature, abi.encode(fillerData));
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, fillerData);
     }
 
     function _orderType() internal pure override returns (bytes memory) {
         return CrossChainLimitOrderType.getOrderType();
     }
 
-    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount) internal override {
+    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount, address fillerSender) internal override {
         CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 5, 6, 10, 11, _nonce);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -147,7 +153,8 @@ contract TestLimitOrder is BaseReactorTest {
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
-        reactor.initiate(order, signature, abi.encode(fillerData));
+        vm.prank(fillerSender);
+        reactor.initiate(order, signature, fillerData);
     }
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)

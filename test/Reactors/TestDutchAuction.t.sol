@@ -40,7 +40,7 @@ contract TestDutchAuction is BaseReactorTest {
         return CrossChainDutchOrderType.getOrderType();
     }
 
-    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount) internal virtual override {
+    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount, address fillerSender) internal virtual override {
         CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 1, 5, 10, 11, _nonce);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -51,7 +51,8 @@ contract TestDutchAuction is BaseReactorTest {
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
-        reactor.initiate(order, signature, abi.encode(fillerData));
+        vm.prank(fillerSender);
+        reactor.initiate(order, signature, fillerData);
     }
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)
@@ -86,7 +87,7 @@ contract TestDutchAuction is BaseReactorTest {
             recipient,
             tokenToSwapOutput,
             fillerAmount,
-            challengerAmount,
+            challengerAmount, // TODO: Is this collateral amount?
             proofDeadline,
             challengeDeadline,
             address(0),

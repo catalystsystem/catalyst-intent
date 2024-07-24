@@ -32,7 +32,9 @@ enum OrderStatus {
 struct OrderContext {
     OrderStatus status;
     address challenger;
-    FillerData fillerData;
+    address fillerAddress;
+    uint32 orderPurchaseDeadline;
+    uint16 orderDiscount;
     uint32 initTimestamp; // TODO: move to orderkey.
 }
 
@@ -75,14 +77,4 @@ struct Collateral {
     address collateralToken; // TODO: Just use gas?
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount;
-}
-
-/**
- * @notice This is the data which the filler provides in encoded manner.
- * @dev Will be decoded to from the data the filler provides upon claiming the order
- */
-struct FillerData {
-    address fillerAddress;
-    uint32 timeToSellOrder; //The order can be purchased before this time
-    uint16 costPercentage;
 }

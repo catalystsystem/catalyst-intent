@@ -51,8 +51,8 @@ library CrossChainBuilder {
     }
 
     //For other reactors
-    function getCrossChainOrder(
-        bytes memory data, //TODO: replace with the right orderData
+    function getDutchCrossChainOrder(
+        DutchOrderData memory dutchOrderData,
         address dutchAutctionReactorAddress,
         address swapper,
         uint256 nonce,
@@ -67,7 +67,7 @@ library CrossChainBuilder {
             originChainId: originChainId,
             initiateDeadline: initiatedDeadline,
             fillDeadline: fillDeadline,
-            orderData: data
+            orderData: abi.encode(dutchOrderData)
         });
     }
 }

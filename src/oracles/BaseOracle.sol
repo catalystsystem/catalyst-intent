@@ -69,14 +69,21 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     function _validateTimestamp(uint32 timestamp, uint32 fillTime) internal pure {
-        // FillTime may not be in the past.
-        if (fillTime < timestamp) revert FillTimeInPast();
-        // Check that fillTime isn't far in the future.
-        // The idea is to protect users against random transfers through this contract.
-        if (fillTime > timestamp + MAX_FUTURE_FILL_TIME) revert FillTimeFarInFuture();
+        unchecked {
+            // FillTime may not be in the past.
+            if (fillTime < timestamp) revert FillTimeInPast();
+            // Check that fillTime isn't far in the future.
+            // The idea is to protect users against random transfers through this contract.
+            if (uint256(fillTime) > uint256(timestamp) + uint256(MAX_FUTURE_FILL_TIME)) revert FillTimeFarInFuture();
+        }
     }
 
     //--- Sending Proofs & Generalised Incentives ---//
+
+    //todo: onlyOwner
+    function setRemoteImplementation(bytes32 chainIdentifier, bytes calldata implementation) external {
+        escrow.setRemoteImplementation(chainIdentifier, implementation);
+    }
 
     // TODO: figure out what the best best interface for this function is
     function _submit(
@@ -90,7 +97,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         // TODO: Figure out a better idea than abi.encode
         bytes memory message = _encode(outputs, fillTimes);
         // Deadline is set to 0.
-        escrow.submitMessage(destinationIdentifier, destinationAddress, message, incentive, deadline);
+        escrow.submitMessage{ value: msg.value }(
+            destinationIdentifier, destinationAddress, message, incentive, deadline
+        );
     }
 
     function submit(

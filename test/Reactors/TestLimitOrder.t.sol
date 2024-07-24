@@ -85,7 +85,7 @@ contract TestLimitOrder is BaseReactorTest {
 
         //Collateral test
         Collateral memory expectedCollateral = Collateral({
-            collateralToken: tokenToSwapInput,
+            collateralToken: tokenToSwapOutput,
             fillerCollateralAmount: fillerAmount,
             challengerCollateralAmount: challengerAmount
         });
@@ -112,7 +112,7 @@ contract TestLimitOrder is BaseReactorTest {
         reactor.initiate(order, signature, abi.encode(FILLER));
     }
 
-    function test_not_enough_allowance(uint160 amount) public {
+    function test_not_enough_allowance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
         (address BOB, uint256 BOB_KEY) = makeAddrAndKey("bob");
         uint256 amountToTransfer = uint256(amount) + 1 ether;
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
@@ -180,6 +180,7 @@ contract TestLimitOrder is BaseReactorTest {
             inputAmount,
             outputAmount,
             recipient,
+            tokenToSwapOutput,
             fillerAmount,
             challengerAmount,
             proofDeadline,

@@ -109,7 +109,7 @@ contract TestLimitOrder is BaseReactorTest {
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
-        reactor.initiate(order, signature, abi.encode(FILLER));
+        reactor.initiate(order, signature, abi.encode(fillerData));
     }
 
     function test_not_enough_allowance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
@@ -129,7 +129,7 @@ contract TestLimitOrder is BaseReactorTest {
             BOB_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
-        reactor.initiate(order, signature, abi.encode(FILLER));
+        reactor.initiate(order, signature, abi.encode(fillerData));
     }
 
     function _orderType() internal pure override returns (bytes memory) {
@@ -147,7 +147,7 @@ contract TestLimitOrder is BaseReactorTest {
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
-        reactor.initiate(order, signature, abi.encode(FILLER));
+        reactor.initiate(order, signature, abi.encode(fillerData));
     }
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)

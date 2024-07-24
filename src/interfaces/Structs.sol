@@ -32,7 +32,7 @@ enum OrderStatus {
 struct OrderContext {
     OrderStatus status;
     address challenger;
-    address filler;
+    FillerData fillerData;
     uint32 initTimestamp; // TODO: move to orderkey.
 }
 
@@ -62,10 +62,6 @@ struct OrderKey {
     Output[] outputs;
 }
 
-///////////////////
-// Reactor types //
-///////////////////
-
 struct ReactorInfo {
     // The contract that is managing this order.
     address reactor;
@@ -79,4 +75,14 @@ struct Collateral {
     address collateralToken; // TODO: Just use gas?
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount;
+}
+
+/**
+ * @notice This is the data which the filler provides in encoded manner.
+ * @dev Will be decoded to from the data the filler provides upon claiming the order
+ */
+struct FillerData {
+    address fillerAddress;
+    uint32 timeToSellOrder; //The order can be purchased before this time
+    uint16 costPercentage;
 }

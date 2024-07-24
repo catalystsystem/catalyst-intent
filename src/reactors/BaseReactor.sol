@@ -12,7 +12,7 @@ import {
     Output,
     ResolvedCrossChainOrder
 } from "../interfaces/ISettlementContract.sol";
-import { OrderContext, OrderKey, OrderStatus, ReactorInfo } from "../interfaces/Structs.sol";
+import { FillerData, OrderContext, OrderKey, OrderStatus, ReactorInfo } from "../interfaces/Structs.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
@@ -31,10 +31,19 @@ import {
     OrderAlreadyClaimed,
     OrderNotClaimed,
     OrderNotReadyForOptimisticPayout,
+    PrchaseTimePassed,
     ProofPeriodHasNotPassed,
+    PurchaseTimeInPast,
     WrongOrderStatus
 } from "../interfaces/Errors.sol";
-import { OptimisticPayout, OrderChallenged, OrderClaimed, OrderFilled, OrderVerify } from "../interfaces/Events.sol";
+import {
+    OptimisticPayout,
+    OrderChallenged,
+    OrderClaimed,
+    OrderFilled,
+    OrderPurchased,
+    OrderVerify
+} from "../interfaces/Events.sol";
 
 /**
  * @title Base Cross-chain intent Reactor
@@ -161,14 +170,14 @@ abstract contract BaseReactor is ISettlementContract {
         }
 
         //TODO: Will we have only the address encoded in the data?
-        address filler = abi.decode(fillerData, (address));
+        FillerData memory fillerInfo = abi.decode(fillerData, (FillerData));
 
         // Check that the order hasn't been claimed yet. We will then set the order status
         // so other can't claim it. This acts as a local reentry check.
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext);
         orderContext.status = OrderStatus.Claimed;
-        orderContext.filler = filler;
+        orderContext.fillerData = fillerInfo;
 
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
         _checkCodeSize(orderKey.collateral.collateralToken);
@@ -240,7 +249,7 @@ abstract contract BaseReactor is ISettlementContract {
         bytes calldata fillerData
     ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
         OrderKey memory orderKey = _resolveKey(order, fillerData);
-        address filler = abi.decode(fillerData, (address));
+        FillerData memory fillerInfo = abi.decode(fillerData, (FillerData));
 
         // Inputs can be taken directly from the orderKey.
         Input[] memory swapperInputs = orderKey.inputs;
@@ -258,7 +267,7 @@ abstract contract BaseReactor is ISettlementContract {
             fillerOutput = Output({
                 token: bytes32(uint256(uint160(input.token))),
                 amount: input.amount,
-                recipient: bytes32(uint256(uint160(filler))),
+                recipient: bytes32(uint256(uint160(fillerInfo.fillerAddress))),
                 chainId: uint32(block.chainid)
             });
             fillerOutputs[i] = fillerOutput;
@@ -307,6 +316,53 @@ abstract contract BaseReactor is ISettlementContract {
     }
 
     //--- Order Resolution Helpers ---//
+    /**
+     * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
+     * @dev Make sure to call this function if you have the assets needed to buy from the filler not to revert
+     * @param orderKey The claimed order to be purchased from the filler
+     * @param newPurchaseTime The buyer can set his own time to sell the order
+     * @param newCostPercentage The buyer can sell the order with different percentage
+     */
+    function purchaseOrder(OrderKey calldata orderKey, uint32 newPurchaseTime, uint16 newCostPercentage) external {
+        bytes32 orderKeyHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
+
+        OrderStatus status = orderContext.status;
+
+        // The order should be claimed by a previous solder to be able to purchase
+        if (status != OrderStatus.Claimed) {
+            revert WrongOrderStatus(orderContext.status);
+        }
+
+        FillerData memory fillerData = orderContext.fillerData;
+        // The order cannot be purchased after the max time specified to be sold at has passed
+        if (fillerData.timeToSellOrder <= block.timestamp) {
+            revert PrchaseTimePassed();
+        }
+        // The time max time to be sold at must be in the future
+        if (newPurchaseTime <= block.timestamp) {
+            revert PurchaseTimeInPast();
+        }
+
+        // Calculate how much to send to the current filler
+        // TODO: is this how we define the amount and should it be from the collateral?
+        uint256 currentCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+        uint256 percentageAmount = (fillerData.costPercentage * currentCollateralAmount) / (1 << 16);
+        uint256 buyWithAmount = currentCollateralAmount - percentageAmount;
+
+        // Update the storage wit the new filler data
+        fillerData.fillerAddress = msg.sender;
+        fillerData.timeToSellOrder = newPurchaseTime;
+        fillerData.costPercentage = newCostPercentage;
+
+        orderContext.fillerData = fillerData;
+
+        // No need to check if it was valid token or not as we already have the tokens and checked before
+        SafeTransferLib.safeTransferFrom(
+            orderKey.collateral.collateralToken, msg.sender, fillerData.fillerAddress, buyWithAmount
+        );
+        emit OrderPurchased(orderKeyHash, msg.sender);
+    }
 
     /**
      * TODO: figure out if we can reduce the argument size (make simpler).
@@ -336,9 +392,9 @@ abstract contract BaseReactor is ISettlementContract {
         ) revert CannotProveOrder();
 
         // Payout input.
-        address filler = orderContext.filler;
+        FillerData memory fillerData = orderContext.fillerData;
         // TODO: governance fee?
-        _deliverInputs(orderKey.inputs, filler);
+        _deliverInputs(orderKey.inputs, fillerData.fillerAddress);
 
         // Return collateral to the filler. Load the collateral details from the order.
         // (Filler provided collateral).
@@ -358,7 +414,7 @@ abstract contract BaseReactor is ISettlementContract {
         // No need to check if collateralToken is a deployed contract.
         // It has already been entered into our contract.
         // TODO: What if this fails. Do we want to implement a kind of callback?
-        SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
+        SafeTransferLib.safeTransfer(collateralToken, fillerData.fillerAddress, fillerCollateralAmount);
     }
 
     /**
@@ -383,11 +439,11 @@ abstract contract BaseReactor is ISettlementContract {
             }
         }
 
-        address filler = orderContext.filler;
+        FillerData memory fillerData = orderContext.fillerData;
 
         // Pay input tokens to filler.
         // TODO: governance fee?
-        _deliverInputs(orderKey.inputs, filler);
+        _deliverInputs(orderKey.inputs, fillerData.fillerAddress);
 
         // Get order collateral.
         address collateralToken = orderKey.collateral.collateralToken;
@@ -396,7 +452,7 @@ abstract contract BaseReactor is ISettlementContract {
         // Pay collateral tokens
         // collateralToken has already been entered so no need to check if
         // it is a valid token.
-        SafeTransferLib.safeTransfer(collateralToken, filler, fillerCollateralAmount);
+        SafeTransferLib.safeTransfer(collateralToken, fillerData.fillerAddress, fillerCollateralAmount);
 
         emit OptimisticPayout(orderKeyHash);
     }

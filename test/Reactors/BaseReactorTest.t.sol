@@ -11,11 +11,12 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockUtils } from "../utils/MockUtils.sol";
+import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 
 import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { OrderKey } from "../../src/interfaces/Structs.sol";
+import { FillerData, OrderKey } from "../../src/interfaces/Structs.sol";
 
 import {
     InvalidDeadlineOrder, InitiateDeadlineAfterFill, InitiateDeadlinePassed, OrderAlreadyClaimed
@@ -42,16 +43,16 @@ abstract contract BaseReactorTest is Test {
     address reactorAddress;
     address SWAPPER;
     uint256 SWAPPER_PRIVATE_KEY;
-    address FILLER = address(1);
+    FillerData fillerData;
     bytes32 DOMAIN_SEPARATOR;
 
     modifier approvedAndMinted(address _user, address _token, uint256 _amount) {
         vm.prank(_user);
         MockERC20(_token).approve(permit2, type(uint256).max);
-        vm.prank(FILLER);
+        vm.prank(fillerData.fillerAddress);
         MockERC20(tokenToSwapOutput).approve(reactorAddress, type(uint256).max);
         MockERC20(_token).mint(_user, _amount);
-        MockERC20(tokenToSwapOutput).mint(FILLER, 20 ether);
+        MockERC20(tokenToSwapOutput).mint(fillerData.fillerAddress, 20 ether);
         _;
     }
 
@@ -63,6 +64,7 @@ abstract contract BaseReactorTest is Test {
 
     constructor() {
         (SWAPPER, SWAPPER_PRIVATE_KEY) = makeAddrAndKey("swapper");
+        fillerData = OrderDataBuilder.getFillerData(address(1), 2, 2);
     }
 
     bytes32 public FULL_ORDER_PERMIT2_TYPE_HASH = keccak256(
@@ -159,7 +161,7 @@ abstract contract BaseReactorTest is Test {
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
-        reactor.initiate(order, signature, abi.encode(FILLER));
+        reactor.initiate(order, signature, abi.encode(fillerData));
     }
 
     function test_revert_challenge_deadline_before_fill(
@@ -180,7 +182,7 @@ abstract contract BaseReactorTest is Test {
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
-        reactor.initiate(order, signature, abi.encode(FILLER));
+        reactor.initiate(order, signature, abi.encode(fillerData));
     }
 
     function _orderType() internal virtual returns (bytes memory);

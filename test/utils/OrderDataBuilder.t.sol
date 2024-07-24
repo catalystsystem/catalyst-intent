@@ -2,7 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { Input, Output } from "../../src/interfaces/ISettlementContract.sol";
-
+import { FillerData } from "../../src/interfaces/Structs.sol";
 import { DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
 import { LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
 
@@ -68,6 +68,18 @@ library OrderDataBuilder {
             remoteOracle: bytes32(abi.encode(remoteOracle)),
             input: input,
             output: output
+        });
+    }
+
+    function getFillerData(
+        address fillerAddress,
+        uint32 timeToSellOrder,
+        uint16 costPercentage
+    ) internal pure returns (FillerData memory fillerData) {
+        fillerData = FillerData({
+            fillerAddress: fillerAddress,
+            timeToSellOrder: timeToSellOrder,
+            costPercentage: costPercentage
         });
     }
 

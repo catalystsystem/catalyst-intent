@@ -20,4 +20,6 @@ error InitiateDeadlineAfterFill();
 error InitiateDeadlinePassed();
 error InvalidDeadlineOrder();
 error LengthsNotEqual();
+error PrchaseTimePassed();
+error PurchaseTimeInPast();
 error CodeSize0();

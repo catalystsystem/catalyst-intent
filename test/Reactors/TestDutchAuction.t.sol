@@ -51,7 +51,7 @@ contract TestDutchAuction is BaseReactorTest {
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
         );
-        reactor.initiate(order, signature, abi.encode(FILLER));
+        reactor.initiate(order, signature, abi.encode(fillerData));
     }
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)

@@ -3,6 +3,7 @@ pragma solidity ^0.8.22;
 
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
+
 import { CrossChainDutchOrderType, DutchOrderData } from "../libs/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../libs/CrossChainOrderType.sol";
 

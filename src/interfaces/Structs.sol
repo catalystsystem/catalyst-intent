@@ -32,7 +32,9 @@ enum OrderStatus {
 struct OrderContext {
     OrderStatus status;
     address challenger;
-    address filler;
+    address fillerAddress;
+    uint32 orderPurchaseDeadline;
+    uint16 orderDiscount;
     uint32 initTimestamp; // TODO: move to orderkey.
 }
 
@@ -61,10 +63,6 @@ struct OrderKey {
     // Then we can easily check if these outputs have all been matched.
     Output[] outputs;
 }
-
-///////////////////
-// Reactor types //
-///////////////////
 
 struct ReactorInfo {
     // The contract that is managing this order.

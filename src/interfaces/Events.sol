@@ -29,3 +29,5 @@ event OrderVerify(bytes32 indexed orderHash, bytes32 fillOrderHash);
 event OptimisticPayout(bytes32 indexed orderHash);
 
 event OrderChallenged(bytes32 indexed orderHash, address disputer);
+
+event OrderPurchased(bytes32 indexed orderHash, address indexed newFiller);

@@ -95,11 +95,6 @@ abstract contract BaseReactor is ISettlementContract {
 
     function _orderHash(CrossChainOrder calldata order) internal pure virtual returns (bytes32);
 
-    // //TODO: Do we really need this? we get context from orderkey not CrossChainOrder
-    // function getOrderContext(CrossChainOrder calldata order) external view returns (OrderContext memory orderContext) {
-    //     return orderContext = _orders[_orderHash(order)];
-    // }
-
     //--- Token Handling ---//
 
     // TODO: check these for memory to calldata

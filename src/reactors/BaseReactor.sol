@@ -28,6 +28,7 @@ import {
     LengthsNotEqual,
     NonceClaimed,
     NotOracle,
+    OnlyFiller,
     OrderAlreadyChallenged,
     OrderAlreadyClaimed,
     OrderNotClaimed,
@@ -398,6 +399,21 @@ abstract contract BaseReactor is ISettlementContract {
         _collectTokens(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
 
         emit OrderPurchased(orderKeyHash, msg.sender);
+    }
+
+    function modifyBuyableOrder(OrderKey calldata orderKey, uint32 newPurchaseDeadline, uint16 newOrderDiscount) external {
+        bytes32 orderKeyHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
+
+        address filler = orderContext.fillerAddress;
+
+        // This line also disallows modifying non-claimed orders.
+        if (filler == address(0) || filler != msg.sender) revert OnlyFiller();
+
+        // Set new storage.
+        orderContext.orderPurchaseDeadline = newPurchaseDeadline;
+        orderContext.orderDiscount = newOrderDiscount;
+        // todo: emit event.
     }
 
     /**

@@ -15,13 +15,6 @@ contract LimitOrderReactor is BaseReactor {
 
     constructor(address permit2) BaseReactor(permit2) { }
 
-    function _orderHash(CrossChainOrder calldata order) internal pure override returns (bytes32) {
-        LimitOrderData memory orderData = order.orderData.decodeOrderData();
-        bytes32 orderDataHash = orderData.hashOrderDataM();
-        bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
-        return order.hash(orderTypeHash, orderDataHash);
-    }
-
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */

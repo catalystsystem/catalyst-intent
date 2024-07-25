@@ -79,22 +79,6 @@ abstract contract BaseReactor is ISettlementContract {
         return keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
     }
 
-    //Can be used
-    function getOrderKeyInfo(OrderKey calldata orderKey)
-        internal
-        view
-        returns (bytes32 orderKeyHash, OrderContext memory orderContext)
-    {
-        orderKeyHash = _orderKeyHash(orderKey);
-        orderContext = _orders[orderKeyHash];
-    }
-
-    function orderHash(CrossChainOrder calldata order) external pure returns (bytes32) {
-        return _orderHash(order);
-    }
-
-    function _orderHash(CrossChainOrder calldata order) internal pure virtual returns (bytes32);
-
     //--- Token Handling ---//
 
     // TODO: check these for memory to calldata

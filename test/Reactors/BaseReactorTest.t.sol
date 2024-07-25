@@ -111,32 +111,6 @@ abstract contract BaseReactorTest is Test {
         assertEq(MockERC20(tokenToSwapInput).balanceOf(reactorAddress), reactorInputBalance + amount);
     }
 
-    function test_order_hash(
-        uint256 inputAmount,
-        uint256 outputAmount,
-        uint256 fillerAmount,
-        uint256 challengerAmount
-    ) public {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 0, 0, 1, 0);
-        (bytes32 typeHash, bytes32 dataHash,) = this._getTypeAndDataHashes(order);
-        bytes32 expected = reactor.orderHash(order);
-        bytes32 actual = keccak256(
-            bytes.concat(
-                typeHash,
-                bytes20(order.settlementContract),
-                bytes20(order.swapper),
-                bytes32(order.nonce),
-                bytes4(order.originChainId),
-                bytes4(order.initiateDeadline),
-                bytes4(order.fillDeadline),
-                dataHash
-            )
-        );
-
-        assertEq(expected, actual);
-    }
-
     function test_revert_passed_initiate_deadline(
         uint256 inputAmount,
         uint256 outputAmount,

@@ -25,10 +25,6 @@ library CrossChainOrderType {
         return abi.encodePacked(CROSS_CHAIN_ORDER_TYPE_STUB, orderData, ")", orderType);
     }
 
-    function crossOrderHash(bytes memory orderData, bytes memory orderType) internal pure returns (bytes32) {
-        return keccak256(crossOrderType(orderData, orderType));
-    }
-
     function hashInput(Input memory input) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(INPUT_TYPE_STUB, input.token, input.amount));
     }

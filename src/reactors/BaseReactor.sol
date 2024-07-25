@@ -352,7 +352,8 @@ abstract contract BaseReactor is ISettlementContract {
     //--- Order Resolution Helpers ---//
     /**
      * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
-     * @dev Make sure to call this function if you have the assets needed to buy from the filler not to revert
+     * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
+     * your funds may be at risk.
      * Set newPurchaseDeadline in the past to disallow future takeovers.
      * @param orderKey The claimed order to be purchased from the filler
      * @param newPurchaseDeadline The buyer can set his own time to sell the order
@@ -364,8 +365,9 @@ abstract contract BaseReactor is ISettlementContract {
 
         OrderStatus status = orderContext.status;
 
-        // The order should be claimed by a previous solder to be able to purchase
-        if (status != OrderStatus.Claimed) {
+        // The order should have been claimed and not paid / proven / fraud proven (inputs should be intact)
+        // for it to be purchased.
+        if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
             revert WrongOrderStatus(orderContext.status);
         }
 

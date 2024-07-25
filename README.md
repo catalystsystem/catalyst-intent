@@ -1,37 +1,29 @@
 # Cross-Cats: Intent based cross-chain swaps
 
-Cross-cats is an intent based cross-chain swap protocol. Users sign intents: What asset they want, how they want etc, etc. which is then claimed and then delivered by solvers.
+Cross-cats is an intent based cross-chain swap protocol. Users sign intents: What asset they want, how they want etc, etc. which is claimed and then delivered by solvers.
 
-The default operation is optimistic resolution, upon claimed fraud, the system fallbacks to a strict proof of transfer. The main source of fraud proofs are oracles, and oracles are split into 2 camps:
+## Repository Structure
 
-- Light client / Payment validation: An onchain service is maintained that can independently verify if a statement of delivery has been made. This provides very strong inclusion proofs though it is more expensive.
-  
-- Messaged Oracles: Messaging protocols reports the remote state and deliver it to the source chain. Messaged Oracles may be a front for a remote LC/PV service.
+Refer to the SVG diagram chart.
 
+Cross Cats consists of 2 core contract: Reactor and Oracle. A reactor is a specific implemented order type. Generally they share a lot of implementation details but the way the order is treated is different. Oracles surface proofs the same way but the way they prove actions took place may be different.
 
-## Smart chains
+### Reactor
 
-Smart chains with native assets are by default verified through a messaging oracle. Smart chains allows for easy examination if a transfer happened or not. These kind of transfers are cheap to verify.
+Reactors are located in `src/reactors`. The file `BaseReactor.sol` has the shared common base logic of reactors while `LimitOrderReactor.sol` and `DutchOrderReactor.sol` implements logic for understanding limit orders and dutch orders respectively. These reactors are in charge of the core intent flow:
+- Collecting assets & Claiming Intents
+- Disputing Intents & Verifying orders against oracles
+- and secondary logic like selling & buying intents.
 
-### Flow
+### Oracle
 
-For a smart chain to smart chain asset swap, the user starts by making a signed message of their intented transaction & type. The signed message is broadcast to a distribution network where solvers can listen for it.
+Oracles are located in `src/oracles`. The file `BaseOracle.sol` implements shared logic between all oracles, this consists of some messaging, and exposing proved outputs. `BridgeOracle.sol` and `BitcoinOracle.sol` implements logic for verifying VM payments and Bitcoin TXOs respectively.
 
-A Solver sees the signed message and determines it wants to fill it. It claimed the message on the source chain and submits collateral.
+The oracles are capable of sending their proofs to other oracles and those oracles will now expose a proven output for a remote oracle.
 
-The solver then delivers the assets on the destination chain. If the asset delivery is not challanged, then the solver can after some time claim the input assets.
+### Bitcoin SPV (Light) Client
 
-If the delivery is challanged, the solver has prove that the delivery happened. This is done by sending a cross-chain message from the destination chain to the source. This message can then be proved.
-
-## Bitcoin
-
-Bitcoin settlements are verified through a Bitcoin SPV (Simplified Payment Validation) client. This is an on-chain Bitcoin light client that allows one make statements about a transaction that **has** been mined. It cannot be used to make statments about transaction that may or may not have been mined.
-
-### Flow
-
-The initiation flow is the same for Bitcoin as Smart Chains, except the deliver is intended on Bitcoin. 
-
-If the delivery is challanged, the solver has prove that the delivery happened. If the chain has a local SPV client, the client is used to verify that the delivery happened. Otherwise, a remote SPV client is pulled for the proof and it is delivered through a messaging oracle.
+This repository depends on the SPV client Bitcoin Prism. This repository does not contain it but depends on it as a submodule under `lib/bitcoinprism-evm`
 
 ## Usage
 

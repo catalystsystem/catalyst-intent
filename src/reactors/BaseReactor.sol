@@ -72,6 +72,20 @@ abstract contract BaseReactor is ISettlementContract {
         PERMIT2 = ISignatureTransfer(permit2);
     }
 
+    //--- Helper functions ---//
+
+    /**
+     * @dev this function is used to check if an address is not EOA or undeployed contract.
+     * @param addr is the token contract address needs to be checked against.
+     */
+    function _checkCodeSize(address addr) private view {
+        uint256 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        if (size == 0) revert CodeSize0();
+    }
+
     //--- Expose Storage ---//
 
     // todo: Profile with separate functions for memory and calldata
@@ -315,20 +329,9 @@ abstract contract BaseReactor is ISettlementContract {
             SafeTransferLib.safeTransfer(input.token, to, input.amount);
         }
     }
-    /**
-     * @dev this function is used to check if an address is not EOA or undeployed contract.
-     * @param addr is the token contract address needs to be checked against.
-     */
 
-    function _checkCodeSize(address addr) private view {
-        uint256 size;
-        assembly {
-            size := extcodesize(addr)
-        }
-        if (size == 0) revert CodeSize0();
-    }
+    //--- Order Purchase Helpers ---//
 
-    //--- Order Resolution Helpers ---//
     /**
      * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
      * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
@@ -380,7 +383,11 @@ abstract contract BaseReactor is ISettlementContract {
         emit OrderPurchased(orderKeyHash, msg.sender);
     }
 
-    function modifyBuyableOrder(OrderKey calldata orderKey, uint32 newPurchaseDeadline, uint16 newOrderDiscount) external {
+    function modifyBuyableOrder(
+        OrderKey calldata orderKey,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderDiscount
+    ) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -394,6 +401,8 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.orderDiscount = newOrderDiscount;
         // todo: emit event.
     }
+
+    //--- Order Resolution Helpers ---//
 
     /**
      * @notice Prove that an order was filled. Requires that the order oracle exposes

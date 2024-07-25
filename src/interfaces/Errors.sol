@@ -21,5 +21,4 @@ error InitiateDeadlinePassed();
 error InvalidDeadlineOrder();
 error LengthsNotEqual();
 error PurchaseTimePassed();
-error PurchaseTimeInPast();
 error CodeSize0();

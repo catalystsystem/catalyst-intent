@@ -33,7 +33,6 @@ import {
     OrderNotClaimed,
     OrderNotReadyForOptimisticPayout,
     ProofPeriodHasNotPassed,
-    PurchaseTimeInPast,
     PurchaseTimePassed,
     WrongOrderStatus
 } from "../interfaces/Errors.sol";

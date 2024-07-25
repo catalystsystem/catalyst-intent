@@ -71,7 +71,6 @@ library OrderDataBuilder {
         });
     }
 
-
     function getInput(address tokenToSwapInput, uint256 inputAmount) internal pure returns (Input memory input) {
         input = Input({ token: tokenToSwapInput, amount: inputAmount });
     }

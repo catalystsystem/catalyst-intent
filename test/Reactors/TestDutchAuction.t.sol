@@ -40,7 +40,12 @@ contract TestDutchAuction is BaseReactorTest {
         return CrossChainDutchOrderType.getOrderType();
     }
 
-    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount, address fillerSender) internal virtual override {
+    function _initiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _amount,
+        address fillerSender
+    ) internal virtual override {
         CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 1, 5, 10, 11, _nonce);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);

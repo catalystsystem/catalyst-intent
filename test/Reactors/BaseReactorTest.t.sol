@@ -199,7 +199,12 @@ abstract contract BaseReactorTest is Test {
 
     function _orderType() internal virtual returns (bytes memory);
 
-    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount, address _fillerSender) internal virtual;
+    function _initiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _amount,
+        address _fillerSender
+    ) internal virtual;
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)
         public

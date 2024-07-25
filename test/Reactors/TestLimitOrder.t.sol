@@ -142,7 +142,12 @@ contract TestLimitOrder is BaseReactorTest {
         return CrossChainLimitOrderType.getOrderType();
     }
 
-    function _initiateOrder(uint256 _nonce, address _swapper, uint256 _amount, address fillerSender) internal override {
+    function _initiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _amount,
+        address fillerSender
+    ) internal override {
         CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 5, 6, 10, 11, _nonce);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);

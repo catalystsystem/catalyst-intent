@@ -124,6 +124,33 @@ abstract contract BaseReactor is ISettlementContract {
         PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, owner, witness, witnessTypeString, signature);
     }
 
+    /**
+     * @notice Collects tokens without permit2.
+     * @dev Can only be used to collect tokens from msg.sender.
+     * If inputs[i].amount * discount overflows the amount is set to inputs[i].amount.
+     * @param inputs Tokens to collect from msg.sender
+     * @param to Destination address for the collected tokens. To collect to this contract, set address(this).
+     */
+    function _collectTokens(Input[] calldata inputs, address to, uint16 discount) internal virtual {
+        address from = msg.sender;
+        uint256 numInputs = inputs.length;
+        unchecked {
+            for (uint256 i = 0; i < numInputs; ++i) {
+                Input calldata input = inputs[i];
+                address token = input.token;
+                uint256 amount = input.amount;
+                // Check if multiplication overflows.
+                if (amount < type(uint256).max / uint256(discount)) {
+                    // amount * discount does not overflow since amount < type(uint256).max / uint256(discount) => amount * uint256(discount) < type(uint256).max.
+                    // discount is bounded by type(uint16).max.
+                    amount -= (amount * uint256(discount)) / type(uint16).max;
+                }
+                // Inputs have already been collected before. No need to verify if these are actual tokens.
+                SafeTransferLib.safeTransferFrom(token, from, to, amount);
+            }
+        }
+    }
+
     //--- Order Handling ---//
 
     /**
@@ -155,8 +182,10 @@ abstract contract BaseReactor is ISettlementContract {
         // (order.fillDeadline < order.initiateDeadline) U (order.initiateDeadline < block.timestamp)
         // => order.fillDeadline < block.timestamp is disallowed.
         // TODO: solve permit2 context
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, uint256 orderPointer) = FillerDataLib.decode(fillerData);
-        (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) = _initiate(order, fillerData[orderPointer:]);
+        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, uint256 orderPointer) =
+            FillerDataLib.decode(fillerData);
+        (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) =
+            _initiate(order, fillerData[orderPointer:]);
 
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
@@ -185,10 +214,7 @@ abstract contract BaseReactor is ISettlementContract {
         _checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.
         SafeTransferLib.safeTransferFrom(
-            orderKey.collateral.collateralToken,
-            msg.sender,
-            address(this),
-            orderKey.collateral.fillerCollateralAmount
+            orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
         );
 
         // Collect input tokens from user.
@@ -256,7 +282,7 @@ abstract contract BaseReactor is ISettlementContract {
         bytes calldata fillerData
     ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
         OrderKey memory orderKey = _resolveKey(order, fillerData);
-        (address fillerAddress, , ,) = FillerDataLib.decode(fillerData);
+        (address fillerAddress,,,) = FillerDataLib.decode(fillerData);
 
         // Inputs can be taken directly from the orderKey.
         Input[] memory swapperInputs = orderKey.inputs;
@@ -347,21 +373,29 @@ abstract contract BaseReactor is ISettlementContract {
         if (orderContext.orderPurchaseDeadline <= block.timestamp) {
             revert PurchaseTimePassed();
         }
-        // Calculate how much to send to the current filler
-        // TODO: is this how we define the amount and should it be from the collateral?
-        uint256 currentCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-        uint256 percentageAmount = (orderContext.orderDiscount * currentCollateralAmount) / (1 << 16);
-        uint256 buyWithAmount = currentCollateralAmount - percentageAmount;
 
-        // Update the storage wit the new filler data
+        // Load old storage variables.
+        address oldFillerAddress = orderContext.fillerAddress;
+        uint16 oldOrderDiscount = orderContext.orderDiscount = newOrderDiscount;
+
+        // We can now update the storage with the new filler data.
+        // This allows us to avoid reentry protecting this function.
         orderContext.fillerAddress = msg.sender;
         orderContext.orderPurchaseDeadline = newPurchaseDeadline;
         orderContext.orderDiscount = newOrderDiscount;
 
-        // No need to check if it was valid token or not as we already have the tokens and checked before
-        SafeTransferLib.safeTransferFrom(
-            orderKey.collateral.collateralToken, msg.sender, orderContext.fillerAddress, buyWithAmount
-        );
+        // We can now make external calls without it impacting reentring into this call.
+
+        // Collateral is paid for in full.
+        address collateralToken = orderKey.collateral.collateralToken;
+        uint256 collateralAmount = orderKey.collateral.fillerCollateralAmount;
+        // No need to check if collateral is valid, since it has already entered the contract.
+        SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
+
+        // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done through permit.
+        // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
+        _collectTokens(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
+
         emit OrderPurchased(orderKeyHash, msg.sender);
     }
 

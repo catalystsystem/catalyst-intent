@@ -417,7 +417,6 @@ abstract contract BaseReactor is ISettlementContract {
     }
 
     /**
-     * TODO: figure out if we can reduce the argument size (make simpler).
      * @notice Prove that an order was filled. Requires that the order oracle exposes
      * a function, isProven(...), that returns true when called with the order details.
      * @dev
@@ -590,10 +589,15 @@ abstract contract BaseReactor is ISettlementContract {
         // Send the rest to the wallet that proof fraud:
         // Similar to the above. We don't want this to fail.
         // TODO: implement some kind of fallback if this fails.
-        SafeTransferLib.safeTransfer(
-            collateralToken,
-            orderContext.challenger,
-            challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount
-        );
+        unchecked {
+            // A: We don't want this to fail.
+            // B: If this overflows, it is better than if nothing happened.
+            // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount = swapperCollateralAmount / 2.
+            SafeTransferLib.safeTransfer(
+                collateralToken,
+                orderContext.challenger,
+                challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount
+            );
+        }
     }
 }

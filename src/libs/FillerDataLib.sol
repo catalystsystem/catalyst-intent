@@ -42,7 +42,7 @@ library FillerDataLib {
         pure
         returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount)
     {
-        fillerAddress = address(uint160(bytes20(fillerData[V1_ADDRESS_START:V1_ADDRESS_END])));
+        fillerAddress = _getFiller1(fillerData);
         orderPurchaseDeadline =
             uint32(bytes4(fillerData[V1_ORDER_PURCHASE_DEADLINE_START:V1_ORDER_PURCHASE_DEADLINE_END]));
         orderDiscount = uint16(bytes2(fillerData[V1_ORDER_DISCOUNT_START:V1_ORDER_DISCOUNT_END]));

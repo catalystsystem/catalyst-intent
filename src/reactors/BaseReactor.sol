@@ -15,13 +15,14 @@ import {
 } from "../interfaces/ISettlementContract.sol";
 import { OrderContext, OrderKey, OrderStatus, ReactorInfo } from "../interfaces/Structs.sol";
 
+import { CanCollectGovernanceFee } from "../libs/CanCollectGovernanceFee.sol";
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
+import { IsContractLib } from "../libs/IsContractLib.sol";
 import { Permit2Lib } from "../libs/Permit2Lib.sol";
 
 import {
     CannotProveOrder,
     ChallengedeadlinePassed,
-    CodeSize0,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
@@ -58,7 +59,7 @@ import {
  * - _initiate. To convert partially structured orders into order keys that describe fulfillment conditions.
  * - _resolveKey. Helper function to convert an order into an order key.
  */
-abstract contract BaseReactor is ISettlementContract {
+abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
     using Permit2Lib for OrderKey;
 
     ISignatureTransfer public immutable PERMIT2;
@@ -67,30 +68,25 @@ abstract contract BaseReactor is ISettlementContract {
      * @notice Maps an orderkey hash to the relevant orderContext.
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
+    mapping(address token => uint256 amount) internal _governanceOwned;
 
     constructor(address permit2) {
         PERMIT2 = ISignatureTransfer(permit2);
     }
 
-    //--- Helper functions ---//
-
-    /**
-     * @dev this function is used to check if an address is not EOA or undeployed contract.
-     * @param addr is the token contract address needs to be checked against.
-     */
-    function _checkCodeSize(address addr) private view {
-        uint256 size;
-        assembly {
-            size := extcodesize(addr)
-        }
-        if (size == 0) revert CodeSize0();
-    }
-
     //--- Expose Storage ---//
 
     // todo: Profile with separate functions for memory and calldata
-    function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32) {
-        return keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
+    function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32 orderKeyHash) {
+        return orderKeyHash = keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
+    }
+
+    function getOrderKeyHash(OrderKey calldata orderKey) external pure returns (bytes32 orderKeyHash) {
+        return orderKeyHash = _orderKeyHash(orderKey); // TODO: Is it more efficient to do this manually?
+    }
+
+    function getOrderContext(OrderKey memory orderKey) external view returns (OrderContext memory orderContext) {
+        return orderContext = _orders[_orderKeyHash(orderKey)];
     }
 
     //--- Token Handling ---//
@@ -156,6 +152,8 @@ abstract contract BaseReactor is ISettlementContract {
      * then it may impossible to prove thus free to challenge.
      * 3. Trust the oracles. Any oracles can be provided but they may not signal that the proof
      * is or isn't valid.
+     * 4. Verify all inputs & outputs. If they contain a token the filler does not trust, do not claim the order.
+     * It may cause a host of problem but most importantly: Inability to payout inputs & Inability to payout collateral.
      * @param order The CrossChainOrder definition
      * @param signature The end user signature for the order
      * @param fillerData Any filler-defined data required by the settler
@@ -193,7 +191,7 @@ abstract contract BaseReactor is ISettlementContract {
             revert InvalidDeadlineOrder();
         }
 
-        //TODO: Will we have only the address encoded in the data?
+        // TODO: Will we have only the address encoded in the data?
         // Check that the order hasn't been claimed yet. We will then set the order status
         // so other can't claim it. This acts as a local reentry check.
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
@@ -204,7 +202,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.orderDiscount = orderDiscount;
 
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
-        _checkCodeSize(orderKey.collateral.collateralToken);
+        IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
@@ -285,6 +283,7 @@ abstract contract BaseReactor is ISettlementContract {
         // fillerOutputs are of the Output type and as a result, we can't just
         // load swapperInputs into fillerOutputs. As a result, we need to parse
         // the individual inputs and make a new struct.
+        uint256 _governanceFee = governanceFee;
         uint256 numInputs = swapperInputs.length;
         Output[] memory fillerOutputs = new Output[](numInputs);
         Output memory fillerOutput;
@@ -292,7 +291,7 @@ abstract contract BaseReactor is ISettlementContract {
             Input memory input = swapperInputs[i];
             fillerOutput = Output({
                 token: bytes32(uint256(uint160(input.token))),
-                amount: input.amount,
+                amount: _amountLessfee(input.amount, _governanceFee),
                 recipient: bytes32(uint256(uint160(fillerAddress))),
                 chainId: uint32(block.chainid)
             });
@@ -314,19 +313,23 @@ abstract contract BaseReactor is ISettlementContract {
     }
 
     /**
-     * TODO: Do we want to function overload with a governance fee?
      * @notice Sends a list of inputs to the target address.
      * @dev This function can be used for paying the filler or refunding the user in case of disputes.
      * @param inputs List of inputs that are to be paid.
      * @param to Destination address.
      */
-    function _deliverInputs(Input[] calldata inputs, address to) internal {
+    function _deliverInputs(Input[] calldata inputs, address to, uint256 fee) internal {
+        // Read governance fee.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             Input calldata input = inputs[i];
+            address token = input.token;
+            // Collect governance fee. Importantly, this also sets the value as collected.
+            uint256 amount = input.amount;
+            amount = fee == 0 ? amount : _collectGovernanceFee(token, amount, fee);
             // We don't need to check if token is deployed since we
             // got here. Reverting here would also freeze collateral.
-            SafeTransferLib.safeTransfer(input.token, to, input.amount);
+            SafeTransferLib.safeTransfer(token, to, amount);
         }
     }
 
@@ -431,9 +434,8 @@ abstract contract BaseReactor is ISettlementContract {
         ) revert CannotProveOrder();
 
         // Payout input.
-        // TODO: governance fee?
         address fillerAddress = orderContext.fillerAddress;
-        _deliverInputs(orderKey.inputs, fillerAddress);
+        _deliverInputs(orderKey.inputs, fillerAddress, governanceFee);
 
         // Return collateral to the filler. Load the collateral details from the order.
         // (Filler provided collateral).
@@ -481,8 +483,7 @@ abstract contract BaseReactor is ISettlementContract {
         address fillerAddress = orderContext.fillerAddress;
 
         // Pay input tokens to filler.
-        // TODO: governance fee?
-        _deliverInputs(orderKey.inputs, fillerAddress);
+        _deliverInputs(orderKey.inputs, fillerAddress, governanceFee);
 
         // Get order collateral.
         address collateralToken = orderKey.collateral.collateralToken;
@@ -560,7 +561,7 @@ abstract contract BaseReactor is ISettlementContract {
         orderContext.status = OrderStatus.Fraud;
 
         // Send the input tokens back to the user.
-        _deliverInputs(orderKey.inputs, orderKey.swapper);
+        _deliverInputs(orderKey.inputs, orderKey.swapper, 0);
         // Divide the collateral between challenger and user. // TODO: figure out ration to each.
         // Get order collateral.
         address collateralToken = orderKey.collateral.collateralToken;

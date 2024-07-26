@@ -15,10 +15,10 @@ import {
 } from "../interfaces/ISettlementContract.sol";
 import { OrderContext, OrderKey, OrderStatus, ReactorInfo } from "../interfaces/Structs.sol";
 
-import { FillerDataLib } from "../libs/FillerDataLib.sol";
-import { Permit2Lib } from "../libs/Permit2Lib.sol";
-import { IsContractLib } from "../libs/IsContractLib.sol";
 import { CanCollectGovernanceFee } from "../libs/CanCollectGovernanceFee.sol";
+import { FillerDataLib } from "../libs/FillerDataLib.sol";
+import { IsContractLib } from "../libs/IsContractLib.sol";
+import { Permit2Lib } from "../libs/Permit2Lib.sol";
 
 import {
     CannotProveOrder,

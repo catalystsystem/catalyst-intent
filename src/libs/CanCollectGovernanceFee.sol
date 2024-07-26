@@ -13,8 +13,8 @@ import { IsContractLib } from "./IsContractLib.sol";
  */
 abstract contract CanCollectGovernanceFee is Ownable {
     uint256 public governanceFee = 0;
-    uint256 constant GOVERNANCE_FEE_DENUM = 10**18;
-    uint256 constant MAX_GOVERNANCE_FEE = 10**18 * 0.25; // 25%
+    uint256 constant GOVERNANCE_FEE_DENUM = 10 ** 18;
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25; // 25%
 
     mapping(address token => uint256 amount) internal _governanceTokens;
 
@@ -26,8 +26,10 @@ abstract contract CanCollectGovernanceFee is Ownable {
         return amountTokens = _governanceTokens[token];
     }
 
-    /** @notice Function overload of _collectGovernanceFee reading the governance fee. */
-    function _collectGovernanceFee(address token, uint256 amount) internal returns(uint256 amountLessFee) {
+    /**
+     * @notice Function overload of _collectGovernanceFee reading the governance fee.
+     */
+    function _collectGovernanceFee(address token, uint256 amount) internal returns (uint256 amountLessFee) {
         return amountLessFee = _collectGovernanceFee(token, amount, governanceFee);
     }
 
@@ -41,7 +43,11 @@ abstract contract CanCollectGovernanceFee is Ownable {
      * save gas when used in a loop.
      * @return amountLessFee amount - fee.
      */
-    function _collectGovernanceFee(address token, uint256 amount, uint256 fee) internal returns(uint256 amountLessFee) {
+    function _collectGovernanceFee(
+        address token,
+        uint256 amount,
+        uint256 fee
+    ) internal returns (uint256 amountLessFee) {
         unchecked {
             amountLessFee = _amountLessfee(amount, fee);
             // Set the governanceFee
@@ -56,7 +62,7 @@ abstract contract CanCollectGovernanceFee is Ownable {
      * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENUM based.
      * @return amountLessFee Amount with fee subtracted from it.
      */
-    function _amountLessfee(uint256 amount, uint256 fee) pure internal returns(uint256 amountLessFee) {
+    function _amountLessfee(uint256 amount, uint256 fee) internal pure returns (uint256 amountLessFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
             if (amount >= type(uint256).max / fee) return amountLessFee = amount;

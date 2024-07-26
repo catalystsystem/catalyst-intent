@@ -416,7 +416,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         OrderStatus status = orderContext.status;
 
-        // Only allow processing if order status is either claimed or Challenged
+        // Only allow processing if order status is either claimed or challenged
         if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
             revert WrongOrderStatus(orderContext.status);
         }
@@ -441,10 +441,11 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         address collateralToken = orderKey.collateral.collateralToken;
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
 
-        // If the order was challenged, then the challenger also provided collateral.
-        // All of this goes to the filler.
-        // TODO: Prove `status == OrderStatus.Challenged IFF orderContext.challenger != address(0)`
-        if (status == OrderStatus.Challenged && orderContext.challenger != address(0)) {
+        // If the order was challenged, then the challenger also provided collateral. All of this goes to the filler.
+        // The below logic relies on the implementation constraint of:
+        // orderContext.challenger != address(0) if status == OrderStatus.Challenged
+        // This is valid since when `status = OrderStatus.Challenged` is set, right before the challenger's address is also set.
+        if (status == OrderStatus.Challenged) {
             // Add collateral amount. Both collaterals were paid in the same tokens.
             // This lets us do only a single transfer call.
             fillerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
@@ -467,8 +468,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Check if order is claimed:
         if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
-        // TODO: Do we need this check here?
-        if (orderContext.challenger == address(0)) revert OrderAlreadyChallenged(orderContext);
+        // If OrderStatus != Claimed then it must either be:
+        // 1. One of the proved states => we already paid the inputs.
+        // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `oracle(...)`
+        // as a result, checking only we shall only continue if orderContext.status == OrderStatus.Claimed.
         orderContext.status = OrderStatus.OPFilled;
 
         // If time is post challenge deadline, then the order can only progress to optimistic payout.
@@ -516,13 +519,19 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Check if order is claimed and hasn't been challenged:
         if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
-        if (orderContext.challenger == address(0)) revert OrderAlreadyChallenged(orderContext);
+        // If `orderContext.status != OrderStatus.Claimed` then there are 2 cases:
+        // 1. The order hasn't been claimed.
+        // 2. We are past the claim state (disputed, proven, etc).
+        // As a result, checking if the order has been claimed is enough. 
 
         // Check if challenge deadline hasn't been passed.
         if (uint256(orderKey.reactorContext.challengeDeadline) > block.timestamp) revert ChallengedeadlinePassed();
 
-        orderContext.status = OrderStatus.Challenged;
+        // Later logic relies on  orderContext.challenger != address(0) if orderContext.status = OrderStatus.Challenged.
+        // As a result, it is important that this is the only place where these values are set so we can easily audit if
+        // the above assertion is true.
         orderContext.challenger = msg.sender;
+        orderContext.status = OrderStatus.Challenged;
 
         // Collect bond collateral.
         // collateralToken has already been entered so no need to check if
@@ -549,14 +558,13 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
 
         // Check that the order is currently challenged. If is it currently challenged,
-        // it implies that the fulfillment was not proven.
-        // TODO: Prove `status == OrderStatus.Challenged IFF orderContext.challenger != address(0)`
-        if (orderContext.challenger != address(0)) revert OrderAlreadyChallenged(orderContext);
-        // TODO: fix custom error.
+        // it implies that the fulfillment was not proven. Additionally, since the Challenge order status
+        // only set together with the challenger address, it must hold that:
+        // orderContext.status == OrderStatus.Challenged => orderContext.challenger != address(0).
         if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
 
         // Update the status of the order. This disallows local re-entries.
-        // It is important that no external logic is made between the below & above lines.
+        // It is important that no external logic is made between the below & above line.
         orderContext.status = OrderStatus.Fraud;
 
         // Send the input tokens back to the user.

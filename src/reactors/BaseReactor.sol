@@ -43,6 +43,7 @@ import {
     OrderChallenged,
     OrderClaimed,
     OrderFilled,
+    OrderPurchaseDetailsModified,
     OrderPurchased,
     OrderVerify
 } from "../interfaces/Events.sol";
@@ -422,7 +423,8 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // Set new storage.
         orderContext.orderPurchaseDeadline = newPurchaseDeadline;
         orderContext.orderDiscount = newOrderDiscount;
-        // todo: emit event.
+
+        emit OrderPurchaseDetailsModified(orderKeyHash, newPurchaseDeadline, newOrderDiscount);
     }
 
     //--- Order Resolution Helpers ---//

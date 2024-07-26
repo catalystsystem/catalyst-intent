@@ -33,3 +33,5 @@ event OrderChallenged(bytes32 indexed orderHash, address disputer);
 event OrderPurchased(bytes32 indexed orderHash, address indexed newFiller);
 
 event GovernanceFeeChanged(uint256 oldGovernanceFee, uint256 newGovernanceFee);
+
+event OrderPurchaseDetailsModified(bytes32 indexed orderHash, uint32 newPurchaseDeadline, uint16 newOrderDiscount);

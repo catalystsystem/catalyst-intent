@@ -58,6 +58,18 @@ import {
  * It is expected that proper order reactors implement:
  * - _initiate. To convert partially structured orders into order keys that describe fulfillment conditions.
  * - _resolveKey. Helper function to convert an order into an order key.
+ * @dev Important implementation quirks:
+ * **Token Turst**
+ * There is a lot of trust put into the tokens that interact with the contract. Not trust as in the tokens can
+ * impact this contract but trust as in a faulty / malicious token may be able to break the order status flow
+ * and prevent proper delivery of inputs (to solver) and return of collateral.
+ * As a result, it is important that users are aware of the following usage restrictions:
+ * 1. Don't use a pausable/blacklist token if there is a risk of one of the actors (user / solver)
+ * being paused. This also applies from the user's perspective, if a pausable token is used for
+ * collateral their inputs may not be returnable.
+ * 2. All inputs have to be trusted by all parties. If one input is unable to be transferred, the whole lot
+ * becomes stuck until the issue resolves itself.
+ * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could annoy users.
  */
 abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
     using Permit2Lib for OrderKey;
@@ -69,6 +81,11 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
     mapping(address token => uint256 amount) internal _governanceOwned;
+
+    /**
+     * @notice Storage of token transfers that failed.
+     */
+    mapping(address user => mapping(address token => uint256 amount)) internal _recoverableTokens;
 
     constructor(address permit2) {
         PERMIT2 = ISignatureTransfer(permit2);
@@ -87,6 +104,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
     function getOrderContext(OrderKey memory orderKey) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
+    }
+
+    function getRecoverableTokens(address user, address token) external view returns (uint256 amount) {
+        return _recoverableTokens[user][token];
     }
 
     //--- Token Handling ---//
@@ -137,6 +158,27 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
                 // Inputs have already been collected before. No need to verify if these are actual tokens.
                 SafeTransferLib.safeTransferFrom(token, from, to, amount);
             }
+        }
+    }
+
+    /**
+     * @notice Sends a list of inputs to the target address.
+     * @dev This function can be used for paying the filler or refunding the user in case of disputes.
+     * @param inputs List of inputs that are to be paid.
+     * @param to Destination address.
+     */
+    function _deliverInputs(Input[] calldata inputs, address to, uint256 fee) internal virtual {
+        // Read governance fee.
+        uint256 numInputs = inputs.length;
+        for (uint256 i; i < numInputs; ++i) {
+            Input calldata input = inputs[i];
+            address token = input.token;
+            // Collect governance fee. Importantly, this also sets the value as collected.
+            uint256 amount = input.amount;
+            amount = fee == 0 ? amount : _collectGovernanceFee(token, amount, fee);
+            // We don't need to check if token is deployed since we
+            // got here. Reverting here would also freeze collateral.
+            SafeTransferLib.safeTransfer(token, to, amount);
         }
     }
 
@@ -309,27 +351,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
             swapperOutputs: swapperOutputs,
             fillerOutputs: fillerOutputs
         });
-    }
-
-    /**
-     * @notice Sends a list of inputs to the target address.
-     * @dev This function can be used for paying the filler or refunding the user in case of disputes.
-     * @param inputs List of inputs that are to be paid.
-     * @param to Destination address.
-     */
-    function _deliverInputs(Input[] calldata inputs, address to, uint256 fee) internal {
-        // Read governance fee.
-        uint256 numInputs = inputs.length;
-        for (uint256 i; i < numInputs; ++i) {
-            Input calldata input = inputs[i];
-            address token = input.token;
-            // Collect governance fee. Importantly, this also sets the value as collected.
-            uint256 amount = input.amount;
-            amount = fee == 0 ? amount : _collectGovernanceFee(token, amount, fee);
-            // We don't need to check if token is deployed since we
-            // got here. Reverting here would also freeze collateral.
-            SafeTransferLib.safeTransfer(token, to, amount);
-        }
     }
 
     //--- Order Purchase Helpers ---//
@@ -522,7 +543,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // If `orderContext.status != OrderStatus.Claimed` then there are 2 cases:
         // 1. The order hasn't been claimed.
         // 2. We are past the claim state (disputed, proven, etc).
-        // As a result, checking if the order has been claimed is enough. 
+        // As a result, checking if the order has been claimed is enough.
 
         // Check if challenge deadline hasn't been passed.
         if (uint256(orderKey.reactorContext.challengeDeadline) > block.timestamp) revert ChallengedeadlinePassed();
@@ -579,12 +600,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
         // We don't check if collateralToken is a token, since we don't
         // want this call to fail.
-        // TODO: implement some kind of fallback if this fails.
         SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
         // Send the rest to the wallet that proof fraud:
         // Similar to the above. We don't want this to fail.
-        // TODO: implement some kind of fallback if this fails.
         unchecked {
             // A: We don't want this to fail.
             // B: If this overflows, it is better than if nothing happened.

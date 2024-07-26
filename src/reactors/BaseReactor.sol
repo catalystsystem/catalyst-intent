@@ -94,7 +94,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
     //--- Expose Storage ---//
 
-    // todo: Profile with separate functions for memory and calldata
     function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32 orderKeyHash) {
         return orderKeyHash = keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
     }
@@ -103,7 +102,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         return orderKeyHash = _orderKeyHash(orderKey); // TODO: Is it more efficient to do this manually?
     }
 
-    function getOrderContext(OrderKey memory orderKey) external view returns (OrderContext memory orderContext) {
+    function getOrderContext(OrderKey calldata orderKey) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
     }
 
@@ -113,7 +112,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
     //--- Token Handling ---//
 
-    // TODO: check these for memory to calldata
     /**
      * @notice Multi purpose order flow function that:
      * - Orders the collection of tokens. This includes checking if the user has enough & approval.

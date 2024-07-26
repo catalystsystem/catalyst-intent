@@ -191,7 +191,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
             revert InvalidDeadlineOrder();
         }
 
-        // TODO: Will we have only the address encoded in the data?
         // Check that the order hasn't been claimed yet. We will then set the order status
         // so other can't claim it. This acts as a local reentry check.
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];

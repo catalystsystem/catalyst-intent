@@ -475,7 +475,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // Pay collateral tokens
         // No need to check if collateralToken is a deployed contract.
         // It has already been entered into our contract.
-        // TODO: What if this fails. Do we want to implement a kind of callback?
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
     }
 

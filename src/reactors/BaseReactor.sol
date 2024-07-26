@@ -152,6 +152,8 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * then it may impossible to prove thus free to challenge.
      * 3. Trust the oracles. Any oracles can be provided but they may not signal that the proof
      * is or isn't valid.
+     * 4. Verify all inputs & outputs. If they contain a token the filler does not trust, do not claim the order.
+     * It may cause a host of problem but most importantly: Inability to payout inputs & Inability to payout collateral.
      * @param order The CrossChainOrder definition
      * @param signature The end user signature for the order
      * @param fillerData Any filler-defined data required by the settler

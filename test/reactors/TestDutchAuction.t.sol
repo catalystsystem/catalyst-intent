@@ -32,7 +32,6 @@ contract TestDutchAuction is BaseReactorTest {
         DeployDutchOrderReactor deployer = new DeployDutchOrderReactor();
         (reactor, reactorHelperConfig) = deployer.run();
         (tokenToSwapInput, tokenToSwapOutput, permit2, deployerKey) = reactorHelperConfig.currentConfig();
-        reactorAddress = address(reactor);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
@@ -44,20 +43,36 @@ contract TestDutchAuction is BaseReactorTest {
         uint256 _nonce,
         address _swapper,
         uint256 _amount,
-        address fillerSender
-    ) internal virtual override {
-        CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 1, 5, 10, 11, _nonce);
+        address _fillerSender,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline
+    ) internal virtual override returns (OrderKey memory) {
+        CrossChainOrder memory order = _getCrossOrder(
+            _amount,
+            0,
+            _swapper,
+            DEFAULT_COLLATERAL_AMOUNT,
+            0,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline,
+            _nonce
+        );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
-        vm.prank(fillerSender);
-        reactor.initiate(order, signature, fillerData);
+        vm.prank(_fillerSender);
+        return reactor.initiate(order, signature, fillerData);
     }
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)
@@ -101,7 +116,7 @@ contract TestDutchAuction is BaseReactorTest {
 
         order = CrossChainBuilder.getCrossChainOrder(
             dutchOrderData,
-            reactorAddress,
+            address(reactor),
             recipient,
             nonce,
             uint32(block.chainid),

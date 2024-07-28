@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
+import { OrderKey } from "./Structs.sol";
+
 /// @title CrossChainOrder type
 /// @notice Standard order struct to be signed by swappers, disseminated to fillers, and submitted to settlement contracts
 struct CrossChainOrder {
@@ -78,7 +80,12 @@ interface ISettlementContract {
     /// @param order The CrossChainOrder definition
     /// @param signature The swapper's signature over the order
     /// @param fillerData Any filler-defined data required by the settler
-    function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external;
+    /// @return orderKey // ! Return type added that returns the resolved order key. This adds additional validation pathways if needed.
+    function initiate(
+        CrossChainOrder calldata order,
+        bytes calldata signature,
+        bytes calldata fillerData
+    ) external returns (OrderKey memory orderKey);
 
     /// @notice Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
     /// @dev Intended to improve standardized integration of various order types and settlement contracts

@@ -3,15 +3,15 @@ pragma solidity >=0.8.0;
 
 import { OrderContext, OrderStatus } from "../interfaces/Structs.sol";
 
-error OrderNotClaimed(OrderContext orderContext);
-error OrderAlreadyClaimed(OrderContext orderContext);
-error OrderAlreadyChallenged(OrderContext orderContext);
+error OrderNotClaimed(OrderStatus orderStatus);
+error OrderAlreadyClaimed(OrderStatus orderStatus);
+error OrderAlreadyChallenged(OrderStatus orderStatus);
 error WrongOrderStatus(OrderStatus actual);
 error NonceClaimed();
 error NotOracle();
-error ChallengedeadlinePassed();
+error ChallengeDeadlinePassed();
 error ProofPeriodHasNotPassed();
-error OrderNotReadyForOptimisticPayout(uint40 timeRemaining);
+error OrderNotReadyForOptimisticPayout(uint32 timeRemaining);
 error OnlyFiller();
 error CannotProveOrder();
 error WrongChain();

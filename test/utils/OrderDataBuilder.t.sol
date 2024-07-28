@@ -7,6 +7,7 @@ import { LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 
 library OrderDataBuilder {
+    function test() public pure {}
     function getLimitOrder(
         address tokenToSwapInput,
         address tokenToSwapOutput,

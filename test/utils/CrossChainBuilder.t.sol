@@ -10,6 +10,7 @@ import { LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
 //or an order but with some fields missing
 
 library CrossChainBuilder {
+    function test() public pure {}
     function getCrossChainOrder(
         LimitOrderData memory limitOrderData,
         address limitOrderReactorAddress,

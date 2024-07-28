@@ -4,6 +4,7 @@ pragma solidity ^0.8.22;
 import { MockERC20 } from "../mocks/MockERC20.sol";
 
 library MockUtils {
+    function test() public pure {}
     function getCurrentBalances(
         address tokenToSwap,
         address swapper,

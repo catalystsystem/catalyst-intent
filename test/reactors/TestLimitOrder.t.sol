@@ -30,15 +30,17 @@ import {
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 
-import { BaseReactorTest, Permit2DomainSeparator } from "./BaseReactorTest.t.sol";
+import { TestBaseReactor, Permit2DomainSeparator } from "./TestBaseReactor.t.sol";
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
-contract TestLimitOrder is BaseReactorTest {
+contract TestLimitOrder is TestBaseReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
     using CrossChainOrderType for CrossChainOrder;
     using CrossChainLimitOrderType for LimitOrderData;
 
+    function testA() external pure {}
+    
     function setUp() public {
         DeployLimitOrderReactor deployer = new DeployLimitOrderReactor();
         (reactor, reactorHelperConfig) = deployer.run();

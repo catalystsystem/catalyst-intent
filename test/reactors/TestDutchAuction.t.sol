@@ -10,7 +10,7 @@ import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
 
-import { BaseReactorTest, Permit2DomainSeparator } from "./BaseReactorTest.t.sol";
+import { TestBaseReactor, Permit2DomainSeparator } from "./TestBaseReactor.t.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
@@ -23,7 +23,10 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-contract TestDutchAuction is BaseReactorTest {
+contract TestDutchAuction is TestBaseReactor {
+
+    function testA() external pure {}    
+
     using CrossChainDutchOrderType for DutchOrderData;
     using CrossChainOrderType for CrossChainOrder;
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;

@@ -39,7 +39,10 @@ interface Permit2DomainSeparator {
 
 event Transfer(address indexed from, address indexed to, uint256 amount);
 
-abstract contract BaseReactorTest is Test {
+abstract contract TestBaseReactor is Test {
+
+    function test() external {}
+
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;

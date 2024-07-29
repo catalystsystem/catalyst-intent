@@ -26,7 +26,7 @@ import {
     OrderAlreadyClaimed
 } from "../../src/interfaces/Errors.sol";
 
-import { OptimisticPayout, OrderChallenged } from "../../src/interfaces/Events.sol";
+import { OptimisticPayout, OrderChallenged, FraudAccepted } from "../../src/interfaces/Events.sol";
 
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 
@@ -40,12 +40,13 @@ interface Permit2DomainSeparator {
 event Transfer(address indexed from, address indexed to, uint256 amount);
 
 abstract contract TestBaseReactor is Test {
-
-    function test() external {}
+    function test() external { }
 
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
+    uint256 DEFAULT_COLLATERAL_AMOUNT_CHALLENGER = 10 ** 19;
+
     uint32 DEFAULT_INITIATE_DEADLINE = 5;
     uint32 DEFAULT_FILL_DEADLINE = 6;
     uint32 DEFAULT_CHALLENGE_DEADLINE = 10;
@@ -206,18 +207,23 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
+        MockERC20(collateralToken).mint(challenger, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
         vm.expectCall(
             collateralToken,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", challenger, address(reactor), 0)
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", challenger, address(reactor), DEFAULT_COLLATERAL_AMOUNT_CHALLENGER)
         );
         vm.expectEmit();
-        emit Transfer(challenger, address(reactor), 0);
+        emit Transfer(challenger, address(reactor), DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
         vm.expectEmit();
         emit OrderChallenged(orderHash, challenger);
         reactor.dispute(orderKey);
+
+        // Assert the new order status is Challenged.
+        OrderContext memory orderContext = reactor.getOrderContext(orderKey);
+        assertEq(uint8(orderContext.status), uint8(OrderStatus.Challenged));
     }
 
     function test_revert_dispute_twice(
@@ -236,12 +242,38 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_PROOF_DEADLINE
         );
 
+        MockERC20(collateralToken).mint(challenger, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
         reactor.dispute(orderKey);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", OrderStatus.Challenged));
+        reactor.dispute(orderKey);
+    }
+
+    function test_revert_dispute_no_collateral(
+        uint256 amount,
+        address challenger
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        vm.assume(fillerAddress != challenger);
+        vm.assume(SWAPPER != challenger);
+        address collateralToken = tokenToSwapOutput;
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            amount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+
+        vm.startPrank(challenger);
+        MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+
+        vm.expectRevert(abi.encodeWithSignature("TransferFromFailed()"));
         reactor.dispute(orderKey);
     }
 
@@ -269,7 +301,7 @@ abstract contract TestBaseReactor is Test {
         reactor.dispute(orderKey);
     }
 
-    //--- Optimistic Payout ---/
+    //--- Optimistic Payout ---//
 
     function test_revert_not_ready_for_optimistic_payout(
         uint256 amount,
@@ -342,6 +374,7 @@ abstract contract TestBaseReactor is Test {
         uint256 amount,
         uint32 challengeDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        address collateralToken = tokenToSwapOutput;
         uint32 fillDeadline = DEFAULT_FILL_DEADLINE;
         vm.assume(fillDeadline < challengeDeadline);
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
@@ -356,11 +389,73 @@ abstract contract TestBaseReactor is Test {
             challengeDeadline + 1 hours
         );
 
+        MockERC20(collateralToken).mint(address(this), DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+
         reactor.dispute(orderKey);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", OrderStatus.Challenged));
         reactor.optimisticPayout(orderKey);
     }
+
+    //--- Resolve Disputed Orders ---//
+
+    function test_dispute_fraud_settled(
+        uint256 amount,
+        address challenger,
+        address completeDisputer
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        address inputToken = tokenToSwapInput;
+        address collateralToken = tokenToSwapOutput;
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            amount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        MockERC20(collateralToken).mint(challenger, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        vm.startPrank(challenger);
+        MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+        reactor.dispute(orderKey);
+        vm.stopPrank();
+
+        // We allow anyone to call the function but this caller shouldn't get anything.
+        vm.startPrank(completeDisputer);
+
+        uint256 fillCollateral = DEFAULT_COLLATERAL_AMOUNT;
+        uint256 collateralForSwapper = fillCollateral / 2;
+        uint256 collateralForChallenger = fillCollateral - collateralForSwapper + DEFAULT_COLLATERAL_AMOUNT_CHALLENGER;
+
+        // Check that the input is delivered back.
+        vm.expectCall(inputToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, amount));
+        vm.expectCall(collateralToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, collateralForSwapper));
+        vm.expectCall(collateralToken, abi.encodeWithSignature("transfer(address,uint256)", challenger, collateralForChallenger));
+        vm.expectEmit();
+        emit Transfer(address(reactor), SWAPPER, amount);
+        vm.expectEmit();
+        emit Transfer(address(reactor), SWAPPER, collateralForSwapper);
+        vm.expectEmit();
+        emit Transfer(address(reactor), challenger, collateralForChallenger);
+        vm.expectEmit();
+        emit FraudAccepted(orderHash);
+
+        vm.warp(DEFAULT_PROOF_DEADLINE + 1);
+        reactor.completeDispute(orderKey);
+
+        // Assert the new order status is fraud.
+        OrderContext memory orderContext = reactor.getOrderContext(orderKey);
+
+        assertEq(uint8(orderContext.status), uint8(OrderStatus.Fraud));
+    }
+
+    //--- Helpers ---//
 
     function _orderType() internal virtual returns (bytes memory);
 

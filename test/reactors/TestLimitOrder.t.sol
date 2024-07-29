@@ -30,7 +30,7 @@ import {
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 
-import { TestBaseReactor, Permit2DomainSeparator } from "./TestBaseReactor.t.sol";
+import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
@@ -39,8 +39,8 @@ contract TestLimitOrder is TestBaseReactor {
     using CrossChainOrderType for CrossChainOrder;
     using CrossChainLimitOrderType for LimitOrderData;
 
-    function testA() external pure {}
-    
+    function testA() external pure { }
+
     function setUp() public {
         DeployLimitOrderReactor deployer = new DeployLimitOrderReactor();
         (reactor, reactorHelperConfig) = deployer.run();
@@ -105,7 +105,7 @@ contract TestLimitOrder is TestBaseReactor {
     function test_not_enough_balance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
         uint256 amountToTransfer = uint256(amount) + DEFAULT_COLLATERAL_AMOUNT;
         CrossChainOrder memory order =
-            _getCrossOrder(amountToTransfer, 0, SWAPPER, DEFAULT_COLLATERAL_AMOUNT, 0, 5, 6, 10, 11, 0);
+            _getCrossOrder(amountToTransfer, 0, SWAPPER, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -127,7 +127,7 @@ contract TestLimitOrder is TestBaseReactor {
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, amount);
         CrossChainOrder memory order =
-            _getCrossOrder(amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, 0, 5, 6, 10, 11, 0);
+            _getCrossOrder(amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -162,7 +162,7 @@ contract TestLimitOrder is TestBaseReactor {
             0,
             _swapper,
             DEFAULT_COLLATERAL_AMOUNT,
-            0,
+            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
             initiateDeadline,
             fillDeadline,
             challengeDeadline,

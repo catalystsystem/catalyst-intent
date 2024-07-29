@@ -8,7 +8,8 @@ import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossCh
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
 library OrderKeyInfo {
-    function test() public pure {}
+    function test() public pure { }
+
     function getOrderKey(
         CrossChainOrder memory order,
         BaseReactor reactor

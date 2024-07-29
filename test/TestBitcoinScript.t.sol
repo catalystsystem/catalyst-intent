@@ -9,7 +9,8 @@ import { AddressType as ScriptAddressType, BitcoinAddress } from "bitcoinprism-e
 import { BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
 contract TestBitcoinScript is Test {
-    function test() public pure {}
+    function test() public pure { }
+
     function test_script_from_BTCAddress() public {
         bytes32 pHash = hex"ae2f3d4b06579b62574d6178c10c882b91503740";
         BitcoinAddress memory btcAddress = BitcoinAddress(ScriptAddressType.P2PKH, pHash);

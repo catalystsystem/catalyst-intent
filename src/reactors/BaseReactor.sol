@@ -44,7 +44,8 @@ import {
     OrderFilled,
     OrderPurchaseDetailsModified,
     OrderPurchased,
-    OrderVerify
+    OrderVerify,
+    FraudAccepted
 } from "../interfaces/Events.sol";
 
 /**
@@ -580,7 +581,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Check if proof deadline has passed. If this is the case, (& the order hasn't been proven)
         // it has to be assumed that the order was not filled.
-        if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
+        if (orderKey.reactorContext.proofDeadline >= uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
 
         // Check that the order is currently challenged. If is it currently challenged,
         // it implies that the fulfillment was not proven. Additionally, since the Challenge order status
@@ -600,15 +601,16 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
         uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
 
-        // Send partial collateral back to user
-        uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
-        // We don't check if collateralToken is a token, since we don't
-        // want this call to fail.
-        SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
-
-        // Send the rest to the wallet that proof fraud:
-        // Similar to the above. We don't want this to fail.
         unchecked {
+            // Send partial collateral back to user
+            uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
+            // We don't check if collateralToken is a token, since we don't
+            // want this call to fail.
+            SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
+
+            // Send the rest to the wallet that proof fraud:
+            // Similar to the above. We don't want this to fail.
+
             // A: We don't want this to fail.
             // B: If this overflows, it is better than if nothing happened.
             // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount = swapperCollateralAmount / 2.
@@ -618,5 +620,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
                 challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount
             );
         }
+
+        emit FraudAccepted(orderKeyHash);
     }
 }

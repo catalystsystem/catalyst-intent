@@ -10,7 +10,7 @@ import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
 
-import { TestBaseReactor, Permit2DomainSeparator } from "./TestBaseReactor.t.sol";
+import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
@@ -24,8 +24,7 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 contract TestDutchAuction is TestBaseReactor {
-
-    function testA() external pure {}    
+    function testA() external pure { }
 
     using CrossChainDutchOrderType for DutchOrderData;
     using CrossChainOrderType for CrossChainOrder;
@@ -57,7 +56,7 @@ contract TestDutchAuction is TestBaseReactor {
             0,
             _swapper,
             DEFAULT_COLLATERAL_AMOUNT,
-            0,
+            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
             initiateDeadline,
             fillDeadline,
             challengeDeadline,

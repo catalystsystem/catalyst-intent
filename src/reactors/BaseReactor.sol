@@ -22,7 +22,7 @@ import { Permit2Lib } from "../libs/Permit2Lib.sol";
 
 import {
     CannotProveOrder,
-    ChallengedeadlinePassed,
+    ChallengeDeadlinePassed,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
@@ -32,7 +32,6 @@ import {
     OnlyFiller,
     OrderAlreadyChallenged,
     OrderAlreadyClaimed,
-    OrderNotClaimed,
     OrderNotReadyForOptimisticPayout,
     ProofPeriodHasNotPassed,
     PurchaseTimePassed,
@@ -45,7 +44,8 @@ import {
     OrderFilled,
     OrderPurchaseDetailsModified,
     OrderPurchased,
-    OrderVerify
+    OrderVerify,
+    FraudAccepted
 } from "../interfaces/Events.sol";
 
 /**
@@ -199,7 +199,11 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * @param signature The end user signature for the order
      * @param fillerData Any filler-defined data required by the settler
      */
-    function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata fillerData) external {
+    function initiate(
+        CrossChainOrder calldata order,
+        bytes calldata signature,
+        bytes calldata fillerData
+    ) external returns (OrderKey memory orderKey) {
         // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
         // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
         if (order.fillDeadline < order.initiateDeadline) {
@@ -216,8 +220,9 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // TODO: solve permit2 context
         (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, uint256 orderPointer) =
             FillerDataLib.decode(fillerData);
-        (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) =
-            _initiate(order, fillerData[orderPointer:]);
+        bytes32 witness;
+        string memory witnessTypeString;
+        (orderKey, witness, witnessTypeString) = _initiate(order, fillerData[orderPointer:]);
 
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
@@ -235,11 +240,12 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // Check that the order hasn't been claimed yet. We will then set the order status
         // so other can't claim it. This acts as a local reentry check.
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
-        if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext);
+        if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext.status);
         orderContext.status = OrderStatus.Claimed;
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderDiscount = orderDiscount;
+        orderContext.initTimestamp = uint32(block.timestamp);
 
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
@@ -487,7 +493,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         OrderContext storage orderContext = _orders[orderKeyHash];
 
         // Check if order is claimed:
-        if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
+        if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
         // If OrderStatus != Claimed then it must either be:
         // 1. One of the proved states => we already paid the inputs.
         // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `oracle(...)`
@@ -498,7 +504,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         uint256 challengedeadline = orderKey.reactorContext.challengeDeadline;
         if (block.timestamp <= challengedeadline) {
             unchecked {
-                revert OrderNotReadyForOptimisticPayout(uint40(challengedeadline - block.timestamp));
+                revert OrderNotReadyForOptimisticPayout(uint32(challengedeadline - block.timestamp + 1));
             }
         }
 
@@ -538,14 +544,14 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         OrderContext storage orderContext = _orders[orderKeyHash];
 
         // Check if order is claimed and hasn't been challenged:
-        if (orderContext.status != OrderStatus.Claimed) revert OrderNotClaimed(orderContext);
+        if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
         // If `orderContext.status != OrderStatus.Claimed` then there are 2 cases:
         // 1. The order hasn't been claimed.
         // 2. We are past the claim state (disputed, proven, etc).
         // As a result, checking if the order has been claimed is enough.
 
         // Check if challenge deadline hasn't been passed.
-        if (uint256(orderKey.reactorContext.challengeDeadline) > block.timestamp) revert ChallengedeadlinePassed();
+        if (uint256(orderKey.reactorContext.challengeDeadline) < block.timestamp) revert ChallengeDeadlinePassed();
 
         // Later logic relies on  orderContext.challenger != address(0) if orderContext.status = OrderStatus.Challenged.
         // As a result, it is important that this is the only place where these values are set so we can easily audit if
@@ -575,7 +581,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Check if proof deadline has passed. If this is the case, (& the order hasn't been proven)
         // it has to be assumed that the order was not filled.
-        if (orderKey.reactorContext.proofDeadline > uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
+        if (orderKey.reactorContext.proofDeadline >= uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
 
         // Check that the order is currently challenged. If is it currently challenged,
         // it implies that the fulfillment was not proven. Additionally, since the Challenge order status
@@ -595,15 +601,16 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
         uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
 
-        // Send partial collateral back to user
-        uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
-        // We don't check if collateralToken is a token, since we don't
-        // want this call to fail.
-        SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
-
-        // Send the rest to the wallet that proof fraud:
-        // Similar to the above. We don't want this to fail.
         unchecked {
+            // Send partial collateral back to user
+            uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
+            // We don't check if collateralToken is a token, since we don't
+            // want this call to fail.
+            SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
+
+            // Send the rest to the wallet that proof fraud:
+            // Similar to the above. We don't want this to fail.
+
             // A: We don't want this to fail.
             // B: If this overflows, it is better than if nothing happened.
             // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount = swapperCollateralAmount / 2.
@@ -613,5 +620,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
                 challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount
             );
         }
+
+        emit FraudAccepted(orderKeyHash);
     }
 }

@@ -30,20 +30,21 @@ import {
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 
-import { BaseReactorTest, Permit2DomainSeparator } from "./BaseReactorTest.t.sol";
+import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
-contract TestLimitOrder is BaseReactorTest {
+contract TestLimitOrder is TestBaseReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
     using CrossChainOrderType for CrossChainOrder;
     using CrossChainLimitOrderType for LimitOrderData;
+
+    function testA() external pure { }
 
     function setUp() public {
         DeployLimitOrderReactor deployer = new DeployLimitOrderReactor();
         (reactor, reactorHelperConfig) = deployer.run();
         (tokenToSwapInput, tokenToSwapOutput, permit2, deployerKey) = reactorHelperConfig.currentConfig();
-        reactorAddress = address(reactor);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
@@ -102,15 +103,17 @@ contract TestLimitOrder is BaseReactorTest {
     /////////////////
 
     function test_not_enough_balance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        uint256 amountToTransfer = uint256(amount) + 1 ether;
-        CrossChainOrder memory order = _getCrossOrder(amountToTransfer, 0, SWAPPER, 1 ether, 0, 5, 6, 10, 11, 0);
+        uint256 amountToTransfer = uint256(amount) + DEFAULT_COLLATERAL_AMOUNT;
+        CrossChainOrder memory order =
+            _getCrossOrder(amountToTransfer, 0, SWAPPER, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
@@ -119,19 +122,21 @@ contract TestLimitOrder is BaseReactorTest {
 
     function test_not_enough_allowance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
         (address BOB, uint256 BOB_KEY) = makeAddrAndKey("bob");
-        uint256 amountToTransfer = uint256(amount) + 1 ether;
+        uint256 amountToTransfer = uint256(amount) + DEFAULT_COLLATERAL_AMOUNT;
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, amount);
-        CrossChainOrder memory order = _getCrossOrder(amountToTransfer, 0, BOB, 1 ether, 0, 5, 6, 10, 11, 0);
+        CrossChainOrder memory order =
+            _getCrossOrder(amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0);
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            BOB_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+            BOB_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
@@ -146,20 +151,36 @@ contract TestLimitOrder is BaseReactorTest {
         uint256 _nonce,
         address _swapper,
         uint256 _amount,
-        address fillerSender
-    ) internal override {
-        CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 5, 6, 10, 11, _nonce);
+        address _fillerSender,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline
+    ) internal override returns (OrderKey memory) {
+        CrossChainOrder memory order = _getCrossOrder(
+            _amount,
+            0,
+            _swapper,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline,
+            _nonce
+        );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
-        vm.prank(fillerSender);
-        reactor.initiate(order, signature, fillerData);
+        vm.prank(_fillerSender);
+        return reactor.initiate(order, signature, fillerData);
     }
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)
@@ -202,7 +223,7 @@ contract TestLimitOrder is BaseReactorTest {
         );
         order = CrossChainBuilder.getCrossChainOrder(
             limitOrderData,
-            reactorAddress,
+            address(reactor),
             recipient,
             nonce,
             uint32(block.chainid),

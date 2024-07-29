@@ -10,7 +10,7 @@ import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
 
-import { BaseReactorTest, Permit2DomainSeparator } from "./BaseReactorTest.t.sol";
+import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
@@ -23,7 +23,9 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-contract TestDutchAuction is BaseReactorTest {
+contract TestDutchAuction is TestBaseReactor {
+    function testA() external pure { }
+
     using CrossChainDutchOrderType for DutchOrderData;
     using CrossChainOrderType for CrossChainOrder;
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
@@ -32,7 +34,6 @@ contract TestDutchAuction is BaseReactorTest {
         DeployDutchOrderReactor deployer = new DeployDutchOrderReactor();
         (reactor, reactorHelperConfig) = deployer.run();
         (tokenToSwapInput, tokenToSwapOutput, permit2, deployerKey) = reactorHelperConfig.currentConfig();
-        reactorAddress = address(reactor);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
@@ -44,20 +45,36 @@ contract TestDutchAuction is BaseReactorTest {
         uint256 _nonce,
         address _swapper,
         uint256 _amount,
-        address fillerSender
-    ) internal virtual override {
-        CrossChainOrder memory order = _getCrossOrder(_amount, 0, _swapper, 1 ether, 0, 1, 5, 10, 11, _nonce);
+        address _fillerSender,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline
+    ) internal virtual override returns (OrderKey memory) {
+        CrossChainOrder memory order = _getCrossOrder(
+            _amount,
+            0,
+            _swapper,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline,
+            _nonce
+        );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(orderKey, reactorAddress);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, reactorAddress
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
-        vm.prank(fillerSender);
-        reactor.initiate(order, signature, fillerData);
+        vm.prank(_fillerSender);
+        return reactor.initiate(order, signature, fillerData);
     }
 
     function _getTypeAndDataHashes(CrossChainOrder calldata order)
@@ -101,7 +118,7 @@ contract TestDutchAuction is BaseReactorTest {
 
         order = CrossChainBuilder.getCrossChainOrder(
             dutchOrderData,
-            reactorAddress,
+            address(reactor),
             recipient,
             nonce,
             uint32(block.chainid),

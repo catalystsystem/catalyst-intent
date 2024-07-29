@@ -3,8 +3,8 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { Output } from "../../src/interfaces/ISettlementContract.sol";
-import { GeneralisedIncentivesOracle } from "../../src/oracles/BridgeOracle.sol";
+import { Output } from "../../../src/interfaces/ISettlementContract.sol";
+import { GeneralisedIncentivesOracle } from "../../../src/oracles/BridgeOracle.sol";
 import { TestCommonGARP } from "../TestCommonGARP.sol";
 
 /**

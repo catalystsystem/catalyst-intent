@@ -9,12 +9,12 @@ import { OrderKey } from "../interfaces/Structs.sol";
 // TODO: Clean up.
 // Filler Data structure
 bytes1 constant VERSION_1 = 0x01;
-uint256 constant V1_ADDRESS_START = 0;
-uint256 constant V1_ADDRESS_END = 20;
+uint256 constant V1_ADDRESS_START = 1;
+uint256 constant V1_ADDRESS_END = 21;
 uint256 constant V1_ORDER_PURCHASE_DEADLINE_START = V1_ADDRESS_END;
-uint256 constant V1_ORDER_PURCHASE_DEADLINE_END = 24;
+uint256 constant V1_ORDER_PURCHASE_DEADLINE_END = 25;
 uint256 constant V1_ORDER_DISCOUNT_START = V1_ORDER_PURCHASE_DEADLINE_END;
-uint256 constant V1_ORDER_DISCOUNT_END = 26;
+uint256 constant V1_ORDER_DISCOUNT_END = 27;
 
 /// @notice Decodes fillerdata.
 library FillerDataLib {

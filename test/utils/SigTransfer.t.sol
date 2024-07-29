@@ -5,6 +5,8 @@ import { Vm } from "forge-std/Vm.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 library SigTransfer {
+    function test() public pure { }
+
     bytes32 private constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     string public constant PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB =

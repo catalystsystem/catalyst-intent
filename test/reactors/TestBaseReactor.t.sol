@@ -26,7 +26,7 @@ import {
     OrderAlreadyClaimed
 } from "../../src/interfaces/Errors.sol";
 
-import { FraudAccepted, OptimisticPayout, OrderChallenged } from "../../src/interfaces/Events.sol";
+import { FraudAccepted, OptimisticPayout, OrderChallenged, OrderPurchased } from "../../src/interfaces/Events.sol";
 
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 
@@ -163,7 +163,7 @@ abstract contract TestBaseReactor is Test {
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
-        reactor.initiate(order, signature, abi.encode(fillerData));
+        reactor.initiate(order, signature, fillerData);
     }
 
     function test_revert_challenge_deadline_before_fill(
@@ -184,7 +184,7 @@ abstract contract TestBaseReactor is Test {
             SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
-        reactor.initiate(order, signature, abi.encode(fillerData));
+        reactor.initiate(order, signature, fillerData);
     }
 
     //--- Dispute ---//
@@ -525,6 +525,118 @@ abstract contract TestBaseReactor is Test {
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 1));
         reactor.completeDispute(orderKey);
+    }
+
+    //--- Buyable Orders ---//
+
+    function test_purchase_order(
+        uint128 amount,
+        uint128 fillerCollateralAmount,
+        uint128 outputAmount,
+        uint16 discount,
+        address buyer,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        address inputToken = tokenToSwapInput;
+        address collateralToken = tokenToSwapOutput;
+        CrossChainOrder memory order =
+            _getCrossOrder(amount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderPermitOrderHash, DOMAIN_SEPARATOR, address(reactor)
+        );
+
+        bytes memory customFillerData = FillerDataLib._encode1(fillerAddress, type(uint32).max, discount);
+        MockERC20(collateralToken).mint(fillerAddress, fillerCollateralAmount);
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, customFillerData);
+
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        MockERC20(inputToken).mint(buyer, amount);
+        MockERC20(collateralToken).mint(buyer, fillerCollateralAmount);
+        vm.startPrank(buyer);
+        MockERC20(inputToken).approve(address(reactor), type(uint256).max);
+        MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+
+        uint256 amountAfterDiscount = amount - uint256(amount) * discount / uint256(type(uint16).max);
+        vm.expectCall(
+            collateralToken, abi.encodeWithSignature("transferFrom(address,address,uint256)", buyer, fillerAddress, fillerCollateralAmount)
+        );
+        vm.expectCall(inputToken, abi.encodeWithSignature("transferFrom(address,address,uint256)", buyer, fillerAddress, amountAfterDiscount));
+        vm.expectEmit();
+        emit Transfer(buyer, fillerAddress, fillerCollateralAmount);
+        vm.expectEmit();
+        emit Transfer(buyer, fillerAddress, amountAfterDiscount);
+        vm.expectEmit();
+        emit OrderPurchased(orderHash, buyer);
+        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+
+        // Check storage
+        OrderContext memory orderContext = reactor.getOrderContext(orderKey);
+
+        // Check that the fillerAddress was change
+        assertEq(orderContext.fillerAddress, buyer);
+        assertEq(orderContext.orderPurchaseDeadline, newPurchaseDeadline);
+        assertEq(orderContext.orderDiscount, newOrderDiscount);
+    }
+
+    function test_revert_purchase_non_existing_order(
+        uint128 amount,
+        uint128 fillerCollateralAmount,
+        uint128 outputAmount,
+        address buyer,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        CrossChainOrder memory order =
+            _getCrossOrder(amount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 0));
+        vm.prank(buyer);
+        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+    }
+
+    function test_revert_purchase_time_passed(
+        uint128 amount,
+        uint128 fillerCollateralAmount,
+        uint128 outputAmount,
+        uint16 discount,
+        address buyer,
+        uint32 originalPurchaseTime,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        address collateralToken = tokenToSwapOutput;
+        vm.assume(originalPurchaseTime < type(uint32).max - 1);
+        CrossChainOrder memory order =
+            _getCrossOrder(amount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderPermitOrderHash, DOMAIN_SEPARATOR, address(reactor)
+        );
+
+        bytes memory customFillerData = FillerDataLib._encode1(fillerAddress, originalPurchaseTime, discount);
+        MockERC20(collateralToken).mint(fillerAddress, fillerCollateralAmount);
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, customFillerData);
+
+        vm.startPrank(buyer);
+        vm.warp(originalPurchaseTime + 1);
+        vm.expectRevert(abi.encodeWithSignature("PurchaseTimePassed()"));
+        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
     }
 
     //--- Helpers ---//

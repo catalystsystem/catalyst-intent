@@ -38,14 +38,14 @@ import {
     WrongOrderStatus
 } from "../interfaces/Errors.sol";
 import {
+    FraudAccepted,
     OptimisticPayout,
     OrderChallenged,
     OrderClaimed,
     OrderFilled,
     OrderPurchaseDetailsModified,
     OrderPurchased,
-    OrderVerify,
-    FraudAccepted
+    OrderVerify
 } from "../interfaces/Events.sol";
 
 /**
@@ -501,10 +501,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         orderContext.status = OrderStatus.OPFilled;
 
         // If time is post challenge deadline, then the order can only progress to optimistic payout.
-        uint256 challengedeadline = orderKey.reactorContext.challengeDeadline;
-        if (block.timestamp <= challengedeadline) {
+        uint256 challengeDeadline = orderKey.reactorContext.challengeDeadline;
+        if (block.timestamp <= challengeDeadline) {
             unchecked {
-                revert OrderNotReadyForOptimisticPayout(uint32(challengedeadline - block.timestamp + 1));
+                revert OrderNotReadyForOptimisticPayout(uint32(challengeDeadline - block.timestamp + 1));
             }
         }
 
@@ -581,7 +581,12 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Check if proof deadline has passed. If this is the case, (& the order hasn't been proven)
         // it has to be assumed that the order was not filled.
-        if (orderKey.reactorContext.proofDeadline >= uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
+        uint256 proofDeadline = orderKey.reactorContext.proofDeadline;
+        if (block.timestamp <= proofDeadline) {
+            unchecked {
+                revert ProofPeriodHasNotPassed(uint32(proofDeadline - block.timestamp + 1));
+            }
+        }
 
         // Check that the order is currently challenged. If is it currently challenged,
         // it implies that the fulfillment was not proven. Additionally, since the Challenge order status

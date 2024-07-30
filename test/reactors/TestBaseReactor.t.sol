@@ -567,9 +567,15 @@ abstract contract TestBaseReactor is Test {
 
         uint256 amountAfterDiscount = amount - uint256(amount) * discount / uint256(type(uint16).max);
         vm.expectCall(
-            collateralToken, abi.encodeWithSignature("transferFrom(address,address,uint256)", buyer, fillerAddress, fillerCollateralAmount)
+            collateralToken,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)", buyer, fillerAddress, fillerCollateralAmount
+            )
         );
-        vm.expectCall(inputToken, abi.encodeWithSignature("transferFrom(address,address,uint256)", buyer, fillerAddress, amountAfterDiscount));
+        vm.expectCall(
+            inputToken,
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", buyer, fillerAddress, amountAfterDiscount)
+        );
         vm.expectEmit();
         emit Transfer(buyer, fillerAddress, fillerCollateralAmount);
         vm.expectEmit();

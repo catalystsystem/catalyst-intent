@@ -36,7 +36,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         if (uint32(block.chainid) != output.chainId) revert WrongChain();
 
         // Check if this has already been filled. If it hasn't return set = false.
-        bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
+        bytes32 outputHash = _outputHash(output);
 
         // Get the proof state of the fulfillment.
         bool proofState = _provenOutput[outputHash][fillTime][bytes32(0)];

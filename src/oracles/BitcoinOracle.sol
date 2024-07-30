@@ -33,6 +33,7 @@ contract BitcoinOracle is BaseOracle {
     error BadDestinationIdentifier();
     error BadAmount();
     error BadTokenFormat();
+    error BlockhashMismatch(bytes32 actual, bytes32 proposed);
 
     bytes32 constant BITCOIN_DESTINATION_Identifier = bytes32(uint256(0x0B17C012)); // Bitcoin
 
@@ -44,8 +45,16 @@ contract BitcoinOracle is BaseOracle {
         mirror = _mirror;
     }
 
+    function _getTimestampOfBlock(bytes calldata blockHeader) internal pure returns (uint256 timestamp) {
+        uint32 time = uint32(bytes4(blockHeader[68:68 + 4]));
+        timestamp = Endian.reverse32(time);
+    }
+
+    /**
+     * @notice Returns the associated Bitcoin script given an order token (sets for Bitcoin) & destination (scriptHash)
+     */
     function _bitcoinScript(bytes32 token, bytes32 scriptHash) internal pure returns (bytes memory script) {
-        // TODO: Check the 12'th byte (as if it was an address?)
+        // TODO: Move the check to the 12'th byte instead of 1'st. (as if it was an address)
         // Check for the Bitcoin signifier:
         if (bytes1(token) != BITCOIN_PREFIX) revert BadTokenFormat();
 
@@ -54,21 +63,25 @@ contract BitcoinOracle is BaseOracle {
         return BtcScript.getBitcoinScript(bitcoinAddressType, scriptHash);
     }
 
-    // TODO: Implement a way to provide the previous block header.
-    // This will give us a better way to determine when transaction was originated.
-    function _verifyPayment(
+    /**
+     * @notice Validate the underlying Bitcoin payment. Does not return when it happened.
+     */
+    function _validateUnderlyingPayment(
         uint256 minConfirmations,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
         bytes memory outputScript
-    ) internal view returns (uint256 sats, uint256 timestamp) {
+    ) internal view returns (uint256 sats) {
+        // Isolate correct height check. This decreases gas cost slightly.
         {
             uint256 currentHeight = mirror.getLatestBlockHeight();
 
             if (currentHeight < blockNum) revert NoBlock(currentHeight, blockNum);
 
             unchecked {
+                // Unchecked: currentHeight >= blockNum => currentHeight - blockNum >= 0
+                // Bitcoin block heights are smaller than timestamp :)
                 if (currentHeight + 1 - blockNum < minConfirmations) {
                     revert TooFewConfirmations(currentHeight + 1 - blockNum, minConfirmations);
                 }
@@ -81,11 +94,49 @@ contract BitcoinOracle is BaseOracle {
         (sats, txOutScript) = BtcProof.validateTx(blockHash, inclusionProof, txOutIx);
 
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
+    }
 
-        // TODO: Get timestamp of previous block. This is pretty hard but doable. It requires us to get the "relevant" header and then check if that is a valid block.
-        uint256 ixT = inclusionProof.blockHeader.length - 12;
-        uint32 time = uint32(bytes4(inclusionProof.blockHeader[ixT:ixT + 4]));
-        timestamp = Endian.reverse32(time);
+    /**
+     * @notice Verifies a payment and returns the time of the block it happened in.
+     */
+    function _verifyPayment(
+        uint256 minConfirmations,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx,
+        bytes memory outputScript
+    ) internal view returns (uint256 sats, uint256 timestamp) {
+        sats = _validateUnderlyingPayment(minConfirmations, blockNum, inclusionProof, txOutIx, outputScript);
+
+        // Get the timestamp of the block we validated it for.
+        timestamp = _getTimestampOfBlock(inclusionProof.blockHeader);
+    }
+
+    /**
+     * @notice Verifies a payment and returns the time of the block before it happened.
+     * This allows one to properly match a transaction against an order if no Bitcoin block happened for a long period of time.
+     * @dev
+     */
+    function _verifyPayment(
+        uint256 minConfirmations,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx,
+        bytes memory outputScript,
+        bytes calldata previousBlockHeader
+    ) internal view returns (uint256 sats, uint256 timestamp) {
+        sats = _validateUnderlyingPayment(minConfirmations, blockNum, inclusionProof, txOutIx, outputScript);
+
+        // Get block hash of the previousBlockHeader.
+        bytes32 proposedPreviousBlockHash = BtcProof.getBlockHash(previousBlockHeader);
+        // Load the actual previous block hash from the header of the block we just proved.
+        bytes32 actualPreviousBlockHash = bytes32(Endian.reverse256(uint256(bytes32(inclusionProof.blockHeader[4:36]))));
+        if (actualPreviousBlockHash != proposedPreviousBlockHash) {
+            revert BlockhashMismatch(actualPreviousBlockHash, proposedPreviousBlockHash);
+        }
+
+        // Get the timestamp of the block we validated it for.
+        timestamp = _getTimestampOfBlock(previousBlockHeader);
     }
 
     // TODO: convert to verifying a single output + some identifier.
@@ -107,7 +158,7 @@ contract BitcoinOracle is BaseOracle {
 
         if (sats != output.amount) revert BadAmount();
 
-        bytes32 outputHash = _outputHash(output, bytes32(0)); // TODO: salt
+        bytes32 outputHash = _outputHash(output); // TODO: salt
         _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
 }

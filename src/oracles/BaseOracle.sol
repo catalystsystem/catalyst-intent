@@ -38,7 +38,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     function _isProven(Output calldata output, uint32 fillTime, bytes32 oracle) internal view returns (bool proven) {
-        bytes32 outputHash = _outputHash(output, bytes32(0));
+        bytes32 outputHash = _outputHash(output);
         return _provenOutput[outputHash][fillTime][oracle];
     }
 
@@ -57,15 +57,14 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     /**
-     * TODO: define an output salt which is some value (time + nonce?) that allows us to
      * discriminate between different outputs in time & space.
      */
-    function _outputHash(Output calldata output, bytes32 outputSalt) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+    function _outputHash(Output calldata output) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
     }
 
-    function _outputHashM(Output memory output, bytes32 outputSalt) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output), outputSalt)); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+    function _outputHashM(Output memory output) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
     }
 
     function _validateTimestamp(uint32 timestamp, uint32 fillTime) internal pure {
@@ -137,7 +136,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             // TODO: unify chainIdentifiers. (types)
             if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain();
             uint32 fillTime = fillTimes[i];
-            bytes32 outputHash = _outputHashM(output, bytes32(0)); // TODO: salt
+            bytes32 outputHash = _outputHashM(output);
             _provenOutput[outputHash][fillTime][bytes32(fromApplication)] = true;
         }
 

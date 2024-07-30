@@ -77,6 +77,8 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
     ISignatureTransfer public immutable PERMIT2;
 
+    bytes32 public constant VERSION_FLAGS = bytes32(uint256(1));
+
     /**
      * @notice Maps an orderkey hash to the relevant orderContext.
      */

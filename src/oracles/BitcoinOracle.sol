@@ -115,7 +115,6 @@ contract BitcoinOracle is BaseOracle {
     /**
      * @notice Verifies a payment and returns the time of the block before it happened.
      * This allows one to properly match a transaction against an order if no Bitcoin block happened for a long period of time.
-     * @dev
      */
     function _verifyPayment(
         uint256 minConfirmations,
@@ -158,7 +157,7 @@ contract BitcoinOracle is BaseOracle {
 
         if (sats != output.amount) revert BadAmount();
 
-        bytes32 outputHash = _outputHash(output); // TODO: salt
+        bytes32 outputHash = _outputHash(output);
         _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
 }

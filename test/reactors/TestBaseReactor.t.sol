@@ -26,7 +26,13 @@ import {
     OrderAlreadyClaimed
 } from "../../src/interfaces/Errors.sol";
 
-import { FraudAccepted, OptimisticPayout, OrderChallenged, OrderPurchased } from "../../src/interfaces/Events.sol";
+import {
+    FraudAccepted,
+    OptimisticPayout,
+    OrderChallenged,
+    OrderPurchaseDetailsModified,
+    OrderPurchased
+} from "../../src/interfaces/Events.sol";
 
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 
@@ -67,10 +73,8 @@ abstract contract TestBaseReactor is Test {
     modifier approvedAndMinted(address _user, address _token, uint256 _amount) {
         vm.prank(_user);
         MockERC20(_token).approve(permit2, type(uint256).max);
-        vm.prank(fillerAddress);
-        MockERC20(tokenToSwapOutput).approve(address(reactor), type(uint256).max);
-        vm.prank(fillerAddress);
-        MockERC20(tokenToSwapInput).approve(address(reactor), type(uint256).max);
+        _approveReactor(fillerAddress, tokenToSwapInput, type(uint256).max);
+        _approveReactor(fillerAddress, tokenToSwapOutput, type(uint256).max);
         MockERC20(_token).mint(_user, _amount);
         MockERC20(tokenToSwapOutput).mint(fillerAddress, 20 ether);
         _;
@@ -340,9 +344,7 @@ abstract contract TestBaseReactor is Test {
         uint256 amount,
         uint32 challengeDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        uint32 fillDeadline = DEFAULT_FILL_DEADLINE;
-        vm.assume(fillDeadline < challengeDeadline);
-        vm.assume(challengeDeadline < type(uint32).max - 1 hours);
+        _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
@@ -645,7 +647,170 @@ abstract contract TestBaseReactor is Test {
         reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
     }
 
+    //--- Purchase Orders ---//
+
+    function test_revert_opFilled_purchase_order(
+        uint256 amount,
+        uint32 challengeDeadline
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            amount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            challengeDeadline,
+            challengeDeadline + 1 hours
+        );
+        vm.warp(challengeDeadline + 1);
+        reactor.optimisticPayout(orderKey);
+
+        address purchaser = address(2);
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
+        vm.prank(purchaser);
+        reactor.purchaseOrder(orderKey, 0, 0);
+    }
+
+    function test_test_time_passed_purchase(
+        uint160 amount,
+        uint32 currentBlockTimeStamp,
+        uint32 fillerPurchaseTimeStamp
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        vm.assume(fillerPurchaseTimeStamp <= currentBlockTimeStamp);
+        fillerData = FillerDataLib._encode1(fillerAddress, fillerPurchaseTimeStamp, 0);
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            amount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+
+        vm.warp(currentBlockTimeStamp);
+
+        address purchaser = address(2);
+        vm.expectRevert(abi.encodeWithSignature("PurchaseTimePassed()"));
+        vm.prank(purchaser);
+        reactor.purchaseOrder(orderKey, 0, 0);
+    }
+
+    function test_purchase_order(
+        uint160 amount,
+        uint16 discount,
+        uint32 purchaseDeadline
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        vm.assume(discount > 0);
+        vm.assume(purchaseDeadline > block.timestamp);
+        fillerData = FillerDataLib._encode1(fillerAddress, purchaseDeadline, discount);
+        address collateralToken = tokenToSwapOutput;
+
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            amount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        address purchaser = address(2);
+
+        _approveReactor(purchaser, collateralToken, type(uint256).max);
+        _approveReactor(purchaser, tokenToSwapInput, type(uint256).max);
+
+        MockERC20(collateralToken).mint(purchaser, DEFAULT_COLLATERAL_AMOUNT);
+        MockERC20(tokenToSwapInput).mint(purchaser, amount);
+        uint256 amountAfterDiscount = amount;
+        if (amountAfterDiscount < type(uint256).max / uint256(discount)) {
+            amountAfterDiscount -= (amountAfterDiscount * uint256(discount)) / type(uint16).max;
+        }
+
+        vm.expectCall(
+            collateralToken,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)", purchaser, fillerAddress, DEFAULT_COLLATERAL_AMOUNT
+            )
+        );
+
+        vm.expectCall(
+            tokenToSwapInput,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)", purchaser, fillerAddress, amountAfterDiscount
+            )
+        );
+        vm.expectEmit();
+        emit OrderPurchased(orderHash, purchaser);
+        vm.prank(purchaser);
+        reactor.purchaseOrder(orderKey, purchaseDeadline, discount);
+    }
+
+    //--- Modify Orders ---//
+
+    function test_modify_order(
+        uint256 amount,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            amount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        vm.expectEmit();
+        emit OrderPurchaseDetailsModified(orderHash, newPurchaseDeadline, newOrderDiscount);
+        vm.prank(fillerAddress);
+        reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+    }
+
+    function test_revert_nonFiller_modify(
+        uint256 amount,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            amount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+        vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
+        address malleciousModifier = address(2);
+        vm.prank(malleciousModifier);
+        reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+    }
+
     //--- Helpers ---//
+
+    function _approveReactor(address _tokensHolder, address _token, uint256 _amount) internal {
+        vm.prank(_tokensHolder);
+        MockERC20(_token).approve(address(reactor), _amount);
+    }
+
+    function _assumeValidDeadline(uint32 fillDeadline, uint32 challengeDeadline) internal pure {
+        vm.assume(fillDeadline < challengeDeadline);
+        vm.assume(challengeDeadline < type(uint32).max - 1 hours);
+    }
 
     function _orderType() internal virtual returns (bytes memory);
 

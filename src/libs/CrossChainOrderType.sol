@@ -6,7 +6,7 @@ import { CrossChainOrder, Input, Output } from "../interfaces/ISettlementContrac
 library CrossChainOrderType {
     bytes constant CROSS_CHAIN_ORDER_TYPE_STUB = abi.encodePacked(
         "CrossChainOrder(",
-        "address settlerContract,",
+        "address settlementContract,",
         "address swapper,",
         "uint256 nonce,",
         "uint32 originChainId,",
@@ -26,12 +26,11 @@ library CrossChainOrderType {
     }
 
     function hashInput(Input memory input) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(INPUT_TYPE_STUB, input.token, input.amount));
+        return keccak256(abi.encode(INPUT_TYPE_STUB, input.token, input.amount));
     }
 
     function hashOutput(Output memory output) internal pure returns (bytes32) {
-        return
-            keccak256(abi.encodePacked(OUTPUT_TYPE_STUB, output.token, output.amount, output.recipient, output.chainId));
+        return keccak256(abi.encode(OUTPUT_TYPE_STUB, output.token, output.amount, output.recipient, output.chainId));
     }
 
     function hashInputs(Input[] memory inputs) internal pure returns (bytes32) {
@@ -68,14 +67,14 @@ library CrossChainOrderType {
         bytes32 orderDataHash
     ) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 orderTypeHash,
-                bytes20(order.settlementContract),
-                bytes20(order.swapper),
-                bytes32(order.nonce),
-                bytes4(order.originChainId),
-                bytes4(order.initiateDeadline),
-                bytes4(order.fillDeadline),
+                order.settlementContract,
+                order.swapper,
+                order.nonce,
+                order.originChainId,
+                order.initiateDeadline,
+                order.fillDeadline,
                 orderDataHash
             )
         );

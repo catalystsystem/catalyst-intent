@@ -47,18 +47,18 @@ library CrossChainDutchOrderType {
 
     function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
-                bytes4(orderData.slopeStartingTime),
-                bytes32(uint256(orderData.inputSlope)),
-                bytes32(uint256(orderData.outputSlope)),
+                orderData.slopeStartingTime,
+                orderData.inputSlope,
+                orderData.outputSlope,
                 CrossChainOrderType.hashInput(orderData.input),
                 CrossChainOrderType.hashOutput(orderData.output)
             )
@@ -67,18 +67,18 @@ library CrossChainDutchOrderType {
 
     function hashOrderData(DutchOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
-                bytes4(orderData.slopeStartingTime),
-                bytes32(uint256(orderData.inputSlope)),
-                bytes32(uint256(orderData.outputSlope)),
+                orderData.slopeStartingTime,
+                orderData.inputSlope,
+                orderData.outputSlope,
                 CrossChainOrderType.hashInput(orderData.input),
                 CrossChainOrderType.hashOutput(orderData.output)
             )

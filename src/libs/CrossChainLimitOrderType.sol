@@ -45,14 +45,14 @@ library CrossChainLimitOrderType {
 
     function hashOrderDataM(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
@@ -62,14 +62,14 @@ library CrossChainLimitOrderType {
 
     function hashOrderData(LimitOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)

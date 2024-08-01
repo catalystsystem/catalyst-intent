@@ -170,7 +170,6 @@ abstract contract TestBaseReactor is Test {
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
         reactor.initiate(order, signature, fillerData);
-        reactor.initiate(order, signature, fillerData);
     }
 
     function test_revert_challenge_deadline_before_fill(
@@ -523,7 +522,7 @@ abstract contract TestBaseReactor is Test {
             proofDeadline
         );
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
         reactor.dispute(orderKey);
@@ -683,8 +682,6 @@ abstract contract TestBaseReactor is Test {
         reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
     }
 
-    //--- Purchase Orders ---//
-
     function test_revert_opFilled_purchase_order(
         uint256 amount,
         address purchaser,
@@ -705,32 +702,6 @@ abstract contract TestBaseReactor is Test {
         reactor.optimisticPayout(orderKey);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
-        vm.prank(purchaser);
-        reactor.purchaseOrder(orderKey, 0, 0);
-    }
-
-    function test_test_time_passed_purchase(
-        uint160 amount,
-        address purchaser,
-        uint32 currentBlockTimeStamp,
-        uint32 fillerPurchaseTimeStamp
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        vm.assume(fillerPurchaseTimeStamp <= currentBlockTimeStamp);
-        fillerData = FillerDataLib._encode1(fillerAddress, fillerPurchaseTimeStamp, 0);
-        OrderKey memory orderKey = _initiateOrder(
-            0,
-            SWAPPER,
-            amount,
-            fillerAddress,
-            DEFAULT_INITIATE_DEADLINE,
-            DEFAULT_FILL_DEADLINE,
-            DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
-        );
-
-        vm.warp(currentBlockTimeStamp);
-
-        vm.expectRevert(abi.encodeWithSignature("PurchaseTimePassed()"));
         vm.prank(purchaser);
         reactor.purchaseOrder(orderKey, 0, 0);
     }

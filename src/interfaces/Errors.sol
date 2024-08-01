@@ -10,7 +10,7 @@ error WrongOrderStatus(OrderStatus actual);
 error NonceClaimed();
 error NotOracle();
 error ChallengeDeadlinePassed();
-error ProofPeriodHasNotPassed();
+error ProofPeriodHasNotPassed(uint32 timeRemaining);
 error OrderNotReadyForOptimisticPayout(uint32 timeRemaining);
 error OnlyFiller();
 error CannotProveOrder();

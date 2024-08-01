@@ -38,14 +38,14 @@ import {
     WrongOrderStatus
 } from "../interfaces/Errors.sol";
 import {
+    FraudAccepted,
     OptimisticPayout,
     OrderChallenged,
     OrderClaimed,
     OrderFilled,
     OrderPurchaseDetailsModified,
     OrderPurchased,
-    OrderVerify,
-    FraudAccepted
+    OrderVerify
 } from "../interfaces/Events.sol";
 
 /**
@@ -76,6 +76,8 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
     using Permit2Lib for OrderKey;
 
     ISignatureTransfer public immutable PERMIT2;
+
+    bytes32 public constant VERSION_FLAGS = bytes32(uint256(1));
 
     /**
      * @notice Maps an orderkey hash to the relevant orderContext.
@@ -148,12 +150,12 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
                 Input calldata input = inputs[i];
                 address token = input.token;
                 uint256 amount = input.amount;
-                // Check if multiplication overflows.
-                if (amount < type(uint256).max / uint256(discount)) {
-                    // amount * discount does not overflow since amount < type(uint256).max / uint256(discount) => amount * uint256(discount) < type(uint256).max.
-                    // discount is bounded by type(uint16).max.
-                    amount -= (amount * uint256(discount)) / type(uint16).max;
-                }
+                // If discount == 0, then set amount to amount.
+                // If the discount subtraction overflows, also set the amount to amount.
+                // Otherwise, compute the discount as: amount - (amount * uint256(discount)) / uint256(type(uint16).max)
+                amount = (discount != 0 && amount < type(uint256).max / uint256(discount))
+                    ? amount - (amount * uint256(discount)) / uint256(type(uint16).max)
+                    : amount;
                 // Inputs have already been collected before. No need to verify if these are actual tokens.
                 SafeTransferLib.safeTransferFrom(token, from, to, amount);
             }
@@ -382,13 +384,14 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         }
 
         // The order cannot be purchased after the max time specified to be sold at has passed
-        if (orderContext.orderPurchaseDeadline <= block.timestamp) {
+        if (orderContext.orderPurchaseDeadline < block.timestamp) {
             revert PurchaseTimePassed();
         }
 
         // Load old storage variables.
         address oldFillerAddress = orderContext.fillerAddress;
-        uint16 oldOrderDiscount = orderContext.orderDiscount = newOrderDiscount;
+        uint16 oldOrderDiscount = orderContext.orderDiscount;
+        orderContext.orderDiscount = newOrderDiscount;
 
         // We can now update the storage with the new filler data.
         // This allows us to avoid reentry protecting this function.
@@ -501,10 +504,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         orderContext.status = OrderStatus.OPFilled;
 
         // If time is post challenge deadline, then the order can only progress to optimistic payout.
-        uint256 challengedeadline = orderKey.reactorContext.challengeDeadline;
-        if (block.timestamp <= challengedeadline) {
+        uint256 challengeDeadline = orderKey.reactorContext.challengeDeadline;
+        if (block.timestamp <= challengeDeadline) {
             unchecked {
-                revert OrderNotReadyForOptimisticPayout(uint32(challengedeadline - block.timestamp + 1));
+                revert OrderNotReadyForOptimisticPayout(uint32(challengeDeadline - block.timestamp + 1));
             }
         }
 
@@ -581,7 +584,12 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Check if proof deadline has passed. If this is the case, (& the order hasn't been proven)
         // it has to be assumed that the order was not filled.
-        if (orderKey.reactorContext.proofDeadline >= uint40(block.timestamp)) revert ProofPeriodHasNotPassed();
+        uint256 proofDeadline = orderKey.reactorContext.proofDeadline;
+        if (block.timestamp <= proofDeadline) {
+            unchecked {
+                revert ProofPeriodHasNotPassed(uint32(proofDeadline - block.timestamp + 1));
+            }
+        }
 
         // Check that the order is currently challenged. If is it currently challenged,
         // it implies that the fulfillment was not proven. Additionally, since the Challenge order status

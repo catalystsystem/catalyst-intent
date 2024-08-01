@@ -104,8 +104,18 @@ contract TestLimitOrder is TestBaseReactor {
 
     function test_not_enough_balance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
         uint256 amountToTransfer = uint256(amount) + DEFAULT_COLLATERAL_AMOUNT;
-        CrossChainOrder memory order =
-            _getCrossOrder(amountToTransfer, 0, SWAPPER, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0);
+        CrossChainOrder memory order = _getCrossOrder(
+            amountToTransfer,
+            0,
+            SWAPPER,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
+            5,
+            6,
+            10,
+            11,
+            0
+        );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
@@ -126,8 +136,9 @@ contract TestLimitOrder is TestBaseReactor {
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, amount);
-        CrossChainOrder memory order =
-            _getCrossOrder(amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0);
+        CrossChainOrder memory order = _getCrossOrder(
+            amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0
+        );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);

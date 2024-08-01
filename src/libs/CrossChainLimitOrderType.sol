@@ -30,8 +30,8 @@ library CrossChainLimitOrderType {
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
         "bytes32 remoteOracle,",
-        "Input[] input,",
-        "Output[] output",
+        "Input[] inputs,",
+        "Output[] outputs",
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB

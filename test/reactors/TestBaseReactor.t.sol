@@ -651,6 +651,7 @@ abstract contract TestBaseReactor is Test {
 
     function test_revert_opFilled_purchase_order(
         uint256 amount,
+        address purchaser,
         uint32 challengeDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
         _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
@@ -667,7 +668,6 @@ abstract contract TestBaseReactor is Test {
         vm.warp(challengeDeadline + 1);
         reactor.optimisticPayout(orderKey);
 
-        address purchaser = address(2);
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
         vm.prank(purchaser);
         reactor.purchaseOrder(orderKey, 0, 0);
@@ -675,6 +675,7 @@ abstract contract TestBaseReactor is Test {
 
     function test_test_time_passed_purchase(
         uint160 amount,
+        address purchaser,
         uint32 currentBlockTimeStamp,
         uint32 fillerPurchaseTimeStamp
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
@@ -693,7 +694,6 @@ abstract contract TestBaseReactor is Test {
 
         vm.warp(currentBlockTimeStamp);
 
-        address purchaser = address(2);
         vm.expectRevert(abi.encodeWithSignature("PurchaseTimePassed()"));
         vm.prank(purchaser);
         reactor.purchaseOrder(orderKey, 0, 0);
@@ -701,6 +701,7 @@ abstract contract TestBaseReactor is Test {
 
     function test_purchase_order(
         uint160 amount,
+        address purchaser,
         uint16 discount,
         uint32 purchaseDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
@@ -721,8 +722,6 @@ abstract contract TestBaseReactor is Test {
         );
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
-
-        address purchaser = address(2);
 
         _approveReactor(purchaser, collateralToken, type(uint256).max);
         _approveReactor(purchaser, tokenToSwapInput, type(uint256).max);
@@ -781,9 +780,11 @@ abstract contract TestBaseReactor is Test {
 
     function test_revert_nonFiller_modify(
         uint256 amount,
+        address malleciousModifier,
         uint32 newPurchaseDeadline,
         uint16 newOrderDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+        vm.assume(malleciousModifier != fillerAddress);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
@@ -795,7 +796,6 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_PROOF_DEADLINE
         );
         vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
-        address malleciousModifier = address(2);
         vm.prank(malleciousModifier);
         reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
     }

@@ -160,4 +160,27 @@ contract BitcoinOracle is BaseOracle {
         bytes32 outputHash = _outputHash(output);
         _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
+
+    function _verify(
+        Output calldata output,
+        uint32 fillTime,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx,
+        bytes calldata previousBlockHeader
+    ) internal {
+        if (output.chainId != block.chainid) revert BadDestinationIdentifier();
+
+        bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
+
+        (uint256 sats, uint256 timestamp) =
+            _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript, previousBlockHeader);
+
+        _validateTimestamp(uint32(timestamp), fillTime);
+
+        if (sats != output.amount) revert BadAmount();
+
+        bytes32 outputHash = _outputHash(output);
+        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
+    }
 }

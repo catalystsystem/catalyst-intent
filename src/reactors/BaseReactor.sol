@@ -252,6 +252,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.
+        // todo: Maybe store another collateral refund address?
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
         );

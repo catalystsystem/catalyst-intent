@@ -109,7 +109,7 @@ contract TestLimitOrder is TestBaseReactor {
             0,
             SWAPPER,
             DEFAULT_COLLATERAL_AMOUNT,
-            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
             5,
             6,
             10,
@@ -137,7 +137,7 @@ contract TestLimitOrder is TestBaseReactor {
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, amount);
         CrossChainOrder memory order = _getCrossOrder(
-            amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER, 5, 6, 10, 11, 0
+            amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT, 5, 6, 10, 11, 0
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -173,7 +173,7 @@ contract TestLimitOrder is TestBaseReactor {
             0,
             _swapper,
             DEFAULT_COLLATERAL_AMOUNT,
-            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
             initiateDeadline,
             fillDeadline,
             challengeDeadline,

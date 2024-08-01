@@ -56,7 +56,7 @@ contract TestDutchAuction is TestBaseReactor {
             0,
             _swapper,
             DEFAULT_COLLATERAL_AMOUNT,
-            DEFAULT_COLLATERAL_AMOUNT_CHALLENGER,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
             initiateDeadline,
             fillDeadline,
             challengeDeadline,

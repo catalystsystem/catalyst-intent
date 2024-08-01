@@ -51,12 +51,14 @@ abstract contract TestBaseReactor is Test {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
-    uint256 DEFAULT_COLLATERAL_AMOUNT_CHALLENGER = 10 ** 19;
+    uint256 DEFAULT_CHALLENGER_COLLATERAL_AMOUNT = 10 ** 19;
 
     uint32 DEFAULT_INITIATE_DEADLINE = 5;
     uint32 DEFAULT_FILL_DEADLINE = 6;
     uint32 DEFAULT_CHALLENGE_DEADLINE = 10;
     uint32 DEFAULT_PROOF_DEADLINE = 11;
+
+    uint256 DEFAULT_GOVERNANCE_FEE = 10 ** 18 * 0.1;
 
     BaseReactor reactor;
     ReactorHelperConfig reactorHelperConfig;
@@ -168,6 +170,7 @@ abstract contract TestBaseReactor is Test {
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
         reactor.initiate(order, signature, fillerData);
+        reactor.initiate(order, signature, fillerData);
     }
 
     function test_revert_challenge_deadline_before_fill(
@@ -191,6 +194,39 @@ abstract contract TestBaseReactor is Test {
         reactor.initiate(order, signature, fillerData);
     }
 
+    function test_revert_fill_deadline_before_initiate(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint32 fillDeadline,
+        uint32 initiateDeadline
+    ) public {
+        vm.assume(fillDeadline < initiateDeadline);
+
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            initiateDeadline,
+            fillDeadline,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            0
+        );
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+        );
+        vm.expectRevert(InitiateDeadlineAfterFill.selector);
+        reactor.initiate(order, signature, fillerData);
+    }
+
     //--- Dispute ---//
 
     function test_dispute_order(
@@ -211,7 +247,7 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
@@ -221,11 +257,11 @@ abstract contract TestBaseReactor is Test {
                 "transferFrom(address,address,uint256)",
                 challenger,
                 address(reactor),
-                DEFAULT_COLLATERAL_AMOUNT_CHALLENGER
+                DEFAULT_CHALLENGER_COLLATERAL_AMOUNT
             )
         );
         vm.expectEmit();
-        emit Transfer(challenger, address(reactor), DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        emit Transfer(challenger, address(reactor), DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
         vm.expectEmit();
         emit OrderChallenged(orderHash, challenger);
         reactor.dispute(orderKey);
@@ -251,7 +287,7 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_PROOF_DEADLINE
         );
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
@@ -396,7 +432,7 @@ abstract contract TestBaseReactor is Test {
             challengeDeadline + 1 hours
         );
 
-        MockERC20(collateralToken).mint(address(this), DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        MockERC20(collateralToken).mint(address(this), DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
         reactor.dispute(orderKey);
@@ -427,7 +463,7 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_COLLATERAL_AMOUNT_CHALLENGER);
+        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
         reactor.dispute(orderKey);
@@ -438,7 +474,7 @@ abstract contract TestBaseReactor is Test {
 
         uint256 fillCollateral = DEFAULT_COLLATERAL_AMOUNT;
         uint256 collateralForSwapper = fillCollateral / 2;
-        uint256 collateralForChallenger = fillCollateral - collateralForSwapper + DEFAULT_COLLATERAL_AMOUNT_CHALLENGER;
+        uint256 collateralForChallenger = fillCollateral - collateralForSwapper + DEFAULT_CHALLENGER_COLLATERAL_AMOUNT;
 
         // Check that the input is delivered back.
         vm.expectCall(inputToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, amount));
@@ -798,6 +834,36 @@ abstract contract TestBaseReactor is Test {
         vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
         vm.prank(malleciousModifier);
         reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+    }
+
+    //--- Resolve Orders ---//
+    function test_resolve_order(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        address recipient,
+        uint256 fillerAmount,
+        uint256 challengerAmount,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
+        uint256 nonce
+    ) public {
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount,
+            outputAmount,
+            recipient,
+            fillerAmount,
+            challengerAmount,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline,
+            nonce
+        );
+        vm.prank(reactor.owner());
+        reactor.setGovernanceFee(DEFAULT_GOVERNANCE_FEE);
+        reactor.resolve(order, fillerData);
     }
 
     //--- Helpers ---//

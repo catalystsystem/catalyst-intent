@@ -33,8 +33,8 @@ library CrossChainLimitOrderType {
         "Input[] input,",
         "Output[] output",
         ")",
-        CrossChainOrderType.OUTPUT_TYPE_STUB,
-        CrossChainOrderType.INPUT_TYPE_STUB
+        CrossChainOrderType.INPUT_TYPE_STUB,
+        CrossChainOrderType.OUTPUT_TYPE_STUB
     );
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);

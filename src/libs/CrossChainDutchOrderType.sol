@@ -36,8 +36,8 @@ library CrossChainDutchOrderType {
         "Input input,",
         "Output output",
         ")",
-        CrossChainOrderType.OUTPUT_TYPE_STUB,
-        CrossChainOrderType.INPUT_TYPE_STUB
+        CrossChainOrderType.INPUT_TYPE_STUB,
+        CrossChainOrderType.OUTPUT_TYPE_STUB
     );
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 

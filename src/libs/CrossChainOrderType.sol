@@ -26,11 +26,13 @@ library CrossChainOrderType {
     }
 
     function hashInput(Input memory input) internal pure returns (bytes32) {
-        return keccak256(abi.encode(INPUT_TYPE_STUB, input.token, input.amount));
+        return keccak256(abi.encode(keccak256(INPUT_TYPE_STUB), input.token, input.amount));
     }
 
     function hashOutput(Output memory output) internal pure returns (bytes32) {
-        return keccak256(abi.encode(OUTPUT_TYPE_STUB, output.token, output.amount, output.recipient, output.chainId));
+        return keccak256(
+            abi.encode(keccak256(OUTPUT_TYPE_STUB), output.token, output.amount, output.recipient, output.chainId)
+        );
     }
 
     function hashInputs(Input[] memory inputs) internal pure returns (bytes32) {

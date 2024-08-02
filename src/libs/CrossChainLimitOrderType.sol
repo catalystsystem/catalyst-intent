@@ -24,7 +24,7 @@ library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
         "LimitOrderData(",
         "uint32 proofDeadline,",
-        "uint32 challengeDeadline",
+        "uint32 challengeDeadline,",
         "address collateralToken,",
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",

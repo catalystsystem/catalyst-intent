@@ -24,7 +24,7 @@ library CrossChainDutchOrderType {
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
         "DutchOrderData(",
         "uint32 proofDeadline,",
-        "uint32 challengeDeadline",
+        "uint32 challengeDeadline,",
         "address collateralToken,",
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",

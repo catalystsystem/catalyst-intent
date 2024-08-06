@@ -22,11 +22,11 @@ library OrderDataBuilder {
         uint32 challengeDeadline,
         address localOracle,
         address remoteOracle
-    ) internal pure returns (LimitOrderData memory limitOrderData) {
+    ) internal view returns (LimitOrderData memory limitOrderData) {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         Output[] memory outputs = new Output[](1);
-        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, 0);
+        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
 
         limitOrderData = LimitOrderData({
             proofDeadline: proofDeadline,
@@ -35,7 +35,38 @@ library OrderDataBuilder {
             fillerCollateralAmount: fillerCollateralAmount,
             challengerCollateralAmount: challengerCollateralAmount,
             localOracle: localOracle,
-            remoteOracle: bytes32(abi.encode(remoteOracle)),
+            remoteOracle: bytes32(uint256(uint160(remoteOracle))),
+            inputs: inputs,
+            outputs: outputs
+        });
+    }
+
+    function getLimitMultipleOrders(
+        address tokenToSwapInput,
+        address tokenToSwapOutput,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        address recipient,
+        address collateralToken,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
+        uint32 proofDeadline,
+        uint32 challengeDeadline,
+        address localOracle,
+        address remoteOracle,
+        uint256 length
+    ) internal view returns (LimitOrderData memory limitOrderData) {
+        Input[] memory inputs = getInputs(tokenToSwapInput, inputAmount, length);
+        Output[] memory outputs = getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), length);
+
+        limitOrderData = LimitOrderData({
+            proofDeadline: proofDeadline,
+            challengeDeadline: challengeDeadline,
+            collateralToken: collateralToken,
+            fillerCollateralAmount: fillerCollateralAmount,
+            challengerCollateralAmount: challengerCollateralAmount,
+            localOracle: localOracle,
+            remoteOracle: bytes32(uint256(uint160(remoteOracle))),
             inputs: inputs,
             outputs: outputs
         });
@@ -54,9 +85,9 @@ library OrderDataBuilder {
         uint32 challengeDeadline,
         address localOracle,
         address remoteOracle
-    ) internal pure returns (DutchOrderData memory dutchOrderData) {
+    ) internal view returns (DutchOrderData memory dutchOrderData) {
         Input memory input = getInput(tokenToSwapInput, inputAmount);
-        Output memory output = getOutput(tokenToSwapOutput, outputAmount, recipient, 0);
+        Output memory output = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
         dutchOrderData = DutchOrderData({
             proofDeadline: proofDeadline,
             challengeDeadline: challengeDeadline,
@@ -89,5 +120,29 @@ library OrderDataBuilder {
             recipient: bytes32(abi.encode(recipient)),
             chainId: chainId
         });
+    }
+
+    function getOutputs(
+        address tokenToSwapOutput,
+        uint256 outputAmount,
+        address recipient,
+        uint32 chainId,
+        uint256 length
+    ) internal pure returns (Output[] memory outputs) {
+        outputs = new Output[](length);
+        for (uint256 i; i < length; ++i) {
+            outputs[i] = getOutput(tokenToSwapOutput, outputAmount, recipient, chainId);
+        }
+    }
+
+    function getInputs(
+        address tokenToSwapInput,
+        uint256 inputAmount,
+        uint256 length
+    ) internal pure returns (Input[] memory inputs) {
+        inputs = new Input[](length);
+        for (uint256 i; i < length; ++i) {
+            inputs[i] = getInput(tokenToSwapInput, inputAmount);
+        }
     }
 }

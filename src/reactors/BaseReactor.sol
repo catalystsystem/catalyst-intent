@@ -252,7 +252,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.
-        // todo: Maybe store another collateral refund address?
+        // TODO: Maybe store another collateral refund address?
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
         );
@@ -479,7 +479,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         if (status == OrderStatus.Challenged) {
             // Add collateral amount. Both collaterals were paid in the same tokens.
             // This lets us do only a single transfer call.
-            fillerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
+            fillerCollateralAmount += orderKey.collateral.challengerCollateralAmount;
         }
 
         // Pay collateral tokens

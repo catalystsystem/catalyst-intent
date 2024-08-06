@@ -31,7 +31,16 @@ contract TestDutchAuction is TestBaseReactor {
     function setUp() public {
         DeployDutchOrderReactor deployer = new DeployDutchOrderReactor();
         (reactor, reactorHelperConfig) = deployer.run();
-        (tokenToSwapInput, tokenToSwapOutput, permit2, deployerKey) = reactorHelperConfig.currentConfig();
+        (
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            collateralToken,
+            localVMOracle,
+            remoteVMOracle,
+            escrow,
+            permit2,
+            deployerKey
+        ) = reactorHelperConfig.currentConfig();
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
@@ -42,7 +51,10 @@ contract TestDutchAuction is TestBaseReactor {
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
-        uint256 _amount,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
         address _fillerSender,
         uint32 initiateDeadline,
         uint32 fillDeadline,
@@ -50,11 +62,11 @@ contract TestDutchAuction is TestBaseReactor {
         uint32 proofDeadline
     ) internal virtual override returns (OrderKey memory) {
         CrossChainOrder memory order = _getCrossOrder(
-            _amount,
-            0,
+            _inputAmount,
+            _outputAmount,
             _swapper,
-            DEFAULT_COLLATERAL_AMOUNT,
-            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            _fillerCollateralAmount,
+            _challengerCollateralAmount,
             initiateDeadline,
             fillDeadline,
             challengeDeadline,
@@ -105,13 +117,13 @@ contract TestDutchAuction is TestBaseReactor {
             inputAmount,
             outputAmount,
             recipient,
-            tokenToSwapOutput,
+            collateralToken,
             fillerAmount,
             challengerAmount, // TODO: Is this collateral amount?
             proofDeadline,
             challengeDeadline,
-            address(0),
-            address(0)
+            localVMOracle,
+            remoteVMOracle
         );
 
         order = CrossChainBuilder.getCrossChainOrder(

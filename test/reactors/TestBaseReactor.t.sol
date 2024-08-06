@@ -6,7 +6,7 @@ import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
-import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
@@ -18,8 +18,7 @@ import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessage
 import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 
-import { Bytes65 } from "GeneralisedIncentives/utils/Bytes65.sol";
-import { Test } from "forge-std/Test.sol";
+import { Test, console } from "forge-std/Test.sol";
 
 import { OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 
@@ -33,6 +32,7 @@ import {
 
 import {
     FraudAccepted,
+    GovernanceFeeChanged,
     OptimisticPayout,
     OrderChallenged,
     OrderPurchaseDetailsModified,
@@ -50,7 +50,7 @@ interface Permit2DomainSeparator {
 
 event Transfer(address indexed from, address indexed to, uint256 amount);
 
-abstract contract TestBaseReactor is Test, Bytes65 {
+abstract contract TestBaseReactor is Test {
     function test() external { }
 
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
@@ -63,8 +63,7 @@ abstract contract TestBaseReactor is Test, Bytes65 {
     uint32 DEFAULT_CHALLENGE_DEADLINE = 10;
     uint32 DEFAULT_PROOF_DEADLINE = 11;
 
-    uint256 DEFAULT_GOVERNANCE_FEE = 10 ** 18 * 0.1;
-
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25;
     BaseReactor reactor;
     ReactorHelperConfig reactorHelperConfig;
     address tokenToSwapInput;
@@ -887,8 +886,10 @@ abstract contract TestBaseReactor is Test, Bytes65 {
         uint32 fillDeadline,
         uint32 challengeDeadline,
         uint32 proofDeadline,
-        uint256 nonce
+        uint256 nonce,
+        uint256 governanceFee
     ) public {
+        vm.assume(governanceFee > 0 && governanceFee < MAX_GOVERNANCE_FEE);
         CrossChainOrder memory order = _getCrossOrder(
             inputAmount,
             outputAmount,
@@ -901,9 +902,42 @@ abstract contract TestBaseReactor is Test, Bytes65 {
             proofDeadline,
             nonce
         );
+
+        vm.expectEmit();
+        emit GovernanceFeeChanged(0, governanceFee);
         vm.prank(reactor.owner());
-        reactor.setGovernanceFee(DEFAULT_GOVERNANCE_FEE);
-        reactor.resolve(order, fillerData);
+        reactor.setGovernanceFee(governanceFee);
+        ResolvedCrossChainOrder memory actual = reactor.resolve(order, fillerData);
+
+        Input[] memory inputs = OrderDataBuilder.getInputs(tokenToSwapInput, inputAmount, 1);
+        Output[] memory outputs =
+            OrderDataBuilder.getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), 1);
+        Output[] memory fillerOutputs = new Output[](1);
+
+        if (inputAmount < type(uint256).max / governanceFee) {
+            inputAmount = inputAmount - inputAmount * governanceFee / 10 ** 18;
+        }
+
+        fillerOutputs[0] = Output({
+            token: bytes32(uint256(uint160(inputs[0].token))),
+            amount: inputAmount,
+            recipient: bytes32(uint256(uint160(fillerAddress))),
+            chainId: uint32(block.chainid)
+        });
+
+        ResolvedCrossChainOrder memory expected = ResolvedCrossChainOrder({
+            settlementContract: address(reactor),
+            swapper: recipient,
+            nonce: nonce,
+            originChainId: uint32(block.chainid),
+            initiateDeadline: initiateDeadline,
+            fillDeadline: fillDeadline,
+            swapperInputs: inputs,
+            swapperOutputs: outputs,
+            fillerOutputs: fillerOutputs
+        });
+
+        assertEq(keccak256(abi.encode(actual)), keccak256(abi.encode(expected)));
     }
 
     //--- Oracle ---//
@@ -939,9 +973,27 @@ abstract contract TestBaseReactor is Test, Bytes65 {
 
         uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
 
+        vm.expectEmit();
+        emit Transfer(fillerAddress, SWAPPER, outputAmount);
+
+        vm.expectCall(
+            tokenToSwapOutput,
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
+        );
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
 
+        vm.expectCall(
+            collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
+        );
+
+        vm.expectCall(
+            tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
+        );
+
         reactor.oracle(orderKey);
+
+        OrderContext memory orderContext = reactor.getOrderContext(orderKey);
+        assert(orderContext.status == OrderStatus.Filled);
     }
 
     function test_revert_oracle_cannot_be_proven(
@@ -990,8 +1042,19 @@ abstract contract TestBaseReactor is Test, Bytes65 {
 
         uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
 
+        vm.expectEmit();
+        emit Transfer(fillerAddress, SWAPPER, outputAmount);
+
+        vm.expectCall(
+            tokenToSwapOutput,
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
+        );
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
         vm.warp(challengeDeadline + 1);
+        vm.expectEmit();
+        emit OptimisticPayout(orderHash);
         reactor.optimisticPayout(orderKey);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
@@ -1028,10 +1091,21 @@ abstract contract TestBaseReactor is Test, Bytes65 {
             challengeDeadline,
             proofDeadline
         );
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
         MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+        vm.expectCall(
+            collateralToken,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)", challenger, address(reactor), challengerCollateralAmount
+            )
+        );
+        vm.expectEmit();
+        emit Transfer(challenger, address(reactor), challengerCollateralAmount);
+        vm.expectEmit();
+        emit OrderChallenged(orderHash, challenger);
         reactor.dispute(orderKey);
         vm.stopPrank();
 
@@ -1040,9 +1114,34 @@ abstract contract TestBaseReactor is Test, Bytes65 {
 
         uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
 
+        vm.expectEmit();
+        emit Transfer(fillerAddress, SWAPPER, outputAmount);
+
+        vm.expectCall(
+            tokenToSwapOutput,
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
+        );
+
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+
+        vm.expectCall(
+            collateralToken,
+            abi.encodeWithSignature(
+                "transfer(address,uint256)",
+                fillerAddress,
+                uint256(fillerCollateralAmount) + uint256(challengerCollateralAmount)
+            )
+        );
+
+        vm.expectCall(
+            tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
+        );
+
         reactor.oracle(orderKey);
 
+        OrderContext memory orderContext = reactor.getOrderContext(orderKey);
+
+        assert(orderContext.status == OrderStatus.Filled);
         assertEq(MockERC20(collateralToken).balanceOf(fillerAddress), fillerBalanceBefore + challengerCollateralAmount);
     }
 

@@ -6,6 +6,8 @@ import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { LimitOrderReactor } from "../../src/reactors/LimitOrderReactor.sol";
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
+import { MockOracle } from "../mocks/MockOracle.sol";
+
 import { MockUtils } from "../utils/MockUtils.sol";
 
 import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
@@ -44,7 +46,16 @@ contract TestLimitOrder is TestBaseReactor {
     function setUp() public {
         DeployLimitOrderReactor deployer = new DeployLimitOrderReactor();
         (reactor, reactorHelperConfig) = deployer.run();
-        (tokenToSwapInput, tokenToSwapOutput, permit2, deployerKey) = reactorHelperConfig.currentConfig();
+        (
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            collateralToken,
+            localVMOracle,
+            remoteVMOracle,
+            escrow,
+            permit2,
+            deployerKey
+        ) = reactorHelperConfig.currentConfig();
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
@@ -55,11 +66,12 @@ contract TestLimitOrder is TestBaseReactor {
     function test_crossOrder_to_orderKey(
         uint256 inputAmount,
         uint256 outputAmount,
-        uint256 fillerAmount,
-        uint256 challengerAmount
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount) {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 5, 10, 11, 0);
+        uint160 fillerCollateralAmount,
+        uint160 challengerAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerAmount, 1, 5, 10, 11, 0
+        );
 
         OrderKey memory orderKey = reactor.resolveKey(order, hex"");
 
@@ -75,7 +87,7 @@ contract TestLimitOrder is TestBaseReactor {
             token: bytes32(abi.encode(tokenToSwapOutput)),
             amount: outputAmount,
             recipient: bytes32(abi.encode(SWAPPER)),
-            chainId: uint32(0)
+            chainId: uint32(block.chainid)
         });
         Output memory actualOutput = orderKey.outputs[0];
         assertEq(keccak256(abi.encode(actualOutput)), keccak256(abi.encode(expectedOutput)));
@@ -85,36 +97,96 @@ contract TestLimitOrder is TestBaseReactor {
         assertEq(actualSWAPPER, SWAPPER);
 
         //Oracles tests
-        assertEq(orderKey.localOracle, address(0));
-        assertEq(orderKey.remoteOracle, bytes32(0));
+        assertEq(orderKey.localOracle, localVMOracle);
+        assertEq(orderKey.remoteOracle, bytes32(uint256(uint160(remoteVMOracle))));
 
         //Collateral test
         Collateral memory expectedCollateral = Collateral({
-            collateralToken: tokenToSwapOutput,
-            fillerCollateralAmount: fillerAmount,
+            collateralToken: collateralToken,
+            fillerCollateralAmount: fillerCollateralAmount,
             challengerCollateralAmount: challengerAmount
         });
         Collateral memory actualCollateral = orderKey.collateral;
         assertEq(keccak256(abi.encode(actualCollateral)), keccak256(abi.encode(expectedCollateral)));
     }
 
+    function test_multiple_outputs_oracle(
+        uint16 inputAmount,
+        uint16 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
+        uint64 deadline,
+        uint8 length
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        vm.assume(length > 0);
+        vm.assume(deadline > uint64(challengeDeadline) + 1);
+        _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
+        MockERC20(tokenToSwapInput).mint(SWAPPER, uint256(length) * uint256(inputAmount));
+        MockERC20(tokenToSwapOutput).mint(fillerAddress, uint256(length) * uint256(outputAmount));
+
+        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitMultipleOrders(
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            collateralToken,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            proofDeadline,
+            challengeDeadline,
+            localVMOracle,
+            remoteVMOracle,
+            length
+        );
+
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
+            limitOrderData,
+            address(reactor),
+            SWAPPER,
+            0,
+            uint32(block.chainid),
+            uint32(initiateDeadline),
+            uint32(fillDeadline)
+        );
+
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor));
+
+        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
+            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+        );
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, fillerData);
+
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        uint32[] memory fillTimes = _getFillTimes(length, fillDeadline);
+
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        reactor.oracle(orderKey);
+    }
+
     /////////////////
     //Invalid cases//
     /////////////////
 
-    function test_not_enough_balance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        uint256 amountToTransfer = uint256(amount) + DEFAULT_COLLATERAL_AMOUNT;
+    function test_not_enough_balance(
+        uint160 inputAmount,
+        uint160 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        uint256 amountToTransfer = uint256(inputAmount) + DEFAULT_COLLATERAL_AMOUNT;
         CrossChainOrder memory order = _getCrossOrder(
-            amountToTransfer,
-            0,
-            SWAPPER,
-            DEFAULT_COLLATERAL_AMOUNT,
-            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
-            5,
-            6,
-            10,
-            11,
-            0
+            amountToTransfer, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 5, 6, 10, 11, 0
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -130,14 +202,28 @@ contract TestLimitOrder is TestBaseReactor {
         reactor.initiate(order, signature, fillerData);
     }
 
-    function test_not_enough_allowance(uint160 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    function test_not_enough_allowance(
+        uint160 inputAmount,
+        uint160 outputAmount,
+        uint160 fillerCollateralAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        vm.assume(fillerCollateralAmount > 0);
         (address BOB, uint256 BOB_KEY) = makeAddrAndKey("bob");
-        uint256 amountToTransfer = uint256(amount) + DEFAULT_COLLATERAL_AMOUNT;
+        uint256 amountToTransfer = uint256(inputAmount) + fillerCollateralAmount;
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
-        MockERC20(tokenToSwapInput).approve(permit2, amount);
+        MockERC20(tokenToSwapInput).approve(permit2, inputAmount);
         CrossChainOrder memory order = _getCrossOrder(
-            amountToTransfer, 0, BOB, DEFAULT_COLLATERAL_AMOUNT, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT, 5, 6, 10, 11, 0
+            amountToTransfer,
+            outputAmount,
+            BOB,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            0
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -161,7 +247,10 @@ contract TestLimitOrder is TestBaseReactor {
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
-        uint256 _amount,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
         address _fillerSender,
         uint32 initiateDeadline,
         uint32 fillDeadline,
@@ -169,11 +258,11 @@ contract TestLimitOrder is TestBaseReactor {
         uint32 proofDeadline
     ) internal override returns (OrderKey memory) {
         CrossChainOrder memory order = _getCrossOrder(
-            _amount,
-            0,
+            _inputAmount,
+            _outputAmount,
             _swapper,
-            DEFAULT_COLLATERAL_AMOUNT,
-            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            _fillerCollateralAmount,
+            _challengerCollateralAmount,
             initiateDeadline,
             fillDeadline,
             challengeDeadline,
@@ -224,13 +313,13 @@ contract TestLimitOrder is TestBaseReactor {
             inputAmount,
             outputAmount,
             recipient,
-            tokenToSwapOutput,
+            collateralToken,
             fillerCollateralAmount,
             challengerCollateralAmount,
             proofDeadline,
             challengeDeadline,
-            address(0),
-            address(0)
+            localVMOracle,
+            remoteVMOracle
         );
         order = CrossChainBuilder.getCrossChainOrder(
             limitOrderData,

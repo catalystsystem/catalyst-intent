@@ -2,7 +2,13 @@
 pragma solidity ^0.8.22;
 
 import { MockERC20 } from "../../test/mocks/MockERC20.sol";
+import { MockOracle } from "../../test/mocks/MockOracle.sol";
+
+import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
+import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
+
 import { Script } from "forge-std/Script.sol";
+
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 
 interface Permit2DomainSeparator {
@@ -17,6 +23,10 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
         //TODO: Possible to make it array in the future;
         address tokenToSwapInput;
         address tokenToSwapOutput;
+        address collateralToken;
+        address localVMOracle;
+        address remoteVMOracle;
+        address escrow;
         address permit2;
         uint256 deployerKey;
     }
@@ -36,6 +46,12 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
         sepoliaConfig = NetworkConfig({
             tokenToSwapInput: 0xdd13E55209Fd76AfE204dBda4007C227904f0a81, //WETH address on sepolia
             tokenToSwapOutput: 0x61EDCDf5bb737ADffE5043706e7C5bb1f1a56eEA, //BETH address on sepolia
+            //TODO: Change with a valid address
+            collateralToken: address(0),
+            // TODO: change with the deployed oracle addresses and their escrow when deployed to testnets
+            localVMOracle: address(0),
+            remoteVMOracle: address(0),
+            escrow: address(0),
             permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3, //Permit2 multichain address
             deployerKey: vm.envUint("PK")
         });
@@ -46,12 +62,23 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
         vm.startBroadcast();
         MockERC20 input = new MockERC20("TestTokenInput", "TTI", 18);
         MockERC20 output = new MockERC20("TestTokenOutput", "ERC", 18);
+        MockERC20 collateral = new MockERC20("TestCollateralToken", "TTC", 18);
+
+        IIncentivizedMessageEscrow escrow =
+            new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
+
+        MockOracle localOracle = new MockOracle(address(escrow));
+        MockOracle remoteOracle = new MockOracle(address(escrow));
         address permit2 = deployPermit2();
         vm.stopBroadcast();
 
         anvilConfig = NetworkConfig({
             tokenToSwapInput: address(input),
             tokenToSwapOutput: address(output),
+            collateralToken: address(collateral),
+            localVMOracle: address(localOracle),
+            remoteVMOracle: address(remoteOracle),
+            escrow: address(escrow),
             permit2: permit2,
             deployerKey: ANVIL_PRIVATE_KEY
         });

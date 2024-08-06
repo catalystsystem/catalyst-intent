@@ -10,16 +10,21 @@ import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlement
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
+import { MockOracle } from "../mocks/MockOracle.sol";
 import { MockUtils } from "../utils/MockUtils.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
+import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
+
+import { Bytes65 } from "GeneralisedIncentives/utils/Bytes65.sol";
 import { Test } from "forge-std/Test.sol";
 
 import { OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 
 import {
+    CannotProveOrder,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
@@ -45,7 +50,7 @@ interface Permit2DomainSeparator {
 
 event Transfer(address indexed from, address indexed to, uint256 amount);
 
-abstract contract TestBaseReactor is Test {
+abstract contract TestBaseReactor is Test, Bytes65 {
     function test() external { }
 
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
@@ -64,6 +69,10 @@ abstract contract TestBaseReactor is Test {
     ReactorHelperConfig reactorHelperConfig;
     address tokenToSwapInput;
     address tokenToSwapOutput;
+    address collateralToken;
+    address localVMOracle;
+    address remoteVMOracle;
+    address escrow;
     address permit2;
     uint256 deployerKey;
     address SWAPPER;
@@ -72,19 +81,45 @@ abstract contract TestBaseReactor is Test {
     address fillerAddress;
     bytes32 DOMAIN_SEPARATOR;
 
-    modifier approvedAndMinted(address _user, address _token, uint256 _amount) {
+    modifier approvedAndMinted(
+        address _user,
+        address _token,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount
+    ) {
         vm.prank(_user);
         MockERC20(_token).approve(permit2, type(uint256).max);
-        _approveReactor(fillerAddress, tokenToSwapInput, type(uint256).max);
-        _approveReactor(fillerAddress, tokenToSwapOutput, type(uint256).max);
-        MockERC20(_token).mint(_user, _amount);
-        MockERC20(tokenToSwapOutput).mint(fillerAddress, 20 ether);
+
+        _approveForFiller(fillerAddress, tokenToSwapInput, type(uint256).max);
+        _approveForFiller(fillerAddress, tokenToSwapOutput, type(uint256).max);
+        _approveForFiller(fillerAddress, collateralToken, type(uint256).max);
+
+        MockERC20(_token).mint(_user, _inputAmount);
+        MockERC20(tokenToSwapOutput).mint(fillerAddress, _outputAmount);
+        MockERC20(collateralToken).mint(fillerAddress, _fillerCollateralAmount);
+
         _;
     }
 
     //Will be used when we test functionalities after initialization like challenges
-    modifier orderInitiaited(uint256 _nonce, address _swapper, uint256 _amount) {
-        _initiateOrder(_nonce, _swapper, _amount, fillerAddress);
+    modifier orderInitiaited(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount
+    ) {
+        _initiateOrder(
+            _nonce,
+            _swapper,
+            _inputAmount,
+            _outputAmount,
+            _challengerCollateralAmount,
+            _fillerCollateralAmount,
+            fillerAddress
+        );
         _;
     }
 
@@ -101,43 +136,58 @@ abstract contract TestBaseReactor is Test {
         )
     );
 
-    function test_collect_tokens(uint256 amount) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    function test_collect_tokens(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint160 challengerCollateralAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         (uint256 swapperInputBalance, uint256 reactorInputBalance) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
-        _initiateOrder(0, SWAPPER, amount, fillerAddress);
-        assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
-        assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
+        _initiateOrder(
+            0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+        );
+        assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - inputAmount);
+        assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
     }
 
-    // function test_collect_tokens_from_msg_sender(uint256 amount, address sender) public approvedAndMinted(sender, tokenToSwapInput, amount) {
-    //     (uint256 swapperInputBalance, uint256 reactorInputBalance) =
-    //         MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
-    //     _initiateOrder(0, SWAPPER, amount, sender);
-    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
-    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
-    // }
+    // // function test_collect_tokens_from_msg_sender(uint256 amount, address sender) public approvedAndMinted(sender, tokenToSwapInput, amount) {
+    // //     (uint256 swapperInputBalance, uint256 reactorInputBalance) =
+    // //         MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
+    // //     _initiateOrder(0, SWAPPER, amount, sender);
+    // //     assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
+    // //     assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
+    // // }
 
-    function test_balances_multiple_orders(uint160 amount)
-        public
-        approvedAndMinted(SWAPPER, tokenToSwapInput, amount)
-    {
-        _initiateOrder(0, SWAPPER, amount, fillerAddress);
-        MockERC20(tokenToSwapInput).mint(SWAPPER, amount);
+    function test_balances_multiple_orders(
+        uint160 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint256 challengerCollateralAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        _initiateOrder(
+            0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+        );
+        MockERC20(tokenToSwapInput).mint(SWAPPER, inputAmount);
         (uint256 swapperInputBalance, uint256 reactorInputBalance) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
-        _initiateOrder(1, SWAPPER, amount, fillerAddress);
-        assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
-        assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
+        MockERC20(collateralToken).mint(fillerAddress, fillerCollateralAmount);
+        _initiateOrder(
+            1, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+        );
+        assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - inputAmount);
+        assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
     }
 
     function test_revert_passed_initiate_deadline(
         uint256 inputAmount,
         uint256 outputAmount,
-        uint256 fillerAmount,
-        uint256 challengerAmount
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 0, 1, 5, 10, 0);
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 0, 1, 5, 10, 0
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
@@ -154,11 +204,12 @@ abstract contract TestBaseReactor is Test {
     function test_revert_challenge_deadline_after_prove(
         uint256 inputAmount,
         uint256 outputAmount,
-        uint256 fillerAmount,
-        uint256 challengerAmount
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 2, 11, 10, 0);
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 2, 11, 10, 0
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
@@ -175,11 +226,12 @@ abstract contract TestBaseReactor is Test {
     function test_revert_challenge_deadline_before_fill(
         uint256 inputAmount,
         uint256 outputAmount,
-        uint256 fillerAmount,
-        uint256 challengerAmount
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerAmount, challengerAmount, 1, 3, 2, 10, 0);
+        CrossChainOrder memory order = _getCrossOrder(
+            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 3, 2, 10, 0
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
@@ -196,6 +248,8 @@ abstract contract TestBaseReactor is Test {
     function test_revert_fill_deadline_before_initiate(
         uint256 inputAmount,
         uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         uint32 fillDeadline,
         uint32 initiateDeadline
     ) public {
@@ -205,8 +259,8 @@ abstract contract TestBaseReactor is Test {
             inputAmount,
             outputAmount,
             SWAPPER,
-            DEFAULT_COLLATERAL_AMOUNT,
-            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             initiateDeadline,
             fillDeadline,
             DEFAULT_CHALLENGE_DEADLINE,
@@ -229,14 +283,19 @@ abstract contract TestBaseReactor is Test {
     //--- Dispute ---//
 
     function test_dispute_order(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint160 challengerCollateralAmount,
         address challenger
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        address collateralToken = tokenToSwapOutput;
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -246,21 +305,18 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
+        MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
         vm.expectCall(
             collateralToken,
             abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)",
-                challenger,
-                address(reactor),
-                DEFAULT_CHALLENGER_COLLATERAL_AMOUNT
+                "transferFrom(address,address,uint256)", challenger, address(reactor), challengerCollateralAmount
             )
         );
         vm.expectEmit();
-        emit Transfer(challenger, address(reactor), DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
+        emit Transfer(challenger, address(reactor), challengerCollateralAmount);
         vm.expectEmit();
         emit OrderChallenged(orderHash, challenger);
         reactor.dispute(orderKey);
@@ -271,14 +327,19 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_dispute_twice(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint160 challengerCollateralAmount,
         address challenger
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        address collateralToken = tokenToSwapOutput;
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -286,7 +347,7 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_PROOF_DEADLINE
         );
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
+        MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
@@ -297,16 +358,22 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_dispute_no_collateral(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         address challenger
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(fillerAddress != challenger);
         vm.assume(SWAPPER != challenger);
-        address collateralToken = tokenToSwapOutput;
+        vm.assume(challengerCollateralAmount > 0);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -322,16 +389,22 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_challenge_too_late(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         uint32 challengeDeadline
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         uint32 fillDeadline = DEFAULT_FILL_DEADLINE;
         vm.assume(fillDeadline < challengeDeadline);
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -348,17 +421,23 @@ abstract contract TestBaseReactor is Test {
     //--- Optimistic Payout ---//
 
     function test_revert_not_ready_for_optimistic_payout(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         uint32 challengeDeadline,
         uint32 warp
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         uint32 fillDeadline = DEFAULT_FILL_DEADLINE;
         vm.assume(fillDeadline < challengeDeadline);
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -376,14 +455,20 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_optimistic_payout(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         uint32 challengeDeadline
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -396,34 +481,40 @@ abstract contract TestBaseReactor is Test {
         vm.warp(challengeDeadline + 1);
 
         vm.expectEmit();
-        emit Transfer(address(reactor), fillerAddress, amount);
+        emit Transfer(address(reactor), fillerAddress, inputAmount);
         vm.expectEmit();
-        emit Transfer(address(reactor), fillerAddress, DEFAULT_COLLATERAL_AMOUNT);
+        emit Transfer(address(reactor), fillerAddress, fillerCollateralAmount);
         vm.expectEmit();
         emit OptimisticPayout(orderHash);
         // Check that the input are delivered to the filler.
-        vm.expectCall(tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, amount));
+        vm.expectCall(
+            tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
+        );
         // Check that the collateral is returned to the filler.
         vm.expectCall(
-            tokenToSwapOutput,
-            abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, DEFAULT_COLLATERAL_AMOUNT)
+            collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
         );
         // Check that we emitted the payout status.
         reactor.optimisticPayout(orderKey);
     }
 
     function test_revert_challenged_optimistic_payout(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint160 challengerCollateralAmount,
         uint32 challengeDeadline
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        address collateralToken = tokenToSwapOutput;
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         uint32 fillDeadline = DEFAULT_FILL_DEADLINE;
         vm.assume(fillDeadline < challengeDeadline);
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -431,7 +522,7 @@ abstract contract TestBaseReactor is Test {
             challengeDeadline + 1 hours
         );
 
-        MockERC20(collateralToken).mint(address(this), DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
+        MockERC20(collateralToken).mint(address(this), challengerCollateralAmount);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
         reactor.dispute(orderKey);
@@ -443,16 +534,21 @@ abstract contract TestBaseReactor is Test {
     //--- Resolve Disputed Orders ---//
 
     function test_complete_dispute_settled(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint160 challengerCollateralAmount,
         address challenger,
         address completeDisputer
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
-        address collateralToken = tokenToSwapOutput;
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -462,7 +558,7 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
+        MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
         reactor.dispute(orderKey);
@@ -471,12 +567,12 @@ abstract contract TestBaseReactor is Test {
         // We allow anyone to call the function but this caller shouldn't get anything.
         vm.startPrank(completeDisputer);
 
-        uint256 fillCollateral = DEFAULT_COLLATERAL_AMOUNT;
+        uint256 fillCollateral = fillerCollateralAmount;
         uint256 collateralForSwapper = fillCollateral / 2;
-        uint256 collateralForChallenger = fillCollateral - collateralForSwapper + DEFAULT_CHALLENGER_COLLATERAL_AMOUNT;
+        uint256 collateralForChallenger = fillCollateral - collateralForSwapper + challengerCollateralAmount;
 
         // Check that the input is delivered back.
-        vm.expectCall(inputToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, amount));
+        vm.expectCall(inputToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, inputAmount));
         vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, collateralForSwapper)
         );
@@ -484,7 +580,7 @@ abstract contract TestBaseReactor is Test {
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", challenger, collateralForChallenger)
         );
         vm.expectEmit();
-        emit Transfer(address(reactor), SWAPPER, amount);
+        emit Transfer(address(reactor), SWAPPER, inputAmount);
         vm.expectEmit();
         emit Transfer(address(reactor), SWAPPER, collateralForSwapper);
         vm.expectEmit();
@@ -502,19 +598,24 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_complete_dispute_too_early_settlement(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint160 challengerCollateralAmount,
         address challenger,
         address completeDisputer,
         uint32 proofDeadline,
         uint32 warp
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        address collateralToken = tokenToSwapOutput;
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(proofDeadline > DEFAULT_CHALLENGE_DEADLINE);
         vm.assume(warp >= DEFAULT_CHALLENGE_DEADLINE);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -522,7 +623,7 @@ abstract contract TestBaseReactor is Test {
             proofDeadline
         );
 
-        MockERC20(collateralToken).mint(challenger, DEFAULT_CHALLENGER_COLLATERAL_AMOUNT);
+        MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
         reactor.dispute(orderKey);
@@ -540,16 +641,21 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_complete_non_disputed_settlement(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
         address completeDisputer,
         uint32 proofDeadline
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(proofDeadline > DEFAULT_CHALLENGE_DEADLINE);
         vm.assume(proofDeadline < type(uint32).max - 1);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -567,18 +673,17 @@ abstract contract TestBaseReactor is Test {
     //--- Buyable Orders ---//
 
     function test_purchase_order(
-        uint128 amount,
+        uint128 inputAmount,
         uint128 fillerCollateralAmount,
         uint128 outputAmount,
         uint16 discount,
         address buyer,
         uint32 newPurchaseDeadline,
         uint16 newOrderDiscount
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
-        address collateralToken = tokenToSwapOutput;
         CrossChainOrder memory order =
-            _getCrossOrder(amount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
 
@@ -596,13 +701,13 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        MockERC20(inputToken).mint(buyer, amount);
+        MockERC20(inputToken).mint(buyer, inputAmount);
         MockERC20(collateralToken).mint(buyer, fillerCollateralAmount);
         vm.startPrank(buyer);
         MockERC20(inputToken).approve(address(reactor), type(uint256).max);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
-        uint256 amountAfterDiscount = amount - uint256(amount) * discount / uint256(type(uint16).max);
+        uint256 amountAfterDiscount = inputAmount - uint256(inputAmount) * discount / uint256(type(uint16).max);
         vm.expectCall(
             collateralToken,
             abi.encodeWithSignature(
@@ -631,15 +736,15 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_purchase_non_existing_order(
-        uint128 amount,
-        uint128 fillerCollateralAmount,
+        uint128 inputAmount,
         uint128 outputAmount,
+        uint128 fillerCollateralAmount,
         address buyer,
         uint32 newPurchaseDeadline,
         uint16 newOrderDiscount
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         CrossChainOrder memory order =
-            _getCrossOrder(amount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 0));
@@ -648,19 +753,18 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_purchase_time_passed(
-        uint128 amount,
-        uint128 fillerCollateralAmount,
+        uint128 inputAmount,
         uint128 outputAmount,
+        uint128 fillerCollateralAmount,
         uint16 discount,
         address buyer,
         uint32 originalPurchaseTime,
         uint32 newPurchaseDeadline,
         uint16 newOrderDiscount
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        address collateralToken = tokenToSwapOutput;
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(originalPurchaseTime < type(uint32).max - 1);
         CrossChainOrder memory order =
-            _getCrossOrder(amount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
 
@@ -683,15 +787,21 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_opFilled_purchase_order(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         address purchaser,
         uint32 challengeDeadline
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -706,70 +816,23 @@ abstract contract TestBaseReactor is Test {
         reactor.purchaseOrder(orderKey, 0, 0);
     }
 
-    function test_purchase_order(
-        uint160 amount,
-        address purchaser,
-        uint16 discount,
-        uint32 purchaseDeadline
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
-        vm.assume(discount > 0);
-        vm.assume(purchaseDeadline > block.timestamp);
-        fillerData = FillerDataLib._encode1(fillerAddress, purchaseDeadline, discount);
-        address collateralToken = tokenToSwapOutput;
-
-        OrderKey memory orderKey = _initiateOrder(
-            0,
-            SWAPPER,
-            amount,
-            fillerAddress,
-            DEFAULT_INITIATE_DEADLINE,
-            DEFAULT_FILL_DEADLINE,
-            DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
-        );
-
-        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
-
-        _approveReactor(purchaser, collateralToken, type(uint256).max);
-        _approveReactor(purchaser, tokenToSwapInput, type(uint256).max);
-
-        MockERC20(collateralToken).mint(purchaser, DEFAULT_COLLATERAL_AMOUNT);
-        MockERC20(tokenToSwapInput).mint(purchaser, amount);
-        uint256 amountAfterDiscount = amount;
-        if (amountAfterDiscount < type(uint256).max / uint256(discount)) {
-            amountAfterDiscount -= (amountAfterDiscount * uint256(discount)) / type(uint16).max;
-        }
-
-        vm.expectCall(
-            collateralToken,
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)", purchaser, fillerAddress, DEFAULT_COLLATERAL_AMOUNT
-            )
-        );
-
-        vm.expectCall(
-            tokenToSwapInput,
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)", purchaser, fillerAddress, amountAfterDiscount
-            )
-        );
-        vm.expectEmit();
-        emit OrderPurchased(orderHash, purchaser);
-        vm.prank(purchaser);
-        reactor.purchaseOrder(orderKey, purchaseDeadline, discount);
-    }
-
     //--- Modify Orders ---//
 
     function test_modify_order(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         uint32 newPurchaseDeadline,
         uint16 newOrderDiscount
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -786,16 +849,22 @@ abstract contract TestBaseReactor is Test {
     }
 
     function test_revert_nonFiller_modify(
-        uint256 amount,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         address malleciousModifier,
         uint32 newPurchaseDeadline,
         uint16 newOrderDiscount
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, amount) {
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(malleciousModifier != fillerAddress);
         OrderKey memory orderKey = _initiateOrder(
             0,
             SWAPPER,
-            amount,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             fillerAddress,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -837,11 +906,153 @@ abstract contract TestBaseReactor is Test {
         reactor.resolve(order, fillerData);
     }
 
+    //--- Oracle ---//
+    function test_oracle(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
+        uint64 deadline
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        vm.assume(deadline > block.timestamp);
+        _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline
+        );
+
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+
+        reactor.oracle(orderKey);
+    }
+
+    function test_revert_oracle_cannot_be_proven(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        OrderKey memory orderKey = _initiateOrder(
+            0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+        );
+        vm.expectRevert(CannotProveOrder.selector);
+        reactor.oracle(orderKey);
+    }
+
+    function test_revert_oracle_proven_order(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
+        uint64 deadline
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
+        vm.assume(deadline > challengeDeadline + 1);
+
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline
+        );
+
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        vm.warp(challengeDeadline + 1);
+        reactor.optimisticPayout(orderKey);
+
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
+        reactor.oracle(orderKey);
+    }
+
+    function test_oracle_challenged_order(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint160 fillerCollateralAmount,
+        uint160 challengerCollateralAmount,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
+        uint64 deadline,
+        address challenger
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
+        vm.assume(deadline > challengeDeadline + 1);
+
+        uint256 fillerBalanceBefore = MockERC20(collateralToken).balanceOf(fillerAddress);
+
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline
+        );
+
+        MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
+        vm.startPrank(challenger);
+        MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+        reactor.dispute(orderKey);
+        vm.stopPrank();
+
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        reactor.oracle(orderKey);
+
+        assertEq(MockERC20(collateralToken).balanceOf(fillerAddress), fillerBalanceBefore + challengerCollateralAmount);
+    }
+
     //--- Helpers ---//
 
-    function _approveReactor(address _tokensHolder, address _token, uint256 _amount) internal {
-        vm.prank(_tokensHolder);
+    function _approveForFiller(address _fillerAddress, address _token, uint256 _amount) internal {
+        vm.startPrank(_fillerAddress);
         MockERC20(_token).approve(address(reactor), _amount);
+        MockERC20(_token).approve(remoteVMOracle, _amount);
+        vm.stopPrank();
     }
 
     function _assumeValidDeadline(uint32 fillDeadline, uint32 challengeDeadline) internal pure {
@@ -849,18 +1060,78 @@ abstract contract TestBaseReactor is Test {
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
     }
 
+    function _assumeAllDeadlinesCorrectSequence(
+        uint32 initiateDeadline,
+        uint64 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline
+    ) internal view {
+        vm.assume(
+            block.timestamp < initiateDeadline && initiateDeadline < fillDeadline
+                && fillDeadline + block.timestamp < 7 days && fillDeadline < challengeDeadline
+                && challengeDeadline < proofDeadline
+        );
+    }
+
+    function _getVMOracle(address oracleAddress) internal returns (MockOracle oracleContract) {
+        oracleContract = MockOracle(oracleAddress);
+        oracleContract.setRemoteImplementation(bytes32(block.chainid), abi.encode(escrow));
+    }
+
+    function _getFillTimes(uint256 length, uint32 fillByDeadline) internal pure returns (uint32[] memory fillTimes) {
+        fillTimes = new uint32[](length);
+        for (uint256 i; i < length; ++i) {
+            fillTimes[i] = fillByDeadline;
+        }
+    }
+
+    function _fillAndSubmitOracle(
+        MockOracle remoteVMOracleContract,
+        MockOracle localVMOracleContract,
+        OrderKey memory orderKey,
+        uint32[] memory fillTimes,
+        uint64 deadline
+    ) internal {
+        Output[] memory outputs = orderKey.outputs;
+
+        bytes memory encodedDestinationAddress = remoteVMOracleContract.encodeDestinationAddress(orderKey.localOracle);
+        bytes32 destinationIdentifier = bytes32(block.chainid);
+
+        IMessageEscrowStructs.IncentiveDescription memory incentiveDescription = remoteVMOracleContract.getIncentive();
+        vm.deal(fillerAddress, 10 ** 18);
+
+        vm.startPrank(fillerAddress);
+        remoteVMOracleContract.fillAndSubmit{ value: remoteVMOracleContract.getTotalIncentive(incentiveDescription) }(
+            outputs, fillTimes, destinationIdentifier, encodedDestinationAddress, incentiveDescription, deadline
+        );
+        vm.stopPrank();
+
+        bytes memory encodedPayload = localVMOracleContract.encode(outputs, fillTimes);
+
+        vm.prank(escrow);
+        localVMOracleContract.receiveMessage(
+            destinationIdentifier, bytes32(0), bytes.concat(orderKey.remoteOracle), encodedPayload
+        );
+    }
+
     function _orderType() internal virtual returns (bytes memory);
 
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
-        uint256 _amount,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
         address _fillerSender
     ) internal virtual returns (OrderKey memory) {
         return _initiateOrder(
             _nonce,
             _swapper,
-            _amount,
+            _inputAmount,
+            _outputAmount,
+            _fillerCollateralAmount,
+            _challengerCollateralAmount,
             _fillerSender,
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
@@ -872,7 +1143,10 @@ abstract contract TestBaseReactor is Test {
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
-        uint256 _amount,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
         address _fillerSender,
         uint32 initiateDeadline,
         uint32 fillDeadline,
@@ -889,8 +1163,8 @@ abstract contract TestBaseReactor is Test {
         uint256 inputAmount,
         uint256 outputAmount,
         address recipient,
-        uint256 fillerAmount,
-        uint256 challengerAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,

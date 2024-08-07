@@ -35,6 +35,7 @@ import {
     GovernanceFeeChanged,
     OptimisticPayout,
     OrderChallenged,
+    OrderFilled,
     OrderPurchaseDetailsModified,
     OrderPurchased
 } from "../../src/interfaces/Events.sol";
@@ -990,6 +991,12 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
         );
 
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        vm.expectEmit();
+        emit OrderFilled(orderHash, fillerAddress, orderKey.remoteOracle);
+
+        vm.prank(fillerAddress);
         reactor.oracle(orderKey);
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
@@ -1066,16 +1073,8 @@ abstract contract TestBaseReactor is Test {
         uint256 outputAmount,
         uint160 fillerCollateralAmount,
         uint160 challengerCollateralAmount,
-        uint32 initiateDeadline,
-        uint32 fillDeadline,
-        uint32 challengeDeadline,
-        uint32 proofDeadline,
-        uint64 deadline,
         address challenger
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
-        vm.assume(deadline > challengeDeadline + 1);
-
         uint256 fillerBalanceBefore = MockERC20(collateralToken).balanceOf(fillerAddress);
 
         OrderKey memory orderKey = _initiateOrder(
@@ -1086,12 +1085,11 @@ abstract contract TestBaseReactor is Test {
             fillerCollateralAmount,
             challengerCollateralAmount,
             fillerAddress,
-            initiateDeadline,
-            fillDeadline,
-            challengeDeadline,
-            proofDeadline
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
         );
-        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
         MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
         vm.startPrank(challenger);
@@ -1104,15 +1102,14 @@ abstract contract TestBaseReactor is Test {
         );
         vm.expectEmit();
         emit Transfer(challenger, address(reactor), challengerCollateralAmount);
-        vm.expectEmit();
-        emit OrderChallenged(orderHash, challenger);
+
         reactor.dispute(orderKey);
         vm.stopPrank();
 
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+        uint32[] memory fillTimes = _getFillTimes(1, DEFAULT_FILL_DEADLINE);
 
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
@@ -1122,7 +1119,9 @@ abstract contract TestBaseReactor is Test {
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
 
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        _fillAndSubmitOracle(
+            remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, DEFAULT_CHALLENGE_DEADLINE + 1
+        );
 
         vm.expectCall(
             collateralToken,
@@ -1137,6 +1136,10 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
         );
 
+        vm.expectEmit();
+        emit OrderFilled(reactor.getOrderKeyHash(orderKey), fillerAddress, orderKey.remoteOracle);
+
+        vm.prank(fillerAddress);
         reactor.oracle(orderKey);
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);

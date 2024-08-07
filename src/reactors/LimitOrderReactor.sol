@@ -9,10 +9,6 @@ import { CrossChainOrderType } from "../libs/CrossChainOrderType.sol";
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract LimitOrderReactor is BaseReactor {
-    using CrossChainOrderType for CrossChainOrder;
-    using CrossChainLimitOrderType for LimitOrderData;
-    using CrossChainLimitOrderType for bytes;
-
     constructor(address permit2) BaseReactor(permit2) { }
 
     function _initiate(
@@ -20,11 +16,11 @@ contract LimitOrderReactor is BaseReactor {
         bytes calldata /* fillerData */
     ) internal pure override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
-        LimitOrderData memory limitData = order.orderData.decodeOrderData();
+        LimitOrderData memory limitData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
 
-        witness = limitData.hashOrderDataM();
+        witness = CrossChainLimitOrderType.hashOrderDataM(limitData);
         bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
-        witness = order.hash(orderTypeHash, witness);
+        witness = CrossChainOrderType.hash(order, orderTypeHash, witness);
         witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainLimitOrderType.getOrderType());
 
         // Set orderKey:
@@ -35,7 +31,7 @@ contract LimitOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
     ) internal pure override returns (OrderKey memory orderKey) {
-        LimitOrderData memory limitData = order.orderData.decodeOrderData();
+        LimitOrderData memory limitData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
         return _resolveKey(order, limitData);
     }
 

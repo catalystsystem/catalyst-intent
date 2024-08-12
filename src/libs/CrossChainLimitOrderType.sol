@@ -22,7 +22,7 @@ struct LimitOrderData {
  */
 library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
-        "LimitOrderData(",
+        "CatalystLimitOrderData(",
         "uint32 proofDeadline,",
         "uint32 challengeDeadline,",
         "address collateralToken,",
@@ -35,6 +35,20 @@ library CrossChainLimitOrderType {
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
+    );
+
+    bytes constant LIMIT_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
+        "CatalystLimitOrderData(",
+        "uint32 proofDeadline,",
+        "uint32 challengeDeadline,",
+        "address collateralToken,",
+        "uint256 fillerCollateralAmount,",
+        "uint256 challengerCollateralAmount,",
+        "address localOracle,",
+        "bytes32 remoteOracle,",
+        "Input[] inputs,",
+        "Output[] outputs",
+        ")"
     );
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
@@ -82,6 +96,6 @@ library CrossChainLimitOrderType {
     }
 
     function getOrderType() internal pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("LimitOrderData orderData", LIMIT_ORDER_DATA_TYPE);
+        return CrossChainOrderType.crossOrderType("CatalystLimitOrderData orderData", LIMIT_ORDER_DATA_TYPE_ONLY);
     }
 }

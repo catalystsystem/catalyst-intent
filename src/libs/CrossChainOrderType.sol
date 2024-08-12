@@ -22,7 +22,8 @@ library CrossChainOrderType {
     string constant TOKEN_PERMISSIONS_TYPE = "TokenPermissions(address token,uint256 amount)";
 
     function crossOrderType(bytes memory orderData, bytes memory orderType) internal pure returns (bytes memory) {
-        return abi.encodePacked(CROSS_CHAIN_ORDER_TYPE_STUB, orderData, ")", orderType);
+        return
+            abi.encodePacked(orderType, CROSS_CHAIN_ORDER_TYPE_STUB, orderData, ")", INPUT_TYPE_STUB, OUTPUT_TYPE_STUB);
     }
 
     function hashInput(Input memory input) internal pure returns (bytes32) {

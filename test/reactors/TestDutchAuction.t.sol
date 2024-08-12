@@ -26,8 +26,6 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 contract TestDutchAuction is TestBaseReactor {
     function testA() external pure { }
 
-    using CrossChainDutchOrderType for DutchOrderData;
-    using CrossChainOrderType for CrossChainOrder;
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     function setUp() public {
@@ -85,8 +83,8 @@ contract TestDutchAuction is TestBaseReactor {
     {
         DutchOrderData memory dutchOrderData = abi.decode(order.orderData, (DutchOrderData));
         typeHash = CrossChainDutchOrderType.orderTypeHash();
-        dataHash = dutchOrderData.hashOrderDataM();
-        orderHash = order.hash(typeHash, dataHash);
+        dataHash = CrossChainDutchOrderType.hashOrderDataM(dutchOrderData);
+        orderHash = CrossChainOrderType.hash(order, typeHash, dataHash);
     }
 
     function _getCrossOrder(

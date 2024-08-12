@@ -22,7 +22,7 @@ struct DutchOrderData {
 
 library CrossChainDutchOrderType {
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
-        "DutchOrderData(",
+        "CatalystDutchOrderData(",
         "uint32 proofDeadline,",
         "uint32 challengeDeadline,",
         "address collateralToken,",
@@ -38,6 +38,23 @@ library CrossChainDutchOrderType {
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
+    );
+
+    bytes constant DUTCH_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
+        "CatalystDutchOrderData(",
+        "uint32 proofDeadline,",
+        "uint32 challengeDeadline,",
+        "address collateralToken,",
+        "uint256 fillerCollateralAmount,",
+        "uint256 challengerCollateralAmount,",
+        "address localOracle,",
+        "bytes32 remoteOracle,",
+        "uint32 slopeStartingTime,",
+        "int256 inputSlope,",
+        "int256 outputSlope,",
+        "Input input,",
+        "Output output",
+        ")"
     );
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
@@ -90,7 +107,7 @@ library CrossChainDutchOrderType {
     }
 
     function getOrderType() internal pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("DutchOrderData orderData", DUTCH_ORDER_DATA_TYPE);
+        return CrossChainOrderType.crossOrderType("CatalystDutchOrderData orderData", DUTCH_ORDER_DATA_TYPE_ONLY);
     }
 
     /**

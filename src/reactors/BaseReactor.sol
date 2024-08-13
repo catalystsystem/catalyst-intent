@@ -252,7 +252,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.
-        // todo: Maybe store another collateral refund address?
+        // TODO: Maybe store another collateral refund address?
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
         );
@@ -443,7 +443,8 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * @dev
      */
     function oracle(OrderKey calldata orderKey) external {
-        OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
 
         OrderStatus status = orderContext.status;
 
@@ -457,9 +458,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // The following call is a external call to an untrusted contract. As a result,
         // it is important that we protect this contract against reentry calls, even if read-only.
+        bytes32 remoteOracle = orderKey.remoteOracle;
         if (
             !IOracle(orderKey.localOracle).isProven(
-                orderKey.outputs, orderKey.reactorContext.fillByDeadline, orderKey.remoteOracle
+                orderKey.outputs, orderKey.reactorContext.fillByDeadline, remoteOracle
             )
         ) revert CannotProveOrder();
 
@@ -479,13 +481,15 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         if (status == OrderStatus.Challenged) {
             // Add collateral amount. Both collaterals were paid in the same tokens.
             // This lets us do only a single transfer call.
-            fillerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
+            fillerCollateralAmount += orderKey.collateral.challengerCollateralAmount;
         }
 
         // Pay collateral tokens
         // No need to check if collateralToken is a deployed contract.
         // It has already been entered into our contract.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+
+        emit OrderFilled(orderHash, msg.sender, remoteOracle);
     }
 
     /**

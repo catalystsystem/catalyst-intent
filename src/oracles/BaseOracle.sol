@@ -130,6 +130,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
+
         for (uint256 i; i < numOutputs; ++i) {
             Output memory output = outputs[i];
             // Check if sourceIdentifierbytes
@@ -164,6 +165,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         uint32[] calldata fillTimes
     ) internal pure returns (bytes memory encodedPayload) {
         uint256 numOutputs = outputs.length;
+        encodedPayload = bytes.concat(EXECUTE_PROOFS, bytes2(uint16(numOutputs)));
         for (uint256 i; i < numOutputs; ++i) {
             Output calldata output = outputs[i];
             uint32 fillTime = fillTimes[i];
@@ -191,6 +193,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     {
         unchecked {
             uint256 numOutputs = uint256(uint16(bytes2(encodedPayload[NUM_OUTPUTS_START:NUM_OUTPUTS_END])));
+
             outputs = new Output[](numOutputs);
             fillTimes = new uint32[](numOutputs);
             uint256 pointer = 0;

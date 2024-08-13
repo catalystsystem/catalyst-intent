@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
 struct LimitOrderData {
@@ -22,19 +22,33 @@ struct LimitOrderData {
  */
 library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
-        "LimitOrderData(",
+        "CatalystLimitOrderData(",
         "uint32 proofDeadline,",
-        "uint32 challengeDeadline",
+        "uint32 challengeDeadline,",
         "address collateralToken,",
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
         "bytes32 remoteOracle,",
-        "Input[] input,",
-        "Output[] output",
+        "Input[] inputs,",
+        "Output[] outputs",
         ")",
-        CrossChainOrderType.OUTPUT_TYPE_STUB,
-        CrossChainOrderType.INPUT_TYPE_STUB
+        CrossChainOrderType.INPUT_TYPE_STUB,
+        CrossChainOrderType.OUTPUT_TYPE_STUB
+    );
+
+    bytes constant LIMIT_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
+        "CatalystLimitOrderData(",
+        "uint32 proofDeadline,",
+        "uint32 challengeDeadline,",
+        "address collateralToken,",
+        "uint256 fillerCollateralAmount,",
+        "uint256 challengerCollateralAmount,",
+        "address localOracle,",
+        "bytes32 remoteOracle,",
+        "Input[] inputs,",
+        "Output[] outputs",
+        ")"
     );
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
@@ -45,14 +59,14 @@ library CrossChainLimitOrderType {
 
     function hashOrderDataM(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
@@ -62,14 +76,14 @@ library CrossChainLimitOrderType {
 
     function hashOrderData(LimitOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
@@ -82,6 +96,6 @@ library CrossChainLimitOrderType {
     }
 
     function getOrderType() internal pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("LimitOrderData orderData", LIMIT_ORDER_DATA_TYPE);
+        return CrossChainOrderType.crossOrderType("CatalystLimitOrderData orderData", LIMIT_ORDER_DATA_TYPE_ONLY);
     }
 }

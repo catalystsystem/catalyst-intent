@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
 
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
@@ -22,9 +22,9 @@ struct DutchOrderData {
 
 library CrossChainDutchOrderType {
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
-        "DutchOrderData(",
+        "CatalystDutchOrderData(",
         "uint32 proofDeadline,",
-        "uint32 challengeDeadline",
+        "uint32 challengeDeadline,",
         "address collateralToken,",
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
@@ -36,8 +36,25 @@ library CrossChainDutchOrderType {
         "Input input,",
         "Output output",
         ")",
-        CrossChainOrderType.OUTPUT_TYPE_STUB,
-        CrossChainOrderType.INPUT_TYPE_STUB
+        CrossChainOrderType.INPUT_TYPE_STUB,
+        CrossChainOrderType.OUTPUT_TYPE_STUB
+    );
+
+    bytes constant DUTCH_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
+        "CatalystDutchOrderData(",
+        "uint32 proofDeadline,",
+        "uint32 challengeDeadline,",
+        "address collateralToken,",
+        "uint256 fillerCollateralAmount,",
+        "uint256 challengerCollateralAmount,",
+        "address localOracle,",
+        "bytes32 remoteOracle,",
+        "uint32 slopeStartingTime,",
+        "int256 inputSlope,",
+        "int256 outputSlope,",
+        "Input input,",
+        "Output output",
+        ")"
     );
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
@@ -47,18 +64,18 @@ library CrossChainDutchOrderType {
 
     function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
-                bytes4(orderData.slopeStartingTime),
-                bytes32(uint256(orderData.inputSlope)),
-                bytes32(uint256(orderData.outputSlope)),
+                orderData.slopeStartingTime,
+                orderData.inputSlope,
+                orderData.outputSlope,
                 CrossChainOrderType.hashInput(orderData.input),
                 CrossChainOrderType.hashOutput(orderData.output)
             )
@@ -67,18 +84,18 @@ library CrossChainDutchOrderType {
 
     function hashOrderData(DutchOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
-                bytes4(orderData.proofDeadline),
-                bytes4(orderData.challengeDeadline),
-                bytes20(orderData.collateralToken),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes20(orderData.localOracle),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 orderData.remoteOracle,
-                bytes4(orderData.slopeStartingTime),
-                bytes32(uint256(orderData.inputSlope)),
-                bytes32(uint256(orderData.outputSlope)),
+                orderData.slopeStartingTime,
+                orderData.inputSlope,
+                orderData.outputSlope,
                 CrossChainOrderType.hashInput(orderData.input),
                 CrossChainOrderType.hashOutput(orderData.output)
             )
@@ -90,7 +107,7 @@ library CrossChainDutchOrderType {
     }
 
     function getOrderType() internal pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("DutchOrderData orderData", DUTCH_ORDER_DATA_TYPE);
+        return CrossChainOrderType.crossOrderType("CatalystDutchOrderData orderData", DUTCH_ORDER_DATA_TYPE_ONLY);
     }
 
     /**

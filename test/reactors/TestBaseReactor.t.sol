@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 
-import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
+import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
@@ -15,7 +15,7 @@ import { MockUtils } from "../utils/MockUtils.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
+import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 
 import { Test, console } from "forge-std/Test.sol";

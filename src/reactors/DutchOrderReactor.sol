@@ -4,16 +4,12 @@ pragma solidity ^0.8.22;
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
 
-import { CrossChainDutchOrderType, DutchOrderData } from "../libs/CrossChainDutchOrderType.sol";
-import { CrossChainOrderType } from "../libs/CrossChainOrderType.sol";
+import { CrossChainDutchOrderType, DutchOrderData } from "../libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract DutchOrderReactor is BaseReactor {
-    using CrossChainOrderType for CrossChainOrder;
-    using CrossChainDutchOrderType for DutchOrderData;
-    using CrossChainDutchOrderType for bytes;
-
     constructor(address permit2) BaseReactor(permit2) { }
 
     function _initiate(
@@ -21,11 +17,11 @@ contract DutchOrderReactor is BaseReactor {
         bytes calldata /* fillerData */
     ) internal view override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
-        DutchOrderData memory dutchData = order.orderData.decodeOrderData();
+        DutchOrderData memory dutchData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
-        witness = dutchData.hashOrderDataM();
+        witness = CrossChainDutchOrderType.hashOrderDataM(dutchData);
         bytes32 orderTypeHash = CrossChainDutchOrderType.orderTypeHash();
-        witness = order.hash(orderTypeHash, witness);
+        witness = CrossChainOrderType.hash(order, orderTypeHash, witness);
         witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainDutchOrderType.getOrderType());
 
         // Set orderKey:
@@ -36,7 +32,7 @@ contract DutchOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
     ) internal view override returns (OrderKey memory orderKey) {
-        DutchOrderData memory dutchData = order.orderData.decodeOrderData();
+        DutchOrderData memory dutchData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
         return _resolveKey(order, dutchData);
     }
 
@@ -49,9 +45,9 @@ contract DutchOrderReactor is BaseReactor {
         Output[] memory outputs = new Output[](1);
 
         // Get the current Input(amount and token) structure based on the decay function and the time passed.
-        inputs[0] = dutchData.getInputAfterDecay();
+        inputs[0] = CrossChainDutchOrderType.getInputAfterDecay(dutchData);
         // Get the current Output(amount,token and destination) structure based on the decay function and the time passed.
-        outputs[0] = dutchData.getOutputAfterDecay();
+        outputs[0] = CrossChainDutchOrderType.getOutputAfterDecay(dutchData);
 
         // Set orderKey:
         orderKey = OrderKey({

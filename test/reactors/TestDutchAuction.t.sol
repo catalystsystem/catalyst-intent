@@ -7,8 +7,8 @@ import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 
-import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
-import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
+import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
 import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 
@@ -26,8 +26,6 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 contract TestDutchAuction is TestBaseReactor {
     function testA() external pure { }
 
-    using CrossChainDutchOrderType for DutchOrderData;
-    using CrossChainOrderType for CrossChainOrder;
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     function setUp() public {
@@ -97,8 +95,8 @@ contract TestDutchAuction is TestBaseReactor {
     {
         DutchOrderData memory dutchOrderData = abi.decode(order.orderData, (DutchOrderData));
         typeHash = CrossChainDutchOrderType.orderTypeHash();
-        dataHash = dutchOrderData.hashOrderDataM();
-        orderHash = order.hash(typeHash, dataHash);
+        dataHash = CrossChainDutchOrderType.hashOrderDataM(dutchOrderData);
+        orderHash = CrossChainOrderType.hash(order, typeHash, dataHash);
     }
 
     function _getCrossOrder(

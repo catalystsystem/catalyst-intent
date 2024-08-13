@@ -2,8 +2,8 @@
 pragma solidity ^0.8.22;
 
 import { Input, Output } from "../../src/interfaces/ISettlementContract.sol";
-import { DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
-import { LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
+import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 
 library OrderDataBuilder {

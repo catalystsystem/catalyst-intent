@@ -15,8 +15,8 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
 
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
-import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
+import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
@@ -38,8 +38,6 @@ import { Test } from "forge-std/Test.sol";
 
 contract TestLimitOrder is TestBaseReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
-    using CrossChainOrderType for CrossChainOrder;
-    using CrossChainLimitOrderType for LimitOrderData;
 
     function testA() external pure { }
 
@@ -291,8 +289,8 @@ contract TestLimitOrder is TestBaseReactor {
     {
         LimitOrderData memory limitOrderData = abi.decode(order.orderData, (LimitOrderData));
         typeHash = CrossChainLimitOrderType.orderTypeHash();
-        dataHash = limitOrderData.hashOrderDataM();
-        orderHash = order.hash(typeHash, dataHash);
+        dataHash = CrossChainLimitOrderType.hashOrderDataM(limitOrderData);
+        orderHash = CrossChainOrderType.hash(order, typeHash, dataHash);
     }
 
     function _getCrossOrder(

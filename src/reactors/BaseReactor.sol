@@ -444,6 +444,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      */
     function oracle(OrderKey calldata orderKey) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
+        bytes32 remoteOracle = orderKey.remoteOracle;
         OrderContext storage orderContext = _orders[orderHash];
 
         OrderStatus status = orderContext.status;

@@ -27,7 +27,10 @@ import { BaseOracle } from "./BaseOracle.sol";
  * 2. Indirectly oracle through the bridge oracle. This requires a local light client and a bridge connection to the relevant reactor.
  */
 contract BitcoinOracle is BaseOracle {
-    bytes1 constant BITCOIN_PREFIX = 0xBB;
+    // The Bitcoin Identifier (0xBB) is set in the 20'th byte (from right). This ensures
+    // That implementations that only read the last 20 bytes, can still notice
+    // that this is a Bitcoin address.
+    bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BB0000000000000000000000000000000000;
     IBtcPrism public immutable mirror;
 
     error BadDestinationIdentifier();
@@ -54,9 +57,8 @@ contract BitcoinOracle is BaseOracle {
      * @notice Returns the associated Bitcoin script given an order token (sets for Bitcoin) & destination (scriptHash)
      */
     function _bitcoinScript(bytes32 token, bytes32 scriptHash) internal pure returns (bytes memory script) {
-        // TODO: Move the check to the 12'th byte instead of 1'st. (as if it was an address)
         // Check for the Bitcoin signifier:
-        if (bytes1(token) != BITCOIN_PREFIX) revert BadTokenFormat();
+        if (bytes30(token) != BITCOIN_AS_TOKEN) revert BadTokenFormat();
 
         AddressType bitcoinAddressType = AddressType(uint8(uint256(token)));
 

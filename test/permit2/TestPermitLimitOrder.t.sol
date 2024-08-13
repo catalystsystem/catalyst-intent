@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainLimitOrderType } from "../../src/libs/CrossChainLimitOrderType.sol";
+import { CrossChainLimitOrderType } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 import { TestPermit } from "./TestPermit.t.sol";
 

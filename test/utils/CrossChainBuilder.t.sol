@@ -3,8 +3,8 @@ pragma solidity ^0.8.22;
 
 import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
 
-import { DutchOrderData } from "../../src/libs/CrossChainDutchOrderType.sol";
-import { LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
+import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 //Here we can make functions that accept no order at all
 //or an order but with some fields missing

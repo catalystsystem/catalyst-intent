@@ -5,7 +5,7 @@ import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
+import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 abstract contract TestPermit is Test {

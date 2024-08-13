@@ -4,7 +4,7 @@ pragma solidity ^0.8.22;
 import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
+import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
 library OrderKeyInfo {

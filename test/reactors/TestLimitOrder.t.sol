@@ -13,8 +13,8 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
 
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/CrossChainLimitOrderType.sol";
-import { CrossChainOrderType } from "../../src/libs/CrossChainOrderType.sol";
+import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder, Input, Output } from "../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
 
 library CrossChainOrderType {
     bytes constant CROSS_CHAIN_ORDER_TYPE_STUB = abi.encodePacked(

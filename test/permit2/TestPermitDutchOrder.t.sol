@@ -49,7 +49,7 @@ contract TestPermitDutchOrder is TestPermit {
         assertEq(expectedHash, actualHash);
     }
 
-    function test_cross_order_hash(
+    function test_cross_order_with_permit(
         uint256 inputAmount,
         uint256 outputAmount,
         uint256 challengerCollateralAmount,

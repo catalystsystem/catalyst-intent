@@ -88,8 +88,14 @@ library OrderDataBuilder {
         bytes32 verificationContext,
         address verificationContract
     ) internal view returns (DutchOrderData memory dutchOrderData) {
-        Input memory input = getInput(tokenToSwapInput, inputAmount);
-        Output memory output = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
+        Input[] memory inputs = new Input[](1);
+        inputs[0] = getInput(tokenToSwapInput, inputAmount);
+        Output[] memory outputs = new Output[](1);
+        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
+
+        int256[] memory inputSlopes = new int256[](1); 
+        int256[] memory outputSlopes = new int256[](1); 
+
         dutchOrderData = DutchOrderData({
             verificationContext: verificationContext,
             verificationContract: verificationContract,
@@ -100,11 +106,11 @@ library OrderDataBuilder {
             challengerCollateralAmount: challengerAmount,
             localOracle: localOracle,
             slopeStartingTime: 0,
-            inputSlope: 0,
-            outputSlope: 0,
+            inputSlopes: inputSlopes,
+            outputSlopes: outputSlopes,
             remoteOracle: bytes32(abi.encode(remoteOracle)),
-            input: input,
-            output: output
+            inputs: inputs,
+            outputs: outputs
         });
     }
 

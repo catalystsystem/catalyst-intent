@@ -16,7 +16,7 @@ contract TestPermitDutchOrder is TestPermit {
                 "CatalystDutchOrderData("
                 "uint32 proofDeadline,uint32 challengeDeadline,address collateralToken,uint256 fillerCollateralAmount,"
                 "uint256 challengerCollateralAmount,address localOracle,bytes32 remoteOracle,"
-                "uint32 slopeStartingTime,int256 inputSlope,int256 outputSlope,Input input,Output output)"
+                "uint32 slopeStartingTime,int256[] inputSlopes,int256[] outputSlopes,Input[] inputs,Output[] outputs)"
                 "CrossChainOrder(address settlementContract,address swapper,uint256 nonce,"
                 "uint32 originChainId,uint32 initiateDeadline,uint32 fillDeadline,CatalystDutchOrderData orderData)"
                 "Input(address token,uint256 amount)"

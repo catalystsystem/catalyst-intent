@@ -53,14 +53,10 @@ contract DutchOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         DutchOrderData memory dutchData
     ) internal view returns (OrderKey memory orderKey) {
-        // The Dutch auction order type has a single Input and Output
-        Input[] memory inputs = new Input[](1);
-        Output[] memory outputs = new Output[](1);
-
         // Get the current Input(amount and token) structure based on the decay function and the time passed.
-        inputs[0] = CrossChainDutchOrderType.getInputAfterDecay(dutchData);
+        Input[] memory inputs = CrossChainDutchOrderType.getInputsAfterDecay(dutchData);
         // Get the current Output(amount,token and destination) structure based on the decay function and the time passed.
-        outputs[0] = CrossChainDutchOrderType.getOutputAfterDecay(dutchData);
+        Output[] memory outputs = CrossChainDutchOrderType.getOutputsAfterDecay(dutchData);
 
         // Set orderKey:
         orderKey = OrderKey({

@@ -9,8 +9,9 @@ contract DeployLimitOrderReactor is Script {
     function run() external returns (LimitOrderReactor, ReactorHelperConfig) {
         ReactorHelperConfig helperConfig = new ReactorHelperConfig();
         (,,,,,, address permit2, uint256 deployerKey) = helperConfig.currentConfig();
+        address deployer = vm.addr(deployerKey);
         vm.startBroadcast(deployerKey);
-        LimitOrderReactor limitOrderReactor = new LimitOrderReactor{ salt: bytes32(0) }(permit2);
+        LimitOrderReactor limitOrderReactor = new LimitOrderReactor{ salt: bytes32(0) }(permit2, deployer);
         vm.stopBroadcast();
 
         return (limitOrderReactor, helperConfig);

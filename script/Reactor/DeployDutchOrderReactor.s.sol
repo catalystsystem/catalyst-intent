@@ -9,8 +9,9 @@ contract DeployDutchOrderReactor is Script {
     function run() external returns (DutchOrderReactor, ReactorHelperConfig) {
         ReactorHelperConfig helperConfig = new ReactorHelperConfig();
         (,,,,,, address permit2, uint256 deployerKey) = helperConfig.currentConfig();
+        address deployer = vm.addr(deployerKey);
         vm.startBroadcast(deployerKey);
-        DutchOrderReactor dutchOrderReactor = new DutchOrderReactor{ salt: bytes32(0) }(permit2);
+        DutchOrderReactor dutchOrderReactor = new DutchOrderReactor{ salt: bytes32(0) }(permit2, deployer);
         vm.stopBroadcast();
 
         return (dutchOrderReactor, helperConfig);

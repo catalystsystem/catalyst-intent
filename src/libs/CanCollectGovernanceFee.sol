@@ -16,6 +16,10 @@ abstract contract CanCollectGovernanceFee is Ownable {
     uint256 constant GOVERNANCE_FEE_DENUM = 10 ** 18;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25; // 25%
 
+    constructor(address owner) {
+        _initializeOwner(owner);
+    }
+
     mapping(address token => uint256 amount) internal _governanceTokens;
 
     /**

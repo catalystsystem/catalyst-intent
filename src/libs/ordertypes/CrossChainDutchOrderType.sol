@@ -14,7 +14,7 @@ struct DutchOrderData {
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
-    bytes32[] remoteOracles; // TODO: figure out how to trustless.
+    bytes32[] remoteOracles;
     uint32 slopeStartingTime;
     int256[] inputSlopes; // The rate of input that is changing.
     int256[] outputSlopes; // The rate of output that is changing.

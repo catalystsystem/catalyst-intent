@@ -11,7 +11,7 @@ struct LimitOrderData {
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
-    bytes32[] remoteOracles; // TODO: figure out how to trustless.
+    bytes32[] remoteOracles;
     Input[] inputs;
     Output[] outputs;
 }

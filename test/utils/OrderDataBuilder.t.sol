@@ -2,9 +2,10 @@
 pragma solidity ^0.8.22;
 
 import { Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+
+import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
-import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 
 library OrderDataBuilder {
     function test() public pure { }
@@ -93,8 +94,8 @@ library OrderDataBuilder {
         Output[] memory outputs = new Output[](1);
         outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
 
-        int256[] memory inputSlopes = new int256[](1); 
-        int256[] memory outputSlopes = new int256[](1); 
+        int256[] memory inputSlopes = new int256[](1);
+        int256[] memory outputSlopes = new int256[](1);
 
         dutchOrderData = DutchOrderData({
             verificationContext: verificationContext,

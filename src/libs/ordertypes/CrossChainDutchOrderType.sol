@@ -153,7 +153,11 @@ library CrossChainDutchOrderType {
      * @param dutchOrderData The order data to calculate the current input value from.
      * @return orderInputs The input after applying the decay function based on the time passed
      */
-    function getInputsAfterDecay(DutchOrderData memory dutchOrderData) internal view returns (Input[] memory orderInputs) {
+    function getInputsAfterDecay(DutchOrderData memory dutchOrderData)
+        internal
+        view
+        returns (Input[] memory orderInputs)
+    {
         orderInputs = dutchOrderData.inputs;
         int256[] memory inputSlopes = dutchOrderData.inputSlopes;
         // Validate that their lengths are equal.
@@ -168,7 +172,6 @@ library CrossChainDutchOrderType {
             }
         }
     }
-        
 
     /**
      * @dev This functions calculates the the current amount the user will get in the destination chain based on the time passed.
@@ -192,9 +195,9 @@ library CrossChainDutchOrderType {
                 int256 outputSlope = outputSlopes[i];
                 if (outputSlope == 0) continue;
 
-                orderOutputs[i].amount = _calcSlope(outputSlope, dutchOrderData.slopeStartingTime, orderOutputs[i].amount);
+                orderOutputs[i].amount =
+                    _calcSlope(outputSlope, dutchOrderData.slopeStartingTime, orderOutputs[i].amount);
             }
         }
-
     }
 }

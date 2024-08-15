@@ -59,14 +59,14 @@ library CrossChainLimitOrderType {
 
     function hashOrderDataM(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
+            bytes.concat(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
+                 bytes32(uint256(orderData.proofDeadline)),
+                bytes32(uint256(orderData.challengeDeadline)),
+                bytes32(uint256(uint160(orderData.collateralToken))),
+                bytes32(orderData.fillerCollateralAmount),
+                bytes32(orderData.challengerCollateralAmount),
+                bytes32(uint256(uint160(orderData.localOracle))),
                 orderData.remoteOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
@@ -76,14 +76,14 @@ library CrossChainLimitOrderType {
 
     function hashOrderData(LimitOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
+            bytes.concat(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
+                bytes32(uint256(orderData.proofDeadline)),
+                bytes32(uint256(orderData.challengeDeadline)),
+                bytes32(uint256(uint160(orderData.collateralToken))),
+                bytes32(orderData.fillerCollateralAmount),
+                bytes32(orderData.challengerCollateralAmount),
+                bytes32(uint256(uint160(orderData.localOracle))),
                 orderData.remoteOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)

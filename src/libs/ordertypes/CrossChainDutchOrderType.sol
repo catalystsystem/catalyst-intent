@@ -14,7 +14,7 @@ struct DutchOrderData {
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
-    bytes32 remoteOracle; // TODO: figure out how to trustless.
+    bytes32[] remoteOracles; // TODO: figure out how to trustless.
     uint32 slopeStartingTime;
     int256[] inputSlopes; // The rate of input that is changing.
     int256[] outputSlopes; // The rate of output that is changing.
@@ -35,7 +35,7 @@ library CrossChainDutchOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32 remoteOracle,",
+        "bytes32[] remoteOracles,",
         "uint32 slopeStartingTime,",
         "int256[] inputSlopes,",
         "int256[] outputSlopes,",
@@ -56,7 +56,7 @@ library CrossChainDutchOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32 remoteOracle,",
+        "bytes32[] remoteOracles,",
         "uint32 slopeStartingTime,",
         "int256[] inputSlopes,",
         "int256[] outputSlopes,",
@@ -85,7 +85,7 @@ library CrossChainDutchOrderType {
                 bytes.concat(
                     bytes32(orderData.challengerCollateralAmount),
                     bytes32(uint256(uint160(orderData.localOracle))),
-                    orderData.remoteOracle,
+                    keccak256((abi.encodePacked(orderData.remoteOracles))),
                     bytes32(uint256(orderData.slopeStartingTime)),
                     keccak256(abi.encodePacked(orderData.inputSlopes)),
                     keccak256(abi.encodePacked(orderData.outputSlopes)),
@@ -108,7 +108,7 @@ library CrossChainDutchOrderType {
                 bytes32(orderData.fillerCollateralAmount),
                 bytes32(orderData.challengerCollateralAmount),
                 bytes32(uint256(uint160(orderData.localOracle))),
-                orderData.remoteOracle,
+                keccak256((abi.encodePacked(orderData.remoteOracles))),
                 bytes32(uint256(orderData.slopeStartingTime)),
                 keccak256(abi.encodePacked(orderData.inputSlopes)),
                 keccak256(abi.encodePacked(orderData.outputSlopes)),

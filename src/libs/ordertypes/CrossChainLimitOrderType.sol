@@ -11,7 +11,7 @@ struct LimitOrderData {
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
-    bytes32 remoteOracle; // TODO: figure out how to trustless.
+    bytes32[] remoteOracles; // TODO: figure out how to trustless.
     Input[] inputs;
     Output[] outputs;
 }
@@ -29,7 +29,7 @@ library CrossChainLimitOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32 remoteOracle,",
+        "bytes32[] remoteOracles,",
         "Input[] inputs,",
         "Output[] outputs",
         ")",
@@ -45,7 +45,7 @@ library CrossChainLimitOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32 remoteOracle,",
+        "bytes32[] remoteOracles,",
         "Input[] inputs,",
         "Output[] outputs",
         ")"
@@ -67,7 +67,7 @@ library CrossChainLimitOrderType {
                 bytes32(orderData.fillerCollateralAmount),
                 bytes32(orderData.challengerCollateralAmount),
                 bytes32(uint256(uint160(orderData.localOracle))),
-                orderData.remoteOracle,
+                keccak256((abi.encodePacked(orderData.remoteOracles))),
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )
@@ -84,7 +84,7 @@ library CrossChainLimitOrderType {
                 bytes32(orderData.fillerCollateralAmount),
                 bytes32(orderData.challengerCollateralAmount),
                 bytes32(uint256(uint160(orderData.localOracle))),
-                orderData.remoteOracle,
+                keccak256((abi.encodePacked(orderData.remoteOracles))),
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )

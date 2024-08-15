@@ -995,7 +995,7 @@ abstract contract TestBaseReactor is Test {
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
         vm.expectEmit();
-        emit OrderFilled(orderHash, fillerAddress, orderKey.remoteOracle);
+        emit OrderFilled(orderHash, fillerAddress, orderKey.remoteOracles);
 
         vm.prank(fillerAddress);
         reactor.oracle(orderKey);
@@ -1138,7 +1138,7 @@ abstract contract TestBaseReactor is Test {
         );
 
         vm.expectEmit();
-        emit OrderFilled(reactor.getOrderKeyHash(orderKey), fillerAddress, orderKey.remoteOracle);
+        emit OrderFilled(reactor.getOrderKeyHash(orderKey), fillerAddress, orderKey.remoteOracles);
 
         vm.prank(fillerAddress);
         reactor.oracle(orderKey);
@@ -1213,7 +1213,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.prank(escrow);
         localVMOracleContract.receiveMessage(
-            destinationIdentifier, bytes32(0), bytes.concat(orderKey.remoteOracle), encodedPayload
+            destinationIdentifier, bytes32(0), bytes.concat(orderKey.remoteOracles[0]), encodedPayload
         );
     }
 

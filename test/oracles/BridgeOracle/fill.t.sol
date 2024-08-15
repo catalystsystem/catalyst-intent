@@ -44,7 +44,7 @@ contract TestBridgeOracle is TestCommonGARP {
 
         // TODO: verify event
 
-        bool status = oracle.isProven(output, fillTimes[0], bytes32(0));
+        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
         assertTrue(status);
     }
 
@@ -81,7 +81,9 @@ contract TestBridgeOracle is TestCommonGARP {
         outputs[0] = output;
         outputs[1] = extraOutput;
 
-        bool status = oracle.isProven(outputs, fillTime, bytes32(0));
+        bytes32[] memory oracles = new bytes32[](2);
+
+        bool status = oracle.isProven(outputs, oracles, fillTime);
         assertFalse(status);
     }
 
@@ -124,7 +126,9 @@ contract TestBridgeOracle is TestCommonGARP {
         outputs[0] = output;
         outputs[1] = secondOutput;
 
-        bool status = oracle.isProven(outputs, fillTime, bytes32(0));
+        bytes32[] memory oracles = new bytes32[](2);
+
+        bool status = oracle.isProven(outputs, oracles, fillTime);
         assertFalse(status);
     }
 
@@ -147,7 +151,7 @@ contract TestBridgeOracle is TestCommonGARP {
 
         output.amount = amount;
 
-        bool status = oracle.isProven(output, fillTimes[0], bytes32(0));
+        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
         assertFalse(status);
     }
 
@@ -174,7 +178,7 @@ contract TestBridgeOracle is TestCommonGARP {
 
         output.recipient = bytes32(abi.encode(actualRecipient));
 
-        bool status = oracle.isProven(output, fillTimes[0], bytes32(0));
+        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
         assertFalse(status);
     }
 
@@ -261,7 +265,7 @@ contract TestBridgeOracle is TestCommonGARP {
         oracle.fill(outputs, fillTimes);
 
         for (uint256 i; i < outputs.length; ++i) {
-            bool status = oracle.isProven(outputs[i], fillTime, bytes32(0));
+            bool status = oracle.isProven(outputs[i], bytes32(0), fillTime);
             assertTrue(status);
         }
     }
@@ -283,8 +287,10 @@ contract TestBridgeOracle is TestCommonGARP {
 
         oracle.fill(outputs, fillTimes);
 
+        bytes32[] memory oracles = new bytes32[](amountRecipient.length);
+
         // Batch verify
-        oracle.isProven(outputs, fillTime, bytes32(0));
+        oracle.isProven(outputs, oracles, fillTime);
     }
 
     function test_check_already_filled(address sender, uint256 amount, address recipient) external {
@@ -312,7 +318,7 @@ contract TestBridgeOracle is TestCommonGARP {
         vm.prank(sender);
         oracle.fill(outputs, fillTimes);
 
-        bool status = oracle.isProven(output, fillTimes[0], bytes32(0));
+        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
         assertTrue(status);
     }
 

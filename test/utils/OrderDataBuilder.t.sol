@@ -28,6 +28,9 @@ library OrderDataBuilder {
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         Output[] memory outputs = new Output[](1);
         outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
+        
+        bytes32[] memory remoteOracles = new bytes32[](1);
+        remoteOracles[0] = bytes32(uint256(uint160(remoteOracle)));
 
         limitOrderData = LimitOrderData({
             proofDeadline: proofDeadline,
@@ -36,7 +39,7 @@ library OrderDataBuilder {
             fillerCollateralAmount: fillerCollateralAmount,
             challengerCollateralAmount: challengerCollateralAmount,
             localOracle: localOracle,
-            remoteOracle: bytes32(uint256(uint160(remoteOracle))),
+            remoteOracles: remoteOracles,
             inputs: inputs,
             outputs: outputs
         });
@@ -60,6 +63,11 @@ library OrderDataBuilder {
         Input[] memory inputs = getInputs(tokenToSwapInput, inputAmount, length);
         Output[] memory outputs = getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), length);
 
+        bytes32[] memory remoteOracles = new bytes32[](length);
+        for (uint256 i = 0; i < length; ++i) {
+            remoteOracles[i] = bytes32(uint256(uint160(remoteOracle)));
+        }
+
         limitOrderData = LimitOrderData({
             proofDeadline: proofDeadline,
             challengeDeadline: challengeDeadline,
@@ -67,7 +75,7 @@ library OrderDataBuilder {
             fillerCollateralAmount: fillerCollateralAmount,
             challengerCollateralAmount: challengerCollateralAmount,
             localOracle: localOracle,
-            remoteOracle: bytes32(uint256(uint160(remoteOracle))),
+            remoteOracles: remoteOracles,
             inputs: inputs,
             outputs: outputs
         });
@@ -97,6 +105,9 @@ library OrderDataBuilder {
         int256[] memory inputSlopes = new int256[](1);
         int256[] memory outputSlopes = new int256[](1);
 
+        bytes32[] memory remoteOracles = new bytes32[](1);
+        remoteOracles[0] = bytes32(uint256(uint160(remoteOracle)));
+
         dutchOrderData = DutchOrderData({
             verificationContext: verificationContext,
             verificationContract: verificationContract,
@@ -109,7 +120,7 @@ library OrderDataBuilder {
             slopeStartingTime: 0,
             inputSlopes: inputSlopes,
             outputSlopes: outputSlopes,
-            remoteOracle: bytes32(abi.encode(remoteOracle)),
+            remoteOracles: remoteOracles,
             inputs: inputs,
             outputs: outputs
         });

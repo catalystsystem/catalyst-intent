@@ -37,19 +37,19 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         _;
     }
 
-    function _isProven(Output calldata output, uint32 fillTime, bytes32 oracle) internal view returns (bool proven) {
+    function _isProven(Output calldata output, bytes32 oracle, uint32 fillTime) internal view returns (bool proven) {
         bytes32 outputHash = _outputHash(output);
         return _provenOutput[outputHash][fillTime][oracle];
     }
 
-    function isProven(Output calldata output, uint32 fillTime, bytes32 oracle) external view returns (bool proven) {
-        return _isProven(output, fillTime, oracle);
+    function isProven(Output calldata output, bytes32 oracle, uint32 fillTime) external view returns (bool proven) {
+        return _isProven(output, oracle, fillTime);
     }
 
-    function isProven(Output[] calldata outputs, uint32 fillTime, bytes32 oracle) public view returns (bool proven) {
+    function isProven(Output[] calldata outputs, bytes32[] memory oracles, uint32 fillTime) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
-            if (!_isProven(outputs[i], fillTime, oracle)) {
+            if (!_isProven(outputs[i], oracles[i], fillTime)) {
                 return proven = false;
             }
         }
@@ -112,7 +112,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         // The follow code chunk will fail if fillTimes.length > outputs.length.
         uint256 numFillTimes = fillTimes.length;
         for (uint256 i; i < numFillTimes; ++i) {
-            if (!_isProven(outputs[i], fillTimes[i], bytes32(0))) {
+            if (!_isProven(outputs[i], bytes32(0), fillTimes[i])) {
                 revert CannotProveOrder();
             }
         }

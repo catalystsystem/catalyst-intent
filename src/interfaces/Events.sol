@@ -16,7 +16,7 @@ event OrderClaimed(
     uint256 amount
 );
 
-event OrderFilled(bytes32 indexed orderHash, address indexed fillerIdentifier, bytes32 remoteOracle);
+event OrderFilled(bytes32 indexed orderHash, address indexed fillerIdentifier, bytes32[] remoteOracles);
 
 event OrderVerify(bytes32 indexed orderHash, bytes32 fillOrderHash);
 

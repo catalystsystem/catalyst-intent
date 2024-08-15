@@ -19,10 +19,8 @@ contract LimitOrderReactor is BaseReactor {
         // Permit2 context
         LimitOrderData memory limitData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
 
-        witness = CrossChainLimitOrderType.hashOrderDataM(limitData);
-        bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
-        witness = CrossChainOrderType.hash(order, orderTypeHash, witness);
-        witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainLimitOrderType.getOrderType());
+        witness = CrossChainLimitOrderType.crossOrderHash(order);
+        witnessTypeString = CrossChainLimitOrderType.permit2WitnessType();
 
         // Set orderKey:
         orderKey = _resolveKey(order, limitData);

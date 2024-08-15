@@ -3,7 +3,6 @@ pragma solidity ^0.8.22;
 
 import { Input } from "../../src/interfaces/ISettlementContract.sol";
 
-
 import { OutputDescription } from "../../src/interfaces/Structs.sol";
 
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
@@ -30,7 +29,9 @@ library OrderDataBuilder {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle)));
+        outputs[0] = getOutput(
+            tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle))
+        );
 
         limitOrderData = LimitOrderData({
             proofDeadline: proofDeadline,
@@ -60,8 +61,9 @@ library OrderDataBuilder {
         uint256 length
     ) internal view returns (LimitOrderData memory limitOrderData) {
         Input[] memory inputs = getInputs(tokenToSwapInput, inputAmount, length);
-        OutputDescription[] memory outputs = getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), length, bytes32(abi.encode(remoteOracle)));
-
+        OutputDescription[] memory outputs = getOutputs(
+            tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), length, bytes32(abi.encode(remoteOracle))
+        );
 
         limitOrderData = LimitOrderData({
             proofDeadline: proofDeadline,
@@ -94,7 +96,9 @@ library OrderDataBuilder {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle)));
+        outputs[0] = getOutput(
+            tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle))
+        );
 
         int256[] memory inputSlopes = new int256[](1);
         int256[] memory outputSlopes = new int256[](1);

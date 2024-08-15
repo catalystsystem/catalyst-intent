@@ -4,11 +4,10 @@ pragma solidity ^0.8.22;
 import { FailedValidation } from "../interfaces/Errors.sol";
 import { IPreValidation } from "../interfaces/IPreValidation.sol";
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
-import { Collateral, OrderKey, ReactorInfo, OutputDescription } from "../interfaces/Structs.sol";
+import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 
 import { CrossChainDutchOrderType, DutchOrderData } from "../libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
-
 
 import { BaseReactor } from "./BaseReactor.sol";
 
@@ -33,10 +32,8 @@ contract DutchOrderReactor is BaseReactor {
             }
         }
 
-        witness = CrossChainDutchOrderType.hashOrderDataM(dutchData);
-        bytes32 orderTypeHash = CrossChainDutchOrderType.orderTypeHash();
-        witness = CrossChainOrderType.hash(order, orderTypeHash, witness);
-        witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainDutchOrderType.getOrderType());
+        witness = CrossChainDutchOrderType.crossOrderHash(order);
+        witnessTypeString = CrossChainDutchOrderType.permit2WitnessType();
 
         // Set orderKey:
         orderKey = _resolveKey(order, dutchData);

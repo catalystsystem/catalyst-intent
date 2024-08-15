@@ -152,13 +152,13 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, fillerData);
@@ -188,12 +188,12 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
@@ -225,21 +225,17 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            BOB_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            BOB_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, fillerData);
-    }
-
-    function _orderType() internal pure override returns (bytes memory) {
-        return CrossChainLimitOrderType.getOrderType();
     }
 
     function _initiateOrder(
@@ -269,28 +265,28 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.prank(_fillerSender);
         return reactor.initiate(order, signature, fillerData);
     }
 
-    function _getTypeAndDataHashes(CrossChainOrder calldata order)
-        public
-        pure
-        override
-        returns (bytes32 typeHash, bytes32 dataHash, bytes32 orderHash)
-    {
-        LimitOrderData memory limitOrderData = abi.decode(order.orderData, (LimitOrderData));
-        typeHash = CrossChainLimitOrderType.orderTypeHash();
-        dataHash = CrossChainLimitOrderType.hashOrderDataM(limitOrderData);
-        orderHash = CrossChainOrderType.hash(order, typeHash, dataHash);
+    function _getFullPermitTypeHash() internal pure override returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, CrossChainLimitOrderType.permit2WitnessType()
+            )
+        );
+    }
+
+    function _getWitnessHash(CrossChainOrder calldata order) public pure override returns (bytes32) {
+        return CrossChainLimitOrderType.crossOrderHash(order);
     }
 
     function _getCrossOrder(

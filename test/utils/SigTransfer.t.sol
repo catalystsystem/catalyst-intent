@@ -18,7 +18,7 @@ library SigTransfer {
         bytes32 typeHash,
         bytes32 witness,
         bytes32 domainSeparator,
-        address sender
+        address spender
     ) internal pure returns (bytes memory sig) {
         bytes32[] memory tokenPermissions = new bytes32[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
@@ -33,7 +33,7 @@ library SigTransfer {
                     abi.encode(
                         typeHash,
                         keccak256(abi.encodePacked(tokenPermissions)),
-                        sender,
+                        spender,
                         permit.nonce,
                         permit.deadline,
                         witness

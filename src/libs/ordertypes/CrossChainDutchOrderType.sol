@@ -65,10 +65,22 @@ library CrossChainDutchOrderType {
         "OutputDescription[]outputs",
         ")"
     );
+
+    bytes constant CROSS_DUTCH_ORDER_TYPE_STUB = abi.encodePacked(
+        "CrossChainOrder(",
+        "address settlementContract,",
+        "address swapper,",
+        "uint256 nonce,",
+        "uint32 originChainId,",
+        "uint32 initiateDeadline,",
+        "uint32 fillDeadline,",
+        "CatalystDutchOrderData orderData",
+        ")"
+    );
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
-    function orderTypeHash() internal pure returns (bytes32) {
-        return keccak256(getOrderType());
+    function decodeOrderData(bytes calldata orderBytes) internal pure returns (DutchOrderData memory dutchData) {
+        dutchData = abi.decode(orderBytes, (DutchOrderData));
     }
 
     function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
@@ -115,12 +127,33 @@ library CrossChainDutchOrderType {
         );
     }
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns (DutchOrderData memory dutchData) {
-        dutchData = abi.decode(orderBytes, (DutchOrderData));
+    function crossOrderHash(CrossChainOrder calldata order) internal pure returns (bytes32) {
+        DutchOrderData memory dutchOrderData = decodeOrderData(order.orderData);
+        return keccak256(
+            abi.encode(
+                keccak256(abi.encodePacked(CROSS_DUTCH_ORDER_TYPE_STUB, DUTCH_ORDER_DATA_TYPE)),
+                order.settlementContract,
+                order.swapper,
+                order.nonce,
+                order.originChainId,
+                order.initiateDeadline,
+                order.fillDeadline,
+                hashOrderDataM(dutchOrderData)
+            )
+        );
     }
 
-    function getOrderType() internal pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("CatalystDutchOrderData orderData", DUTCH_ORDER_DATA_TYPE_ONLY);
+    function permit2WitnessType() internal pure returns (string memory permit2WitnessTypeString) {
+        permit2WitnessTypeString = string(
+            abi.encodePacked(
+                "CrossChainOrder witness)",
+                DUTCH_ORDER_DATA_TYPE_ONLY,
+                CROSS_DUTCH_ORDER_TYPE_STUB,
+                CrossChainOrderType.INPUT_TYPE_STUB,
+                CrossChainOrderType.OUTPUT_TYPE_STUB,
+                CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
+            )
+        );
     }
 
     /**

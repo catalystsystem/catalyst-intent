@@ -129,13 +129,6 @@ abstract contract TestBaseReactor is Test {
         fillerData = FillerDataLib._encode1(fillerAddress, 0, 0);
     }
 
-    bytes32 public FULL_ORDER_PERMIT2_TYPE_HASH = keccak256(
-        abi.encodePacked(
-            SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
-            CrossChainOrderType.permit2WitnessType(_orderType())
-        )
-    );
-
     function test_collect_tokens(
         uint256 inputAmount,
         uint256 outputAmount,
@@ -189,13 +182,13 @@ abstract contract TestBaseReactor is Test {
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 0, 1, 5, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InitiateDeadlinePassed.selector);
         reactor.initiate(order, signature, fillerData);
@@ -211,13 +204,13 @@ abstract contract TestBaseReactor is Test {
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 2, 11, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
         reactor.initiate(order, signature, fillerData);
@@ -233,13 +226,13 @@ abstract contract TestBaseReactor is Test {
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 3, 2, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
         reactor.initiate(order, signature, fillerData);
@@ -268,13 +261,13 @@ abstract contract TestBaseReactor is Test {
             0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InitiateDeadlineAfterFill.selector);
         reactor.initiate(order, signature, fillerData);
@@ -686,13 +679,13 @@ abstract contract TestBaseReactor is Test {
         CrossChainOrder memory order =
             _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderPermitOrderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
 
         bytes memory customFillerData = FillerDataLib._encode1(fillerAddress, type(uint32).max, discount);
@@ -767,13 +760,13 @@ abstract contract TestBaseReactor is Test {
         CrossChainOrder memory order =
             _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderPermitOrderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
 
         bytes memory customFillerData = FillerDataLib._encode1(fillerAddress, originalPurchaseTime, discount);
@@ -1213,7 +1206,9 @@ abstract contract TestBaseReactor is Test {
         );
     }
 
-    function _orderType() internal virtual returns (bytes memory);
+    function _getFullPermitTypeHash() internal virtual returns (bytes32);
+
+    function _getWitnessHash(CrossChainOrder calldata order) public virtual returns (bytes32);
 
     function _initiateOrder(
         uint256 _nonce,
@@ -1252,11 +1247,6 @@ abstract contract TestBaseReactor is Test {
         uint32 challengeDeadline,
         uint32 proofDeadline
     ) internal virtual returns (OrderKey memory);
-
-    function _getTypeAndDataHashes(CrossChainOrder calldata order)
-        public
-        virtual
-        returns (bytes32 typeHash, bytes32 dataHash, bytes32 orderHash);
 
     function _getCrossOrder(
         uint256 inputAmount,

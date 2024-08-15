@@ -46,10 +46,6 @@ contract TestDutchAuction is TestBaseReactor {
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
-    function _orderType() internal virtual override returns (bytes memory) {
-        return CrossChainDutchOrderType.getOrderType();
-    }
-
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
@@ -77,28 +73,28 @@ contract TestDutchAuction is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.prank(_fillerSender);
         return reactor.initiate(order, signature, fillerData);
     }
 
-    function _getTypeAndDataHashes(CrossChainOrder calldata order)
-        public
-        virtual
-        override
-        returns (bytes32 typeHash, bytes32 dataHash, bytes32 orderHash)
-    {
-        DutchOrderData memory dutchOrderData = abi.decode(order.orderData, (DutchOrderData));
-        typeHash = CrossChainDutchOrderType.orderTypeHash();
-        dataHash = CrossChainDutchOrderType.hashOrderDataM(dutchOrderData);
-        orderHash = CrossChainOrderType.hash(order, typeHash, dataHash);
+    function _getFullPermitTypeHash() internal pure override returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, CrossChainDutchOrderType.permit2WitnessType()
+            )
+        );
+    }
+
+    function _getWitnessHash(CrossChainOrder calldata order) public pure override returns (bytes32) {
+        return CrossChainDutchOrderType.crossOrderHash(order);
     }
 
     function _getCrossOrder(

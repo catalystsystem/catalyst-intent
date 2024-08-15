@@ -13,7 +13,7 @@ contract TestPermitDutchOrder is TestPermit {
             abi.encodePacked(
                 "PermitBatchWitnessTransferFrom"
                 "(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,CrossChainOrder witness)"
-                "CatalystDutchOrderData("
+                "CatalystDutchOrderData(" "bytes32 verificationContext," "address verificationContract,"
                 "uint32 proofDeadline,uint32 challengeDeadline,address collateralToken,uint256 fillerCollateralAmount,"
                 "uint256 challengerCollateralAmount,address localOracle,bytes32 remoteOracle,"
                 "uint32 slopeStartingTime,int256[] inputSlopes,int256[] outputSlopes,Input[] inputs,Output[] outputs)"

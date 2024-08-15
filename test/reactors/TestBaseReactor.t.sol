@@ -364,6 +364,7 @@ abstract contract TestBaseReactor is Test {
         uint256 challengerCollateralAmount,
         address challenger
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        vm.assume(challenger != address(reactor));
         vm.assume(fillerAddress != challenger);
         vm.assume(SWAPPER != challenger);
         vm.assume(challengerCollateralAmount > 0);

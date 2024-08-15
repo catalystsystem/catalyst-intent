@@ -89,6 +89,8 @@ library OrderDataBuilder {
         Input memory input = getInput(tokenToSwapInput, inputAmount);
         Output memory output = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
         dutchOrderData = DutchOrderData({
+            verificationContext: bytes32(0),
+            verificationContract: address(0),
             proofDeadline: proofDeadline,
             challengeDeadline: challengeDeadline,
             collateralToken: collateralToken,

@@ -15,6 +15,7 @@ error OrderNotReadyForOptimisticPayout(uint32 timeRemaining);
 error OnlyFiller();
 error CannotProveOrder();
 error WrongChain();
+error FailedValidation();
 error FillTimeInPast();
 error FillTimeFarInFuture();
 error InitiateDeadlineAfterFill();

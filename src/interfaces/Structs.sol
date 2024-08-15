@@ -48,7 +48,7 @@ struct OrderKey {
     // The contract that is managing this order.
     ReactorInfo reactorContext;
     // Who this order was claimed by.
-    address swapper; // TODO: Include filler in this order?
+    address swapper;
     uint96 nonce;
     // Collateral
     Collateral collateral;

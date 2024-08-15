@@ -82,8 +82,8 @@ library CrossChainDutchOrderType {
                 orderData.localOracle,
                 orderData.remoteOracle,
                 orderData.slopeStartingTime,
-                keccak256(abi.encode(orderData.inputSlopes)),
-                keccak256(abi.encode(orderData.outputSlopes)),
+                keccak256(abi.encodePacked(orderData.inputSlopes)),
+                keccak256(abi.encodePacked(orderData.outputSlopes)),
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )
@@ -104,8 +104,8 @@ library CrossChainDutchOrderType {
                 orderData.localOracle,
                 orderData.remoteOracle,
                 orderData.slopeStartingTime,
-                keccak256(abi.encode(orderData.inputSlopes)),
-                keccak256(abi.encode(orderData.outputSlopes)),
+                keccak256(abi.encodePacked(orderData.inputSlopes)),
+                keccak256(abi.encodePacked(orderData.outputSlopes)),
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )

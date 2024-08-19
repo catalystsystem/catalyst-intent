@@ -10,7 +10,7 @@ import { IPreValidation } from "../interfaces/IPreValidation.sol";
  */
 contract ExclusiveOrder is IPreValidation, Ownable {
     error KeyCannotHave12EmptyBytes();
-    
+
     event KeysModified(bytes32 key, address initiator, bool config);
 
     mapping(bytes32 => mapping(address => bool)) _allowList;

@@ -142,10 +142,7 @@ contract TestDutchAuction is TestBaseReactor {
     }
     //TODO: add private functions to set slopes for dutch order and  test the dutch order when we fuzz the slopes
 
-
     function test_exclusive_order() external {
         ExclusiveOrder validationContract = new ExclusiveOrder();
-
-
     }
 }

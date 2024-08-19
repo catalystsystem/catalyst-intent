@@ -48,14 +48,14 @@ struct OrderKey {
     // The contract that is managing this order.
     ReactorInfo reactorContext;
     // Who this order was claimed by.
-    address swapper; // TODO: Include filler in this order?
+    address swapper;
     uint96 nonce;
     // Collateral
     Collateral collateral;
     uint32 originChainId;
     // Proof Context
     address localOracle; // The oracle that can satisfy a dispute.
-    bytes32 remoteOracle; // Remote oracle. If address(0), is local.
+    bytes32[] remoteOracles; // Remote oracle. If address(0), is local.
     bytes32 oracleProofHash; // TODO: figure out the best way to store proof details. Is the below enough?
     // TODO: Figure out how to do remote calls (gas limit + fallback + calldata)
     Input[] inputs;

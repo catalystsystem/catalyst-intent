@@ -12,6 +12,8 @@ import { IsContractLib } from "./IsContractLib.sol";
  * @title Extendable contract that allows an implementation to collect governance fees.
  */
 abstract contract CanCollectGovernanceFee is Ownable {
+    error GovernanceFeeTooHigh();
+
     uint256 public governanceFee = 0;
     uint256 constant GOVERNANCE_FEE_DENUM = 10 ** 18;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25; // 25%
@@ -81,7 +83,7 @@ abstract contract CanCollectGovernanceFee is Ownable {
      * @param newGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
      */
     function setGovernanceFee(uint256 newGovernanceFee) external onlyOwner {
-        if (newGovernanceFee > MAX_GOVERNANCE_FEE) revert("GovernanceFeeTooHigh()");
+        if (newGovernanceFee > MAX_GOVERNANCE_FEE) revert GovernanceFeeTooHigh();
         uint256 oldGovernanceFee = governanceFee;
         governanceFee = newGovernanceFee;
 

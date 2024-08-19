@@ -15,8 +15,8 @@ import { MockUtils } from "../utils/MockUtils.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
+import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 import { Test, console } from "forge-std/Test.sol";
 
@@ -364,6 +364,7 @@ abstract contract TestBaseReactor is Test {
         uint256 challengerCollateralAmount,
         address challenger
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        vm.assume(challenger != address(reactor));
         vm.assume(fillerAddress != challenger);
         vm.assume(SWAPPER != challenger);
         vm.assume(challengerCollateralAmount > 0);
@@ -994,7 +995,7 @@ abstract contract TestBaseReactor is Test {
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
         vm.expectEmit();
-        emit OrderFilled(orderHash, fillerAddress, orderKey.remoteOracle);
+        emit OrderFilled(orderHash, fillerAddress, orderKey.remoteOracles);
 
         vm.prank(fillerAddress);
         reactor.oracle(orderKey);
@@ -1137,7 +1138,7 @@ abstract contract TestBaseReactor is Test {
         );
 
         vm.expectEmit();
-        emit OrderFilled(reactor.getOrderKeyHash(orderKey), fillerAddress, orderKey.remoteOracle);
+        emit OrderFilled(reactor.getOrderKeyHash(orderKey), fillerAddress, orderKey.remoteOracles);
 
         vm.prank(fillerAddress);
         reactor.oracle(orderKey);
@@ -1212,7 +1213,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.prank(escrow);
         localVMOracleContract.receiveMessage(
-            destinationIdentifier, bytes32(0), bytes.concat(orderKey.remoteOracle), encodedPayload
+            destinationIdentifier, bytes32(0), bytes.concat(orderKey.remoteOracles[0]), encodedPayload
         );
     }
 

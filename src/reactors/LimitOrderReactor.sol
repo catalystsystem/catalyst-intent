@@ -61,7 +61,7 @@ contract LimitOrderReactor is BaseReactor {
             originChainId: order.originChainId,
             // Proof Context
             localOracle: limitData.localOracle,
-            remoteOracle: limitData.remoteOracle,
+            remoteOracles: limitData.remoteOracles,
             oracleProofHash: bytes32(0),
             inputs: inputs,
             outputs: outputs

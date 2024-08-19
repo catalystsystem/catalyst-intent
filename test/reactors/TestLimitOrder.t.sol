@@ -96,7 +96,7 @@ contract TestLimitOrder is TestBaseReactor {
 
         //Oracles tests
         assertEq(orderKey.localOracle, localVMOracle);
-        assertEq(orderKey.remoteOracle, bytes32(uint256(uint160(remoteVMOracle))));
+        assertEq(orderKey.remoteOracles[0], bytes32(uint256(uint160(remoteVMOracle))));
 
         //Collateral test
         Collateral memory expectedCollateral = Collateral({

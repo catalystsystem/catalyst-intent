@@ -14,15 +14,17 @@ struct DutchOrderData {
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
     address localOracle;
-    bytes32 remoteOracle; // TODO: figure out how to trustless.
+    bytes32[] remoteOracles;
     uint32 slopeStartingTime;
-    int256 inputSlope; // The rate of input that is changing.
-    int256 outputSlope; // The rate of output that is changing.
-    Input input;
-    Output output;
+    int256[] inputSlopes; // The rate of input that is changing.
+    int256[] outputSlopes; // The rate of output that is changing.
+    Input[] inputs;
+    Output[] outputs;
 }
 
 library CrossChainDutchOrderType {
+    error LengthsDoesNotMatch(uint256, uint256);
+
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
         "CatalystDutchOrderData(",
         "bytes32 verificationContext,",
@@ -33,12 +35,12 @@ library CrossChainDutchOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32 remoteOracle,",
+        "bytes32[] remoteOracles,",
         "uint32 slopeStartingTime,",
-        "int256 inputSlope,",
-        "int256 outputSlope,",
-        "Input input,",
-        "Output output",
+        "int256[] inputSlopes,",
+        "int256[] outputSlopes,",
+        "Input[] inputs,",
+        "Output[] outputs",
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
@@ -46,18 +48,20 @@ library CrossChainDutchOrderType {
 
     bytes constant DUTCH_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
         "CatalystDutchOrderData(",
+        "bytes32 verificationContext,",
+        "address verificationContract,",
         "uint32 proofDeadline,",
         "uint32 challengeDeadline,",
         "address collateralToken,",
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32 remoteOracle,",
+        "bytes32[] remoteOracles,",
         "uint32 slopeStartingTime,",
-        "int256 inputSlope,",
-        "int256 outputSlope,",
-        "Input input,",
-        "Output output",
+        "int256[] inputSlopes,",
+        "int256[] outputSlopes,",
+        "Input[] inputs,",
+        "Output[] outputs",
         ")"
     );
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
@@ -68,44 +72,48 @@ library CrossChainDutchOrderType {
 
     function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                DUTCH_ORDER_DATA_TYPE_HASH,
-                orderData.verificationContext,
-                orderData.verificationContract,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
-                orderData.remoteOracle,
-                orderData.slopeStartingTime,
-                orderData.inputSlope,
-                orderData.outputSlope,
-                CrossChainOrderType.hashInput(orderData.input),
-                CrossChainOrderType.hashOutput(orderData.output)
+            bytes.concat(
+                bytes.concat(
+                    DUTCH_ORDER_DATA_TYPE_HASH,
+                    bytes32(orderData.verificationContext),
+                    bytes32(uint256(uint160(orderData.verificationContract))),
+                    bytes32(uint256(orderData.proofDeadline)),
+                    bytes32(uint256(orderData.challengeDeadline)),
+                    bytes32(uint256(uint160(orderData.collateralToken))),
+                    bytes32(orderData.fillerCollateralAmount)
+                ),
+                bytes.concat(
+                    bytes32(orderData.challengerCollateralAmount),
+                    bytes32(uint256(uint160(orderData.localOracle))),
+                    keccak256((abi.encodePacked(orderData.remoteOracles))),
+                    bytes32(uint256(orderData.slopeStartingTime)),
+                    keccak256(abi.encodePacked(orderData.inputSlopes)),
+                    keccak256(abi.encodePacked(orderData.outputSlopes)),
+                    CrossChainOrderType.hashInputs(orderData.inputs),
+                    CrossChainOrderType.hashOutputs(orderData.outputs)
+                )
             )
         );
     }
 
     function hashOrderData(DutchOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
+            bytes.concat(
                 DUTCH_ORDER_DATA_TYPE_HASH,
-                orderData.verificationContext,
-                orderData.verificationContract,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
-                orderData.remoteOracle,
-                orderData.slopeStartingTime,
-                orderData.inputSlope,
-                orderData.outputSlope,
-                CrossChainOrderType.hashInput(orderData.input),
-                CrossChainOrderType.hashOutput(orderData.output)
+                bytes32(orderData.verificationContext),
+                bytes32(uint256(uint160(orderData.verificationContract))),
+                bytes32(uint256(orderData.proofDeadline)),
+                bytes32(uint256(orderData.challengeDeadline)),
+                bytes32(uint256(uint160(orderData.collateralToken))),
+                bytes32(orderData.fillerCollateralAmount),
+                bytes32(orderData.challengerCollateralAmount),
+                bytes32(uint256(uint160(orderData.localOracle))),
+                keccak256((abi.encodePacked(orderData.remoteOracles))),
+                bytes32(uint256(orderData.slopeStartingTime)),
+                keccak256(abi.encodePacked(orderData.inputSlopes)),
+                keccak256(abi.encodePacked(orderData.outputSlopes)),
+                CrossChainOrderType.hashInputs(orderData.inputs),
+                CrossChainOrderType.hashOutputs(orderData.outputs)
             )
         );
     }
@@ -149,31 +157,53 @@ library CrossChainDutchOrderType {
      * @dev This functions calculates the the current amount the user pay in the source chain based on the time passed.
      * The order is treated as Limit Order if the slope did not start.
      * @param dutchOrderData The order data to calculate the current input value from.
-     * @return orderInput The input after applying the decay function based on the time passed
+     * @return orderInputs The input after applying the decay function based on the time passed
      */
-    function getInputAfterDecay(DutchOrderData memory dutchOrderData) internal view returns (Input memory orderInput) {
-        orderInput = dutchOrderData.input;
-        int256 inputSlope = dutchOrderData.inputSlope;
-        if (inputSlope == 0) return orderInput; // Early exit if inputSlope == 0.
+    function getInputsAfterDecay(DutchOrderData memory dutchOrderData)
+        internal
+        view
+        returns (Input[] memory orderInputs)
+    {
+        orderInputs = dutchOrderData.inputs;
+        int256[] memory inputSlopes = dutchOrderData.inputSlopes;
+        // Validate that their lengths are equal.
+        uint256 numInputs = orderInputs.length;
+        if (numInputs != inputSlopes.length) revert LengthsDoesNotMatch(numInputs, inputSlopes.length);
+        unchecked {
+            for (uint256 i; i < numInputs; ++i) {
+                int256 inputSlope = inputSlopes[i];
+                if (inputSlope == 0) continue;
 
-        orderInput.amount = _calcSlope(inputSlope, dutchOrderData.slopeStartingTime, orderInput.amount);
+                orderInputs[i].amount = _calcSlope(inputSlope, dutchOrderData.slopeStartingTime, orderInputs[i].amount);
+            }
+        }
     }
 
     /**
      * @dev This functions calculates the the current amount the user will get in the destination chain based on the time passed.
      * The order is treated as Limit Order if the slope did not start.
      * @param dutchOrderData The order data to calculate the current output value from.
-     * @return orderOutput The output after applying the decay function based on the time passed
+     * @return orderOutputs The output after applying the decay function based on the time passed
      */
-    function getOutputAfterDecay(DutchOrderData memory dutchOrderData)
+    function getOutputsAfterDecay(DutchOrderData memory dutchOrderData)
         internal
         view
-        returns (Output memory orderOutput)
+        returns (Output[] memory orderOutputs)
     {
-        orderOutput = dutchOrderData.output;
-        int256 outputSlope = dutchOrderData.outputSlope;
-        if (outputSlope == 0) return orderOutput; // Early exit if inputSlope == 0.
+        orderOutputs = dutchOrderData.outputs;
+        int256[] memory outputSlopes = dutchOrderData.outputSlopes;
+        // Validate that their lengths are equal.
+        uint256 numOutputs = orderOutputs.length;
+        if (numOutputs != outputSlopes.length) revert LengthsDoesNotMatch(numOutputs, outputSlopes.length);
 
-        orderOutput.amount = _calcSlope(outputSlope, dutchOrderData.slopeStartingTime, orderOutput.amount);
+        unchecked {
+            for (uint256 i; i < numOutputs; ++i) {
+                int256 outputSlope = outputSlopes[i];
+                if (outputSlope == 0) continue;
+
+                orderOutputs[i].amount =
+                    _calcSlope(outputSlope, dutchOrderData.slopeStartingTime, orderOutputs[i].amount);
+            }
+        }
     }
 }

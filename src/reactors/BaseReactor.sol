@@ -458,10 +458,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // The following call is a external call to an untrusted contract. As a result,
         // it is important that we protect this contract against reentry calls, even if read-only.
-        bytes32 remoteOracle = orderKey.remoteOracle;
+        bytes32[] calldata remoteOracles = orderKey.remoteOracles;
         if (
             !IOracle(orderKey.localOracle).isProven(
-                orderKey.outputs, orderKey.reactorContext.fillByDeadline, remoteOracle
+                orderKey.outputs, remoteOracles, orderKey.reactorContext.fillByDeadline
             )
         ) revert CannotProveOrder();
 
@@ -489,7 +489,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // It has already been entered into our contract.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
 
-        emit OrderFilled(orderHash, msg.sender, remoteOracle);
+        emit OrderFilled(orderHash, msg.sender, remoteOracles);
     }
 
     /**

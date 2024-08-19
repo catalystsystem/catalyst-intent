@@ -35,7 +35,7 @@ import {
     GovernanceFeeChanged,
     OptimisticPayout,
     OrderChallenged,
-    OrderFilled,
+    OrderProven,
     OrderPurchaseDetailsModified,
     OrderPurchased
 } from "../../src/interfaces/Events.sol";
@@ -970,11 +970,6 @@ abstract contract TestBaseReactor is Test {
             proofDeadline
         );
 
-        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
-        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
-
-        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
-
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
 
@@ -982,7 +977,7 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapOutput,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        _fillAndSubmitOracle( _getVMOracle(remoteVMOracle), _getVMOracle(localVMOracle), orderKey, _getFillTimes(1, fillDeadline), deadline);
 
         vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
@@ -995,10 +990,10 @@ abstract contract TestBaseReactor is Test {
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
         vm.expectEmit();
-        emit OrderFilled(orderHash, fillerAddress, orderKey.remoteOracles);
+        emit OrderProven(orderHash, fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.oracle(orderKey);
+        reactor.proveOrderFulfillment(orderKey);
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
         assert(orderContext.status == OrderStatus.Filled);
@@ -1014,7 +1009,7 @@ abstract contract TestBaseReactor is Test {
             0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
         );
         vm.expectRevert(CannotProveOrder.selector);
-        reactor.oracle(orderKey);
+        reactor.proveOrderFulfillment(orderKey);
     }
 
     function test_revert_oracle_proven_order(
@@ -1066,7 +1061,7 @@ abstract contract TestBaseReactor is Test {
         reactor.optimisticPayout(orderKey);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
-        reactor.oracle(orderKey);
+        reactor.proveOrderFulfillment(orderKey);
     }
 
     function test_oracle_challenged_order(
@@ -1107,11 +1102,6 @@ abstract contract TestBaseReactor is Test {
         reactor.dispute(orderKey);
         vm.stopPrank();
 
-        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
-        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
-
-        uint32[] memory fillTimes = _getFillTimes(1, DEFAULT_FILL_DEADLINE);
-
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
 
@@ -1121,7 +1111,7 @@ abstract contract TestBaseReactor is Test {
         );
 
         _fillAndSubmitOracle(
-            remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, DEFAULT_CHALLENGE_DEADLINE + 1
+            _getVMOracle(localVMOracle), _getVMOracle(remoteVMOracle), orderKey, _getFillTimes(1, DEFAULT_FILL_DEADLINE), DEFAULT_CHALLENGE_DEADLINE + 1
         );
 
         vm.expectCall(
@@ -1137,11 +1127,13 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
         );
 
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
         vm.expectEmit();
-        emit OrderFilled(reactor.getOrderKeyHash(orderKey), fillerAddress, orderKey.remoteOracles);
+        emit OrderProven(orderHash, fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.oracle(orderKey);
+        reactor.proveOrderFulfillment(orderKey);
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
 

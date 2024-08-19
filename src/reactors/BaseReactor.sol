@@ -42,7 +42,7 @@ import {
     OptimisticPayout,
     OrderChallenged,
     OrderClaimed,
-    OrderFilled,
+    OrderProven,
     OrderPurchaseDetailsModified,
     OrderPurchased,
     OrderVerify
@@ -57,10 +57,10 @@ import {
  * - Oracle Interfaction: To provide the relevant proofs against order disputes.
  *
  * It is expected that proper order reactors implement:
- * - _initiate. To convert partially structured orders into order keys that describe fulfillment conditions.
- * - _resolveKey. Helper function to convert an order into an order key.
+ * - `_initiate`. To convert partially structured orders into order keys that describe fulfillment conditions.
+ * - `_resolveKey`. Helper function to convert an order into an order key.
  * @dev Important implementation quirks:
- * **Token Turst**
+ * **Token Trust**
  * There is a lot of trust put into the tokens that interact with the contract. Not trust as in the tokens can
  * impact this contract but trust as in a faulty / malicious token may be able to break the order status flow
  * and prevent proper delivery of inputs (to solver) and return of collateral.
@@ -69,7 +69,7 @@ import {
  * being paused. This also applies from the user's perspective, if a pausable token is used for
  * collateral their inputs may not be returnable.
  * 2. All inputs have to be trusted by all parties. If one input is unable to be transferred, the whole lot
- * becomes stuck until the issue resolves itself.
+ * becomes stuck until the issue is resolved.
  * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could annoy users.
  */
 abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
@@ -83,12 +83,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * @notice Maps an orderkey hash to the relevant orderContext.
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
-    mapping(address token => uint256 amount) internal _governanceOwned;
 
-    /**
-     * @notice Storage of token transfers that failed.
-     */
-    mapping(address user => mapping(address token => uint256 amount)) internal _recoverableTokens;
 
     constructor(address permit2, address owner) CanCollectGovernanceFee(owner) {
         PERMIT2 = ISignatureTransfer(permit2);
@@ -101,15 +96,48 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
     }
 
     function getOrderKeyHash(OrderKey calldata orderKey) external pure returns (bytes32 orderKeyHash) {
-        return orderKeyHash = _orderKeyHash(orderKey); // TODO: Is it more efficient to do this manually?
+        return orderKeyHash = _orderKeyHash(orderKey);
     }
 
     function getOrderContext(OrderKey calldata orderKey) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
     }
 
-    function getRecoverableTokens(address user, address token) external view returns (uint256 amount) {
-        return _recoverableTokens[user][token];
+    //--- Override for implementation ---//
+
+    /**
+     * @notice Reactor Order implementations needs to implement this function to initiate their orders.
+     * Return an orderKey with the relevant information to solve for.
+     * @dev This function shouldn't check if the signature is correct but instead return information
+     * to be used by _collectTokensViaPermit2 to verify the order (through PERMIT2).
+     */
+    function _initiate(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal virtual returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
+
+
+    /**
+     * @notice Logic function for resolveKey(...).
+     * @dev Order implementations of this reactor are required to implement this function.
+     */
+    function _resolveKey(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) internal view virtual returns (OrderKey memory);
+
+    /**
+     * @notice Resolves a specific CrossChainOrder into a Catalyst specific OrderKey.
+     * @dev This provides a more precise description of the cost of the order compared to the generic resolve(...).
+     * @param order CrossChainOrder to resolve.
+     * @param fillerData Any filler-defined data required by the settler
+     * @return orderKey The full description of the order, including the inputs and outputs of the order
+     */
+    function resolveKey(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) external view returns (OrderKey memory orderKey) {
+        return orderKey = _resolveKey(order, fillerData);
     }
 
     //--- Token Handling ---//
@@ -120,7 +148,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * - Verification of the signature for the order. This ensures the user has accepted the order conditions.
      * - Spend nonces. Disallow the same order from being claimed twice.  // TODO <- Check
      */
-    function _collectTokens(
+    function _collectTokensViaPermit2(
         OrderKey memory orderKey,
         address owner,
         bytes32 witness,
@@ -139,10 +167,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * @notice Collects tokens without permit2.
      * @dev Can only be used to collect tokens from msg.sender.
      * If inputs[i].amount * discount overflows the amount is set to inputs[i].amount.
-     * @param inputs Tokens to collect from msg.sender
+     * @param inputs Tokens to collect from msg.sender.
      * @param to Destination address for the collected tokens. To collect to this contract, set address(this).
      */
-    function _collectTokens(Input[] calldata inputs, address to, uint16 discount) internal virtual {
+    function _collectTokensFromMsgSender(Input[] calldata inputs, address to, uint16 discount) internal virtual {
         address from = msg.sender;
         uint256 numInputs = inputs.length;
         unchecked {
@@ -217,14 +245,17 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
             revert InitiateDeadlinePassed();
         }
         // Notice that the 2 above checks also check if order.fillDeadline < block.timestamp since
-        // (order.fillDeadline < order.initiateDeadline) U (order.initiateDeadline < block.timestamp)
+        // (order.fillDeadline < order.initiateDeadline) & (order.initiateDeadline < block.timestamp)
         // => order.fillDeadline < block.timestamp is disallowed.
-        // TODO: solve permit2 context
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, uint256 orderPointer) =
+
+        // Decode filler data.
+        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, uint256 fillerDataPointer) =
             FillerDataLib.decode(fillerData);
+
+        // Initiate order.
         bytes32 witness;
         string memory witnessTypeString;
-        (orderKey, witness, witnessTypeString) = _initiate(order, fillerData[orderPointer:]);
+        (orderKey, witness, witnessTypeString) = _initiate(order, fillerData[fillerDataPointer:]);
 
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
@@ -243,7 +274,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // so other can't claim it. This acts as a local reentry check.
         OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext.status);
-        orderContext.status = OrderStatus.Claimed;
+        orderContext.status = OrderStatus.Claimed; // Now this order cannot be claimed again.
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderDiscount = orderDiscount;
@@ -258,55 +289,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         );
 
         // Collect input tokens from user.
-        _collectTokens(orderKey, order.swapper, witness, witnessTypeString, signature);
-    }
-
-    /**
-     * @notice Reactor Order implementations needs to implement this function to initiate their orders.
-     * Return an orderKey with the relevant information to solve for.
-     * @dev This function shouldn't check if the signature is correct but instead return information
-     * to be used by _collectTokens to verify the order (through PERMIT2).
-     */
-    function _initiate(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal virtual returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
-
-    /**
-     * @notice Resolves a specific CrossChainOrder into a Catalyst specific OrderKey.
-     * @dev This provides a more precise description of the cost of the order compared to the generic resolve(...).
-     * @param order CrossChainOrder to resolve.
-     * @param fillerData Any filler-defined data required by the settler
-     * @return orderKey The full description of the order, including the inputs and outputs of the order
-     */
-    function resolveKey(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) external view returns (OrderKey memory orderKey) {
-        return orderKey = _resolveKey(order, fillerData);
-    }
-
-    /**
-     * @notice Logic function for resolveKey(...).
-     * @dev Order implementations of this reactor are required to implement this function.
-     */
-    function _resolveKey(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal view virtual returns (OrderKey memory);
-
-    /**
-     * @notice ERC-7683: Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
-     * @dev Intended to improve standardized integration of various order types and settlement contracts
-     * @param order CrossChainOrder to resolve.
-     * @param fillerData Any filler-defined data required by the settler
-     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
-     */
-    function resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        return _resolve(order, fillerData);
+        _collectTokensViaPermit2(orderKey, order.swapper, witness, witnessTypeString, signature);
     }
 
     /**
@@ -361,6 +344,20 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         });
     }
 
+    /**
+     * @notice ERC-7683: Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
+     * @dev Intended to improve standardized integration of various order types and settlement contracts
+     * @param order CrossChainOrder to resolve.
+     * @param fillerData Any filler-defined data required by the settler
+     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
+     */
+    function resolve(
+        CrossChainOrder calldata order,
+        bytes calldata fillerData
+    ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
+        return _resolve(order, fillerData);
+    }
+
     //--- Order Purchase Helpers ---//
 
     /**
@@ -410,7 +407,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done through permit.
         // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
-        _collectTokens(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
+        _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
 
         emit OrderPurchased(orderKeyHash, msg.sender);
     }
@@ -442,11 +439,12 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * a function, isProven(...), that returns true when called with the order details.
      * @dev
      */
-    function oracle(OrderKey calldata orderKey) external {
+    function proveOrderFulfillment(OrderKey calldata orderKey) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
 
         OrderStatus status = orderContext.status;
+        address fillerAddress = orderContext.fillerAddress;
 
         // Only allow processing if order status is either claimed or challenged
         if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
@@ -458,15 +456,13 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // The following call is a external call to an untrusted contract. As a result,
         // it is important that we protect this contract against reentry calls, even if read-only.
-        bytes32[] calldata remoteOracles = orderKey.remoteOracles;
         if (
             !IOracle(orderKey.localOracle).isProven(
-                orderKey.outputs, remoteOracles, orderKey.reactorContext.fillByDeadline
+                orderKey.outputs, orderKey.remoteOracles, orderKey.reactorContext.fillByDeadline
             )
         ) revert CannotProveOrder();
 
         // Payout input.
-        address fillerAddress = orderContext.fillerAddress;
         _deliverInputs(orderKey.inputs, fillerAddress, governanceFee);
 
         // Return collateral to the filler. Load the collateral details from the order.
@@ -489,7 +485,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // It has already been entered into our contract.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
 
-        emit OrderFilled(orderHash, msg.sender, remoteOracles);
+        emit OrderProven(orderHash, msg.sender);
     }
 
     /**
@@ -504,7 +500,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
         // If OrderStatus != Claimed then it must either be:
         // 1. One of the proved states => we already paid the inputs.
-        // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `oracle(...)`
+        // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `proveOrderFulfillment(...)`
         // as a result, checking only we shall only continue if orderContext.status == OrderStatus.Claimed.
         orderContext.status = OrderStatus.OPFilled;
 

@@ -14,7 +14,7 @@ library IsContractLib {
      */
     function checkCodeSize(address addr) internal view {
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(addr)
         }
         if (size == 0) revert CodeSize0();

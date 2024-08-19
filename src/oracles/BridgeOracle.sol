@@ -79,11 +79,10 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         Output[] calldata outputs,
         uint32[] calldata fillTimes,
         bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
+        bytes calldata destinationAddress,
+        IncentiveDescription calldata incentive
     ) external payable {
         _fill(outputs, fillTimes);
-        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive, deadline);
+        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive);
     }
 }

@@ -6,6 +6,8 @@ import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementCont
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
 struct DutchOrderData {
+    bytes32 verificationContext;
+    address verificationContract;
     uint32 proofDeadline;
     uint32 challengeDeadline;
     address collateralToken;
@@ -23,6 +25,8 @@ struct DutchOrderData {
 library CrossChainDutchOrderType {
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
         "CatalystDutchOrderData(",
+        "bytes32 verificationContext,",
+        "address verificationContract,",
         "uint32 proofDeadline,",
         "uint32 challengeDeadline,",
         "address collateralToken,",
@@ -66,6 +70,8 @@ library CrossChainDutchOrderType {
         return keccak256(
             abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
+                orderData.verificationContext,
+                orderData.verificationContract,
                 orderData.proofDeadline,
                 orderData.challengeDeadline,
                 orderData.collateralToken,
@@ -86,6 +92,8 @@ library CrossChainDutchOrderType {
         return keccak256(
             abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
+                orderData.verificationContext,
+                orderData.verificationContract,
                 orderData.proofDeadline,
                 orderData.challengeDeadline,
                 orderData.collateralToken,

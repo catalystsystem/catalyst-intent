@@ -10,6 +10,8 @@ import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
+import { ExclusiveOrder } from "../../src/validation/ExclusiveOrder.sol";
+
 import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
@@ -123,7 +125,9 @@ contract TestDutchAuction is TestBaseReactor {
             proofDeadline,
             challengeDeadline,
             localVMOracle,
-            remoteVMOracle
+            remoteVMOracle,
+            bytes32(0),
+            address(0)
         );
 
         order = CrossChainBuilder.getCrossChainOrder(
@@ -137,4 +141,11 @@ contract TestDutchAuction is TestBaseReactor {
         );
     }
     //TODO: add private functions to set slopes for dutch order and  test the dutch order when we fuzz the slopes
+
+
+    function test_exclusive_order() external {
+        ExclusiveOrder validationContract = new ExclusiveOrder();
+
+
+    }
 }

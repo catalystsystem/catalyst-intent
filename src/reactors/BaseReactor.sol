@@ -90,7 +90,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      */
     mapping(address user => mapping(address token => uint256 amount)) internal _recoverableTokens;
 
-    constructor(address permit2) {
+    constructor(address permit2, address owner) CanCollectGovernanceFee(owner) {
         PERMIT2 = ISignatureTransfer(permit2);
     }
 

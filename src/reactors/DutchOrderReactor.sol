@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
+import { FailedValidation } from "../interfaces/Errors.sol";
+import { IPreValidation } from "../interfaces/IPreValidation.sol";
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
 
@@ -10,7 +12,7 @@ import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol"
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract DutchOrderReactor is BaseReactor {
-    constructor(address permit2) BaseReactor(permit2) { }
+    constructor(address permit2, address owner) BaseReactor(permit2, owner) { }
 
     function _initiate(
         CrossChainOrder calldata order,
@@ -18,6 +20,17 @@ contract DutchOrderReactor is BaseReactor {
     ) internal view override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
         DutchOrderData memory dutchData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
+
+        // If the dutch auction is initiated before the slope starts, the order may be exclusive.
+        uint256 lockTime = dutchData.slopeStartingTime;
+        if (lockTime > block.timestamp) {
+            address verificationContract = dutchData.verificationContract;
+            if (verificationContract != address(0)) {
+                if (!IPreValidation(verificationContract).validate(dutchData.verificationContext, msg.sender)) {
+                    revert FailedValidation();
+                }
+            }
+        }
 
         witness = CrossChainDutchOrderType.hashOrderDataM(dutchData);
         bytes32 orderTypeHash = CrossChainDutchOrderType.orderTypeHash();

@@ -9,7 +9,7 @@ import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol"
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract LimitOrderReactor is BaseReactor {
-    constructor(address permit2) BaseReactor(permit2) { }
+    constructor(address permit2, address owner) BaseReactor(permit2, owner) { }
 
     function _initiate(
         CrossChainOrder calldata order,

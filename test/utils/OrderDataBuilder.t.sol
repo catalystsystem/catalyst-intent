@@ -84,11 +84,15 @@ library OrderDataBuilder {
         uint32 proofDeadline,
         uint32 challengeDeadline,
         address localOracle,
-        address remoteOracle
+        address remoteOracle,
+        bytes32 verificationContext,
+        address verificationContract
     ) internal view returns (DutchOrderData memory dutchOrderData) {
         Input memory input = getInput(tokenToSwapInput, inputAmount);
         Output memory output = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
         dutchOrderData = DutchOrderData({
+            verificationContext: verificationContext,
+            verificationContract: verificationContract,
             proofDeadline: proofDeadline,
             challengeDeadline: challengeDeadline,
             collateralToken: collateralToken,

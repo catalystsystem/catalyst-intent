@@ -38,10 +38,8 @@ contract TestBridgeOracle is TestCommonGARP {
     function test_fill_then_submit(
         AmountRecipient[] calldata amountRecipient,
         bytes32 destinationIdentifier,
-        address destinationAddress,
-        uint64 deadline
+        address destinationAddress
     ) external setImplementationAddress(destinationIdentifier, abi.encode(address(escrow))) {
-        vm.assume(deadline > block.timestamp);
         address token;
         uint32[] memory fillTimes = new uint32[](amountRecipient.length);
         Output[] memory outputs = new Output[](amountRecipient.length);

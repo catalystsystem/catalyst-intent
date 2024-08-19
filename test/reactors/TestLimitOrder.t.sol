@@ -116,11 +116,9 @@ contract TestLimitOrder is TestBaseReactor {
         uint32 fillDeadline,
         uint32 challengeDeadline,
         uint32 proofDeadline,
-        uint64 deadline,
         uint8 length
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(length > 0);
-        vm.assume(deadline > uint64(challengeDeadline) + 1);
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
         MockERC20(tokenToSwapInput).mint(SWAPPER, uint256(length) * uint256(inputAmount));
         MockERC20(tokenToSwapOutput).mint(fillerAddress, uint256(length) * uint256(outputAmount));
@@ -168,7 +166,7 @@ contract TestLimitOrder is TestBaseReactor {
 
         uint32[] memory fillTimes = _getFillTimes(length, fillDeadline);
 
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
         reactor.proveOrderFulfillment(orderKey);
     }
 

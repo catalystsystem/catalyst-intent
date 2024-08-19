@@ -951,10 +951,8 @@ abstract contract TestBaseReactor is Test {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline,
-        uint64 deadline
+        uint32 proofDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        vm.assume(deadline > block.timestamp);
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
         OrderKey memory orderKey = _initiateOrder(
             0,
@@ -970,6 +968,11 @@ abstract contract TestBaseReactor is Test {
             proofDeadline
         );
 
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
 
@@ -977,7 +980,7 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapOutput,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
-        _fillAndSubmitOracle( _getVMOracle(remoteVMOracle), _getVMOracle(localVMOracle), orderKey, _getFillTimes(1, fillDeadline), deadline);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
 
         vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
@@ -1020,11 +1023,9 @@ abstract contract TestBaseReactor is Test {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline,
-        uint64 deadline
+        uint32 proofDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
-        vm.assume(deadline > challengeDeadline + 1);
 
         OrderKey memory orderKey = _initiateOrder(
             0,
@@ -1052,7 +1053,7 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapOutput,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
         vm.warp(challengeDeadline + 1);
@@ -1102,6 +1103,11 @@ abstract contract TestBaseReactor is Test {
         reactor.dispute(orderKey);
         vm.stopPrank();
 
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        uint32[] memory fillTimes = _getFillTimes(1, DEFAULT_FILL_DEADLINE);
+
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
 
@@ -1111,7 +1117,7 @@ abstract contract TestBaseReactor is Test {
         );
 
         _fillAndSubmitOracle(
-            _getVMOracle(localVMOracle), _getVMOracle(remoteVMOracle), orderKey, _getFillTimes(1, DEFAULT_FILL_DEADLINE), DEFAULT_CHALLENGE_DEADLINE + 1
+            remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes
         );
 
         vm.expectCall(
@@ -1127,10 +1133,8 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
         );
 
-        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
-
         vm.expectEmit();
-        emit OrderProven(orderHash, fillerAddress);
+        emit OrderProven(reactor.getOrderKeyHash(orderKey), fillerAddress);
 
         vm.prank(fillerAddress);
         reactor.proveOrderFulfillment(orderKey);
@@ -1184,8 +1188,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle remoteVMOracleContract,
         MockOracle localVMOracleContract,
         OrderKey memory orderKey,
-        uint32[] memory fillTimes,
-        uint64 deadline
+        uint32[] memory fillTimes
     ) internal {
         Output[] memory outputs = orderKey.outputs;
 

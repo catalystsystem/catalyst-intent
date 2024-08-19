@@ -20,30 +20,34 @@ contract GeneralisedIncentivesOracle is BaseOracle {
     /**
      * @notice Verifies & Fills an order.
      * If an order has already been filled given the output & fillTime, then this function
-     * doesn't refill the order but returns early. Thus this function can also be used to verify
+     * doesn't "re"fill the order but returns early. Thus this function can also be used to verify
      * that an order was filled.
      * @dev Does not automatically submit the order (send the proof).
      * The implementation strategy (verify then fill) means that an order with repeat outputs
      * (say 1 Ether to A & 1 Ether to A) can be filled by sending 1 Ether to A ONCE.
-     * Don't make orders with repeat outputs.
-     * @param output The output to fill.
-     * @param fillTime The filltime to match. This is used when verifying
-     * the transaction took place.
+     * !Don't make orders with repeat outputs. This is true for any oracles.
+     * @param output Output to fill.
+     * @param fillTime Filltime to match, is proof deadline of order.
      */
     function _fill(Output calldata output, uint32 fillTime) internal {
         // Check if this is the correct chain.
-        // TODO: immutable chainid?
+        // TODO: fix chainid to be based on the messaging protocol being used
         if (uint32(block.chainid) != output.chainId) revert WrongChain();
 
-        // Check if this has already been filled. If it hasn't return set = false.
+        // Get hash of output.
         bytes32 outputHash = _outputHash(output);
 
         // Get the proof state of the fulfillment.
         bool proofState = _provenOutput[outputHash][fillTime][bytes32(0)];
+        // Early return if we have already seen proof.
         if (proofState) return;
-        // If the order hasn't already been filled,
+        
+        // Validate that the timestamp that is to be set, is within bounds.
+        // This ensures that one cannot fill passed orders and that it is not
+        // possible to lay traps (like always transferring through this contract).
         _validateTimestamp(uint32(block.timestamp), fillTime);
 
+        // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
         address token = address(uint160(uint256(output.token)));
         uint256 amount = output.amount;

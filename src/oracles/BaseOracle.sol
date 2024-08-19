@@ -59,7 +59,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     /**
      * @notice Validates that fillTime honors the conditions:
-     * - Fill time is not in the past (< currentTimestmap).
+     * - Fill time is not in the past (< currentTimestamp).
      * - Fill time is not too far in the future,
      * @param currentTimestamp Timestamp to compare filltime with. Is expected to be current time.
      * @param fillTime Timestamp to compare against currentTimestamp. Is timestamp that the conditions

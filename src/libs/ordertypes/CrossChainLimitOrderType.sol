@@ -9,7 +9,7 @@ struct LimitOrderData {
     uint32 challengeDeadline;
     address collateralToken;
     uint256 fillerCollateralAmount;
-    uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
+    uint256 challengerCollateralAmount;
     address localOracle;
     bytes32[] remoteOracles;
     Input[] inputs;

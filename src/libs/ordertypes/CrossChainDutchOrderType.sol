@@ -12,12 +12,12 @@ struct DutchOrderData {
     uint32 challengeDeadline;
     address collateralToken;
     uint256 fillerCollateralAmount;
-    uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
+    uint256 challengerCollateralAmount;
     address localOracle;
     bytes32[] remoteOracles;
     uint32 slopeStartingTime;
-    int256[] inputSlopes; // The rate of input that is changing.
-    int256[] outputSlopes; // The rate of output that is changing.
+    int256[] inputSlopes; // Input rate of change.
+    int256[] outputSlopes; // Output rate of change.
     Input[] inputs;
     Output[] outputs;
 }

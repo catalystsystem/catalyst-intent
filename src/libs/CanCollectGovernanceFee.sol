@@ -4,7 +4,7 @@ pragma solidity ^0.8.22;
 import { Ownable } from "solady/src/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { GovernanceFeeChanged } from "../interfaces/Events.sol";
+import { GovernanceFeeChanged, GovernanceFeesCollected } from "../interfaces/Events.sol";
 
 import { IsContractLib } from "./IsContractLib.sol";
 
@@ -13,6 +13,7 @@ import { IsContractLib } from "./IsContractLib.sol";
  */
 abstract contract CanCollectGovernanceFee is Ownable {
     error GovernanceFeeTooHigh();
+    error CannotCollect0Fees(address token);
 
     uint256 public governanceFee = 0;
     uint256 constant GOVERNANCE_FEE_DENUM = 10 ** 18;
@@ -22,10 +23,14 @@ abstract contract CanCollectGovernanceFee is Ownable {
         _initializeOwner(owner);
     }
 
+    /**
+     * @notice Tokens collected by governance.
+     * @dev Can be accessed through getGovernanceTokens.
+     */
     mapping(address token => uint256 amount) internal _governanceTokens;
 
     /**
-     * @notice Returns the amount collected for a given token.
+     * @notice Returns the amount of tokens collected by governance.
      * @dev View function for _governanceTokens stoarge slot.
      */
     function getGovernanceTokens(address token) external view returns (uint256 amountTokens) {
@@ -33,20 +38,15 @@ abstract contract CanCollectGovernanceFee is Ownable {
     }
 
     /**
-     * @notice Function overload of _collectGovernanceFee reading the governance fee.
-     */
-    function _collectGovernanceFee(address token, uint256 amount) internal returns (uint256 amountLessFee) {
-        return amountLessFee = _collectGovernanceFee(token, amount, governanceFee);
-    }
-
-    /**
      * @notice Subtract the governance fee from an amount AND store the fee as the difference.
      * @dev This function sets the subtracted governance fee as collected. If you just want to
-     * get amountLessFee use `_amountLessfee`.
-     * @param token for fee to be set for.
+     * get the amount less fee, use `_amountLessfee`.
+     * Ideally this function wouldn't be called if the fee is 0. Regardless, this function
+     * won't modify storage if the collected fee becomes 0.
+     * @param token for fee to be set for. Only impacts storage not computation.
      * @param amount for fee to be taken of.
-     * @param fee To take of amount and set for token. Fee is provided as a variable to
-     * save gas when used in a loop.
+     * @param fee to take of amount and set for token. Fee is provided as a variable to
+     * save gas when used in a loop. The fee is out of 10**18.
      * @return amountLessFee amount - fee.
      */
     function _collectGovernanceFee(
@@ -55,11 +55,21 @@ abstract contract CanCollectGovernanceFee is Ownable {
         uint256 fee
     ) internal returns (uint256 amountLessFee) {
         unchecked {
+            // Compute the amount after fees has been subtracted.
             amountLessFee = _amountLessfee(amount, fee);
-            // Set the governanceFee
+            // Compute the governance fee.
             uint256 governanceShare = amount - amountLessFee; // amount >= amountLessFee
+
+            // Only set storage if the fee is not 0.
             if (governanceShare != 0) _governanceTokens[token] = governanceShare;
         }
+    }
+
+    /**
+     * @notice Function overload of _collectGovernanceFee reading the governance fee.
+     */
+    function _collectGovernanceFee(address token, uint256 amount) internal returns (uint256 amountLessFee) {
+        return amountLessFee = _collectGovernanceFee(token, amount, governanceFee);
     }
 
     /**
@@ -92,31 +102,38 @@ abstract contract CanCollectGovernanceFee is Ownable {
 
     /**
      * @notice Distributes tokens allocated for governance.
-     * @dev Only the owner of the contract can call this, however, the owner can set another destination
+     * @dev You cannot collect tokens for which the amount is 0.
+     * Only the owner of the contract can call this, however, the owner can set another destination
      * as the target for the tokens.
      * Pulls 100% of the collected tokens in the tokens list.
      * An example of a distribution mechanic would be requiring users to pay 1 Ether to call this function.
      * (from the owner contract). Once the fees are high enough someone would pay. This works kindof like
      * a dutch auction.
      * @param tokens List of tokens to collect governance fee from.
+     * Each token has to have getGovernanceTokens(tokens[i]) > 0.
      * @param to Recipient of the tokens.
      */
     function distributeGovernanceTokens(
         address[] calldata tokens,
         address to
-    ) external onlyOwner returns (uint256[] memory collectedTokens) {
+    ) external onlyOwner returns (uint256[] memory collectedAmounts) {
         unchecked {
             uint256 numTokens = tokens.length;
-            collectedTokens = new uint256[](numTokens);
+            collectedAmounts = new uint256[](numTokens);
             for (uint256 i = 0; i < numTokens; ++i) {
                 address token = tokens[i];
                 // Read the collected governance tokens and then set to 0 immediately.
                 uint256 tokensToBeClaimed = _governanceTokens[token];
+                if (tokensToBeClaimed == 0) revert CannotCollect0Fees(token);
                 _governanceTokens[token] = 0;
 
-                collectedTokens[i] = tokensToBeClaimed;
+                collectedAmounts[i] = tokensToBeClaimed;
+                // Since we have "collected" the fee, it is expected that this function will go through.
+                // Regardless, if it calls a non-contract address it doesn't really matter.
                 SafeTransferLib.safeTransfer(token, to, tokensToBeClaimed);
             }
         }
+
+        emit GovernanceFeesCollected(to, tokens, collectedAmounts);
     }
 }

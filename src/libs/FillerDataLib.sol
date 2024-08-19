@@ -6,18 +6,13 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 import { Input } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 
-// TODO: Clean up.
-// Filler Data structure
-bytes1 constant VERSION_1 = 0x01;
-uint256 constant V1_ADDRESS_START = 1;
-uint256 constant V1_ADDRESS_END = 21;
-uint256 constant V1_ORDER_PURCHASE_DEADLINE_START = V1_ADDRESS_END;
-uint256 constant V1_ORDER_PURCHASE_DEADLINE_END = 25;
-uint256 constant V1_ORDER_DISCOUNT_START = V1_ORDER_PURCHASE_DEADLINE_END;
-uint256 constant V1_ORDER_DISCOUNT_END = 27;
-
-/// @notice Decodes fillerdata.
+/** @notice Decodes fillerdata. */
 library FillerDataLib {
+    error NotImplemented(bytes1 version);
+
+    /**
+     * @notice Decode generic filler data.
+     */
     function decode(bytes calldata fillerData)
         internal
         view
@@ -31,7 +26,17 @@ library FillerDataLib {
             // V1_ORDER_DISCOUNT_END is the length of the data.
             return (fillerAddress, orderPurchaseDeadline, orderDiscount, V1_ORDER_DISCOUNT_END);
         }
+        revert NotImplemented(version);
     }
+
+    //--- Version 1 ---/
+    bytes1 private constant VERSION_1 = 0x01;
+    uint256 private constant V1_ADDRESS_START = 1;
+    uint256 private constant V1_ADDRESS_END = 21;
+    uint256 private constant V1_ORDER_PURCHASE_DEADLINE_START = V1_ADDRESS_END;
+    uint256 private constant V1_ORDER_PURCHASE_DEADLINE_END = 25;
+    uint256 private constant V1_ORDER_DISCOUNT_START = V1_ORDER_PURCHASE_DEADLINE_END;
+    uint256 private constant V1_ORDER_DISCOUNT_END = 27;
 
     function _getFiller1(bytes calldata fillerData) private pure returns (address fillerAddress) {
         return fillerAddress = address(uint160(bytes20(fillerData[V1_ADDRESS_START:V1_ADDRESS_END])));

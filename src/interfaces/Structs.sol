@@ -38,6 +38,20 @@ struct OrderContext {
     uint32 initTimestamp; // TODO: move to orderkey.
 }
 
+struct OutputDescription {
+    bytes32 remoteOracle;
+    /// @dev The address of the ERC20 token on the destination chain
+    /// @dev address(0) used as a sentinel for the native token
+    bytes32 token; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
+    /// @dev The amount of the token to be sent
+    uint256 amount;
+    /// @dev The address to receive the output tokens
+    bytes32 recipient; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
+    /// @dev The destination chain for this output
+    uint32 chainId; // TODO: CONVERT TO BYTES32?
+    bytes remoteCall;
+}
+
 /**
  * @notice This is the simplified order after it has been validated and evaluated.
  * @dev
@@ -55,13 +69,12 @@ struct OrderKey {
     uint32 originChainId;
     // Proof Context
     address localOracle; // The oracle that can satisfy a dispute.
-    bytes32[] remoteOracles; // Remote oracle. If address(0), is local.
     bytes32 oracleProofHash; // TODO: figure out the best way to store proof details. Is the below enough?
     // TODO: Figure out how to do remote calls (gas limit + fallback + calldata)
     Input[] inputs;
     // Lets say the challenger maps keccak256(abi.encode(outputs)) => keccak256(OrderKey).
     // Then we can easily check if these outputs have all been matched.
-    Output[] outputs;
+    OutputDescription[] outputs;
 }
 
 struct ReactorInfo {

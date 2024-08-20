@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../interfaces/ISettlementContract.sol";
+
+
+import { OutputDescription } from "../../interfaces/Structs.sol";
+
 
 library CrossChainOrderType {
     bytes constant CROSS_CHAIN_ORDER_TYPE_STUB = abi.encodePacked(
@@ -30,7 +34,8 @@ library CrossChainOrderType {
         return keccak256(abi.encode(keccak256(INPUT_TYPE_STUB), input.token, input.amount));
     }
 
-    function hashOutput(Output memory output) internal pure returns (bytes32) {
+    // TODO: Permit2 description of output
+    function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(keccak256(OUTPUT_TYPE_STUB), output.token, output.amount, output.recipient, output.chainId)
         );
@@ -50,7 +55,7 @@ library CrossChainOrderType {
         }
     }
 
-    function hashOutputs(Output[] memory outputs) internal pure returns (bytes32) {
+    function hashOutputs(OutputDescription[] memory outputs) internal pure returns (bytes32) {
         unchecked {
             bytes memory currentHash = new bytes(32 * outputs.length);
 

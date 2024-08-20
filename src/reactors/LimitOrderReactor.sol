@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
-import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
+import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
+import { Collateral, OrderKey, ReactorInfo, OutputDescription } from "../interfaces/Structs.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
+
 
 import { BaseReactor } from "./BaseReactor.sol";
 
@@ -40,7 +41,7 @@ contract LimitOrderReactor is BaseReactor {
         LimitOrderData memory limitData
     ) internal pure returns (OrderKey memory orderKey) {
         Input[] memory inputs = limitData.inputs;
-        Output[] memory outputs = limitData.outputs;
+        OutputDescription[] memory outputs = limitData.outputs;
 
         // Set orderKey:
         orderKey = OrderKey({
@@ -61,7 +62,6 @@ contract LimitOrderReactor is BaseReactor {
             originChainId: order.originChainId,
             // Proof Context
             localOracle: limitData.localOracle,
-            remoteOracles: limitData.remoteOracles,
             oracleProofHash: bytes32(0),
             inputs: inputs,
             outputs: outputs

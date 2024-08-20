@@ -13,12 +13,12 @@ import { MockUtils } from "../utils/MockUtils.sol";
 import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
-import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 
 import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
-import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
+import { Collateral, OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
@@ -81,13 +81,15 @@ contract TestLimitOrder is TestBaseReactor {
 
         //Output tests
         assertEq(orderKey.outputs.length, 1);
-        Output memory expectedOutput = Output({
+        OutputDescription memory expectedOutput = OutputDescription({
             token: bytes32(abi.encode(tokenToSwapOutput)),
             amount: outputAmount,
             recipient: bytes32(abi.encode(SWAPPER)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: orderKey.outputs[0].remoteOracle,
+            remoteCall: orderKey.outputs[0].remoteCall
         });
-        Output memory actualOutput = orderKey.outputs[0];
+        OutputDescription memory actualOutput = orderKey.outputs[0];
         assertEq(keccak256(abi.encode(actualOutput)), keccak256(abi.encode(expectedOutput)));
 
         //Swapper test
@@ -96,7 +98,7 @@ contract TestLimitOrder is TestBaseReactor {
 
         //Oracles tests
         assertEq(orderKey.localOracle, localVMOracle);
-        assertEq(orderKey.remoteOracles[0], bytes32(uint256(uint160(remoteVMOracle))));
+        assertEq(orderKey.outputs[0].remoteOracle, bytes32(uint256(uint160(remoteVMOracle))));
 
         //Collateral test
         Collateral memory expectedCollateral = Collateral({

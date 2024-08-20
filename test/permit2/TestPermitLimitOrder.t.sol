@@ -14,7 +14,7 @@ contract TestPermitLimitOrder is TestPermit {
                 "PermitBatchWitnessTransferFrom"
                 "(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,CrossChainOrder witness)"
                 "CatalystLimitOrderData(uint32 proofDeadline,uint32 challengeDeadline,address collateralToken,uint256 fillerCollateralAmount,"
-                "uint256 challengerCollateralAmount,address localOracle,bytes32[] remoteOracles,Input[] inputs,Output[] outputs)"
+                "uint256 challengerCollateralAmount,address localOracle,bytes32[] remoteOracles,Input[] inputs,OutputDescription[] outputs)"
                 "CrossChainOrder(address settlementContract,address swapper,uint256 nonce,"
                 "uint32 originChainId,uint32 initiateDeadline,uint32 fillDeadline,CatalystLimitOrderData orderData)"
                 "Input(address token,uint256 amount)"

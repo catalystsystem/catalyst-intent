@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { Output } from "../../../src/interfaces/ISettlementContract.sol";
+import { OutputDescription } from "../../../src/interfaces/Structs.sol";
 import { GeneralisedIncentivesOracle } from "../../../src/oracles/BridgeOracle.sol";
 import { TestCommonGARP } from "../TestCommonGARP.sol";
 
@@ -26,7 +26,7 @@ contract TestBridgeOracle is TestCommonGARP {
         _;
     }
 
-    function _fillOutput(Output[] memory output, uint32[] memory fillTime) internal {
+    function _fillOutput(OutputDescription[] memory output, uint32[] memory fillTime) internal {
         oracle.fill(output, fillTime);
     }
 
@@ -42,15 +42,17 @@ contract TestBridgeOracle is TestCommonGARP {
     ) external setImplementationAddress(destinationIdentifier, abi.encode(address(escrow))) {
         address token;
         uint32[] memory fillTimes = new uint32[](amountRecipient.length);
-        Output[] memory outputs = new Output[](amountRecipient.length);
+        OutputDescription[] memory outputs = new OutputDescription[](amountRecipient.length);
         uint32 fillTime = uint32(block.timestamp);
         for (uint256 i; i < amountRecipient.length; ++i) {
             fillTimes[i] = fillTime;
-            outputs[i] = Output({
+            outputs[i] = OutputDescription({
                 token: bytes32(abi.encode(token)),
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
-                chainId: uint32(block.chainid)
+                chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
             });
         }
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { Output } from "../../../src/interfaces/ISettlementContract.sol";
+import { OutputDescription } from "../../../src/interfaces/Structs.sol";
 import { GeneralisedIncentivesOracle } from "../../../src/oracles/BridgeOracle.sol";
 import { TestCommonGARP } from "../TestCommonGARP.sol";
 
@@ -23,13 +23,15 @@ contract TestBridgeOracle is TestCommonGARP {
 
     function test_fill_single(address sender, uint256 amount, address recipient) external {
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);
@@ -44,7 +46,7 @@ contract TestBridgeOracle is TestCommonGARP {
 
         // TODO: verify event
 
-        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
+        bool status = oracle.isProven(output, fillTimes[0]);
         assertTrue(status);
     }
 
@@ -55,13 +57,15 @@ contract TestBridgeOracle is TestCommonGARP {
     ) external {
         vm.assume(amount < type(uint256).max);
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);
@@ -71,38 +75,44 @@ contract TestBridgeOracle is TestCommonGARP {
         vm.prank(sender);
         oracle.fill(outputs, fillTimes);
 
-        Output memory extraOutput = Output({
+        OutputDescription memory extraOutput = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount + 1,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        outputs = new Output[](2);
+        outputs = new OutputDescription[](2);
         outputs[0] = output;
         outputs[1] = extraOutput;
 
         bytes32[] memory oracles = new bytes32[](2);
 
-        bool status = oracle.isProven(outputs, oracles, fillTime);
+        bool status = oracle.isProven(outputs, fillTime);
         assertFalse(status);
     }
 
     function test_fill_only_for_timestamp(address sender, uint256 amount, address recipient) external {
         vm.assume(amount < type(uint256).max);
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output memory secondOutput = Output({
+        OutputDescription memory secondOutput = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount + 1,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);
@@ -122,26 +132,26 @@ contract TestBridgeOracle is TestCommonGARP {
 
         // Now lets try to verify both outputs using time A.
 
-        outputs = new Output[](2);
+        outputs = new OutputDescription[](2);
         outputs[0] = output;
         outputs[1] = secondOutput;
 
-        bytes32[] memory oracles = new bytes32[](2);
-
-        bool status = oracle.isProven(outputs, oracles, fillTime);
+        bool status = oracle.isProven(outputs, fillTime);
         assertFalse(status);
     }
 
     function test_fill_single_modified_output(uint256 amount, address recipient) external {
         vm.assume(amount > 0);
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount - 1,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);
@@ -151,7 +161,7 @@ contract TestBridgeOracle is TestCommonGARP {
 
         output.amount = amount;
 
-        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
+        bool status = oracle.isProven(output, fillTimes[0]);
         assertFalse(status);
     }
 
@@ -162,13 +172,15 @@ contract TestBridgeOracle is TestCommonGARP {
     ) external {
         vm.assume(sentToRecipient != actualRecipient);
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(sentToRecipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);
@@ -178,7 +190,7 @@ contract TestBridgeOracle is TestCommonGARP {
 
         output.recipient = bytes32(abi.encode(actualRecipient));
 
-        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
+        bool status = oracle.isProven(output, fillTimes[0]);
         assertFalse(status);
     }
 
@@ -192,14 +204,16 @@ contract TestBridgeOracle is TestCommonGARP {
         vm.warp(uint32(fillTime) + uint32(delta));
 
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
 
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);
@@ -221,14 +235,16 @@ contract TestBridgeOracle is TestCommonGARP {
         vm.warp(fillTime < delta ? 0 : fillTime - delta);
 
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
 
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);
@@ -250,22 +266,24 @@ contract TestBridgeOracle is TestCommonGARP {
     function test_fill_multiple_single_verify(AmountRecipient[] memory amountRecipient) external {
         address token;
         uint32[] memory fillTimes = new uint32[](amountRecipient.length);
-        Output[] memory outputs = new Output[](amountRecipient.length);
+        OutputDescription[] memory outputs = new OutputDescription[](amountRecipient.length);
         uint32 fillTime = uint32(block.timestamp);
         for (uint256 i; i < amountRecipient.length; ++i) {
             fillTimes[i] = fillTime;
-            outputs[i] = Output({
+            outputs[i] = OutputDescription({
                 token: bytes32(abi.encode(token)),
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
-                chainId: uint32(block.chainid)
+                chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
             });
         }
 
         oracle.fill(outputs, fillTimes);
 
         for (uint256 i; i < outputs.length; ++i) {
-            bool status = oracle.isProven(outputs[i], bytes32(0), fillTime);
+            bool status = oracle.isProven(outputs[i], fillTime);
             assertTrue(status);
         }
     }
@@ -273,35 +291,37 @@ contract TestBridgeOracle is TestCommonGARP {
     function test_fill_multiple_batch_verify(AmountRecipient[] memory amountRecipient) external {
         address token;
         uint32[] memory fillTimes = new uint32[](amountRecipient.length);
-        Output[] memory outputs = new Output[](amountRecipient.length);
+        OutputDescription[] memory outputs = new OutputDescription[](amountRecipient.length);
         uint32 fillTime = uint32(block.timestamp);
         for (uint256 i; i < amountRecipient.length; ++i) {
             fillTimes[i] = fillTime;
-            outputs[i] = Output({
+            outputs[i] = OutputDescription({
                 token: bytes32(abi.encode(token)),
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
-                chainId: uint32(block.chainid)
+                chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
             });
         }
 
         oracle.fill(outputs, fillTimes);
 
-        bytes32[] memory oracles = new bytes32[](amountRecipient.length);
-
         // Batch verify
-        oracle.isProven(outputs, oracles, fillTime);
+        oracle.isProven(outputs, fillTime);
     }
 
     function test_check_already_filled(address sender, uint256 amount, address recipient) external {
         address token; // TODO: Needs to be mocked with token.
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output[] memory outputs = new Output[](2);
+        OutputDescription[] memory outputs = new OutputDescription[](2);
         outputs[0] = output;
         outputs[1] = output;
 
@@ -318,20 +338,22 @@ contract TestBridgeOracle is TestCommonGARP {
         vm.prank(sender);
         oracle.fill(outputs, fillTimes);
 
-        bool status = oracle.isProven(output, bytes32(0), fillTimes[0]);
+        bool status = oracle.isProven(output, fillTimes[0]);
         assertTrue(status);
     }
 
     function test_revert_fill_wrong_chain(uint32 chainId, address sender, uint256 amount, address recipient) external {
         vm.assume(uint32(block.chainid) != chainId);
         address token;
-        Output memory output = Output({
+        OutputDescription memory output = OutputDescription({
             token: bytes32(abi.encode(token)),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: chainId
+            chainId: chainId,
+            remoteOracle: bytes32(0),
+            remoteCall: hex""
         });
-        Output[] memory outputs = new Output[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = output;
 
         uint32[] memory fillTimes = new uint32[](1);

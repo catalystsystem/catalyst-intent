@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { Output } from "../../src/interfaces/ISettlementContract.sol";
+import { OutputDescription } from "../../src/interfaces/Structs.sol";
 import { OrderKey } from "../../src/interfaces/Structs.sol";
 import { GeneralisedIncentivesOracle } from "../../src/oracles/BridgeOracle.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
@@ -31,13 +31,13 @@ contract MockOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
     }
 
     function encode(
-        Output[] memory outputs,
+        OutputDescription[] memory outputs,
         uint32[] memory fillTimes
     ) public pure returns (bytes memory encodedPayload) {
         uint256 numOutputs = outputs.length;
         encodedPayload = bytes.concat(bytes1(0x01), bytes2(uint16(numOutputs)));
         for (uint256 i; i < numOutputs; ++i) {
-            Output memory output = outputs[i];
+            OutputDescription memory output = outputs[i];
             uint32 fillTime = fillTimes[i];
             encodedPayload = bytes.concat(
                 encodedPayload,

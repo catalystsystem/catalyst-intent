@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+import { Input } from "../../src/interfaces/ISettlementContract.sol";
+
+
+import { OutputDescription } from "../../src/interfaces/Structs.sol";
 
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
@@ -26,11 +29,8 @@ library OrderDataBuilder {
     ) internal view returns (LimitOrderData memory limitOrderData) {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
-        Output[] memory outputs = new Output[](1);
-        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
-        
-        bytes32[] memory remoteOracles = new bytes32[](1);
-        remoteOracles[0] = bytes32(uint256(uint160(remoteOracle)));
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle)));
 
         limitOrderData = LimitOrderData({
             proofDeadline: proofDeadline,
@@ -39,7 +39,6 @@ library OrderDataBuilder {
             fillerCollateralAmount: fillerCollateralAmount,
             challengerCollateralAmount: challengerCollateralAmount,
             localOracle: localOracle,
-            remoteOracles: remoteOracles,
             inputs: inputs,
             outputs: outputs
         });
@@ -61,12 +60,8 @@ library OrderDataBuilder {
         uint256 length
     ) internal view returns (LimitOrderData memory limitOrderData) {
         Input[] memory inputs = getInputs(tokenToSwapInput, inputAmount, length);
-        Output[] memory outputs = getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), length);
+        OutputDescription[] memory outputs = getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), length, bytes32(abi.encode(remoteOracle)));
 
-        bytes32[] memory remoteOracles = new bytes32[](length);
-        for (uint256 i = 0; i < length; ++i) {
-            remoteOracles[i] = bytes32(uint256(uint160(remoteOracle)));
-        }
 
         limitOrderData = LimitOrderData({
             proofDeadline: proofDeadline,
@@ -75,7 +70,6 @@ library OrderDataBuilder {
             fillerCollateralAmount: fillerCollateralAmount,
             challengerCollateralAmount: challengerCollateralAmount,
             localOracle: localOracle,
-            remoteOracles: remoteOracles,
             inputs: inputs,
             outputs: outputs
         });
@@ -99,14 +93,11 @@ library OrderDataBuilder {
     ) internal view returns (DutchOrderData memory dutchOrderData) {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
-        Output[] memory outputs = new Output[](1);
-        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid));
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = getOutput(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle)));
 
         int256[] memory inputSlopes = new int256[](1);
         int256[] memory outputSlopes = new int256[](1);
-
-        bytes32[] memory remoteOracles = new bytes32[](1);
-        remoteOracles[0] = bytes32(uint256(uint160(remoteOracle)));
 
         dutchOrderData = DutchOrderData({
             verificationContext: verificationContext,
@@ -120,7 +111,6 @@ library OrderDataBuilder {
             slopeStartingTime: 0,
             inputSlopes: inputSlopes,
             outputSlopes: outputSlopes,
-            remoteOracles: remoteOracles,
             inputs: inputs,
             outputs: outputs
         });
@@ -130,17 +120,21 @@ library OrderDataBuilder {
         input = Input({ token: tokenToSwapInput, amount: inputAmount });
     }
 
+    // TODO: Asem place holder.
     function getOutput(
         address tokenToSwapOutput,
         uint256 outputAmount,
         address recipient,
-        uint32 chainId
-    ) internal pure returns (Output memory output) {
-        output = Output({
+        uint32 chainId,
+        bytes32 remoteOracle
+    ) internal pure returns (OutputDescription memory output) {
+        output = OutputDescription({
             token: bytes32(abi.encode(tokenToSwapOutput)),
             amount: outputAmount,
             recipient: bytes32(abi.encode(recipient)),
-            chainId: chainId
+            chainId: chainId,
+            remoteOracle: remoteOracle,
+            remoteCall: hex""
         });
     }
 
@@ -149,11 +143,12 @@ library OrderDataBuilder {
         uint256 outputAmount,
         address recipient,
         uint32 chainId,
-        uint256 length
-    ) internal pure returns (Output[] memory outputs) {
-        outputs = new Output[](length);
+        uint256 length,
+        bytes32 remoteOracle
+    ) internal pure returns (OutputDescription[] memory outputs) {
+        outputs = new OutputDescription[](length);
         for (uint256 i; i < length; ++i) {
-            outputs[i] = getOutput(tokenToSwapOutput, outputAmount, recipient, chainId);
+            outputs[i] = getOutput(tokenToSwapOutput, outputAmount, recipient, chainId, remoteOracle);
         }
     }
 

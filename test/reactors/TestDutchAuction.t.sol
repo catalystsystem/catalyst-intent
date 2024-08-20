@@ -4,7 +4,7 @@ pragma solidity ^0.8.22;
 import { DeployDutchOrderReactor } from "../../script/Reactor/DeployDutchOrderReactor.s.sol";
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 
-import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 
 import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
@@ -14,7 +14,7 @@ import { ExclusiveOrder } from "../../src/validation/ExclusiveOrder.sol";
 
 import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 
-import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
+import { Collateral, OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";

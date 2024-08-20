@@ -3,11 +3,12 @@ pragma solidity ^0.8.22;
 
 import { FailedValidation } from "../interfaces/Errors.sol";
 import { IPreValidation } from "../interfaces/IPreValidation.sol";
-import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
-import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
+import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
+import { Collateral, OrderKey, ReactorInfo, OutputDescription } from "../interfaces/Structs.sol";
 
 import { CrossChainDutchOrderType, DutchOrderData } from "../libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
+
 
 import { BaseReactor } from "./BaseReactor.sol";
 
@@ -56,7 +57,7 @@ contract DutchOrderReactor is BaseReactor {
         // Get the current Input(amount and token) structure based on the decay function and the time passed.
         Input[] memory inputs = CrossChainDutchOrderType.getInputsAfterDecay(dutchData);
         // Get the current Output(amount,token and destination) structure based on the decay function and the time passed.
-        Output[] memory outputs = CrossChainDutchOrderType.getOutputsAfterDecay(dutchData);
+        OutputDescription[] memory outputs = CrossChainDutchOrderType.getOutputsAfterDecay(dutchData);
 
         // Set orderKey:
         orderKey = OrderKey({
@@ -77,7 +78,6 @@ contract DutchOrderReactor is BaseReactor {
             originChainId: order.originChainId,
             // Proof Context
             localOracle: dutchData.localOracle,
-            remoteOracles: dutchData.remoteOracles,
             oracleProofHash: bytes32(0),
             inputs: inputs,
             outputs: outputs

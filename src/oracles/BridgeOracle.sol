@@ -7,10 +7,9 @@ import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIn
 
 import { WrongChain } from "../interfaces/Errors.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
-import { OrderKey } from "../interfaces/Structs.sol";
+import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { BaseOracle } from "./BaseOracle.sol";
-
 /**
  * @dev Oracles are also fillers
  */
@@ -29,7 +28,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
      * @param output Output to fill.
      * @param fillTime Filltime to match, is proof deadline of order.
      */
-    function _fill(Output calldata output, uint32 fillTime) internal {
+    function _fill(OutputDescription calldata output, uint32 fillTime) internal {
         // Check if this is the correct chain.
         // TODO: fix chainid to be based on the messaging protocol being used
         if (uint32(block.chainid) != output.chainId) revert WrongChain();
@@ -64,10 +63,10 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
     }
 
-    function _fill(Output[] calldata outputs, uint32[] calldata fillTimes) internal {
+    function _fill(OutputDescription[] calldata outputs, uint32[] calldata fillTimes) internal {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
-            Output calldata output = outputs[i];
+            OutputDescription calldata output = outputs[i];
             uint32 fillTime = fillTimes[i];
             _fill(output, fillTime);
         }
@@ -75,12 +74,12 @@ contract GeneralisedIncentivesOracle is BaseOracle {
 
     //--- Solver Interface ---//
 
-    function fill(Output[] calldata outputs, uint32[] calldata fillTimes) external {
+    function fill(OutputDescription[] calldata outputs, uint32[] calldata fillTimes) external {
         _fill(outputs, fillTimes);
     }
 
     function fillAndSubmit(
-        Output[] calldata outputs,
+        OutputDescription[] calldata outputs,
         uint32[] calldata fillTimes,
         bytes32 destinationIdentifier,
         bytes calldata destinationAddress,

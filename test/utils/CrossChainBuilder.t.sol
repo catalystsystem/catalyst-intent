@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
+
+import { OutputDescription } from "../../src/interfaces/Structs.sol";
 
 import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";

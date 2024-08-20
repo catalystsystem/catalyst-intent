@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../interfaces/ISettlementContract.sol";
+
+import { OutputDescription } from "../../interfaces/Structs.sol";
+
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
 struct LimitOrderData {
@@ -11,9 +14,8 @@ struct LimitOrderData {
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount;
     address localOracle;
-    bytes32[] remoteOracles;
     Input[] inputs;
-    Output[] outputs;
+    OutputDescription[] outputs;
 }
 
 /**
@@ -31,7 +33,7 @@ library CrossChainLimitOrderType {
         "address localOracle,",
         "bytes32[] remoteOracles,",
         "Input[] inputs,",
-        "Output[] outputs",
+        "OutputDescription[]outputs",
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
@@ -47,7 +49,7 @@ library CrossChainLimitOrderType {
         "address localOracle,",
         "bytes32[] remoteOracles,",
         "Input[] inputs,",
-        "Output[] outputs",
+        "OutputDescription[]outputs",
         ")"
     );
 
@@ -67,7 +69,6 @@ library CrossChainLimitOrderType {
                 bytes32(orderData.fillerCollateralAmount),
                 bytes32(orderData.challengerCollateralAmount),
                 bytes32(uint256(uint160(orderData.localOracle))),
-                keccak256((abi.encodePacked(orderData.remoteOracles))),
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )
@@ -84,7 +85,6 @@ library CrossChainLimitOrderType {
                 bytes32(orderData.fillerCollateralAmount),
                 bytes32(orderData.challengerCollateralAmount),
                 bytes32(uint256(uint160(orderData.localOracle))),
-                keccak256((abi.encodePacked(orderData.remoteOracles))),
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )

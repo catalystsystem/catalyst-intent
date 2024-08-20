@@ -13,7 +13,7 @@ import {
     Output,
     ResolvedCrossChainOrder
 } from "../interfaces/ISettlementContract.sol";
-import { OrderContext, OrderKey, OrderStatus, ReactorInfo } from "../interfaces/Structs.sol";
+import { OrderContext, OrderKey, OrderStatus, ReactorInfo, OutputDescription } from "../interfaces/Structs.sol";
 
 import { CanCollectGovernanceFee } from "../libs/CanCollectGovernanceFee.sol";
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
@@ -310,7 +310,18 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // Inputs can be taken directly from the orderKey.
         Input[] memory swapperInputs = orderKey.inputs;
         // Likewise for outputs.
-        Output[] memory swapperOutputs = orderKey.outputs;
+
+        uint256 numOutputs = orderKey.outputs.length;
+        Output[] memory swapperOutputs = new Output[](numOutputs);
+        for (uint256 i = 0; i < numOutputs; ++i) {
+            OutputDescription memory catalystOutput = orderKey.outputs[i];
+            swapperOutputs[i] = Output({
+                token: catalystOutput.token,
+                amount: catalystOutput.amount,
+                recipient: catalystOutput.recipient,
+                chainId: catalystOutput.chainId
+            });
+        }
 
         // fillerOutputs are of the Output type and as a result, we can't just
         // load swapperInputs into fillerOutputs. As a result, we need to parse
@@ -458,7 +469,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // it is important that we protect this contract against reentry calls, even if read-only.
         if (
             !IOracle(orderKey.localOracle).isProven(
-                orderKey.outputs, orderKey.remoteOracles, orderKey.reactorContext.fillByDeadline
+                orderKey.outputs, orderKey.reactorContext.fillByDeadline
             )
         ) revert CannotProveOrder();
 

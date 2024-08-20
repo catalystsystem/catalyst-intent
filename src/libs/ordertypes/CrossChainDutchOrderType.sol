@@ -3,6 +3,8 @@ pragma solidity ^0.8.22;
 
 import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
 
+import { OutputDescription } from "../../interfaces/Structs.sol";
+
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
 struct DutchOrderData {
@@ -14,12 +16,11 @@ struct DutchOrderData {
     uint256 fillerCollateralAmount;
     uint256 challengerCollateralAmount;
     address localOracle;
-    bytes32[] remoteOracles;
     uint32 slopeStartingTime;
     int256[] inputSlopes; // Input rate of change.
     int256[] outputSlopes; // Output rate of change.
     Input[] inputs;
-    Output[] outputs;
+    OutputDescription[] outputs;
 }
 
 library CrossChainDutchOrderType {
@@ -40,7 +41,7 @@ library CrossChainDutchOrderType {
         "int256[] inputSlopes,",
         "int256[] outputSlopes,",
         "Input[] inputs,",
-        "Output[] outputs",
+        "OutputDescription[]outputs",
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
@@ -61,7 +62,7 @@ library CrossChainDutchOrderType {
         "int256[] inputSlopes,",
         "int256[] outputSlopes,",
         "Input[] inputs,",
-        "Output[] outputs",
+        "OutputDescription[]outputs",
         ")"
     );
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
@@ -80,12 +81,9 @@ library CrossChainDutchOrderType {
                     bytes32(uint256(orderData.proofDeadline)),
                     bytes32(uint256(orderData.challengeDeadline)),
                     bytes32(uint256(uint160(orderData.collateralToken))),
-                    bytes32(orderData.fillerCollateralAmount)
-                ),
-                bytes.concat(
+                    bytes32(orderData.fillerCollateralAmount),
                     bytes32(orderData.challengerCollateralAmount),
                     bytes32(uint256(uint160(orderData.localOracle))),
-                    keccak256((abi.encodePacked(orderData.remoteOracles))),
                     bytes32(uint256(orderData.slopeStartingTime)),
                     keccak256(abi.encodePacked(orderData.inputSlopes)),
                     keccak256(abi.encodePacked(orderData.outputSlopes)),
@@ -108,7 +106,6 @@ library CrossChainDutchOrderType {
                 bytes32(orderData.fillerCollateralAmount),
                 bytes32(orderData.challengerCollateralAmount),
                 bytes32(uint256(uint160(orderData.localOracle))),
-                keccak256((abi.encodePacked(orderData.remoteOracles))),
                 bytes32(uint256(orderData.slopeStartingTime)),
                 keccak256(abi.encodePacked(orderData.inputSlopes)),
                 keccak256(abi.encodePacked(orderData.outputSlopes)),
@@ -188,7 +185,7 @@ library CrossChainDutchOrderType {
     function getOutputsAfterDecay(DutchOrderData memory dutchOrderData)
         internal
         view
-        returns (Output[] memory orderOutputs)
+        returns (OutputDescription[] memory orderOutputs)
     {
         orderOutputs = dutchOrderData.outputs;
         int256[] memory outputSlopes = dutchOrderData.outputSlopes;

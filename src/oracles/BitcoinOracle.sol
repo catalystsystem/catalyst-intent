@@ -11,8 +11,7 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { Output } from "../interfaces/ISettlementContract.sol";
-import { OrderKey } from "../interfaces/Structs.sol";
+import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { BaseOracle } from "./BaseOracle.sol";
 
@@ -182,7 +181,7 @@ contract BitcoinOracle is BaseOracle {
      * @param txOutIx Index of the output in the transaction being proved.
      */
     function _verify(
-        Output calldata output,
+        OutputDescription calldata output,
         uint32 fillTime,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
@@ -216,7 +215,7 @@ contract BitcoinOracle is BaseOracle {
      * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
      */
     function _verify(
-        Output calldata output,
+        OutputDescription calldata output,
         uint32 fillTime,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,

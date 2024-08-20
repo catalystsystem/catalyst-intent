@@ -9,8 +9,7 @@ import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessage
 
 import { CannotProveOrder, FillTimeFarInFuture, FillTimeInPast, WrongChain } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
-import { Output } from "../interfaces/ISettlementContract.sol";
-import { OrderKey } from "../interfaces/Structs.sol";
+import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
 import "./OraclePayload.sol";
@@ -45,16 +44,18 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     /**
      * @notice Compute hash an output.
      */
-    function _outputHash(Output calldata output) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+    function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
+        // TODO: handwrap with manually exclude remoteOracle
+        outputHash = keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
     }
 
     /**
      * @notice Compute hash an output while output is in memory.
      * @dev Is slightly more expensive than _outputHash. If possible, try to use _outputHash.
      */
-    function _outputHashM(Output memory output) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+    function _outputHashM(OutputDescription memory output) internal pure returns (bytes32 outputHash) {
+        // TODO: handwrap with manually exclude remoteOracle
+        outputHash = keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
     }
 
     /**
@@ -83,32 +84,28 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @notice Check if an output has been proven.
      * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
      * @param output Output to check for.
-     * @param oracle Oracle to check for. bytes32(0) implies self while != bytes32(0) implies
-     * we got a proof from a remote chain. Is a bytes32(...) slice.
      * @param fillTime The expected fill time. Is used as a time & collision check.
      */
-    function _isProven(Output calldata output, bytes32 oracle, uint32 fillTime) internal view returns (bool proven) {
+    function _isProven(OutputDescription calldata output, uint32 fillTime) internal view returns (bool proven) {
         bytes32 outputHash = _outputHash(output);
-        return _provenOutput[outputHash][fillTime][oracle];
+        return _provenOutput[outputHash][fillTime][output.remoteOracle];
     }
 
     /**
      * @notice Check if an output has been proven.
      * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
      * @param output Output to check for.
-     * @param oracle Oracle to check for. bytes32(0) implies self while != bytes32(0) implies
-     * we got a proof from a remote chain. Is a bytes32(...) slice.
      * @param fillTime The expected fill time. Is used as a time & collision check.
      */
-    function isProven(Output calldata output, bytes32 oracle, uint32 fillTime) external view returns (bool proven) {
-        return _isProven(output, oracle, fillTime);
+    function isProven(OutputDescription calldata output, uint32 fillTime) external view returns (bool proven) {
+        return _isProven(output, fillTime);
     }
 
     /** @dev Function overload for isProven that allows proving multiple outputs in a single call. */
-    function isProven(Output[] calldata outputs, bytes32[] memory oracles, uint32 fillTime) public view returns (bool proven) {
+    function isProven(OutputDescription[] calldata outputs, uint32 fillTime) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
-            if (!_isProven(outputs[i], oracles[i], fillTime)) {
+            if (!_isProven(outputs[i], fillTime)) {
                 return proven = false;
             }
         }
@@ -139,7 +136,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
      */
     function _submit(
-        Output[] calldata outputs,
+        OutputDescription[] calldata outputs,
         uint32[] calldata fillTimes,
         bytes32 destinationIdentifier,
         bytes calldata destinationAddress,
@@ -174,7 +171,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
      */
     function submit(
-        Output[] calldata outputs,
+        OutputDescription[] calldata outputs,
         uint32[] calldata fillTimes,
         bytes32 destinationIdentifier,
         bytes calldata destinationAddress,
@@ -184,7 +181,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         uint256 numFillTimes = fillTimes.length;
         unchecked {
             for (uint256 i; i < numFillTimes; ++i) {
-                if (!_isProven(outputs[i], bytes32(0), fillTimes[i])) {
+                if (!_isProven(outputs[i], fillTimes[i])) {
                     revert CannotProveOrder();
                 }
             }
@@ -199,13 +196,13 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        (Output[] memory outputs, uint32[] memory fillTimes) = _decode(message);
+        (OutputDescription[] memory outputs, uint32[] memory fillTimes) = _decode(message);
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
 
         for (uint256 i; i < numOutputs; ++i) {
-            Output memory output = outputs[i];
+            OutputDescription memory output = outputs[i];
             // Check if sourceIdentifierbytes
             // TODO: unify chainIdentifiers. (types)
             if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain();
@@ -235,14 +232,14 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @dev This function reverts if fillTimes.length < outputs but not if fillTimes.length > outputs. Use with care.
      */
     function _encode(
-        Output[] calldata outputs,
+        OutputDescription[] calldata outputs,
         uint32[] calldata fillTimes
     ) internal pure returns (bytes memory encodedPayload) {
         uint256 numOutputs = outputs.length;
         encodedPayload = bytes.concat(EXECUTE_PROOFS, bytes2(uint16(numOutputs)));
         unchecked {
             for (uint256 i; i < numOutputs; ++i) {
-                Output calldata output = outputs[i];
+                OutputDescription calldata output = outputs[i];
                 // if fillTimes.length < outputs.length then fillTimes[i] will fail with out of index.
                 uint32 fillTime = fillTimes[i];
                 encodedPayload = bytes.concat(
@@ -270,22 +267,25 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     function _decode(bytes calldata encodedPayload)
         internal
         pure
-        returns (Output[] memory outputs, uint32[] memory fillTimes)
+        returns (OutputDescription[] memory outputs, uint32[] memory fillTimes)
     {
         unchecked {
             uint256 numOutputs = uint256(uint16(bytes2(encodedPayload[NUM_OUTPUTS_START:NUM_OUTPUTS_END])));
 
-            outputs = new Output[](numOutputs);
+            outputs = new OutputDescription[](numOutputs);
             fillTimes = new uint32[](numOutputs);
             uint256 pointer = 0;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
-                outputs[outputIndex] = Output({
+                outputs[outputIndex] = OutputDescription({
                     token: bytes32(encodedPayload[pointer + OUTPUT_TOKEN_START:pointer + OUTPUT_TOKEN_END]),
                     amount: uint256(bytes32(encodedPayload[pointer + OUTPUT_AMOUNT_START:pointer + OUTPUT_AMOUNT_END])),
                     recipient: bytes32(encodedPayload[pointer + OUTPUT_RECIPIENT_START:pointer + OUTPUT_RECIPIENT_END]),
                     chainId: uint32(
                         uint256(bytes32(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END]))
-                    )
+                    ),
+                    // TODO:
+                    remoteOracle: bytes32(0),
+                    remoteCall: hex""
                 });
                 fillTimes[outputIndex] =
                     uint32(bytes4(encodedPayload[pointer + OUTPUT_FILLTIME_START:pointer + OUTPUT_FILLTIME_END]));

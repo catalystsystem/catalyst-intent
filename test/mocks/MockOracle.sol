@@ -41,6 +41,7 @@ contract MockOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
             uint32 fillTime = fillTimes[i];
             encodedPayload = bytes.concat(
                 encodedPayload,
+                output.remoteOracle,
                 output.token,
                 bytes32(output.amount),
                 output.recipient,

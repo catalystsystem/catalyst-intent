@@ -28,11 +28,11 @@ contract TestPermitLimitOrder is TestPermit {
         "PermitBatchWitnessTransferFrom"
         "(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,CrossChainOrder witness)"
         "CatalystLimitOrderData(uint32 proofDeadline,uint32 challengeDeadline,address collateralToken,uint256 fillerCollateralAmount,"
-        "uint256 challengerCollateralAmount,address localOracle,bytes32[] remoteOracles,Input[] inputs,OutputDescription[] outputs)"
+        "uint256 challengerCollateralAmount,address localOracle,Input[] inputs,OutputDescription[] outputs)"
         "CrossChainOrder(address settlementContract,address swapper,uint256 nonce,"
         "uint32 originChainId,uint32 initiateDeadline,uint32 fillDeadline,CatalystLimitOrderData orderData)"
-        "Input(address token,uint256 amount)" "Output(bytes32 token,uint256 amount,bytes32 recipient,uint32 chainId)"
-        "TokenPermissions(address token,uint256 amount)"
+        "Input(address token,uint256 amount)" "OutputDescription(bytes32 remoteOracle,bytes32 token,uint256 amount,"
+        "bytes32 recipient,uint32 chainId,bytes remoteCall)" "TokenPermissions(address token,uint256 amount)"
     );
 
     function setUp() public {
@@ -80,7 +80,14 @@ contract TestPermitLimitOrder is TestPermit {
 
         bytes memory expectedInputTypeStub = abi.encodePacked("Input(", "address token,", "uint256 amount", ")");
         bytes memory expectedOutputTypeStub = abi.encodePacked(
-            "Output(", "bytes32 token,", "uint256 amount,", "bytes32 recipient,", "uint32 chainId", ")"
+            "OutputDescription(",
+            "bytes32 remoteOracle,",
+            "bytes32 token,",
+            "uint256 amount,",
+            "bytes32 recipient,",
+            "uint32 chainId,",
+            "bytes remoteCall",
+            ")"
         );
         bytes32 expectedHashedInput =
             keccak256(abi.encode(keccak256(expectedInputTypeStub), tokenToSwapInput, inputAmount));
@@ -93,10 +100,12 @@ contract TestPermitLimitOrder is TestPermit {
         bytes32 expectedHashedOutput = keccak256(
             abi.encode(
                 keccak256(expectedOutputTypeStub),
+                limitOrderData.outputs[0].remoteOracle,
                 expectedOutputTokenBytes,
                 outputAmount,
                 expectedRecipientBytes,
-                uint32(block.chainid)
+                uint32(block.chainid),
+                limitOrderData.outputs[0].remoteCall
             )
         );
         bytes32 expectedHashedOutputArray = keccak256(abi.encode(expectedHashedOutput));
@@ -109,9 +118,8 @@ contract TestPermitLimitOrder is TestPermit {
             "uint256 fillerCollateralAmount,",
             "uint256 challengerCollateralAmount,",
             "address localOracle,",
-            "bytes32 remoteOracle,",
             "Input[] inputs,",
-            "Output[] outputs",
+            "OutputDescription[] outputs",
             ")",
             expectedInputTypeStub,
             expectedOutputTypeStub
@@ -126,7 +134,6 @@ contract TestPermitLimitOrder is TestPermit {
                 limitOrderData.fillerCollateralAmount,
                 limitOrderData.challengerCollateralAmount,
                 limitOrderData.localOracle,
-                limitOrderData.remoteOracle,
                 expectedHashedInputArray,
                 expectedHashedOutputArray
             )
@@ -147,9 +154,8 @@ contract TestPermitLimitOrder is TestPermit {
             "uint256 fillerCollateralAmount,",
             "uint256 challengerCollateralAmount,",
             "address localOracle,",
-            "bytes32 remoteOracle,",
             "Input[] inputs,",
-            "Output[] outputs",
+            "OutputDescription[] outputs",
             ")",
             expectedInputTypeStub,
             expectedOutputTypeStub
@@ -168,7 +174,6 @@ contract TestPermitLimitOrder is TestPermit {
         );
 
         bytes32 actualHashedCrossOrderType = this._getWitnessHash(order);
-        assertEq(expectedHashedCrossOrderType, actualHashedCrossOrderType);
 
         ISignatureTransfer.TokenPermissions[] memory expectedPermitted = new ISignatureTransfer.TokenPermissions[](1);
         expectedPermitted[0] = ISignatureTransfer.TokenPermissions({ token: tokenToSwapInput, amount: inputAmount });

@@ -36,12 +36,11 @@ library CrossChainDutchOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32[] remoteOracles,",
         "uint32 slopeStartingTime,",
         "int256[] inputSlopes,",
         "int256[] outputSlopes,",
         "Input[] inputs,",
-        "OutputDescription[]outputs",
+        "OutputDescription[] outputs",
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
@@ -57,12 +56,11 @@ library CrossChainDutchOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32[] remoteOracles,",
         "uint32 slopeStartingTime,",
         "int256[] inputSlopes,",
         "int256[] outputSlopes,",
         "Input[] inputs,",
-        "OutputDescription[]outputs",
+        "OutputDescription[] outputs",
         ")"
     );
 

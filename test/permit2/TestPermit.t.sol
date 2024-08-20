@@ -27,6 +27,7 @@ abstract contract TestPermit is Test {
 
     address SWAPPER;
     uint256 SWAPPER_PRIVATE_KEY;
+    uint256 constant DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
 
     bytes32 constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
 

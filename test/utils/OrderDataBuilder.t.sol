@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { Input } from "../../src/interfaces/ISettlementContract.sol";
+import { Input, Output } from "../../src/interfaces/ISettlementContract.sol";
 
 import { OutputDescription } from "../../src/interfaces/Structs.sol";
 
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { console } from "forge-std/Test.sol";
 
 library OrderDataBuilder {
     function test() public pure { }
@@ -29,8 +30,8 @@ library OrderDataBuilder {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        outputs[0] = getOutput(
-            tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle))
+        outputs[0] = getDescriptionOutput(
+            bytes32(abi.encode(remoteOracle)), tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), hex""
         );
 
         limitOrderData = LimitOrderData({
@@ -61,8 +62,14 @@ library OrderDataBuilder {
         uint256 length
     ) internal view returns (LimitOrderData memory limitOrderData) {
         Input[] memory inputs = getInputs(tokenToSwapInput, inputAmount, length);
-        OutputDescription[] memory outputs = getOutputs(
-            tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), length, bytes32(abi.encode(remoteOracle))
+        OutputDescription[] memory outputs = getDescriptionOutputs(
+            bytes32(abi.encode(remoteOracle)),
+            tokenToSwapOutput,
+            outputAmount,
+            recipient,
+            uint32(block.chainid),
+            hex"",
+            length
         );
 
         limitOrderData = LimitOrderData({
@@ -96,8 +103,8 @@ library OrderDataBuilder {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        outputs[0] = getOutput(
-            tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), bytes32(abi.encode(remoteOracle))
+        outputs[0] = getDescriptionOutput(
+            bytes32(abi.encode(remoteOracle)), tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), hex""
         );
 
         int256[] memory inputSlopes = new int256[](1);
@@ -124,13 +131,13 @@ library OrderDataBuilder {
         input = Input({ token: tokenToSwapInput, amount: inputAmount });
     }
 
-    // TODO: Asem place holder.
-    function getOutput(
+    function getDescriptionOutput(
+        bytes32 remoteOracle,
         address tokenToSwapOutput,
         uint256 outputAmount,
         address recipient,
         uint32 chainId,
-        bytes32 remoteOracle
+        bytes memory remoteCall
     ) internal pure returns (OutputDescription memory output) {
         output = OutputDescription({
             token: bytes32(abi.encode(tokenToSwapOutput)),
@@ -138,21 +145,45 @@ library OrderDataBuilder {
             recipient: bytes32(abi.encode(recipient)),
             chainId: chainId,
             remoteOracle: remoteOracle,
-            remoteCall: hex""
+            remoteCall: remoteCall
         });
     }
 
-    function getOutputs(
+    function getDescriptionOutputs(
+        bytes32 remoteOracle,
         address tokenToSwapOutput,
         uint256 outputAmount,
         address recipient,
         uint32 chainId,
-        uint256 length,
-        bytes32 remoteOracle
+        bytes memory remoteCall,
+        uint256 length
     ) internal pure returns (OutputDescription[] memory outputs) {
         outputs = new OutputDescription[](length);
         for (uint256 i; i < length; ++i) {
-            outputs[i] = getOutput(tokenToSwapOutput, outputAmount, recipient, chainId, remoteOracle);
+            outputs[i] =
+                getDescriptionOutput(remoteOracle, tokenToSwapOutput, outputAmount, recipient, chainId, remoteCall);
+        }
+    }
+
+    function getSettlementOutput(
+        bytes32 tokenToSwapOutput,
+        uint256 outputAmount,
+        bytes32 recipient,
+        uint32 chainId
+    ) internal pure returns (Output memory output) {
+        output = Output({ token: tokenToSwapOutput, amount: outputAmount, recipient: recipient, chainId: chainId });
+    }
+
+    function getSettlementOutputs(
+        bytes32 tokenToSwapOutput,
+        uint256 outputAmount,
+        bytes32 recipient,
+        uint32 chainId,
+        uint256 length
+    ) internal pure returns (Output[] memory outputs) {
+        outputs = new Output[](length);
+        for (uint256 i; i < length; ++i) {
+            outputs[i] = getSettlementOutput(tokenToSwapOutput, outputAmount, recipient, chainId);
         }
     }
 

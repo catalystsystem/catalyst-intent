@@ -3,15 +3,21 @@ pragma solidity ^0.8.22;
 
 import { CrossChainOrder, Input } from "../../interfaces/ISettlementContract.sol";
 
-
 import { OutputDescription } from "../../interfaces/Structs.sol";
-
 
 library CrossChainOrderType {
     bytes constant INPUT_TYPE_STUB = abi.encodePacked("Input(", "address token,", "uint256 amount", ")");
 
-    bytes constant OUTPUT_TYPE_STUB =
-        abi.encodePacked("Output(", "bytes32 token,", "uint256 amount,", "bytes32 recipient,", "uint32 chainId", ")");
+    bytes constant OUTPUT_TYPE_STUB = abi.encodePacked(
+        "OutputDescription(",
+        "bytes32 remoteOracle,",
+        "bytes32 token,",
+        "uint256 amount,",
+        "bytes32 recipient,",
+        "uint32 chainId,",
+        "bytes remoteCall",
+        ")"
+    );
 
     string constant TOKEN_PERMISSIONS_TYPE = "TokenPermissions(address token,uint256 amount)";
 
@@ -22,7 +28,15 @@ library CrossChainOrderType {
     // TODO: Permit2 description of output
     function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(keccak256(OUTPUT_TYPE_STUB), output.token, output.amount, output.recipient, output.chainId)
+            abi.encode(
+                keccak256(OUTPUT_TYPE_STUB),
+                output.remoteOracle,
+                output.token,
+                output.amount,
+                output.recipient,
+                output.chainId,
+                output.remoteCall
+            )
         );
     }
 

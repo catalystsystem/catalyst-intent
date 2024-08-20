@@ -11,11 +11,12 @@ import { CannotProveOrder, FillTimeFarInFuture, FillTimeInPast, WrongChain } fro
 import { IOracle } from "../interfaces/IOracle.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
+import { console } from "forge-std/Test.sol";
 
 import "./OraclePayload.sol";
 
 interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscrow {
-    function proofValidPeriod(bytes32 destinationIdentifier) external view returns(uint64 duration);
+    function proofValidPeriod(bytes32 destinationIdentifier) external view returns (uint64 duration);
 }
 
 /**
@@ -35,7 +36,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
     }
 
-    /** @notice Only allow the message escrow to call these functions */
+    /**
+     * @notice Only allow the message escrow to call these functions
+     */
     modifier onlyEscrow() {
         if (msg.sender != address(escrow)) revert NotApprovedEscrow();
         _;
@@ -73,10 +76,11 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             // Check that fillTime isn't far in the future.
             // The idea is to protect users against random transfers through this contract.
             // unchecked: type(uint32).max * 2 < type(uint256).max
-            if (uint256(fillTime) > uint256(currentTimestamp) + uint256(MAX_FUTURE_FILL_TIME)) revert FillTimeFarInFuture();
+            if (uint256(fillTime) > uint256(currentTimestamp) + uint256(MAX_FUTURE_FILL_TIME)) {
+                revert FillTimeFarInFuture();
+            }
         }
     }
-
 
     //--- Output Proofs ---/
 
@@ -101,7 +105,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         return _isProven(output, fillTime);
     }
 
-    /** @dev Function overload for isProven that allows proving multiple outputs in a single call. */
+    /**
+     * @dev Function overload for isProven that allows proving multiple outputs in a single call.
+     */
     function isProven(OutputDescription[] calldata outputs, uint32 fillTime) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
@@ -111,7 +117,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         }
         return proven = true;
     }
-
 
     //--- Sending Proofs & Generalised Incentives ---//
 
@@ -132,7 +137,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @param fillTimes The fill times associated with the outputs. Used to match against the order.
      * @param destinationIdentifier Chain id to send the order to. Is based on the messaging
      * protocol.
-     * @param destinationAddress Oracle address on the destination. 
+     * @param destinationAddress Oracle address on the destination.
      * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
      */
     function _submit(
@@ -167,7 +172,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @param fillTimes The fill times associated with the outputs. Used to match against the order.
      * @param destinationIdentifier Chain id to send the order to. Is based on the messaging
      * protocol.
-     * @param destinationAddress Oracle address on the destination. 
+     * @param destinationAddress Oracle address on the destination.
      * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
      */
     function submit(
@@ -200,9 +205,15 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
+        console.log("Outputs length:", numOutputs);
+        console.log("Fillers length:", fillTimes.length);
 
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription memory output = outputs[i];
+            console.log("Output hash from receive: ");
+            console.logBytes32(keccak256(abi.encode(output)));
+            console.log("Amount: ", output.amount);
+            console.log("chainID: ", output.chainId);
             // Check if sourceIdentifierbytes
             // TODO: unify chainIdentifiers. (types)
             if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain();
@@ -244,6 +255,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
                 uint32 fillTime = fillTimes[i];
                 encodedPayload = bytes.concat(
                     encodedPayload,
+                    output.remoteOracle,
                     output.token,
                     bytes32(output.amount),
                     output.recipient,
@@ -277,14 +289,16 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             uint256 pointer = 0;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
                 outputs[outputIndex] = OutputDescription({
+                    remoteOracle: bytes32(
+                        encodedPayload[pointer + OUTPUT_REMOTE_ORACLE_START:pointer + OUTPUT_REMOTE_ORACLE_END]
+                    ),
                     token: bytes32(encodedPayload[pointer + OUTPUT_TOKEN_START:pointer + OUTPUT_TOKEN_END]),
                     amount: uint256(bytes32(encodedPayload[pointer + OUTPUT_AMOUNT_START:pointer + OUTPUT_AMOUNT_END])),
                     recipient: bytes32(encodedPayload[pointer + OUTPUT_RECIPIENT_START:pointer + OUTPUT_RECIPIENT_END]),
                     chainId: uint32(
                         uint256(bytes32(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END]))
                     ),
-                    // TODO:
-                    remoteOracle: bytes32(0),
+                    // TODO: Change to fixed size
                     remoteCall: hex""
                 });
                 fillTimes[outputIndex] =

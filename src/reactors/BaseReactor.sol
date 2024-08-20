@@ -13,7 +13,7 @@ import {
     Output,
     ResolvedCrossChainOrder
 } from "../interfaces/ISettlementContract.sol";
-import { OrderContext, OrderKey, OrderStatus, ReactorInfo, OutputDescription } from "../interfaces/Structs.sol";
+import { OrderContext, OrderKey, OrderStatus, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 
 import { CanCollectGovernanceFee } from "../libs/CanCollectGovernanceFee.sol";
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
@@ -47,6 +47,7 @@ import {
     OrderPurchased,
     OrderVerify
 } from "../interfaces/Events.sol";
+import { console } from "forge-std/Test.sol";
 
 /**
  * @title Base Cross-chain intent Reactor
@@ -84,7 +85,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
 
-
     constructor(address permit2, address owner) CanCollectGovernanceFee(owner) {
         PERMIT2 = ISignatureTransfer(permit2);
     }
@@ -115,7 +115,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         CrossChainOrder calldata order,
         bytes calldata fillerData
     ) internal virtual returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
-
 
     /**
      * @notice Logic function for resolveKey(...).
@@ -465,13 +464,13 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // then the next line will fail. This acts as a LOCAL reentry check.
         orderContext.status = OrderStatus.Filled;
 
+        console.log("Output hash before prove: ");
+        console.logBytes32(keccak256(abi.encode(orderKey.outputs[0])));
         // The following call is a external call to an untrusted contract. As a result,
         // it is important that we protect this contract against reentry calls, even if read-only.
-        if (
-            !IOracle(orderKey.localOracle).isProven(
-                orderKey.outputs, orderKey.reactorContext.fillByDeadline
-            )
-        ) revert CannotProveOrder();
+        if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs, orderKey.reactorContext.fillByDeadline)) {
+            revert CannotProveOrder();
+        }
 
         // Payout input.
         _deliverInputs(orderKey.inputs, fillerAddress, governanceFee);

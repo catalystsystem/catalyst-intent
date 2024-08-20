@@ -6,7 +6,7 @@ import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
-import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
@@ -144,13 +144,13 @@ abstract contract TestBaseReactor is Test {
         assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
     }
 
-    // // function test_collect_tokens_from_msg_sender(uint256 amount, address sender) public approvedAndMinted(sender, tokenToSwapInput, amount) {
-    // //     (uint256 swapperInputBalance, uint256 reactorInputBalance) =
-    // //         MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
-    // //     _initiateOrder(0, SWAPPER, amount, sender);
-    // //     assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
-    // //     assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
-    // // }
+    // function test_collect_tokens_from_msg_sender(uint256 amount, address sender) public approvedAndMinted(sender, tokenToSwapInput, amount) {
+    //     (uint256 swapperInputBalance, uint256 reactorInputBalance) =
+    //         MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
+    //     _initiateOrder(0, SWAPPER, amount, sender);
+    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
+    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
+    // }
 
     function test_balances_multiple_orders(
         uint160 inputAmount,
@@ -884,7 +884,6 @@ abstract contract TestBaseReactor is Test {
         uint256 nonce,
         uint256 governanceFee
     ) public {
-        vm.assume(false); // TODO: asem please fix this.
         vm.assume(governanceFee > 0 && governanceFee < MAX_GOVERNANCE_FEE);
         CrossChainOrder memory order = _getCrossOrder(
             inputAmount,
@@ -905,35 +904,40 @@ abstract contract TestBaseReactor is Test {
         reactor.setGovernanceFee(governanceFee);
         ResolvedCrossChainOrder memory actual = reactor.resolve(order, fillerData);
 
-        // Input[] memory inputs = OrderDataBuilder.getInputs(tokenToSwapInput, inputAmount, 1);
-        // OutputDescription[] memory outputs =
-        //     OrderDataBuilder.getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), 1);
-        // OutputDescription[] memory fillerOutputs = new Output[](1);
+        Input[] memory inputs = OrderDataBuilder.getInputs(tokenToSwapInput, inputAmount, 1);
+        Output[] memory outputs = OrderDataBuilder.getSettlementOutputs(
+            bytes32(uint256(uint160(tokenToSwapOutput))),
+            outputAmount,
+            bytes32(uint256(uint160(recipient))),
+            uint32(block.chainid),
+            1
+        );
+        Output[] memory fillerOutputs = new Output[](1);
 
-        // if (inputAmount < type(uint256).max / governanceFee) {
-        //     inputAmount = inputAmount - inputAmount * governanceFee / 10 ** 18;
-        // }
+        if (inputAmount < type(uint256).max / governanceFee) {
+            inputAmount = inputAmount - inputAmount * governanceFee / 10 ** 18;
+        }
 
-        // fillerOutputs[0] = Output({
-        //     token: bytes32(uint256(uint160(inputs[0].token))),
-        //     amount: inputAmount,
-        //     recipient: bytes32(uint256(uint160(fillerAddress))),
-        //     chainId: uint32(block.chainid),
-        // });
+        fillerOutputs[0] = Output({
+            token: bytes32(uint256(uint160(inputs[0].token))),
+            amount: inputAmount,
+            recipient: bytes32(uint256(uint160(fillerAddress))),
+            chainId: uint32(block.chainid)
+        });
 
-        // ResolvedCrossChainOrder memory expected = ResolvedCrossChainOrder({
-        //     settlementContract: address(reactor),
-        //     swapper: recipient,
-        //     nonce: nonce,
-        //     originChainId: uint32(block.chainid),
-        //     initiateDeadline: initiateDeadline,
-        //     fillDeadline: fillDeadline,
-        //     swapperInputs: inputs,
-        //     swapperOutputs: outputs,
-        //     fillerOutputs: fillerOutputs
-        // });
+        ResolvedCrossChainOrder memory expected = ResolvedCrossChainOrder({
+            settlementContract: address(reactor),
+            swapper: recipient,
+            nonce: nonce,
+            originChainId: uint32(block.chainid),
+            initiateDeadline: initiateDeadline,
+            fillDeadline: fillDeadline,
+            swapperInputs: inputs,
+            swapperOutputs: outputs,
+            fillerOutputs: fillerOutputs
+        });
 
-        // assertEq(keccak256(abi.encode(actual)), keccak256(abi.encode(expected)));
+        assertEq(keccak256(abi.encode(actual)), keccak256(abi.encode(expected)));
     }
 
     //--- Oracle ---//
@@ -1110,9 +1114,7 @@ abstract contract TestBaseReactor is Test {
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
 
-        _fillAndSubmitOracle(
-            remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes
-        );
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
 
         vm.expectCall(
             collateralToken,
@@ -1201,6 +1203,7 @@ abstract contract TestBaseReactor is Test {
         bytes memory encodedPayload = localVMOracleContract.encode(outputs, fillTimes);
 
         vm.prank(escrow);
+
         localVMOracleContract.receiveMessage(
             destinationIdentifier, bytes32(0), bytes.concat(orderKey.outputs[0].remoteOracle), encodedPayload
         );

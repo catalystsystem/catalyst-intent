@@ -87,8 +87,6 @@ contract TestBridgeOracle is TestCommonGARP {
         outputs[0] = output;
         outputs[1] = extraOutput;
 
-        bytes32[] memory oracles = new bytes32[](2);
-
         bool status = oracle.isProven(outputs, fillTime);
         assertFalse(status);
     }
@@ -275,8 +273,8 @@ contract TestBridgeOracle is TestCommonGARP {
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
                 chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
-            remoteCall: hex""
+                remoteOracle: bytes32(0),
+                remoteCall: hex""
             });
         }
 
@@ -300,8 +298,8 @@ contract TestBridgeOracle is TestCommonGARP {
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
                 chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
-            remoteCall: hex""
+                remoteOracle: bytes32(0),
+                remoteCall: hex""
             });
         }
 

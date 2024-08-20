@@ -49,7 +49,7 @@ struct OutputDescription {
     bytes32 recipient; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
     /// @dev The destination chain for this output
     uint32 chainId; // TODO: CONVERT TO BYTES32?
-    bytes remoteCall;
+    bytes remoteCall; //TODO: Make it fixed size for encoding and decoding?
 }
 
 /**

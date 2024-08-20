@@ -31,9 +31,8 @@ library CrossChainLimitOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32[] remoteOracles,",
         "Input[] inputs,",
-        "OutputDescription[]outputs",
+        "OutputDescription[] outputs",
         ")",
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
@@ -47,9 +46,8 @@ library CrossChainLimitOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32[] remoteOracles,",
         "Input[] inputs,",
-        "OutputDescription[]outputs",
+        "OutputDescription[] outputs",
         ")"
     );
 
@@ -75,7 +73,7 @@ library CrossChainLimitOrderType {
         return keccak256(
             bytes.concat(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                 bytes32(uint256(orderData.proofDeadline)),
+                bytes32(uint256(orderData.proofDeadline)),
                 bytes32(uint256(orderData.challengeDeadline)),
                 bytes32(uint256(uint160(orderData.collateralToken))),
                 bytes32(orderData.fillerCollateralAmount),

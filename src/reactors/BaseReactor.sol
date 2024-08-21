@@ -458,10 +458,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * a function, isProven(...), that returns true when called with the order details.
      * @dev
      */
-    function proveOrderFulfillment(OrderKey calldata orderKey) external {
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
-
+    function _proveOrderFulfillment(OrderKey calldata orderKey, OrderContext storage orderContext) internal {
         OrderStatus status = orderContext.status;
         address fillerAddress = orderContext.fillerAddress;
 
@@ -501,7 +498,23 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // No need to check if collateralToken is a deployed contract.
         // It has already been entered into our contract.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+    }
 
+    /**
+     * @notice Prove that an order was filled. Requires that the order oracle exposes
+     * a function, isProven(...), that returns true when called with the order details.
+     * @dev
+     */
+    function proveOrderFulfillment(OrderKey calldata orderKey, bytes calldata executionData) external {
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
+
+        _proveOrderFulfillment(orderKey, orderContext);
+
+        bytes32 identifier = orderContext.identifier;
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
+
+        // TODO: filler
         emit OrderProven(orderHash, msg.sender);
     }
 
@@ -509,10 +522,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * @notice Collect the order result
      * @dev Anyone can call this but the payout goes to the filler of the order.
      */
-    function optimisticPayout(OrderKey calldata orderKey) external payable {
-        bytes32 orderKeyHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderKeyHash];
-
+    function _optimisticPayout(OrderKey calldata orderKey, OrderContext storage orderContext) internal {
         // Check if order is claimed:
         if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
         // If OrderStatus != Claimed then it must either be:
@@ -542,8 +552,44 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // collateralToken has already been entered so no need to check if
         // it is a valid token.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+    }
 
-        emit OptimisticPayout(orderKeyHash);
+    function optimisticPayout(OrderKey calldata orderKey, bytes calldata executionData) external {
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
+
+        _optimisticPayout(orderKey, orderContext);
+
+        bytes32 identifier = orderContext.identifier;
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
+
+        emit OrderProven(orderHash, msg.sender);
+    }
+
+    //-- Order Resolution Backups --//
+
+
+    function proveOrderFulfillmentBackup(OrderKey calldata orderKey) external {
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
+
+        // TODO: Check if msg.sender is filler.
+
+        _proveOrderFulfillment(orderKey, orderContext);
+
+        emit OptimisticPayout(orderHash);
+    }
+
+
+    function optimisticPayoutBackup(OrderKey calldata orderKey) external {
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
+
+        // TODO: Check if msg.sender is filler.
+
+        _optimisticPayout(orderKey, orderContext);
+
+        emit OptimisticPayout(orderHash);
     }
 
     //--- Disputes ---//
@@ -560,7 +606,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * the filler.
      * TODO: Are there more risks?
      */
-    function dispute(OrderKey calldata orderKey) external payable {
+    function dispute(OrderKey calldata orderKey) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 

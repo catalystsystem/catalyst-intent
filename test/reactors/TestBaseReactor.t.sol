@@ -445,7 +445,7 @@ abstract contract TestBaseReactor is Test {
                 abi.encodeWithSignature("OrderNotReadyForOptimisticPayout(uint32)", challengeDeadline - warp + 1)
             );
         }
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
     }
 
     function test_optimistic_payout(
@@ -489,7 +489,7 @@ abstract contract TestBaseReactor is Test {
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
         );
         // Check that we emitted the payout status.
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
     }
 
     function test_revert_challenged_optimistic_payout(
@@ -522,7 +522,7 @@ abstract contract TestBaseReactor is Test {
         reactor.dispute(orderKey);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", OrderStatus.Challenged));
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
     }
 
     //--- Resolve Disputed Orders ---//
@@ -810,7 +810,7 @@ abstract contract TestBaseReactor is Test {
             challengeDeadline + 1 hours
         );
         vm.warp(challengeDeadline + 1);
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
         vm.prank(purchaser);
@@ -1007,7 +1007,7 @@ abstract contract TestBaseReactor is Test {
         emit OrderProven(orderHash, fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.proveOrderFulfillment(orderKey);
+        reactor.proveOrderFulfillment(orderKey, hex"");
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
         assert(orderContext.status == OrderStatus.Filled);
@@ -1023,7 +1023,7 @@ abstract contract TestBaseReactor is Test {
             0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
         );
         vm.expectRevert(CannotProveOrder.selector);
-        reactor.proveOrderFulfillment(orderKey);
+        reactor.proveOrderFulfillment(orderKey, hex"");
     }
 
     function test_revert_oracle_proven_order(
@@ -1070,10 +1070,10 @@ abstract contract TestBaseReactor is Test {
         vm.warp(challengeDeadline + 1);
         vm.expectEmit();
         emit OptimisticPayout(orderHash);
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
-        reactor.proveOrderFulfillment(orderKey);
+        reactor.proveOrderFulfillment(orderKey, hex"");
     }
 
     function test_oracle_challenged_order(
@@ -1146,7 +1146,7 @@ abstract contract TestBaseReactor is Test {
         emit OrderProven(reactor.getOrderKeyHash(orderKey), fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.proveOrderFulfillment(orderKey);
+        reactor.proveOrderFulfillment(orderKey, hex"");
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
 

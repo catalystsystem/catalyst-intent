@@ -502,23 +502,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
     }
 
     /**
-     * @notice Prove that an order was filled. Requires that the order oracle exposes
-     * a function, isProven(...), that returns true when called with the order details.
-     * @dev
-     */
-    function proveOrderFulfillment(OrderKey calldata orderKey, bytes calldata executionData) external {
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
-
-        _proveOrderFulfillment(orderKey, orderContext);
-
-        bytes32 identifier = orderContext.identifier;
-        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
-
-        emit OrderProven(orderHash, msg.sender);
-    }
-
-    /**
      * @notice Collect the order result
      * @dev Anyone can call this but the payout goes to the filler of the order.
      */
@@ -552,6 +535,23 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // collateralToken has already been entered so no need to check if
         // it is a valid token.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+    }
+
+    /**
+     * @notice Prove that an order was filled. Requires that the order oracle exposes
+     * a function, isProven(...), that returns true when called with the order details.
+     * @dev
+     */
+    function proveOrderFulfillment(OrderKey calldata orderKey, bytes calldata executionData) external {
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
+
+        _proveOrderFulfillment(orderKey, orderContext);
+
+        bytes32 identifier = orderContext.identifier;
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
+
+        emit OrderProven(orderHash, msg.sender);
     }
 
     function optimisticPayout(OrderKey calldata orderKey, bytes calldata executionData) external {

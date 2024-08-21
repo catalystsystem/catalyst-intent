@@ -27,7 +27,6 @@ import {
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
-    OrderAlreadyClaimed
 } from "../../src/interfaces/Errors.sol";
 
 import {

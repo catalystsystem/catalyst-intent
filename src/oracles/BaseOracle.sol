@@ -85,7 +85,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         }
     }
 
-    function _validateChain(uint32 chainId) internal {
+    function _validateChain(uint32 chainId) view internal {
         if (uint32(block.chainid) != chainId) revert WrongChain();
     }
 

@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
+import { OrderKey } from "./Structs.sol";
+
 /**
  * @notice An order has been claimed.
  */
-event OrderClaimed(
+event OrderInitiated(
     address indexed filler,
-    bytes32 indexed owner,
-    uint96 nonce,
-    uint256 inputAmount,
-    address inputToken,
-    address oracle,
-    bytes32 destinationChainIdentifier,
-    bytes32 destinationAddress,
-    uint256 amount
+    OrderKey orderKey
 );
 
 event OrderProven(bytes32 indexed orderHash, address indexed fillerIdentifier);

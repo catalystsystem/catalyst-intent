@@ -11,8 +11,8 @@ import { CanCollectGovernanceFee } from "../../libs/CanCollectGovernanceFee.sol"
 import { Permit2Lib } from "../../libs/Permit2Lib.sol";
 
 /**
- * @notice Reactor Payment Handler
- * Handles sending batches of tokens in and out of the contract.
+ * @notice Reactor Payment Handler.
+ * Handles sending batches of tokens in and out of the reactor.
  */
 abstract contract ReactorPayments is CanCollectGovernanceFee {
     using Permit2Lib for OrderKey;
@@ -22,8 +22,6 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
     constructor(address permit2, address owner) CanCollectGovernanceFee(owner) {
         PERMIT2 = ISignatureTransfer(permit2);
     }
-
-    //--- Token Handling ---//
 
     /**
      * @notice Multi purpose order flow function that:

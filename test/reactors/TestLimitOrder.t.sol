@@ -26,7 +26,6 @@ import {
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
-    OrderAlreadyClaimed
 } from "../../src/interfaces/Errors.sol";
 
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";

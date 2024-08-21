@@ -2,10 +2,9 @@
 pragma solidity ^0.8.22;
 
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
-import { Collateral, OrderKey, ReactorInfo, OutputDescription } from "../interfaces/Structs.sol";
+import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
-
 
 import { BaseReactor } from "./BaseReactor.sol";
 

@@ -24,7 +24,7 @@ import { BaseOracle } from "./BaseOracle.sol";
 contract BitcoinOracle is BaseOracle {
     // The Bitcoin Identifier (0xBC) is set in the 20'th byte (from right). This ensures
     // implementations that are only reading the last 20 bytes, still notice this is a Bitcoin address.
-    // It also makes it more difficult for there to be a collision (even though low numeric value 
+    // It also makes it more difficult for there to be a collision (even though low numeric value
     // addresses are generally pre-compiles and thus would be safe).
     // This also add standardizes support for other light clients coins (Lightcoin 0x1C?)
     bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BC0000000000000000000000000000000000;
@@ -43,7 +43,9 @@ contract BitcoinOracle is BaseOracle {
         mirror = _mirror;
     }
 
-    /** @notice Slices the timestamp from a Bitcoin block header. */
+    /**
+     * @notice Slices the timestamp from a Bitcoin block header.
+     */
     function _getTimestampOfBlock(bytes calldata blockHeader) internal pure returns (uint256 timestamp) {
         uint32 time = uint32(bytes4(blockHeader[68:68 + 4]));
         timestamp = Endian.reverse32(time);
@@ -143,7 +145,7 @@ contract BitcoinOracle is BaseOracle {
      * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
      * @param outputScript The expected output script. Compared to the actual, reverts if different.
      * @param previousBlockHeader The previous block header. Is checked for authenticity by loading
-     * the actual previous block hash from the current block header. 
+     * the actual previous block hash from the current block header.
      * @return sats Value of txOutIx TXO of the transaction.
      * @return timestamp Timestamp of blockNum. Is derived from the inclusionProof block header but
      * the header is verified to belong to blockNum.

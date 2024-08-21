@@ -51,8 +51,8 @@ contract TestBridgeOracle is TestCommonGARP {
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
                 chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
-            remoteCall: hex""
+                remoteOracle: bytes32(0),
+                remoteCall: hex""
             });
         }
 

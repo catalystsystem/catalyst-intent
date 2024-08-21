@@ -11,7 +11,6 @@ import { CannotProveOrder, FillTimeFarInFuture, FillTimeInPast, WrongChain } fro
 import { IOracle } from "../interfaces/IOracle.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
-import { console } from "forge-std/Test.sol";
 
 import "./OraclePayload.sol";
 
@@ -205,15 +204,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
-        console.log("Outputs length:", numOutputs);
-        console.log("Fillers length:", fillTimes.length);
 
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription memory output = outputs[i];
-            console.log("Output hash from receive: ");
-            console.logBytes32(keccak256(abi.encode(output)));
-            console.log("Amount: ", output.amount);
-            console.log("chainID: ", output.chainId);
             // Check if sourceIdentifierbytes
             // TODO: unify chainIdentifiers. (types)
             if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain();

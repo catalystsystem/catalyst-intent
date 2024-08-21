@@ -13,6 +13,7 @@ import { BaseOracle } from "./BaseOracle.sol";
 /**
  * @dev Oracles are also fillers
  */
+
 contract GeneralisedIncentivesOracle is BaseOracle {
     constructor(address _escrow) BaseOracle(_escrow) { }
 
@@ -40,7 +41,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         bool proofState = _provenOutput[outputHash][fillTime][bytes32(0)];
         // Early return if we have already seen proof.
         if (proofState) return;
-        
+
         // Validate that the timestamp that is to be set, is within bounds.
         // This ensures that one cannot fill passed orders and that it is not
         // possible to lay traps (like always transferring through this contract).

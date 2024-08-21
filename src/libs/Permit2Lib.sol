@@ -6,7 +6,9 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 import { Input } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 
-/** @notice Gets the Permit2 context for an orderkey */
+/**
+ * @notice Gets the Permit2 context for an orderkey
+ */
 library Permit2Lib {
     /**
      * @notice Converts OrderKey into a PermitTransferFrom

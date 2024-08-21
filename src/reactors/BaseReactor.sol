@@ -47,7 +47,6 @@ import {
     OrderPurchased,
     OrderVerify
 } from "../interfaces/Events.sol";
-import { console } from "forge-std/Test.sol";
 
 /**
  * @title Base Cross-chain intent Reactor
@@ -464,8 +463,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // then the next line will fail. This acts as a LOCAL reentry check.
         orderContext.status = OrderStatus.Filled;
 
-        console.log("Output hash before prove: ");
-        console.logBytes32(keccak256(abi.encode(orderKey.outputs[0])));
         // The following call is a external call to an untrusted contract. As a result,
         // it is important that we protect this contract against reentry calls, even if read-only.
         if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs, orderKey.reactorContext.fillByDeadline)) {

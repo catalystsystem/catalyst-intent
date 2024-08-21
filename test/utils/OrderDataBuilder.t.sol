@@ -8,7 +8,6 @@ import { OutputDescription } from "../../src/interfaces/Structs.sol";
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
 import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
-import { console } from "forge-std/Test.sol";
 
 library OrderDataBuilder {
     function test() public pure { }

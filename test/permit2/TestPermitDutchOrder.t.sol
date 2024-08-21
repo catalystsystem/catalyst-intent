@@ -17,7 +17,6 @@ import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 import { TestPermit } from "./TestPermit.t.sol";
 
-import { console } from "forge-std/Test.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 interface Permit2DomainSeparator {

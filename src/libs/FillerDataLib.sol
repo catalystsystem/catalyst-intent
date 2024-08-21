@@ -6,7 +6,9 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 import { Input } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
 
-/** @notice Decodes fillerdata. */
+/**
+ * @notice Decodes fillerdata.
+ */
 library FillerDataLib {
     error NotImplemented(bytes1 version);
 

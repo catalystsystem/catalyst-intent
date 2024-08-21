@@ -35,8 +35,6 @@ contract BitcoinOracle is BaseOracle {
     error BadTokenFormat();
     error BlockhashMismatch(bytes32 actual, bytes32 proposed);
 
-    uint256 constant MIN_CONFIRMATIONS = 3; // TODO: Verify.
-
     mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
 
     constructor(address _escrow, uint32 chainId, IBtcPrism _mirror) BaseOracle(_escrow, chainId) {
@@ -64,6 +62,27 @@ contract BitcoinOracle is BaseOracle {
         AddressType bitcoinAddressType = AddressType(uint8(uint256(token)));
 
         return BtcScript.getBitcoinScript(bitcoinAddressType, scriptHash);
+    }
+
+    /**
+     * @notice Loads the number of confirmations from the second last byte of the token.
+     * @dev "0" confirmations are converted into 1.
+     * How long does it take for us to get 99,9% confidence that a transaction will
+     * be confirmable. Examine n identically distributed exponentially random variables
+     * with rate 1/10. The sum of the random variables are distributed gamma(n, 1/10).
+     * The 99,9% quantile of the distribution can be found in R as qgamma(0.999, n, 1/10)
+     * 1 confirmations: 69 minutes.
+     * 3 confirmations: 112 minutes.
+     * 5 confirmations: 148 minutes.
+     * 7 confimrations: 181 minutes.
+     * You may wonder why the delta decreases as we increase confirmations?
+     * That is the law of large numbers in action.
+     */
+    function _getNumConfirmations(bytes32 token) internal pure returns (uint8 numConfirmations) {
+        // Shift 8 bits to move the second byte to the right.
+        numConfirmations = uint8(uint256(token) >> 8);
+        // If numConfirmations == 0, set it to 1.
+        numConfirmations = numConfirmations == 0 ? 1 : numConfirmations;
     }
 
     /**
@@ -193,8 +212,10 @@ contract BitcoinOracle is BaseOracle {
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 
+        uint256 numConfirmations = _getNumConfirmations(output.token);
+
         (uint256 sats, uint256 timestamp) =
-            _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript);
+            _verifyPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript);
 
         // Validate that the timestamp gotten from the TX is within bounds.
         // This ensures a Bitcoin output cannot be "reused" forever.
@@ -227,10 +248,12 @@ contract BitcoinOracle is BaseOracle {
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 
+        uint256 numConfirmations = _getNumConfirmations(output.token);
+
         // Validate that the timestamp gotten from the TX is within bounds.
         // This ensures a Bitcoin output cannot be "reused" forever.
         (uint256 sats, uint256 timestamp) =
-            _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript, previousBlockHeader);
+            _verifyPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, previousBlockHeader);
 
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".

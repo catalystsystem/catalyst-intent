@@ -15,7 +15,54 @@ import { BaseOracle } from "./BaseOracle.sol";
  */
 
 contract GeneralisedIncentivesOracle is BaseOracle {
+    error NotEnoughGasExecution();
+
+    // The maximum gas used on calls is 1 million gas.
+    uint256 constant MAX_GAS_ON_CALL = 1_000_000;
+
     constructor(address _escrow) BaseOracle(_escrow) { }
+
+    /**
+     * @notice Allows calling an external function in a non-griefing manner.
+     * Source: https://github.com/catalystdao/GeneralisedIncentives/blob/38a88a746c7c18fb5d0f6aba195264fce34944d1/src/IncentivizedMessageEscrow.sol#L680
+     */
+    function _call(OutputDescription calldata output) internal {
+        address recipient = address(uint160(uint256(output.recipient)));
+        bytes memory payload = abi.encodeWithSignature("callback(uint256,bytes32,bytes)", output.amount, output.token, output.remoteCall);
+        bool success;
+        assembly ("memory-safe") {
+            // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables are assigned,
+            // the contract can be attacked by a so called return bomb. This incur additional cost to the relayer they aren't paid for.
+            // To protect the relayer, the call is made in inline assembly.
+            success := call(MAX_GAS_ON_CALL, recipient, 0, add(payload, 0x20), mload(payload), 0, 0)
+            // This is what the call would look like non-assembly.
+            // recipient.call{gas: MAX_GAS_ON_CALL}(
+            //      abi.encodeWithSignature("callback(uint256,bytes32)", output.amount, output.token)
+            // );
+        }
+
+        // External calls are allocated gas according roughly the following: min( gasleft * 63/64, gasArg ).
+        // If there is no check against gasleft, then a relayer could potentially cheat by providing less gas.
+        // Without a check, they only have to provide enough gas such that any further logic executees on 1/64 of gasleft
+        // To ensure maximum compatibility with external tx simulation and gas estimation tools we will check a more complex
+        // but more forgiving expression.
+        // Before the call, there needs to be at least maxGasAck * 64/63 gas available. With that available, then
+        // the call is allocated exactly min(+(maxGasAck * 64/63 * 63/64), maxGasAck) = maxGasAck.
+        // If the call uses up all of the gas, then there must be maxGasAck * 64/63 - maxGasAck = maxGasAck * 1/63
+        // gas left. It is sufficient to check that smaller limit rather than the larger limit.
+        // Furthermore, if we only check when the call fails we don't have to read gasleft if it is not needed.
+        unchecked {
+            if (!success) if(gasleft() < MAX_GAS_ON_CALL * 1 / 63) revert NotEnoughGasExecution();
+        }
+        // Why is this better (than checking before)?
+        // 1. We only have to check when the call fail. The vast majority of acks should not revert so it won't be checked.
+        // 2. For the majority of applications it is going to be hold that: gasleft > rest of logic > maxGasAck * 1 / 63
+        // and as such won't impact and execution/gas simuatlion/estimation libs.
+        
+        // Why is this worse?
+        // 1. What if the application expected us to check that it got maxGasAck? It might assume that it gets
+        // maxGasAck, when it turns out it got less it silently reverts (say by a low level call ala ours).
+    }
 
     /**
      * @notice Verifies & Fills an order.
@@ -62,6 +109,9 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         // TODO: The disadvantage of checking is that it may invalidate a
         // TODO: ongoing order putting the collateral at risk.
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
+
+        // If there is an external call associated with the fill, execute it.
+        if (output.remoteCall.length > 0) _call(output);
     }
 
     function _fill(OutputDescription[] calldata outputs, uint32[] calldata fillTimes) internal {

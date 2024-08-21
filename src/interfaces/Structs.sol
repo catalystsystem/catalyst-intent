@@ -70,8 +70,6 @@ struct OrderKey {
     uint32 originChainId;
     // Proof Context
     address localOracle; // The oracle that can satisfy a dispute.
-    bytes32 oracleProofHash; // TODO: figure out the best way to store proof details. Is the below enough?
-    // TODO: Figure out how to do remote calls (gas limit + fallback + calldata)
     Input[] inputs;
     // Lets say the challenger maps keccak256(abi.encode(outputs)) => keccak256(OrderKey).
     // Then we can easily check if these outputs have all been matched.

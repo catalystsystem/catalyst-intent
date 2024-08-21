@@ -75,7 +75,6 @@ contract DutchOrderReactor is BaseReactor {
             originChainId: order.originChainId,
             // Proof Context
             localOracle: dutchData.localOracle,
-            oracleProofHash: bytes32(0),
             inputs: inputs,
             outputs: outputs
         });

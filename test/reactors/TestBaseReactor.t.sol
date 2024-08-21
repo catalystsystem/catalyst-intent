@@ -778,7 +778,6 @@ abstract contract TestBaseReactor is Test {
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, customFillerData);
 
-
         bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderDiscount);
 
         vm.startPrank(buyer);

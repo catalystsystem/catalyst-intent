@@ -18,9 +18,10 @@ import { OrderContext, OrderKey, OrderStatus, OutputDescription, ReactorInfo } f
 import { CanCollectGovernanceFee } from "../libs/CanCollectGovernanceFee.sol";
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
 import { IsContractLib } from "../libs/IsContractLib.sol";
-import { Permit2Lib } from "../libs/Permit2Lib.sol";
+import { ReactorPayments } from "./helpers/ReactorPayments.sol";
 
 import {
+    BackupOnlyCallableByFiller,
     CannotProveOrder,
     ChallengeDeadlinePassed,
     InitiateDeadlineAfterFill,
@@ -35,8 +36,7 @@ import {
     OrderNotReadyForOptimisticPayout,
     ProofPeriodHasNotPassed,
     PurchaseTimePassed,
-    WrongOrderStatus,
-    BackupOnlyCallableByFiller
+    WrongOrderStatus
 } from "../interfaces/Errors.sol";
 import {
     FraudAccepted,
@@ -73,11 +73,7 @@ import {
  * becomes stuck until the issue is resolved.
  * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could annoy users.
  */
-abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
-    using Permit2Lib for OrderKey;
-
-    ISignatureTransfer public immutable PERMIT2;
-
+abstract contract BaseReactor is ReactorPayments, ISettlementContract {
     bytes32 public constant VERSION_FLAGS = bytes32(uint256(1));
 
     /**
@@ -85,9 +81,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
 
-    constructor(address permit2, address owner) CanCollectGovernanceFee(owner) {
-        PERMIT2 = ISignatureTransfer(permit2);
-    }
+    constructor(address permit2, address owner) ReactorPayments(permit2, owner) { }
 
     //--- Expose Storage ---//
 
@@ -139,77 +133,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         return orderKey = _resolveKey(order, fillerData);
     }
 
-    //--- Token Handling ---//
-
-    /**
-     * @notice Multi purpose order flow function that:
-     * - Orders the collection of tokens. This includes checking if the user has enough & approval.
-     * - Verification of the signature for the order. This ensures the user has accepted the order conditions.
-     * - Spend nonces. Disallow the same order from being claimed twice.  // TODO <- Check
-     */
-    function _collectTokensViaPermit2(
-        OrderKey memory orderKey,
-        address owner,
-        bytes32 witness,
-        string memory witnessTypeString,
-        bytes calldata signature
-    ) internal virtual {
-        (
-            ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
-            ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
-        ) = orderKey.toPermit(address(this));
-
-        PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, owner, witness, witnessTypeString, signature);
-    }
-
-    /**
-     * @notice Collects tokens without permit2.
-     * @dev Can only be used to collect tokens from msg.sender.
-     * If inputs[i].amount * discount overflows the amount is set to inputs[i].amount.
-     * @param inputs Tokens to collect from msg.sender.
-     * @param to Destination address for the collected tokens. To collect to this contract, set address(this).
-     */
-    function _collectTokensFromMsgSender(Input[] calldata inputs, address to, uint16 discount) internal virtual {
-        address from = msg.sender;
-        uint256 numInputs = inputs.length;
-        unchecked {
-            for (uint256 i = 0; i < numInputs; ++i) {
-                Input calldata input = inputs[i];
-                address token = input.token;
-                uint256 amount = input.amount;
-                // If discount == 0, then set amount to amount.
-                // If the discount subtraction overflows, also set the amount to amount.
-                // Otherwise, compute the discount as: amount - (amount * uint256(discount)) / uint256(type(uint16).max)
-                amount = (discount != 0 && amount < type(uint256).max / uint256(discount))
-                    ? amount - (amount * uint256(discount)) / uint256(type(uint16).max)
-                    : amount;
-                // Inputs have already been collected before. No need to verify if these are actual tokens.
-                SafeTransferLib.safeTransferFrom(token, from, to, amount);
-            }
-        }
-    }
-
-    /**
-     * @notice Sends a list of inputs to the target address.
-     * @dev This function can be used for paying the filler or refunding the user in case of disputes.
-     * @param inputs List of inputs that are to be paid.
-     * @param to Destination address.
-     */
-    function _deliverInputs(Input[] calldata inputs, address to, uint256 fee) internal virtual {
-        // Read governance fee.
-        uint256 numInputs = inputs.length;
-        for (uint256 i; i < numInputs; ++i) {
-            Input calldata input = inputs[i];
-            address token = input.token;
-            // Collect governance fee. Importantly, this also sets the value as collected.
-            uint256 amount = input.amount;
-            amount = fee == 0 ? amount : _collectGovernanceFee(token, amount, fee);
-            // We don't need to check if token is deployed since we
-            // got here. Reverting here would also freeze collateral.
-            SafeTransferLib.safeTransfer(token, to, amount);
-        }
-    }
-
     //--- Order Handling ---//
 
     /**
@@ -248,8 +171,13 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // => order.fillDeadline < block.timestamp is disallowed.
 
         // Decode filler data.
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier, uint256 fillerDataPointer) =
-            FillerDataLib.decode(fillerData);
+        (
+            address fillerAddress,
+            uint32 orderPurchaseDeadline,
+            uint16 orderDiscount,
+            bytes32 identifier,
+            uint256 fillerDataPointer
+        ) = FillerDataLib.decode(fillerData);
 
         // Initiate order.
         bytes32 witness;
@@ -397,7 +325,13 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         }
 
         // Decode filler data.
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier, uint256 fillerDataPointer) = FillerDataLib.decode(fillerData);
+        (
+            address fillerAddress,
+            uint32 orderPurchaseDeadline,
+            uint16 orderDiscount,
+            bytes32 identifier,
+            uint256 fillerDataPointer
+        ) = FillerDataLib.decode(fillerData);
 
         // Load old storage variables.
         address oldFillerAddress = orderContext.fillerAddress;
@@ -428,10 +362,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         emit OrderPurchased(orderKeyHash, msg.sender);
     }
 
-    function modifyBuyableOrder(
-        OrderKey calldata orderKey,
-        bytes calldata fillerData
-    ) external {
+    function modifyBuyableOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -441,7 +372,8 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         if (filler == address(0) || filler != msg.sender) revert OnlyFiller();
 
         // Decode filler data.
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier, ) = FillerDataLib.decode(fillerData);
+        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier,) =
+            FillerDataLib.decode(fillerData);
 
         // Set new storage.
         if (fillerAddress != filler) orderContext.fillerAddress = fillerAddress;
@@ -568,7 +500,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
     //-- Order Resolution Backups --//
 
-
     function proveOrderFulfillmentBackup(OrderKey calldata orderKey, address backupFiller) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
@@ -583,7 +514,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         emit OptimisticPayout(orderHash);
     }
-
 
     function optimisticPayoutBackup(OrderKey calldata orderKey, address backupFiller) external {
         bytes32 orderHash = _orderKeyHash(orderKey);

@@ -9,7 +9,6 @@ pragma solidity >=0.8.0;
  * If you don't need this functionality, stay away.
  */
 interface ICrossCatsCallback {
-
     /**
      * @notice If configured, is called when the output is filled on the destination chain.
      * @dev If the transaction reverts, 1 million gas is provided.
@@ -18,11 +17,7 @@ interface ICrossCatsCallback {
      * If the call reverts, funds are still delivered to the recipient.
      * Please ensure that funds are safely handled on your side.
      */
-    function outputFilled(
-        bytes32 token,
-        uint256 amount,
-        bytes calldata executionData
-    ) external;
+    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external;
 
     /**
      * @notice If configured, is called when the input is sent to the filler.
@@ -46,8 +41,5 @@ interface ICrossCatsCallback {
      * @param orderKeyHash Hash of the order key. Can be used for identification.
      * @param executionData Custom data that the filler asked to be provided with the call.
      */
-    function orderPurchaseCallback(
-        bytes32 orderKeyHash,
-        bytes calldata executionData
-    ) external;
+    function orderPurchaseCallback(bytes32 orderKeyHash, bytes calldata executionData) external;
 }

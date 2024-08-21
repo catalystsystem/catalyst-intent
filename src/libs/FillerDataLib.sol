@@ -21,7 +21,13 @@ library FillerDataLib {
     function decode(bytes calldata fillerData)
         internal
         view
-        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier, uint256 pointer)
+        returns (
+            address fillerAddress,
+            uint32 orderPurchaseDeadline,
+            uint16 orderDiscount,
+            bytes32 identifier,
+            uint256 pointer
+        )
     {
         if (fillerData.length == 0) return (msg.sender, 0, 0, bytes32(0), 0);
         // fillerData.length >= 1
@@ -110,6 +116,8 @@ library FillerDataLib {
         uint16 orderDiscount,
         bytes32 identifier
     ) internal pure returns (bytes memory fillerData) {
-        return bytes.concat(VERSION_2, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderDiscount), identifier);
+        return bytes.concat(
+            VERSION_2, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderDiscount), identifier
+        );
     }
 }

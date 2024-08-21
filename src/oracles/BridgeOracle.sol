@@ -28,7 +28,9 @@ contract GeneralisedIncentivesOracle is BaseOracle {
      */
     function _call(OutputDescription calldata output) internal {
         address recipient = address(uint160(uint256(output.recipient)));
-        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, output.amount, output.remoteCall);
+        bytes memory payload = abi.encodeWithSignature(
+            "outputFilled(bytes32,uint256,bytes)", output.token, output.amount, output.remoteCall
+        );
         bool success;
         assembly ("memory-safe") {
             // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables are assigned,
@@ -52,13 +54,13 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         // gas left. It is sufficient to check that smaller limit rather than the larger limit.
         // Furthermore, if we only check when the call fails we don't have to read gasleft if it is not needed.
         unchecked {
-            if (!success) if(gasleft() < MAX_GAS_ON_CALL * 1 / 63) revert NotEnoughGasExecution();
+            if (!success) if (gasleft() < MAX_GAS_ON_CALL * 1 / 63) revert NotEnoughGasExecution();
         }
         // Why is this better (than checking before)?
         // 1. We only have to check when the call fail. The vast majority of acks should not revert so it won't be checked.
         // 2. For the majority of applications it is going to be hold that: gasleft > rest of logic > maxGasAck * 1 / 63
         // and as such won't impact and execution/gas simuatlion/estimation libs.
-        
+
         // Why is this worse?
         // 1. What if the application expected us to check that it got maxGasAck? It might assume that it gets
         // maxGasAck, when it turns out it got less it silently reverts (say by a low level call ala ours).

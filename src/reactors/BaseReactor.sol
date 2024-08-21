@@ -563,7 +563,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         bytes32 identifier = orderContext.identifier;
         if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
 
-        emit OrderProven(orderHash, msg.sender);
+        emit OptimisticPayout(orderHash);
     }
 
     //-- Order Resolution Backups --//

@@ -701,7 +701,7 @@ abstract contract TestBaseReactor is Test {
         MockERC20(inputToken).approve(address(reactor), type(uint256).max);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
-        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderDiscount);
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderDiscount);
 
         uint256 amountAfterDiscount = inputAmount - uint256(inputAmount) * discount / uint256(type(uint16).max);
         vm.expectCall(

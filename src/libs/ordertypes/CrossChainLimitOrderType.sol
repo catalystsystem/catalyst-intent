@@ -24,16 +24,7 @@ struct LimitOrderData {
  */
 library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
-        "CatalystLimitOrderData(",
-        "uint32 proofDeadline,",
-        "uint32 challengeDeadline,",
-        "address collateralToken,",
-        "uint256 fillerCollateralAmount,",
-        "uint256 challengerCollateralAmount,",
-        "address localOracle,",
-        "Input[] inputs,",
-        "OutputDescription[] outputs",
-        ")",
+        LIMIT_ORDER_DATA_TYPE_ONLY,
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
     );
@@ -52,13 +43,7 @@ library CrossChainLimitOrderType {
     );
 
     bytes constant CROSS_LIMIT_ORDER_TYPE_STUP = abi.encodePacked(
-        "CrossChainOrder(",
-        "address settlementContract,",
-        "address swapper,",
-        "uint256 nonce,",
-        "uint32 originChainId,",
-        "uint32 initiateDeadline,",
-        "uint32 fillDeadline,",
+        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB,
         "CatalystLimitOrderData orderData",
         ")"
     );

@@ -27,21 +27,7 @@ library CrossChainDutchOrderType {
     error LengthsDoesNotMatch(uint256, uint256);
 
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
-        "CatalystDutchOrderData(",
-        "bytes32 verificationContext,",
-        "address verificationContract,",
-        "uint32 proofDeadline,",
-        "uint32 challengeDeadline,",
-        "address collateralToken,",
-        "uint256 fillerCollateralAmount,",
-        "uint256 challengerCollateralAmount,",
-        "address localOracle,",
-        "uint32 slopeStartingTime,",
-        "int256[] inputSlopes,",
-        "int256[] outputSlopes,",
-        "Input[] inputs,",
-        "OutputDescription[] outputs",
-        ")",
+        DUTCH_ORDER_DATA_TYPE_ONLY,
         CrossChainOrderType.INPUT_TYPE_STUB,
         CrossChainOrderType.OUTPUT_TYPE_STUB
     );
@@ -65,16 +51,11 @@ library CrossChainDutchOrderType {
     );
 
     bytes constant CROSS_DUTCH_ORDER_TYPE_STUB = abi.encodePacked(
-        "CrossChainOrder(",
-        "address settlementContract,",
-        "address swapper,",
-        "uint256 nonce,",
-        "uint32 originChainId,",
-        "uint32 initiateDeadline,",
-        "uint32 fillDeadline,",
+        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB,
         "CatalystDutchOrderData orderData",
         ")"
     );
+
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
     function decodeOrderData(bytes calldata orderBytes) internal pure returns (DutchOrderData memory dutchData) {

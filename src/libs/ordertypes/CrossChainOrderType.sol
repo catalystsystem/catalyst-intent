@@ -6,6 +6,16 @@ import { CrossChainOrder, Input } from "../../interfaces/ISettlementContract.sol
 import { OutputDescription } from "../../interfaces/Structs.sol";
 
 library CrossChainOrderType {
+    bytes constant CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB = abi.encodePacked(
+        "CrossChainOrder(",
+        "address settlementContract,",
+        "address swapper,",
+        "uint256 nonce,",
+        "uint32 originChainId,",
+        "uint32 initiateDeadline,",
+        "uint32 fillDeadline,"
+    );
+
     bytes constant INPUT_TYPE_STUB = abi.encodePacked("Input(", "address token,", "uint256 amount", ")");
 
     bytes constant OUTPUT_TYPE_STUB = abi.encodePacked(

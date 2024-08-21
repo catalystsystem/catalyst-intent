@@ -32,4 +32,4 @@ event GovernanceFeeChanged(uint256 oldGovernanceFee, uint256 newGovernanceFee);
 
 event GovernanceFeesCollected(address indexed to, address[] tokens, uint256[] collectedAmounts);
 
-event OrderPurchaseDetailsModified(bytes32 indexed orderHash, uint32 newPurchaseDeadline, uint16 newOrderDiscount);
+event OrderPurchaseDetailsModified(bytes32 indexed orderHash, address newFillerAddress, uint32 newPurchaseDeadline, uint16 newOrderDiscount, bytes32 newIdentifier);

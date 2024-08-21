@@ -28,7 +28,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
      */
     function _call(OutputDescription calldata output) internal {
         address recipient = address(uint160(uint256(output.recipient)));
-        bytes memory payload = abi.encodeWithSignature("callback(uint256,bytes32,bytes)", output.amount, output.token, output.remoteCall);
+        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, output.amount, output.remoteCall);
         bool success;
         assembly ("memory-safe") {
             // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables are assigned,
@@ -37,7 +37,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
             success := call(MAX_GAS_ON_CALL, recipient, 0, add(payload, 0x20), mload(payload), 0, 0)
             // This is what the call would look like non-assembly.
             // recipient.call{gas: MAX_GAS_ON_CALL}(
-            //      abi.encodeWithSignature("callback(uint256,bytes32)", output.amount, output.token)
+            //      abi.encodeWithSignature("outputFilled(bytes32, uint256,bytes)", output.token, output.amount, output.remoteCall)
             // );
         }
 

@@ -35,7 +35,8 @@ struct OrderContext {
     address fillerAddress;
     uint32 orderPurchaseDeadline;
     uint16 orderDiscount;
-    uint32 initTimestamp; // TODO: move to orderkey.
+    uint32 initTimestamp;
+    bytes32 identifier;
 }
 
 struct OutputDescription {

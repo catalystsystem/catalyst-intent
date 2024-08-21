@@ -247,7 +247,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // => order.fillDeadline < block.timestamp is disallowed.
 
         // Decode filler data.
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, uint256 fillerDataPointer) =
+        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier, uint256 fillerDataPointer) =
             FillerDataLib.decode(fillerData);
 
         // Initiate order.
@@ -277,6 +277,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderDiscount = orderDiscount;
         orderContext.initTimestamp = uint32(block.timestamp);
+        if (identifier != bytes32(0)) orderContext.identifier = identifier;
 
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
@@ -303,7 +304,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         bytes calldata fillerData
     ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
         OrderKey memory orderKey = _resolveKey(order, fillerData);
-        (address fillerAddress,,,) = FillerDataLib.decode(fillerData);
+        (address fillerAddress,,,,) = FillerDataLib.decode(fillerData);
 
         // Inputs can be taken directly from the orderKey.
         Input[] memory swapperInputs = orderKey.inputs;
@@ -374,11 +375,10 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
      * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
      * your funds may be at risk.
      * Set newPurchaseDeadline in the past to disallow future takeovers.
-     * @param orderKey The claimed order to be purchased from the filler
-     * @param newPurchaseDeadline The buyer can set his own time to sell the order
-     * @param newOrderDiscount The buyer can sell the order with different percentage
+     * @param orderKey Claimed order to be purchased from the filler
+     * @param fillerData New filler data
      */
-    function purchaseOrder(OrderKey calldata orderKey, uint32 newPurchaseDeadline, uint16 newOrderDiscount) external {
+    function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -395,16 +395,19 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
             revert PurchaseTimePassed();
         }
 
+        // Decode filler data.
+        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier, uint256 fillerDataPointer) = FillerDataLib.decode(fillerData);
+
         // Load old storage variables.
         address oldFillerAddress = orderContext.fillerAddress;
         uint16 oldOrderDiscount = orderContext.orderDiscount;
-        orderContext.orderDiscount = newOrderDiscount;
 
         // We can now update the storage with the new filler data.
         // This allows us to avoid reentry protecting this function.
-        orderContext.fillerAddress = msg.sender;
-        orderContext.orderPurchaseDeadline = newPurchaseDeadline;
-        orderContext.orderDiscount = newOrderDiscount;
+        orderContext.fillerAddress = fillerAddress;
+        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
+        orderContext.orderDiscount = orderDiscount;
+        if (identifier != bytes32(0)) orderContext.identifier = identifier;
 
         // We can now make external calls without it impacting reentring into this call.
 
@@ -418,13 +421,15 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
         _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
 
+        // Check if there is an identifier, if there is execute data.
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
+
         emit OrderPurchased(orderKeyHash, msg.sender);
     }
 
     function modifyBuyableOrder(
         OrderKey calldata orderKey,
-        uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        bytes calldata fillerData
     ) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
@@ -434,11 +439,16 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         // This line also disallows modifying non-claimed orders.
         if (filler == address(0) || filler != msg.sender) revert OnlyFiller();
 
-        // Set new storage.
-        orderContext.orderPurchaseDeadline = newPurchaseDeadline;
-        orderContext.orderDiscount = newOrderDiscount;
+        // Decode filler data.
+        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier, ) = FillerDataLib.decode(fillerData);
 
-        emit OrderPurchaseDetailsModified(orderKeyHash, newPurchaseDeadline, newOrderDiscount);
+        // Set new storage.
+        if (fillerAddress != filler) orderContext.fillerAddress = fillerAddress;
+        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
+        orderContext.orderDiscount = orderDiscount;
+        if (identifier != orderContext.identifier) orderContext.identifier = identifier;
+
+        emit OrderPurchaseDetailsModified(orderKeyHash, fillerAddress, orderPurchaseDeadline, orderDiscount, identifier);
     }
 
     //--- Order Resolution Helpers ---//

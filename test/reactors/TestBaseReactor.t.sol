@@ -701,6 +701,8 @@ abstract contract TestBaseReactor is Test {
         MockERC20(inputToken).approve(address(reactor), type(uint256).max);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
+        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderDiscount);
+
         uint256 amountAfterDiscount = inputAmount - uint256(inputAmount) * discount / uint256(type(uint16).max);
         vm.expectCall(
             collateralToken,
@@ -718,7 +720,7 @@ abstract contract TestBaseReactor is Test {
         emit Transfer(buyer, fillerAddress, amountAfterDiscount);
         vm.expectEmit();
         emit OrderPurchased(orderHash, buyer);
-        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.purchaseOrder(orderKey, newFillerData);
 
         // Check storage
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
@@ -741,9 +743,11 @@ abstract contract TestBaseReactor is Test {
             _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderDiscount);
+
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 0));
         vm.prank(buyer);
-        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.purchaseOrder(orderKey, newFillerData);
     }
 
     function test_revert_purchase_time_passed(
@@ -774,10 +778,13 @@ abstract contract TestBaseReactor is Test {
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, customFillerData);
 
+
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderDiscount);
+
         vm.startPrank(buyer);
         vm.warp(originalPurchaseTime + 1);
         vm.expectRevert(abi.encodeWithSignature("PurchaseTimePassed()"));
-        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.purchaseOrder(orderKey, newFillerData);
     }
 
     function test_revert_opFilled_purchase_order(
@@ -807,7 +814,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
         vm.prank(purchaser);
-        reactor.purchaseOrder(orderKey, 0, 0);
+        reactor.purchaseOrder(orderKey, hex"");
     }
 
     //--- Modify Orders ---//
@@ -836,10 +843,13 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
+        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderDiscount);
+
         vm.expectEmit();
-        emit OrderPurchaseDetailsModified(orderHash, newPurchaseDeadline, newOrderDiscount);
+        emit OrderPurchaseDetailsModified(orderHash, fillerAddress, newPurchaseDeadline, newOrderDiscount, bytes32(0));
         vm.prank(fillerAddress);
-        reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+
+        reactor.modifyBuyableOrder(orderKey, newFillerData);
     }
 
     function test_revert_nonFiller_modify(
@@ -865,9 +875,12 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_CHALLENGE_DEADLINE,
             DEFAULT_PROOF_DEADLINE
         );
+
+        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderDiscount);
+
         vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
         vm.prank(malleciousModifier);
-        reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.modifyBuyableOrder(orderKey, newFillerData);
     }
 
     //--- Resolve Orders ---//

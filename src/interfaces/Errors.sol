@@ -24,3 +24,4 @@ error InvalidDeadlineOrder();
 error LengthsNotEqual();
 error PurchaseTimePassed();
 error CodeSize0();
+error BackupOnlyCallableByFiller(address filler, address msgSender);

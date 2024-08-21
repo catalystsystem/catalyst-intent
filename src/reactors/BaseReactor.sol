@@ -35,7 +35,8 @@ import {
     OrderNotReadyForOptimisticPayout,
     ProofPeriodHasNotPassed,
     PurchaseTimePassed,
-    WrongOrderStatus
+    WrongOrderStatus,
+    BackupOnlyCallableByFiller
 } from "../interfaces/Errors.sol";
 import {
     FraudAccepted,
@@ -514,7 +515,6 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         bytes32 identifier = orderContext.identifier;
         if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
 
-        // TODO: filler
         emit OrderProven(orderHash, msg.sender);
     }
 
@@ -569,11 +569,15 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
     //-- Order Resolution Backups --//
 
 
-    function proveOrderFulfillmentBackup(OrderKey calldata orderKey) external {
+    function proveOrderFulfillmentBackup(OrderKey calldata orderKey, address backupFiller) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
 
-        // TODO: Check if msg.sender is filler.
+        address fillerAddress = orderContext.fillerAddress;
+        if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
+        // Allow sending the outputs to another address. This is important if the lgoic for the
+        // normal execution would leave the funds vulnurable.
+        orderContext.fillerAddress = backupFiller;
 
         _proveOrderFulfillment(orderKey, orderContext);
 
@@ -581,11 +585,15 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
     }
 
 
-    function optimisticPayoutBackup(OrderKey calldata orderKey) external {
+    function optimisticPayoutBackup(OrderKey calldata orderKey, address backupFiller) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
 
-        // TODO: Check if msg.sender is filler.
+        address fillerAddress = orderContext.fillerAddress;
+        if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
+        // Allow sending the outputs to another address. This is important if the lgoic for the
+        // normal execution would leave the funds vulnurable.
+        orderContext.fillerAddress = backupFiller;
 
         _optimisticPayout(orderKey, orderContext);
 

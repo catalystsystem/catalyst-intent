@@ -35,18 +35,19 @@ contract MockOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
         uint32[] memory fillTimes
     ) public pure returns (bytes memory encodedPayload) {
         uint256 numOutputs = outputs.length;
-        encodedPayload = bytes.concat(bytes1(0x01), bytes2(uint16(numOutputs)));
+        encodedPayload = bytes.concat(bytes1(0x00), bytes2(uint16(numOutputs)));
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription memory output = outputs[i];
             uint32 fillTime = fillTimes[i];
             encodedPayload = bytes.concat(
                 encodedPayload,
-                output.remoteOracle,
                 output.token,
                 bytes32(output.amount),
                 output.recipient,
-                bytes32(uint256(output.chainId)),
-                bytes4(fillTime)
+                bytes4(output.chainId),
+                bytes4(fillTime),
+                bytes2(uint16(output.remoteCall.length)),
+                output.remoteCall
             );
         }
     }

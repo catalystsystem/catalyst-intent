@@ -357,7 +357,7 @@ contract TestBridgeOracle is TestCommonGARP {
         uint32[] memory fillTimes = new uint32[](1);
         fillTimes[0] = uint32(block.timestamp);
 
-        vm.expectRevert(abi.encodeWithSignature("WrongChain()"));
+        vm.expectRevert(abi.encodeWithSignature("WrongChain(uint32,uint32)", uint32(block.chainid), chainId));
 
         vm.prank(sender);
         oracle.fill(outputs, fillTimes);

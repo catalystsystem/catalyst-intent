@@ -51,8 +51,13 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @notice Compute hash an output.
      */
     function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
-        // TODO: handwrap with manually exclude remoteOracle
-        outputHash = keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+        // Remember to not include (aka. exclude) remoteOracle & chainId
+        outputHash = keccak256(bytes.concat(
+            output.token,
+            bytes32(output.amount),
+            output.recipient,
+            output.remoteCall
+        ));
     }
 
     /**
@@ -60,8 +65,13 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @dev Is slightly more expensive than _outputHash. If possible, try to use _outputHash.
      */
     function _outputHashM(OutputDescription memory output) internal pure returns (bytes32 outputHash) {
-        // TODO: handwrap with manually exclude remoteOracle
-        outputHash = keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
+        // Remember to not include (aka. exclude) remoteOracle & chainId
+        outputHash = keccak256(bytes.concat(
+            output.token,
+            bytes32(output.amount),
+            output.recipient,
+            output.remoteCall
+        ));
     }
 
     /**
@@ -86,7 +96,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     function _validateChain(uint32 chainId) view internal {
-        if (uint32(block.chainid) != chainId) revert WrongChain();
+        if (CHAIN_ID != chainId) revert WrongChain(CHAIN_ID, chainId);
     }
 
     //--- Output Proofs ---/
@@ -208,7 +218,11 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        (OutputDescription[] memory outputs, uint32[] memory fillTimes) = _decode(message);
+        // TODO: Test that bytes32(fromApplication) right shifts fromApplication (0x0000...address)
+        // even if fromApplication.length < 32 OR that generalised incentives always returns 32 byte length.
+        bytes32 remoteOracle = bytes32(fromApplication);
+        // Do not use remoteOracle from decoded outputs.
+        (OutputDescription[] memory outputs, uint32[] memory fillTimes) = _decode(message); 
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
@@ -217,7 +231,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             OutputDescription memory output = outputs[i];
             // Check if sourceIdentifierbytes
             // TODO: unify chainIdentifiers. (types)
-            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain();
+            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain(uint32(uint256(sourceIdentifierbytes)), output.chainId);
             uint32 fillTime = fillTimes[i];
             bytes32 outputHash = _outputHashM(output);
             // TODO: Test that bytes32(fromApplication) right shifts fromApplication (0x0000...address)
@@ -248,7 +262,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         uint32[] calldata fillTimes
     ) internal pure returns (bytes memory encodedPayload) {
         uint256 numOutputs = outputs.length;
-        encodedPayload = bytes.concat(EXECUTE_PROOFS, bytes2(uint16(numOutputs)));
+        encodedPayload = bytes.concat(bytes1(0x00), bytes2(uint16(numOutputs)));
         unchecked {
             for (uint256 i; i < numOutputs; ++i) {
                 OutputDescription calldata output = outputs[i];
@@ -260,8 +274,10 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
                     output.token,
                     bytes32(output.amount),
                     output.recipient,
-                    bytes32(uint256(output.chainId)),
-                    bytes4(fillTime)
+                    bytes4(output.chainId),
+                    bytes4(fillTime),
+                    bytes2(uint16(output.remoteCall.length)),
+                    output.remoteCall
                 );
             }
         }
@@ -269,7 +285,8 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     /**
      * @notice Converts an encoded payload into decoded proof descriptions.
-     * @dev encodedPayload does not contain any "security". The payload will be "decoded by fire" as it is expected
+     * @dev Do not use remoteOracle from decoded outputs.
+     * encodedPayload does not contain any "security". The payload will be "decoded by fire" as it is expected
      * to be encoded by _encode.
      * If a foreign contract can out anything here, it important to only attribute the decoded outputs as from that contract
      * to ensure the outputs does not poison other storage.
@@ -279,7 +296,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      */
     function _decode(bytes calldata encodedPayload)
         internal
-        pure
         returns (OutputDescription[] memory outputs, uint32[] memory fillTimes)
     {
         unchecked {
@@ -289,22 +305,21 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             fillTimes = new uint32[](numOutputs);
             uint256 pointer = 0;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
+                uint256 remoteCallLength = uint16(bytes2(encodedPayload[pointer + REMOTE_CALL_LENGTH_START:pointer + REMOTE_CALL_LENGTH_END]));
+                // TODO: can we optimise this decoding scheme? I think yes.
                 outputs[outputIndex] = OutputDescription({
-                    remoteOracle: bytes32(
-                        encodedPayload[pointer + OUTPUT_REMOTE_ORACLE_START:pointer + OUTPUT_REMOTE_ORACLE_END]
-                    ),
+                    remoteOracle: bytes32(0), // Do not use this field.
                     token: bytes32(encodedPayload[pointer + OUTPUT_TOKEN_START:pointer + OUTPUT_TOKEN_END]),
                     amount: uint256(bytes32(encodedPayload[pointer + OUTPUT_AMOUNT_START:pointer + OUTPUT_AMOUNT_END])),
                     recipient: bytes32(encodedPayload[pointer + OUTPUT_RECIPIENT_START:pointer + OUTPUT_RECIPIENT_END]),
-                    chainId: uint32(
-                        uint256(bytes32(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END]))
-                    ),
-                    // TODO: Change to fixed size
-                    remoteCall: hex""
+                    chainId: uint32(bytes4(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END])),
+                    remoteCall: encodedPayload[pointer + REMOTE_CALL_START: pointer + REMOTE_CALL_START + remoteCallLength]
                 });
                 fillTimes[outputIndex] =
                     uint32(bytes4(encodedPayload[pointer + OUTPUT_FILLTIME_START:pointer + OUTPUT_FILLTIME_END]));
-                pointer += OUTPUT_LENGTH;
+
+                pointer += OUTPUT_LENGTH + remoteCallLength;
+                emit Debug(outputs[outputIndex], fillTimes[outputIndex]);
             }
         }
     }

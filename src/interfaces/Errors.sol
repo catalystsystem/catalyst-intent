@@ -18,5 +18,5 @@ error OrderAlreadyClaimed(OrderStatus orderStatus);
 error OrderNotReadyForOptimisticPayout(uint32 timeRemaining);
 error ProofPeriodHasNotPassed(uint32 timeRemaining);
 error PurchaseTimePassed();
-error WrongChain();
+error WrongChain(uint32 expected, uint32 actual);
 error WrongOrderStatus(OrderStatus actual);

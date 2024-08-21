@@ -26,7 +26,7 @@ import {
     CannotProveOrder,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
-    InvalidDeadlineOrder,
+    InvalidDeadlineOrder
 } from "../../src/interfaces/Errors.sol";
 
 import {
@@ -1216,7 +1216,7 @@ abstract contract TestBaseReactor is Test {
         vm.prank(escrow);
 
         localVMOracleContract.receiveMessage(
-            destinationIdentifier, bytes32(0), bytes.concat(orderKey.outputs[0].remoteOracle), encodedPayload
+            destinationIdentifier, bytes32(0), abi.encodePacked(orderKey.outputs[0].remoteOracle), encodedPayload
         );
     }
 

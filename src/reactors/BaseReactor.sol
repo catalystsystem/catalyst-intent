@@ -36,7 +36,6 @@ import {
     FraudAccepted,
     OptimisticPayout,
     OrderChallenged,
-    OrderClaimed,
     OrderProven,
     OrderPurchaseDetailsModified,
     OrderPurchased,

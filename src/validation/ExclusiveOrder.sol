@@ -6,7 +6,7 @@ import { Ownable } from "solady/src/auth/Ownable.sol";
 import { IPreValidation } from "../interfaces/IPreValidation.sol";
 
 /**
- * @notice Selectivly allow solvers.
+ * @notice Selectively allow solvers.
  * This validation contract supports setting single approved solver.
  * Customizing an allowlist can only be done by the owner of the contract.
  * The owner is always allowed.

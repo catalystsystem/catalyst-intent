@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
@@ -15,7 +15,6 @@ import {
 } from "../interfaces/ISettlementContract.sol";
 import { OrderContext, OrderKey, OrderStatus, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 
-import { CanCollectGovernanceFee } from "../libs/CanCollectGovernanceFee.sol";
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
 import { IsContractLib } from "../libs/IsContractLib.sol";
 import { ReactorPayments } from "./helpers/ReactorPayments.sol";
@@ -506,10 +505,10 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
 
         address fillerAddress = orderContext.fillerAddress;
         if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
-        // Allow sending the outputs to another address. This is important if the lgoic for the
+
+        // Allow sending the outputs to another address. This is important if the logic for the
         // normal execution would leave the funds vulnerable.
         orderContext.fillerAddress = backupFiller;
-
         _proveOrderFulfillment(orderKey, orderContext);
 
         emit OptimisticPayout(orderHash);
@@ -521,10 +520,10 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
 
         address fillerAddress = orderContext.fillerAddress;
         if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
-        // Allow sending the outputs to another address. This is important if the lgoic for the
+
+        // Allow sending the outputs to another address. This is important if the logic for the
         // normal execution would leave the funds vulnerable.
         orderContext.fillerAddress = backupFiller;
-
         _optimisticPayout(orderKey, orderContext);
 
         emit OptimisticPayout(orderHash);

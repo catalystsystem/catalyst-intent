@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";

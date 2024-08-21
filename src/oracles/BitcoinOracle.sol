@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { Endian } from "bitcoinprism-evm/src/Endian.sol";
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";

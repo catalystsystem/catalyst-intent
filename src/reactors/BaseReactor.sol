@@ -576,7 +576,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         address fillerAddress = orderContext.fillerAddress;
         if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
         // Allow sending the outputs to another address. This is important if the lgoic for the
-        // normal execution would leave the funds vulnurable.
+        // normal execution would leave the funds vulnerable.
         orderContext.fillerAddress = backupFiller;
 
         _proveOrderFulfillment(orderKey, orderContext);
@@ -592,7 +592,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
         address fillerAddress = orderContext.fillerAddress;
         if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
         // Allow sending the outputs to another address. This is important if the lgoic for the
-        // normal execution would leave the funds vulnurable.
+        // normal execution would leave the funds vulnerable.
         orderContext.fillerAddress = backupFiller;
 
         _optimisticPayout(orderKey, orderContext);
@@ -675,7 +675,7 @@ abstract contract BaseReactor is CanCollectGovernanceFee, ISettlementContract {
 
         // Send the input tokens back to the user.
         _deliverInputs(orderKey.inputs, orderKey.swapper, 0);
-        // Divide the collateral between challenger and user. // TODO: figure out ration to each.
+        // Divide the collateral between challenger and user.
         // Get order collateral.
         address collateralToken = orderKey.collateral.collateralToken;
         uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;

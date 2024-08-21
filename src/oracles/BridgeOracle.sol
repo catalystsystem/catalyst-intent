@@ -20,7 +20,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
 
-    constructor(address _escrow) BaseOracle(_escrow) { }
+    constructor(address _escrow, uint32 chainId) BaseOracle(_escrow, chainId) { }
 
     /**
      * @notice Allows calling an external function in a non-griefing manner.
@@ -80,8 +80,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
      */
     function _fill(OutputDescription calldata output, uint32 fillTime) internal {
         // Check if this is the correct chain.
-        // TODO: fix chainid to be based on the messaging protocol being used
-        if (uint32(block.chainid) != output.chainId) revert WrongChain();
+        _validateChain(output.chainId);
 
         // Get hash of output.
         bytes32 outputHash = _outputHash(output);

@@ -16,7 +16,7 @@ contract TestBridgeOracle is TestCommonGARP {
     GeneralisedIncentivesOracle oracle;
 
     function setUp() external {
-        oracle = new GeneralisedIncentivesOracle(address(escrow));
+        oracle = new GeneralisedIncentivesOracle(address(escrow), uint32(block.chainid));
 
         // TODO: mock with ERC20.
     }

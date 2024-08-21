@@ -13,7 +13,7 @@ contract MockOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
     uint48 constant PRICE_OF_DELIVERY_GAS = 1 gwei;
     uint48 constant PRICE_OF_ACK_GAS = 1 gwei;
 
-    constructor(address escrowAddress) GeneralisedIncentivesOracle(escrowAddress) { }
+    constructor(address escrowAddress, uint32 chainId) GeneralisedIncentivesOracle(escrowAddress, chainId) { }
 
     function getTotalIncentive(IncentiveDescription memory incentive) public pure returns (uint256) {
         return incentive.maxGasDelivery * incentive.priceOfDeliveryGas + incentive.maxGasAck * incentive.priceOfAckGas;

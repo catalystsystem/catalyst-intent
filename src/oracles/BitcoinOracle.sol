@@ -39,7 +39,7 @@ contract BitcoinOracle is BaseOracle {
 
     mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
 
-    constructor(IBtcPrism _mirror, address _escrow) BaseOracle(_escrow) {
+    constructor(address _escrow, uint32 chainId, IBtcPrism _mirror) BaseOracle(_escrow, chainId) {
         mirror = _mirror;
     }
 
@@ -189,8 +189,7 @@ contract BitcoinOracle is BaseOracle {
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
     ) internal {
-        // TODO: fix chainid to be based on the messaging protocol being used
-        if (output.chainId != block.chainid) revert BadDestinationIdentifier();
+        _validateChain(output.chainId);
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 
@@ -224,8 +223,7 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx,
         bytes calldata previousBlockHeader
     ) internal {
-        // TODO: fix chainid to be based on the messaging protocol being used
-        if (output.chainId != block.chainid) revert BadDestinationIdentifier();
+        _validateChain(output.chainId);
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 

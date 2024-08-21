@@ -24,6 +24,8 @@ interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscr
 abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOracle {
     uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
 
+    uint32 immutable public CHAIN_ID;
+
     mapping(bytes32 outputHash => mapping(uint32 fillTime => mapping(bytes32 oracle => bool proven))) internal
         _provenOutput;
 
@@ -31,8 +33,10 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     error NotApprovedEscrow();
 
-    constructor(address _escrow) {
+    constructor(address _escrow, uint32 chainId) {
         escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
+        // For some reason GARP does not expose a chain id we can use to record with.
+        CHAIN_ID = chainId;
     }
 
     /**
@@ -79,6 +83,10 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
                 revert FillTimeFarInFuture();
             }
         }
+    }
+
+    function _validateChain(uint32 chainId) internal {
+        if (uint32(block.chainid) != chainId) revert WrongChain();
     }
 
     //--- Output Proofs ---/

@@ -90,7 +90,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @param fillTime The expected fill time. Is used as a time & collision check.
      */
     function _isProven(OutputDescription calldata output, uint32 fillTime) internal view returns (bool proven) {
-        bytes32 outputHash = _outputHash(output);
+        bytes32 outputHash = keccak256(output.remoteCall);
         return _provenOutput[outputHash][fillTime][output.remoteOracle];
     }
 
@@ -200,13 +200,13 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        (bytes32[] memory outputsHashes, uint32[] memory chainsIds, uint32[] memory fillTimes) = _decode(message);
+        (bytes[] memory remoteCalls, uint32[] memory chainsIds, uint32[] memory fillTimes) = _decode(message);
 
         // set the proof locally.
-        uint256 numOutputs = outputsHashes.length;
+        uint256 numOutputs = remoteCalls.length;
 
         for (uint256 i; i < numOutputs; ++i) {
-            bytes32 outputHash = outputsHashes[i];
+            bytes32 outputHash = keccak256(remoteCalls[i]);
 
             // Check if sourceIdentifierbytes
             // TODO: unify chainIdentifiers. (types)
@@ -235,6 +235,27 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @notice Encodes outputs and fillTimes into a bytearray that can be sent cross chain and cross implementations.
      * @dev This function reverts if fillTimes.length < outputs but not if fillTimes.length > outputs. Use with care.
      */
+    /**
+     * @notice Encodes outputs and fillTimes into a bytearray that can be sent cross chain and cross implementations.
+     * @dev This function reverts if fillTimes.length < outputs but not if fillTimes.length > outputs. Use with care.
+     */
+    // function _encode(
+    //     OutputDescription[] calldata outputs,
+    //     uint32[] calldata fillTimes
+    // ) internal pure returns (bytes memory encodedPayload) {
+    //     uint256 numOutputs = outputs.length;
+    //     encodedPayload = bytes.concat(EXECUTE_PROOFS, bytes2(uint16(numOutputs)));
+    //     unchecked {
+    //         for (uint256 i; i < numOutputs; ++i) {
+    //             OutputDescription calldata output = outputs[i];
+    //             bytes32 outputHash = _outputHash(output);
+    //             // if fillTimes.length < outputs.length then fillTimes[i] will fail with out of index.
+    //             uint32 fillTime = fillTimes[i];
+    //             encodedPayload = bytes.concat(encodedPayload, outputHash, bytes4(output.chainId), bytes4(fillTime));
+    //         }
+    //     }
+    // }
+
     function _encode(
         OutputDescription[] calldata outputs,
         uint32[] calldata fillTimes
@@ -244,46 +265,96 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         unchecked {
             for (uint256 i; i < numOutputs; ++i) {
                 OutputDescription calldata output = outputs[i];
-                bytes32 outputHash = _outputHash(output);
+                uint256 remoteCallLength = output.remoteCall.length;
                 // if fillTimes.length < outputs.length then fillTimes[i] will fail with out of index.
                 uint32 fillTime = fillTimes[i];
-                encodedPayload = bytes.concat(encodedPayload, outputHash, bytes4(output.chainId), bytes4(fillTime));
+                encodedPayload = bytes.concat(
+                    encodedPayload,
+                    bytes32(remoteCallLength),
+                    output.remoteCall,
+                    bytes4(output.chainId),
+                    bytes4(fillTime)
+                );
             }
         }
     }
 
-    /**
-     * @notice Converts an encoded payload into decoded proof descriptions.
-     * @dev encodedPayload does not contain any "security". The payload will be "decoded by fire" as it is expected
-     * to be encoded by _encode.
-     * If a foreign contract can out anything here, it important to only attribute the decoded outputs as from that contract
-     * to ensure the outputs does not poison other storage.
-     * @param encodedPayload Payload that has been encoded with _encode. Will be decoded into outputs, chaindIDs for the outputs and fillTimes.
-     * @return outputsHashes Decoded hashed outputs.
-     * @return chainsIds Decoded chainsIDs with the respect to the outputs order
-     * @return fillTimes Decoded fill times.
-     */
+    // /**
+    //  * @notice Converts an encoded payload into decoded proof descriptions.
+    //  * @dev encodedPayload does not contain any "security". The payload will be "decoded by fire" as it is expected
+    //  * to be encoded by _encode.
+    //  * If a foreign contract can out anything here, it important to only attribute the decoded outputs as from that contract
+    //  * to ensure the outputs does not poison other storage.
+    //  * @param encodedPayload Payload that has been encoded with _encode. Will be decoded into outputs, chaindIDs for the outputs and fillTimes.
+    //  * @return outputsHashes Decoded hashed outputs.
+    //  * @return chainsIds Decoded chainsIDs with the respect to the outputs order
+    //  * @return fillTimes Decoded fill times.
+    //  */
+    // function _decode(bytes calldata encodedPayload)
+    //     internal
+    //     pure
+    //     returns (bytes32[] memory outputsHashes, uint32[] memory chainsIds, uint32[] memory fillTimes)
+    // {
+    //     unchecked {
+    //         uint256 numOutputs = uint256(uint16(bytes2(encodedPayload[NUM_OUTPUTS_START:NUM_OUTPUTS_END])));
+
+    //         outputsHashes = new bytes32[](numOutputs);
+    //         chainsIds = new uint32[](numOutputs);
+    //         fillTimes = new uint32[](numOutputs);
+    //         uint256 pointer = 0;
+    //         for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
+    //             outputsHashes[outputIndex] =
+    //                 bytes32(encodedPayload[pointer + OUTPUT_HASH_START:pointer + OUTPUT_HASH_END]);
+    //             chainsIds[outputIndex] =
+    //                 uint32(bytes4(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END]));
+    //             fillTimes[outputIndex] =
+    //                 uint32(bytes4(encodedPayload[pointer + OUTPUT_FILLTIME_START:pointer + OUTPUT_FILLTIME_END]));
+
+    //             pointer += OUTPUT_LENGTH;
+    //         }
+    //     }
+    // }
+
     function _decode(bytes calldata encodedPayload)
         internal
         pure
-        returns (bytes32[] memory outputsHashes, uint32[] memory chainsIds, uint32[] memory fillTimes)
+        returns (bytes[] memory remoteCallHashes, uint32[] memory chainsIds, uint32[] memory fillTimes)
     {
         unchecked {
             uint256 numOutputs = uint256(uint16(bytes2(encodedPayload[NUM_OUTPUTS_START:NUM_OUTPUTS_END])));
 
-            outputsHashes = new bytes32[](numOutputs);
+            remoteCallHashes = new bytes[](numOutputs);
             chainsIds = new uint32[](numOutputs);
             fillTimes = new uint32[](numOutputs);
-            uint256 pointer = 0;
+            uint256 pointer = OUTPUT_HASH_START;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
-                outputsHashes[outputIndex] =
-                    bytes32(encodedPayload[pointer + OUTPUT_HASH_START:pointer + OUTPUT_HASH_END]);
-                chainsIds[outputIndex] =
-                    uint32(bytes4(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END]));
-                fillTimes[outputIndex] =
-                    uint32(bytes4(encodedPayload[pointer + OUTPUT_FILLTIME_START:pointer + OUTPUT_FILLTIME_END]));
+                uint256 remoteCallLength = uint256(bytes32(encodedPayload[pointer:pointer + REMOTE_CALL_SLOT_LENGTH]));
+                uint256 outputLength =
+                    REMOTE_CALL_SLOT_LENGTH + remoteCallLength + CHAIN_ID_SLOT_LENGTH + FILL_TIME_SLOT_LENGTH;
+                remoteCallHashes[outputIndex] = bytes(
+                    encodedPayload[
+                        pointer + REMOTE_CALL_SLOT_LENGTH:pointer + REMOTE_CALL_SLOT_LENGTH + remoteCallLength
+                    ]
+                );
+                chainsIds[outputIndex] = uint32(
+                    bytes4(
+                        encodedPayload[
+                            pointer + REMOTE_CALL_SLOT_LENGTH + remoteCallLength:
+                                pointer + REMOTE_CALL_SLOT_LENGTH + remoteCallLength + CHAIN_ID_SLOT_LENGTH
+                        ]
+                    )
+                );
+                fillTimes[outputIndex] = uint32(
+                    bytes4(
+                        encodedPayload[
+                            pointer + REMOTE_CALL_SLOT_LENGTH + remoteCallLength + CHAIN_ID_SLOT_LENGTH:
+                                pointer + REMOTE_CALL_SLOT_LENGTH + remoteCallLength + CHAIN_ID_SLOT_LENGTH
+                                    + FILL_TIME_SLOT_LENGTH
+                        ]
+                    )
+                );
 
-                pointer += OUTPUT_LENGTH;
+                pointer += outputLength;
             }
         }
     }

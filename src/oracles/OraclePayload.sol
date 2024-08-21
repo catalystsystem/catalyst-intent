@@ -41,6 +41,9 @@ uint256 constant OUTPUT_CHAIN_ID_END = 39;
 
 uint256 constant OUTPUT_FILLTIME_START = 39;
 uint256 constant OUTPUT_FILLTIME_END = 43;
+uint256 constant REMOTE_CALL_SLOT_LENGTH = 32;
+uint256 constant CHAIN_ID_SLOT_LENGTH = 4;
+uint256 constant FILL_TIME_SLOT_LENGTH = 4;
 
 // FLAG1 - 0x01 - Execute Proof
 

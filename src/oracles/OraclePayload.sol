@@ -31,26 +31,17 @@ uint256 constant NUM_OUTPUTS_END = 3;
 
 // Output Entries ***************************************************************************************************************
 
-uint256 constant OUTPUT_LENGTH = 164;
+uint256 constant OUTPUT_LENGTH = 40;
 
-uint256 constant OUTPUT_REMOTE_ORACLE_START = 3;
-uint256 constant OUTPUT_REMOTE_ORACLE_END = 35;
+uint256 constant OUTPUT_HASH_START = 3;
+uint256 constant OUTPUT_HASH_END = 35;
 
-uint256 constant OUTPUT_TOKEN_START = 35;
-uint256 constant OUTPUT_TOKEN_END = 67;
+uint256 constant OUTPUT_CHAIN_ID_START = 35;
+uint256 constant OUTPUT_CHAIN_ID_END = 39;
 
-uint256 constant OUTPUT_AMOUNT_START = 67;
-uint256 constant OUTPUT_AMOUNT_END = 99;
-
-uint256 constant OUTPUT_RECIPIENT_START = 99;
-uint256 constant OUTPUT_RECIPIENT_END = 131;
-
-uint256 constant OUTPUT_CHAIN_ID_START = 131;
-uint256 constant OUTPUT_CHAIN_ID_END = 163;
-
-uint256 constant OUTPUT_FILLTIME_START = 163;
-uint256 constant OUTPUT_FILLTIME_END = 167;
+uint256 constant OUTPUT_FILLTIME_START = 39;
+uint256 constant OUTPUT_FILLTIME_END = 43;
 
 // FLAG1 - 0x01 - Execute Proof
 
-uint256 constant FLAG1_START = 168;
+uint256 constant FLAG1_START = 44;

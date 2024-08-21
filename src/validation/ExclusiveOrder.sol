@@ -6,7 +6,10 @@ import { Ownable } from "solady/src/auth/Ownable.sol";
 import { IPreValidation } from "../interfaces/IPreValidation.sol";
 
 /**
- * @notice Grouped selective allowanced solvers
+ * @notice Selectivly allow solvers.
+ * This validation contract supports setting single approved solver.
+ * Customizing an allowlist can only be done by the owner of the contract.
+ * The owner is always allowed.
  */
 contract ExclusiveOrder is IPreValidation, Ownable {
     error KeyCannotHave12EmptyBytes();
@@ -22,7 +25,7 @@ contract ExclusiveOrder is IPreValidation, Ownable {
      * @param initiator Caller of the initiated transaction not
      */
     function validate(bytes32 key, address initiator) external view returns (bool) {
-        return (bytes12(key) == bytes12(0)) ? address(uint160(uint256(key))) == initiator : _allowList[key][initiator];
+        return (bytes12(key) == bytes12(0)) ? address(uint160(uint256(key))) == initiator || address(uint160(uint256(key))) == owner() : _allowList[key][initiator] || address(uint160(uint256(key))) == owner();
     }
 
     /**

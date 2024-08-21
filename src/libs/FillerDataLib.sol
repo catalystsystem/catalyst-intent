@@ -40,7 +40,15 @@ library FillerDataLib {
         revert NotImplemented(version);
     }
 
-    // TODO: describe
+    /**
+     * @notice Execute filler data. Specifically for fillerData version 2,
+     * execution data can be set as required after releasing the inputs to the filler.
+     * @param identifier Hash of the executionData that has to be provided. Is stored as
+     * bytes32 to avoid storing a lot of calldata.
+     * @param orderKeyHash Hash of the order key. Is provided to the callback incase they want to recover
+     * some information from the storage or related. (we only 0 the fillerAddress).
+     * @param executionData Execution data with the destination encoded in the first 20 bytes.
+     */
     function execute(bytes32 identifier, bytes32 orderKeyHash, bytes calldata executionData) internal {
         if (identifier != keccak256(executionData)) revert IdentifierMismatch();
 

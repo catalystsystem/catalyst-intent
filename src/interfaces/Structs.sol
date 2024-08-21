@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import { Input, Output } from "./ISettlementContract.sol";
+import { Input } from "./ISettlementContract.sol";
 
 //////////////////
 // Order types ///

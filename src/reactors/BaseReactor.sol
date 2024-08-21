@@ -5,7 +5,6 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import { IOracle } from "../interfaces/IOracle.sol";
-import { IOrderType } from "../interfaces/IOrderType.sol";
 import {
     CrossChainOrder,
     ISettlementContract,
@@ -84,6 +83,11 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
 
     //--- Expose Storage ---//
 
+
+    function getOrderContext(bytes32 orderKeyHash) external view returns (OrderContext memory orderContext) {
+        return orderContext = _orders[orderKeyHash];
+    }
+
     function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32 orderKeyHash) {
         return orderKeyHash = keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
     }
@@ -95,6 +99,7 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
     function getOrderContext(OrderKey calldata orderKey) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
     }
+    
 
     //--- Override for implementation ---//
 

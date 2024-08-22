@@ -37,6 +37,10 @@ library FillerDataLib {
             // V1_ORDER_DISCOUNT_END is the length of the data.
             return (fillerAddress, orderPurchaseDeadline, orderDiscount, bytes32(0), V1_ORDER_DISCOUNT_END);
         }
+        if (version == VERSION_2) {
+            (fillerAddress, orderPurchaseDeadline, orderDiscount, identifier) = _decode2(fillerData);
+            return (fillerAddress, orderPurchaseDeadline, orderDiscount, identifier, V1_ORDER_DISCOUNT_END);
+        }
         revert NotImplemented(version);
     }
 
@@ -100,8 +104,8 @@ library FillerDataLib {
     uint256 private constant V2_ORDER_PURCHASE_DEADLINE_END = 25;
     uint256 private constant V2_ORDER_DISCOUNT_START = V1_ORDER_PURCHASE_DEADLINE_END;
     uint256 private constant V2_ORDER_DISCOUNT_END = 27;
-    uint256 private constant V2_CALLDATA_HASH_LENGTH = V2_ORDER_DISCOUNT_END;
-    uint256 private constant V2_CALLDATA_HASH = V2_CALLDATA_HASH_LENGTH + 1;
+    uint256 private constant V2_CALLDATA_HASH_START = V2_ORDER_DISCOUNT_END + 1;
+    uint256 private constant V2_CALLDATA_HASH_END = 59;
 
     function _getFiller2(bytes calldata fillerData) private pure returns (address fillerAddress) {
         return fillerAddress = address(uint160(bytes20(fillerData[V2_ADDRESS_START:V2_ADDRESS_END])));
@@ -110,12 +114,13 @@ library FillerDataLib {
     function _decode2(bytes calldata fillerData)
         private
         pure
-        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount)
+        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier)
     {
         fillerAddress = _getFiller1(fillerData);
         orderPurchaseDeadline =
-            uint32(bytes4(fillerData[V1_ORDER_PURCHASE_DEADLINE_START:V1_ORDER_PURCHASE_DEADLINE_END]));
-        orderDiscount = uint16(bytes2(fillerData[V1_ORDER_DISCOUNT_START:V1_ORDER_DISCOUNT_END]));
+            uint32(bytes4(fillerData[V2_ORDER_PURCHASE_DEADLINE_START:V2_ORDER_PURCHASE_DEADLINE_END]));
+        orderDiscount = uint16(bytes2(fillerData[V2_ORDER_DISCOUNT_START:V2_ORDER_DISCOUNT_END]));
+        identifier = bytes32(fillerData[V2_CALLDATA_HASH_START : V2_CALLDATA_HASH_END]);
     }
 
     function _encode2(

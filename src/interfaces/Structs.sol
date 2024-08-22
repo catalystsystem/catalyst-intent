@@ -46,7 +46,9 @@ struct OrderContext {
 }
 
 struct OutputDescription {
-    bytes32 remoteOracle; // Format is bytes32() slice of the encoded bytearray from the messaging protocol (or bytes32(0) if local)
+    /// @dev Contract on the destination that tells whether an order was filled.
+    /// Format is bytes32() slice of the encoded bytearray from the messaging protocol (or bytes32(0) if local)
+    bytes32 remoteOracle;
     /// @dev The address of the ERC20 token on the destination chain
     /// @dev address(0) used as a sentinel for the native token
     bytes32 token;
@@ -61,9 +63,10 @@ struct OutputDescription {
 
 /**
  * @notice This is the simplified order after it has been validated and evaluated.
- * @dev
+ * @dev Is used to keep the order context in calldata to save gas. The hash of the orderKey
+ * is used to identify orders.
  * - Validated: We check that the signature of the order matches the relevant order.
- * - Evaluated: The signed order has been evaluated for its respective inputs and outputs
+ * - Evaluated: The order has been evaluated for its respective inputs and outputs
  */
 struct OrderKey {
     // The contract that is managing this order.

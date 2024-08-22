@@ -17,8 +17,14 @@ struct DutchOrderData {
     uint256 challengerCollateralAmount;
     address localOracle;
     uint32 slopeStartingTime;
-    int256[] inputSlopes; // Input rate of change.
-    int256[] outputSlopes; // Output rate of change.
+    /**
+     * @dev Input rate of change.
+     */
+    int256[] inputSlopes;
+    /**
+     * @dev Output rate of change.
+     */
+    int256[] outputSlopes;
     Input[] inputs;
     OutputDescription[] outputs;
 }
@@ -60,40 +66,38 @@ library CrossChainDutchOrderType {
 
     function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
-                bytes.concat(
-                    DUTCH_ORDER_DATA_TYPE_HASH,
-                    bytes32(orderData.verificationContext),
-                    bytes32(uint256(uint160(orderData.verificationContract))),
-                    bytes32(uint256(orderData.proofDeadline)),
-                    bytes32(uint256(orderData.challengeDeadline)),
-                    bytes32(uint256(uint160(orderData.collateralToken))),
-                    bytes32(orderData.fillerCollateralAmount),
-                    bytes32(orderData.challengerCollateralAmount),
-                    bytes32(uint256(uint160(orderData.localOracle))),
-                    bytes32(uint256(orderData.slopeStartingTime)),
-                    keccak256(abi.encodePacked(orderData.inputSlopes)),
-                    keccak256(abi.encodePacked(orderData.outputSlopes)),
-                    CrossChainOrderType.hashInputs(orderData.inputs),
-                    CrossChainOrderType.hashOutputs(orderData.outputs)
-                )
+            abi.encode(
+                DUTCH_ORDER_DATA_TYPE_HASH,
+                orderData.verificationContext,
+                orderData.verificationContract,
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
+                orderData.slopeStartingTime,
+                keccak256(abi.encodePacked(orderData.inputSlopes)),
+                keccak256(abi.encodePacked(orderData.outputSlopes)),
+                CrossChainOrderType.hashInputs(orderData.inputs),
+                CrossChainOrderType.hashOutputs(orderData.outputs)
             )
         );
     }
 
     function hashOrderData(DutchOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
-                bytes32(orderData.verificationContext),
-                bytes32(uint256(uint160(orderData.verificationContract))),
-                bytes32(uint256(orderData.proofDeadline)),
-                bytes32(uint256(orderData.challengeDeadline)),
-                bytes32(uint256(uint160(orderData.collateralToken))),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes32(uint256(uint160(orderData.localOracle))),
-                bytes32(uint256(orderData.slopeStartingTime)),
+                orderData.verificationContext,
+                orderData.verificationContract,
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
+                orderData.slopeStartingTime,
                 keccak256(abi.encodePacked(orderData.inputSlopes)),
                 keccak256(abi.encodePacked(orderData.outputSlopes)),
                 CrossChainOrderType.hashInputs(orderData.inputs),

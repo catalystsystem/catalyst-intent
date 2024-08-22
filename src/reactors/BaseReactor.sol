@@ -36,6 +36,7 @@ import {
     FraudAccepted,
     OptimisticPayout,
     OrderChallenged,
+    OrderInitiated,
     OrderProven,
     OrderPurchaseDetailsModified,
     OrderPurchased,
@@ -101,7 +102,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
     /**
      * @notice Initiates a cross-chain order
-     * @dev Called by the filler.
+     * @dev Called by the filler. Before calling, please check if someone else has already initiated.
+     * The check for if an order has already been initiated is quite late and thus may use a lot of gas.
      * When a filler initiates a transaction it is important that they do the following:
      * 1. Trust the reactor. Technically, anyone can deploy a reactor that takes these interfaces.
      * As the filler has to provide collateral, this collateral could be at risk.
@@ -125,14 +127,11 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
         // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
-        if (order.fillDeadline < order.initiateDeadline) {
-            revert InitiateDeadlineAfterFill();
-        }
+        if (order.fillDeadline < order.initiateDeadline) revert InitiateDeadlineAfterFill();
 
         // Check if initiate Deadline has passed.
-        if (order.initiateDeadline < block.timestamp) {
-            revert InitiateDeadlinePassed();
-        }
+        if (order.initiateDeadline < block.timestamp) revert InitiateDeadlinePassed();
+
         // Notice that the 2 above checks also check if order.fillDeadline < block.timestamp since
         // (order.fillDeadline < order.initiateDeadline) & (order.initiateDeadline < block.timestamp)
         // => order.fillDeadline < block.timestamp is disallowed.
@@ -166,7 +165,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Check that the order hasn't been claimed yet. We will then set the order status
         // so other can't claim it. This acts as a local reentry check.
-        OrderContext storage orderContext = _orders[_orderKeyHash(orderKey)];
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext.status);
         orderContext.status = OrderStatus.Claimed; // Now this order cannot be claimed again.
         orderContext.fillerAddress = fillerAddress;
@@ -184,6 +184,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Collect input tokens from user.
         _collectTokensViaPermit2(orderKey, order.swapper, witness, witnessTypeString, signature);
+
+        emit OrderInitiated(orderHash, fillerAddress, msg.sender, orderKey);
     }
 
     //--- Order Resolution Helpers ---//
@@ -201,6 +203,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
             revert WrongOrderStatus(orderContext.status);
         }
+
         // Immediately set order status to filled. If the order hasn't been filled
         // then the next line will fail. This acts as a LOCAL reentry check.
         orderContext.status = OrderStatus.Filled;
@@ -367,7 +370,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.status = OrderStatus.Challenged;
 
         // Collect bond collateral.
-        // collateralToken has already been entered so no need to check if
+        // CollateralToken has already been entered so no need to check if
         // it is a valid token.
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken,

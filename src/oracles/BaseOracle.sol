@@ -218,9 +218,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        // TODO: Test that bytes32(fromApplication) right shifts fromApplication (0x0000...address)
-        // even if fromApplication.length < 32 OR that generalised incentives always returns 32 byte length.
-        bytes32 remoteOracle = bytes32(fromApplication);
         // Do not use remoteOracle from decoded outputs.
         (OutputDescription[] memory outputs, uint32[] memory fillTimes) = _decode(message); 
 
@@ -234,7 +231,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain(uint32(uint256(sourceIdentifierbytes)), output.chainId);
             uint32 fillTime = fillTimes[i];
             bytes32 outputHash = _outputHashM(output);
-            // TODO: Test that bytes32(fromApplication) right shifts fromApplication (0x0000...address)
             // even if fromApplication.length < 32 OR that generalised incentives always returns 32 byte length.
             _provenOutput[outputHash][fillTime][bytes32(fromApplication)] = true;
         }
@@ -295,7 +291,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @return fillTimes Decoded fill times.
      */
     function _decode(bytes calldata encodedPayload)
-        internal
+        internal pure
         returns (OutputDescription[] memory outputs, uint32[] memory fillTimes)
     {
         unchecked {
@@ -319,7 +315,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
                     uint32(bytes4(encodedPayload[pointer + OUTPUT_FILLTIME_START:pointer + OUTPUT_FILLTIME_END]));
 
                 pointer += OUTPUT_LENGTH + remoteCallLength;
-                emit Debug(outputs[outputIndex], fillTimes[outputIndex]);
             }
         }
     }

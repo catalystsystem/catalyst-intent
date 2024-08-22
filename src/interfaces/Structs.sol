@@ -40,7 +40,7 @@ struct OrderContext {
 }
 
 struct OutputDescription {
-    bytes32 remoteOracle;
+    bytes32 remoteOracle; // Format is bytes32() slice of the encoded bytesarray from the messaging protocol (or bytes32(0) if local)
     /// @dev The address of the ERC20 token on the destination chain
     /// @dev address(0) used as a sentinel for the native token
     bytes32 token; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE

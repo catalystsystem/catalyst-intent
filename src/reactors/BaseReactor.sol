@@ -296,93 +296,6 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
         return _resolve(order, fillerData);
     }
 
-    //--- Order Purchase Helpers ---//
-
-    /**
-     * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
-     * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
-     * your funds may be at risk.
-     * Set newPurchaseDeadline in the past to disallow future takeovers.
-     * @param orderKey Claimed order to be purchased from the filler
-     * @param fillerData New filler data
-     */
-    function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
-        bytes32 orderKeyHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderKeyHash];
-
-        OrderStatus status = orderContext.status;
-
-        // The order should have been claimed and not paid / proven / fraud proven (inputs should be intact)
-        // for it to be purchased.
-        if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
-            revert WrongOrderStatus(orderContext.status);
-        }
-
-        // The order cannot be purchased after the max time specified to be sold at has passed
-        if (orderContext.orderPurchaseDeadline < block.timestamp) {
-            revert PurchaseTimePassed();
-        }
-
-        // Decode filler data.
-        (
-            address fillerAddress,
-            uint32 orderPurchaseDeadline,
-            uint16 orderDiscount,
-            bytes32 identifier,
-            uint256 fillerDataPointer
-        ) = FillerDataLib.decode(fillerData);
-
-        // Load old storage variables.
-        address oldFillerAddress = orderContext.fillerAddress;
-        uint16 oldOrderDiscount = orderContext.orderDiscount;
-
-        // We can now update the storage with the new filler data.
-        // This allows us to avoid reentry protecting this function.
-        orderContext.fillerAddress = fillerAddress;
-        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
-        orderContext.orderDiscount = orderDiscount;
-        if (identifier != bytes32(0)) orderContext.identifier = identifier;
-
-        // We can now make external calls without it impacting reentring into this call.
-
-        // Collateral is paid for in full.
-        address collateralToken = orderKey.collateral.collateralToken;
-        uint256 collateralAmount = orderKey.collateral.fillerCollateralAmount;
-        // No need to check if collateral is valid, since it has already entered the contract.
-        SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
-
-        // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done through permit.
-        // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
-        _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
-
-        // Check if there is an identifier, if there is execute data.
-        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
-
-        emit OrderPurchased(orderKeyHash, msg.sender);
-    }
-
-    function modifyBuyableOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
-        bytes32 orderKeyHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderKeyHash];
-
-        address filler = orderContext.fillerAddress;
-
-        // This line also disallows modifying non-claimed orders.
-        if (filler == address(0) || filler != msg.sender) revert OnlyFiller();
-
-        // Decode filler data.
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier,) =
-            FillerDataLib.decode(fillerData);
-
-        // Set new storage.
-        if (fillerAddress != filler) orderContext.fillerAddress = fillerAddress;
-        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
-        orderContext.orderDiscount = orderDiscount;
-        if (identifier != orderContext.identifier) orderContext.identifier = identifier;
-
-        emit OrderPurchaseDetailsModified(orderKeyHash, fillerAddress, orderPurchaseDeadline, orderDiscount, identifier);
-    }
-
     //--- Order Resolution Helpers ---//
 
     /**
@@ -511,7 +424,7 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
         orderContext.fillerAddress = backupFiller;
         _proveOrderFulfillment(orderKey, orderContext);
 
-        emit OptimisticPayout(orderHash);
+        emit OrderProven(orderHash, msg.sender);
     }
 
     function optimisticPayoutBackup(OrderKey calldata orderKey, address backupFiller) external {
@@ -631,5 +544,93 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
         }
 
         emit FraudAccepted(orderKeyHash);
+    }
+
+
+    //--- Order Purchase Helpers ---//
+
+    /**
+     * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
+     * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
+     * your funds may be at risk.
+     * Set newPurchaseDeadline in the past to disallow future takeovers.
+     * @param orderKey Claimed order to be purchased from the filler
+     * @param fillerData New filler data.
+     */
+    function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
+        bytes32 orderKeyHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
+
+        OrderStatus status = orderContext.status;
+
+        // The order should have been claimed and not paid / proven / fraud proven (inputs should be intact)
+        // for it to be purchased.
+        if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
+            revert WrongOrderStatus(orderContext.status);
+        }
+
+        // The order cannot be purchased after the max time specified to be sold at has passed
+        if (orderContext.orderPurchaseDeadline < block.timestamp) {
+            revert PurchaseTimePassed();
+        }
+
+        // Decode filler data.
+        (
+            address fillerAddress,
+            uint32 orderPurchaseDeadline,
+            uint16 orderDiscount,
+            bytes32 identifier,
+            uint256 fillerDataPointer
+        ) = FillerDataLib.decode(fillerData);
+
+        // Load old storage variables.
+        address oldFillerAddress = orderContext.fillerAddress;
+        uint16 oldOrderDiscount = orderContext.orderDiscount;
+
+        // We can now update the storage with the new filler data.
+        // This allows us to avoid reentry protecting this function.
+        orderContext.fillerAddress = fillerAddress;
+        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
+        orderContext.orderDiscount = orderDiscount;
+        if (identifier != bytes32(0)) orderContext.identifier = identifier;
+
+        // We can now make external calls without it impacting reentring into this call.
+
+        // Collateral is paid for in full.
+        address collateralToken = orderKey.collateral.collateralToken;
+        uint256 collateralAmount = orderKey.collateral.fillerCollateralAmount;
+        // No need to check if collateral is valid, since it has already entered the contract.
+        SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
+
+        // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done through permit.
+        // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
+        _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
+
+        // Check if there is an identifier, if there is execute data.
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
+
+        emit OrderPurchased(orderKeyHash, msg.sender);
+    }
+
+    function modifyBuyableOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
+        bytes32 orderKeyHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderKeyHash];
+
+        address filler = orderContext.fillerAddress;
+
+        // This line also disallows modifying non-claimed orders.
+        if (filler == address(0) || filler != msg.sender) revert OnlyFiller();
+
+        // Decode filler data.
+        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier,) =
+            FillerDataLib.decode(fillerData);
+
+        // Set new storage.
+        if (fillerAddress != filler) orderContext.fillerAddress = fillerAddress;
+        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
+        orderContext.orderDiscount = orderDiscount;
+        if (identifier != orderContext.identifier) orderContext.identifier = identifier;
+
+        emit OrderPurchaseDetailsModified(orderKeyHash, fillerAddress, orderPurchaseDeadline, orderDiscount, identifier);
     }
 }

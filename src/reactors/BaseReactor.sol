@@ -435,8 +435,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Load old storage variables.
         address oldFillerAddress = orderContext.fillerAddress;
         uint16 oldOrderDiscount = orderContext.orderDiscount;
+        bytes32 oldIdentifier = orderContext.identifier;
         // Check if the discount is good. Remember that a larger number is a better discount.
-        if (minDiscount < oldOrderDiscount) revert MinOrderDiscountTooLow(minDiscount, oldOrderDiscount);
+        if (minDiscount > oldOrderDiscount) revert MinOrderDiscountTooLow(minDiscount, oldOrderDiscount);
 
         // We can now update the storage with the new filler data.
         // This allows us to avoid reentry protecting this function.
@@ -458,7 +459,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
 
         // Check if there is an identifier, if there is execute data.
-        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
+        if (oldIdentifier != bytes32(0)) FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
 
         emit OrderPurchased(orderKeyHash, msg.sender);
     }

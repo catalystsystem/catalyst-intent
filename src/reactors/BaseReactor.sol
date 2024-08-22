@@ -18,12 +18,12 @@ import { FillerDataLib } from "../libs/FillerDataLib.sol";
 import { IsContractLib } from "../libs/IsContractLib.sol";
 
 import {
-    BackupOnlyCallableByFiller,
     CannotProveOrder,
     ChallengeDeadlinePassed,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
+    MinOrderDiscountTooLow,
     OnlyFiller,
     OrderAlreadyClaimed,
     OrderNotReadyForOptimisticPayout,
@@ -194,7 +194,10 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * a function, isProven(...), that returns true when called with the order details.
      * @dev
      */
-    function _proveOrderFulfillment(OrderKey calldata orderKey, OrderContext storage orderContext) internal {
+    function proveOrderFulfillment(OrderKey calldata orderKey, bytes calldata executionData) external {
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
+
         OrderStatus status = orderContext.status;
         address fillerAddress = orderContext.fillerAddress;
 
@@ -235,13 +238,23 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // No need to check if collateralToken is a deployed contract.
         // It has already been entered into our contract.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+
+        bytes32 identifier = orderContext.identifier;
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
+
+        emit OrderProven(orderHash, msg.sender);
     }
 
+
     /**
-     * @notice Collect the order result
+     * @notice Prove that an order was filled. Requires that the order oracle exposes
+     * a function, isProven(...), that returns true when called with the order details.
      * @dev Anyone can call this but the payout goes to the filler of the order.
      */
-    function _optimisticPayout(OrderKey calldata orderKey, OrderContext storage orderContext) internal {
+    function optimisticPayout(OrderKey calldata orderKey, bytes calldata executionData) external {
+        bytes32 orderHash = _orderKeyHash(orderKey);
+        OrderContext storage orderContext = _orders[orderHash];
+
         // Check if order is claimed:
         if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
         // If OrderStatus != Claimed then it must either be:
@@ -271,30 +284,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // collateralToken has already been entered so no need to check if
         // it is a valid token.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
-    }
-
-    /**
-     * @notice Prove that an order was filled. Requires that the order oracle exposes
-     * a function, isProven(...), that returns true when called with the order details.
-     * @dev
-     */
-    function proveOrderFulfillment(OrderKey calldata orderKey, bytes calldata executionData) external {
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
-
-        _proveOrderFulfillment(orderKey, orderContext);
-
-        bytes32 identifier = orderContext.identifier;
-        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
-
-        emit OrderProven(orderHash, msg.sender);
-    }
-
-    function optimisticPayout(OrderKey calldata orderKey, bytes calldata executionData) external {
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
-
-        _optimisticPayout(orderKey, orderContext);
 
         bytes32 identifier = orderContext.identifier;
         if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
@@ -302,37 +291,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         emit OptimisticPayout(orderHash);
     }
 
-    //-- Order Resolution Backups --//
-
-    function proveOrderFulfillmentBackup(OrderKey calldata orderKey, address backupFiller) external {
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
-
-        address fillerAddress = orderContext.fillerAddress;
-        if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
-
-        // Allow sending the outputs to another address. This is important if the logic for the
-        // normal execution would leave the funds vulnerable.
-        orderContext.fillerAddress = backupFiller;
-        _proveOrderFulfillment(orderKey, orderContext);
-
-        emit OrderProven(orderHash, msg.sender);
-    }
-
-    function optimisticPayoutBackup(OrderKey calldata orderKey, address backupFiller) external {
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
-
-        address fillerAddress = orderContext.fillerAddress;
-        if (msg.sender != fillerAddress) revert BackupOnlyCallableByFiller(fillerAddress, msg.sender);
-
-        // Allow sending the outputs to another address. This is important if the logic for the
-        // normal execution would leave the funds vulnerable.
-        orderContext.fillerAddress = backupFiller;
-        _optimisticPayout(orderKey, orderContext);
-
-        emit OptimisticPayout(orderHash);
-    }
 
     //--- Disputes ---//
 
@@ -446,9 +404,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * your funds may be at risk.
      * Set newPurchaseDeadline in the past to disallow future takeovers.
      * @param orderKey Claimed order to be purchased from the filler
-     * @param fillerData New filler data.
+     * @param fillerData New filler data + potential execution data post-pended.
      */
-    function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
+    function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData, uint256 minDiscount) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -477,13 +435,15 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Load old storage variables.
         address oldFillerAddress = orderContext.fillerAddress;
         uint16 oldOrderDiscount = orderContext.orderDiscount;
+        // Check if the discount is good. Remember that a larger number is a better discount.
+        if (minDiscount < oldOrderDiscount) revert MinOrderDiscountTooLow(minDiscount, oldOrderDiscount);
 
         // We can now update the storage with the new filler data.
         // This allows us to avoid reentry protecting this function.
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderDiscount = orderDiscount;
-        if (identifier != bytes32(0)) orderContext.identifier = identifier;
+        orderContext.identifier = identifier;
 
         // We can now make external calls without it impacting reentring into this call.
 
@@ -503,7 +463,11 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         emit OrderPurchased(orderKeyHash, msg.sender);
     }
 
-    function modifyBuyableOrder(OrderKey calldata orderKey, bytes calldata fillerData) external {
+    /**
+     * @dev If some execution data is set that is invalid, this function needs to be used to modify
+     * the execution data (identifier) such that the execution data passes.
+     */
+    function modifyOrderFillerdata(OrderKey calldata orderKey, bytes calldata fillerData) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -520,7 +484,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         if (fillerAddress != filler) orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderDiscount = orderDiscount;
-        if (identifier != orderContext.identifier) orderContext.identifier = identifier;
+        orderContext.identifier = identifier;
 
         emit OrderPurchaseDetailsModified(orderKeyHash, fillerAddress, orderPurchaseDeadline, orderDiscount, identifier);
     }

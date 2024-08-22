@@ -719,7 +719,7 @@ abstract contract TestBaseReactor is Test {
         emit Transfer(buyer, fillerAddress, amountAfterDiscount);
         vm.expectEmit();
         emit OrderPurchased(orderHash, buyer);
-        reactor.purchaseOrder(orderKey, newFillerData);
+        reactor.purchaseOrder(orderKey, newFillerData, 0);
 
         // Check storage
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
@@ -746,7 +746,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 0));
         vm.prank(buyer);
-        reactor.purchaseOrder(orderKey, newFillerData);
+        reactor.purchaseOrder(orderKey, newFillerData, 0);
     }
 
     function test_revert_purchase_time_passed(
@@ -782,7 +782,7 @@ abstract contract TestBaseReactor is Test {
         vm.startPrank(buyer);
         vm.warp(originalPurchaseTime + 1);
         vm.expectRevert(abi.encodeWithSignature("PurchaseTimePassed()"));
-        reactor.purchaseOrder(orderKey, newFillerData);
+        reactor.purchaseOrder(orderKey, newFillerData, 0);
     }
 
     function test_revert_opFilled_purchase_order(
@@ -812,7 +812,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
         vm.prank(purchaser);
-        reactor.purchaseOrder(orderKey, hex"");
+        reactor.purchaseOrder(orderKey, hex"", 0);
     }
 
     //--- Modify Orders ---//
@@ -847,7 +847,7 @@ abstract contract TestBaseReactor is Test {
         emit OrderPurchaseDetailsModified(orderHash, fillerAddress, newPurchaseDeadline, newOrderDiscount, bytes32(0));
         vm.prank(fillerAddress);
 
-        reactor.modifyBuyableOrder(orderKey, newFillerData);
+        reactor.modifyOrderFillerdata(orderKey, newFillerData);
     }
 
     function test_revert_nonFiller_modify(
@@ -878,7 +878,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
         vm.prank(malleciousModifier);
-        reactor.modifyBuyableOrder(orderKey, newFillerData);
+        reactor.modifyOrderFillerdata(orderKey, newFillerData);
     }
 
     //--- Resolve Orders ---//

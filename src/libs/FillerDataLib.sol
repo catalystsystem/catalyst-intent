@@ -32,6 +32,9 @@ library FillerDataLib {
         if (fillerData.length == 0) return (msg.sender, 0, 0, bytes32(0), 0);
         // fillerData.length >= 1
         bytes1 version = fillerData[0];
+        if (version == 0x00) {
+            return (msg.sender, 0, 0, bytes32(0), 1);
+        }
         if (version == VERSION_1) {
             (fillerAddress, orderPurchaseDeadline, orderDiscount) = _decode1(fillerData);
             // V1_ORDER_DISCOUNT_END is the length of the data.

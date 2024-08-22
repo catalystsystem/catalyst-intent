@@ -3,7 +3,6 @@ pragma solidity >=0.8.0;
 
 import { OrderContext, OrderStatus } from "../interfaces/Structs.sol";
 
-error BackupOnlyCallableByFiller(address filler, address msgSender); // 0x892bc944
 error CannotProveOrder(); // 0x5276f999
 error ChallengeDeadlinePassed(); // 0x9b741c77
 error CodeSize0(); // 0xfbc1d8e2
@@ -13,6 +12,7 @@ error FillTimeInPast(); // 0x8cddc02b
 error InitiateDeadlineAfterFill(); // 0xc0bf59b1
 error InitiateDeadlinePassed(); // 0x606ef7f5
 error InvalidDeadlineOrder(); // 0x2494cf80
+error MinOrderDiscountTooLow(uint256 minimum, uint256 configured); // 0xf8e451f1
 error OnlyFiller(); // 0x422d60ed
 error OrderAlreadyClaimed(OrderStatus orderStatus); // 0x87d33f7e
 error OrderNotReadyForOptimisticPayout(uint32 timeRemaining); // 0xe9deeb4d

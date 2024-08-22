@@ -29,17 +29,16 @@ interface ICrossCatsCallback {
      * - The inputs are optimistically refunded.
      * - Output delivery was proven.
      *
-     * Will not be called if the associated backup functions are called.
      * You can use this function to add custom conditions to purchasing an order / uw.
      * If you revert, your order cannot be purchased.
-     * @dev If this call reverts / uses a ton of gas, the backup functions should be called.
-     * Backup functions can ONLY be called by the filler itself rather than anyone.
-     * If the fillerAddress is unable to call the backup functions, take care to ensure the function
+     * @dev If this call reverts / uses a ton of gas, the data has to be modified (modifyOrderFillerdata)
+     * This function can ONLY be called by the filler itself rather than anyone.
+     * If the fillerAddress is unable to call modifyOrderFillerdata, take care to ensure the function
      * never reverts as otherwise the inputs are locked.
      *
      * executionData is never explicitly provided on chain, only a hash of it is. If this is not
      * publicly known, it can act as a kind of secret and people cannot call the main functions.
-     * If you lose it you will have to call the backup functions which only the registered filler can.
+     * If you lose it you will have to call modifyOrderFillerdata which only the registered filler can.
      *
      * The address to call is the first 20 bytes of the data to execute.
      *

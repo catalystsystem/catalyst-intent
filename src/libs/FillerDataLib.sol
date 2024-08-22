@@ -120,7 +120,7 @@ library FillerDataLib {
         orderPurchaseDeadline =
             uint32(bytes4(fillerData[V2_ORDER_PURCHASE_DEADLINE_START:V2_ORDER_PURCHASE_DEADLINE_END]));
         orderDiscount = uint16(bytes2(fillerData[V2_ORDER_DISCOUNT_START:V2_ORDER_DISCOUNT_END]));
-        identifier = bytes32(fillerData[V2_CALLDATA_HASH_START : V2_CALLDATA_HASH_END]);
+        identifier = bytes32(fillerData[V2_CALLDATA_HASH_START:V2_CALLDATA_HASH_END]);
     }
 
     function _encode2(

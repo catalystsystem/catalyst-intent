@@ -147,6 +147,6 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
             }
         }
 
-        emit GovernanceFeesCollected(to, tokens, collectedAmounts);
+        emit GovernanceFeesDistributed(to, tokens, collectedAmounts);
     }
 }

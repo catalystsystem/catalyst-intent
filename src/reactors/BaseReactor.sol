@@ -39,8 +39,7 @@ import {
     OrderInitiated,
     OrderProven,
     OrderPurchaseDetailsModified,
-    OrderPurchased,
-    OrderVerify
+    OrderPurchased
 } from "../interfaces/Events.sol";
 import { ReactorPayments } from "./helpers/ReactorPayments.sol";
 import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";

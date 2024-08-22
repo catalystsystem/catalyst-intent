@@ -24,9 +24,7 @@ struct LimitOrderData {
  */
 library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
-        LIMIT_ORDER_DATA_TYPE_ONLY,
-        CrossChainOrderType.INPUT_TYPE_STUB,
-        CrossChainOrderType.OUTPUT_TYPE_STUB
+        LIMIT_ORDER_DATA_TYPE_ONLY, CrossChainOrderType.INPUT_TYPE_STUB, CrossChainOrderType.OUTPUT_TYPE_STUB
     );
 
     bytes constant LIMIT_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
@@ -43,9 +41,7 @@ library CrossChainLimitOrderType {
     );
 
     bytes constant CROSS_LIMIT_ORDER_TYPE_STUP = abi.encodePacked(
-        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB,
-        "CatalystLimitOrderData orderData",
-        ")"
+        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystLimitOrderData orderData", ")"
     );
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);

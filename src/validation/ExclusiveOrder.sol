@@ -25,7 +25,9 @@ contract ExclusiveOrder is IPreValidation, Ownable {
      * @param initiator Caller of the initiated transaction not
      */
     function validate(bytes32 key, address initiator) external view returns (bool) {
-        return (bytes12(key) == bytes12(0)) ? address(uint160(uint256(key))) == initiator || address(uint160(uint256(key))) == owner() : _allowList[key][initiator] || address(uint160(uint256(key))) == owner();
+        return (bytes12(key) == bytes12(0))
+            ? address(uint160(uint256(key))) == initiator || address(uint160(uint256(key))) == owner()
+            : _allowList[key][initiator] || address(uint160(uint256(key))) == owner();
     }
 
     /**

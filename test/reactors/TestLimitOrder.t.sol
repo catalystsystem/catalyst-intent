@@ -23,9 +23,7 @@ import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 import {
-    InitiateDeadlineAfterFill,
-    InitiateDeadlinePassed,
-    InvalidDeadlineOrder
+    InitiateDeadlineAfterFill, InitiateDeadlinePassed, InvalidDeadlineOrder
 } from "../../src/interfaces/Errors.sol";
 
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";

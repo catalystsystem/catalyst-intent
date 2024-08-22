@@ -17,8 +17,6 @@ import { OrderContext, OrderKey, OrderStatus, OutputDescription, ReactorInfo } f
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
 import { IsContractLib } from "../libs/IsContractLib.sol";
 
-import { ReactorPayments } from "./helpers/ReactorPayments.sol";
-import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
 import {
     BackupOnlyCallableByFiller,
     CannotProveOrder,
@@ -31,6 +29,7 @@ import {
     OrderNotReadyForOptimisticPayout,
     ProofPeriodHasNotPassed,
     PurchaseTimePassed,
+    WrongChain,
     WrongOrderStatus
 } from "../interfaces/Errors.sol";
 import {
@@ -42,6 +41,8 @@ import {
     OrderPurchased,
     OrderVerify
 } from "../interfaces/Events.sol";
+import { ReactorPayments } from "./helpers/ReactorPayments.sol";
+import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
 
 /**
  * @title Base Cross-chain intent Reactor
@@ -79,7 +80,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     constructor(address permit2, address owner) ReactorPayments(permit2, owner) { }
 
     //--- Expose Storage ---//
-
 
     function getOrderContext(bytes32 orderKeyHash) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[orderKeyHash];
@@ -120,6 +120,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         bytes calldata signature,
         bytes calldata fillerData
     ) external returns (OrderKey memory orderKey) {
+        // Check if the expected chain of the order is the rigtht one.
+        if (order.originChainId != block.chainid) revert WrongChain(uint32(block.chainid), order.originChainId);
+
         // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
         // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
         if (order.fillDeadline < order.initiateDeadline) {
@@ -169,7 +172,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderDiscount = orderDiscount;
-        orderContext.initTimestamp = uint32(block.timestamp);
         if (identifier != bytes32(0)) orderContext.identifier = identifier;
 
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
@@ -433,7 +435,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         emit FraudAccepted(orderKeyHash);
     }
-
 
     //--- Order Purchase Helpers ---//
 

@@ -8,8 +8,7 @@ import { Input } from "./ISettlementContract.sol";
 //////////////////
 
 /**
- * @notice The progressive order status of cross-chain orders
- *
+ * @notice The progressive order status of cross-chain orders:
  * - Unfilled: Default state. Progresses to Claimed.
  * - Claimed: A solver has claimed this order. Progresses to Challenged or OPFilled.
  * - Challenged: A claimed order was challenged. Progresses to Fraud or Proven.
@@ -27,27 +26,34 @@ enum OrderStatus {
     Proven,
     Filled
 }
-// @param initTimestamp is for blocking previous fillings.
 
+/**
+ * @notice Storage Slot used for initiated orders.
+ * @param status Description of the status. Is OrderStatus Enum.
+ * @param fillerAddress Address of the filler (Address that will get the inputs after successful order).
+ * @param orderPurchaseDeadline If configured, an initiated order can be purchased until this deadline.
+ * @param orderDiscount The discount that an order gets by being purchased. Is of type(uint16).max.
+ * @param challenger If the order has been challenged, is the address of challenger otherwise address(0).
+ * @param identifier A hash used to configure the input payment with extra logic.
+ */
 struct OrderContext {
     OrderStatus status;
-    address challenger;
     address fillerAddress;
     uint32 orderPurchaseDeadline;
     uint16 orderDiscount;
-    uint32 initTimestamp;
+    address challenger;
     bytes32 identifier;
 }
 
 struct OutputDescription {
-    bytes32 remoteOracle; // Format is bytes32() slice of the encoded bytesarray from the messaging protocol (or bytes32(0) if local)
+    bytes32 remoteOracle; // Format is bytes32() slice of the encoded bytearray from the messaging protocol (or bytes32(0) if local)
     /// @dev The address of the ERC20 token on the destination chain
     /// @dev address(0) used as a sentinel for the native token
-    bytes32 token; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
+    bytes32 token;
     /// @dev The amount of the token to be sent
     uint256 amount;
     /// @dev The address to receive the output tokens
-    bytes32 recipient; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
+    bytes32 recipient;
     /// @dev The destination chain for this output
     uint32 chainId; // TODO: CONVERT TO BYTES32?
     bytes remoteCall;

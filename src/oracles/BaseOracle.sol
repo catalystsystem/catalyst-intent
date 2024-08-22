@@ -24,7 +24,7 @@ interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscr
 abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOracle {
     uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
 
-    uint32 immutable public CHAIN_ID;
+    uint32 public immutable CHAIN_ID;
 
     mapping(bytes32 outputHash => mapping(uint32 fillTime => mapping(bytes32 oracle => bool proven))) internal
         _provenOutput;
@@ -52,12 +52,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      */
     function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
         // Remember to not include (aka. exclude) remoteOracle & chainId
-        outputHash = keccak256(bytes.concat(
-            output.token,
-            bytes32(output.amount),
-            output.recipient,
-            output.remoteCall
-        ));
+        outputHash = keccak256(bytes.concat(output.token, bytes32(output.amount), output.recipient, output.remoteCall));
     }
 
     /**
@@ -66,12 +61,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      */
     function _outputHashM(OutputDescription memory output) internal pure returns (bytes32 outputHash) {
         // Remember to not include (aka. exclude) remoteOracle & chainId
-        outputHash = keccak256(bytes.concat(
-            output.token,
-            bytes32(output.amount),
-            output.recipient,
-            output.remoteCall
-        ));
+        outputHash = keccak256(bytes.concat(output.token, bytes32(output.amount), output.recipient, output.remoteCall));
     }
 
     /**
@@ -95,7 +85,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         }
     }
 
-    function _validateChain(uint32 chainId) view internal {
+    function _validateChain(uint32 chainId) internal view {
         if (CHAIN_ID != chainId) revert WrongChain(CHAIN_ID, chainId);
     }
 
@@ -219,7 +209,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
         // Do not use remoteOracle from decoded outputs.
-        (OutputDescription[] memory outputs, uint32[] memory fillTimes) = _decode(message); 
+        (OutputDescription[] memory outputs, uint32[] memory fillTimes) = _decode(message);
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
@@ -228,7 +218,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             OutputDescription memory output = outputs[i];
             // Check if sourceIdentifierbytes
             // TODO: unify chainIdentifiers. (types)
-            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain(uint32(uint256(sourceIdentifierbytes)), output.chainId);
+            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) {
+                revert WrongChain(uint32(uint256(sourceIdentifierbytes)), output.chainId);
+            }
             uint32 fillTime = fillTimes[i];
             bytes32 outputHash = _outputHashM(output);
             // even if fromApplication.length < 32 OR that generalised incentives always returns 32 byte length.
@@ -291,7 +283,8 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @return fillTimes Decoded fill times.
      */
     function _decode(bytes calldata encodedPayload)
-        internal pure
+        internal
+        pure
         returns (OutputDescription[] memory outputs, uint32[] memory fillTimes)
     {
         unchecked {
@@ -301,7 +294,8 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             fillTimes = new uint32[](numOutputs);
             uint256 pointer = 0;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
-                uint256 remoteCallLength = uint16(bytes2(encodedPayload[pointer + REMOTE_CALL_LENGTH_START:pointer + REMOTE_CALL_LENGTH_END]));
+                uint256 remoteCallLength =
+                    uint16(bytes2(encodedPayload[pointer + REMOTE_CALL_LENGTH_START:pointer + REMOTE_CALL_LENGTH_END]));
                 // TODO: can we optimise this decoding scheme? I think yes.
                 outputs[outputIndex] = OutputDescription({
                     remoteOracle: bytes32(0), // Do not use this field.
@@ -309,7 +303,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
                     amount: uint256(bytes32(encodedPayload[pointer + OUTPUT_AMOUNT_START:pointer + OUTPUT_AMOUNT_END])),
                     recipient: bytes32(encodedPayload[pointer + OUTPUT_RECIPIENT_START:pointer + OUTPUT_RECIPIENT_END]),
                     chainId: uint32(bytes4(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END])),
-                    remoteCall: encodedPayload[pointer + REMOTE_CALL_START: pointer + REMOTE_CALL_START + remoteCallLength]
+                    remoteCall: encodedPayload[pointer + REMOTE_CALL_START:pointer + REMOTE_CALL_START + remoteCallLength]
                 });
                 fillTimes[outputIndex] =
                     uint32(bytes4(encodedPayload[pointer + OUTPUT_FILLTIME_START:pointer + OUTPUT_FILLTIME_END]));

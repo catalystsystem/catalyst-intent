@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {
-    CrossChainOrder,
-    Input,
-    Output,
-    ResolvedCrossChainOrder
-} from "../../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../../interfaces/ISettlementContract.sol";
 import { OrderKey, OutputDescription } from "../../interfaces/Structs.sol";
 
 import { FillerDataLib } from "../../libs/FillerDataLib.sol";
@@ -19,7 +14,6 @@ import { ReactorAbstractions } from "./ReactorAbstractions.sol";
  * @notice Resolves OrderKeys for ERC7683 compatible ResolvedCrossChainOrders.
  */
 abstract contract ResolverERC7683 is ICanCollectGovernanceFee, ReactorAbstractions {
-
     /**
      * @notice Resolves a specific CrossChainOrder into a Catalyst specific OrderKey.
      * @dev This provides a more precise description of the cost of the order compared to the generic resolve(...).

@@ -8,9 +8,8 @@ import { GovernanceFeeChanged, GovernanceFeesCollected } from "../interfaces/Eve
 
 import { IsContractLib } from "./IsContractLib.sol";
 
-
 abstract contract ICanCollectGovernanceFee {
-    function _amountLessfee(uint256 amount) internal virtual view returns (uint256 amountLessFee);
+    function _amountLessfee(uint256 amount) internal view virtual returns (uint256 amountLessFee);
 }
 
 /**
@@ -98,7 +97,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * @param amount To subtract fee from
      * @return amountLessFee Amount with fee subtracted from it.
      */
-    function _amountLessfee(uint256 amount) internal override view returns (uint256 amountLessFee) {
+    function _amountLessfee(uint256 amount) internal view override returns (uint256 amountLessFee) {
         return _amountLessfee(amount, governanceFee);
     }
 

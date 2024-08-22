@@ -27,9 +27,7 @@ library CrossChainDutchOrderType {
     error LengthsDoesNotMatch(uint256, uint256);
 
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
-        DUTCH_ORDER_DATA_TYPE_ONLY,
-        CrossChainOrderType.INPUT_TYPE_STUB,
-        CrossChainOrderType.OUTPUT_TYPE_STUB
+        DUTCH_ORDER_DATA_TYPE_ONLY, CrossChainOrderType.INPUT_TYPE_STUB, CrossChainOrderType.OUTPUT_TYPE_STUB
     );
 
     bytes constant DUTCH_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
@@ -51,9 +49,7 @@ library CrossChainDutchOrderType {
     );
 
     bytes constant CROSS_DUTCH_ORDER_TYPE_STUB = abi.encodePacked(
-        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB,
-        "CatalystDutchOrderData orderData",
-        ")"
+        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystDutchOrderData orderData", ")"
     );
 
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);

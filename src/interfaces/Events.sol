@@ -6,10 +6,7 @@ import { OrderKey } from "./Structs.sol";
 /**
  * @notice An order has been claimed.
  */
-event OrderInitiated(
-    address indexed filler,
-    OrderKey orderKey
-);
+event OrderInitiated(address indexed filler, OrderKey orderKey);
 
 event OrderProven(bytes32 indexed orderHash, address indexed fillerIdentifier);
 

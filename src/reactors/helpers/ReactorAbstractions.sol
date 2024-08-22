@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import {
-    CrossChainOrder,
-    ISettlementContract,
-    Output
-} from "../../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, ISettlementContract, Output } from "../../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../../interfaces/Structs.sol";
 
 abstract contract ReactorAbstractions is ISettlementContract {

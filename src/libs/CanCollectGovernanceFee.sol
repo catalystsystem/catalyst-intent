@@ -8,10 +8,15 @@ import { GovernanceFeeChanged, GovernanceFeesCollected } from "../interfaces/Eve
 
 import { IsContractLib } from "./IsContractLib.sol";
 
+
+abstract contract ICanCollectGovernanceFee {
+    function _amountLessfee(uint256 amount) internal virtual view returns (uint256 amountLessFee);
+}
+
 /**
  * @title Extendable contract that allows an implementation to collect governance fees.
  */
-abstract contract CanCollectGovernanceFee is Ownable {
+abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     error GovernanceFeeTooHigh();
     error CannotCollect0Fees(address token);
 
@@ -86,6 +91,15 @@ abstract contract CanCollectGovernanceFee is Ownable {
             // amount >= amount * fee / GOVERNANCE_FEE_DENUM since fee < GOVERNANCE_FEE_DENUM
             amountLessFee = amount - amount * fee / GOVERNANCE_FEE_DENUM;
         }
+    }
+
+    /**
+     * @notice Helper function to compute an amount where the fee is subtracted.
+     * @param amount To subtract fee from
+     * @return amountLessFee Amount with fee subtracted from it.
+     */
+    function _amountLessfee(uint256 amount) internal override view returns (uint256 amountLessFee) {
+        return _amountLessfee(amount, governanceFee);
     }
 
     /**

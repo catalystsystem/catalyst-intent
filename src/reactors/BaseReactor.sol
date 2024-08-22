@@ -16,8 +16,9 @@ import { OrderContext, OrderKey, OrderStatus, OutputDescription, ReactorInfo } f
 
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
 import { IsContractLib } from "../libs/IsContractLib.sol";
-import { ReactorPayments } from "./helpers/ReactorPayments.sol";
 
+import { ReactorPayments } from "./helpers/ReactorPayments.sol";
+import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
 import {
     BackupOnlyCallableByFiller,
     CannotProveOrder,
@@ -53,6 +54,7 @@ import {
  * It is expected that proper order reactors implement:
  * - `_initiate`. To convert partially structured orders into order keys that describe fulfillment conditions.
  * - `_resolveKey`. Helper function to convert an order into an order key.
+ * You can find more information about these in ./helpers/ResolverAbstractions.sol
  * @dev Important implementation quirks:
  * **Token Trust**
  * There is a lot of trust put into the tokens that interact with the contract. Not trust as in the tokens can
@@ -66,7 +68,7 @@ import {
  * becomes stuck until the issue is resolved.
  * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could annoy users.
  */
-abstract contract BaseReactor is ReactorPayments, ISettlementContract {
+abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     bytes32 public constant VERSION_FLAGS = bytes32(uint256(1));
 
     /**
@@ -93,43 +95,6 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
 
     function getOrderContext(OrderKey calldata orderKey) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
-    }
-    
-
-    //--- Override for implementation ---//
-
-    /**
-     * @notice Reactor Order implementations needs to implement this function to initiate their orders.
-     * Return an orderKey with the relevant information to solve for.
-     * @dev This function shouldn't check if the signature is correct but instead return information
-     * to be used by _collectTokensViaPermit2 to verify the order (through PERMIT2).
-     */
-    function _initiate(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal virtual returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString);
-
-    /**
-     * @notice Logic function for resolveKey(...).
-     * @dev Order implementations of this reactor are required to implement this function.
-     */
-    function _resolveKey(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal view virtual returns (OrderKey memory);
-
-    /**
-     * @notice Resolves a specific CrossChainOrder into a Catalyst specific OrderKey.
-     * @dev This provides a more precise description of the cost of the order compared to the generic resolve(...).
-     * @param order CrossChainOrder to resolve.
-     * @param fillerData Any filler-defined data required by the settler
-     * @return orderKey The full description of the order, including the inputs and outputs of the order
-     */
-    function resolveKey(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) external view returns (OrderKey memory orderKey) {
-        return orderKey = _resolveKey(order, fillerData);
     }
 
     //--- Order Handling ---//
@@ -217,83 +182,6 @@ abstract contract BaseReactor is ReactorPayments, ISettlementContract {
 
         // Collect input tokens from user.
         _collectTokensViaPermit2(orderKey, order.swapper, witness, witnessTypeString, signature);
-    }
-
-    /**
-     * @notice Resolves an order into an ERC-7683 compatible order struct.
-     * By default relies on _resolveKey to convert OrderKey into a ResolvedCrossChainOrder
-     * @dev Can be overwritten if there isn't a translation of an orderKey into resolvedOrder.
-     * @param order CrossChainOrder to resolve.
-     * @param  fillerData Any filler-defined data required by the settler
-     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
-     */
-    function _resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        OrderKey memory orderKey = _resolveKey(order, fillerData);
-        (address fillerAddress,,,,) = FillerDataLib.decode(fillerData);
-
-        // Inputs can be taken directly from the orderKey.
-        Input[] memory swapperInputs = orderKey.inputs;
-        // Likewise for outputs.
-
-        uint256 numOutputs = orderKey.outputs.length;
-        Output[] memory swapperOutputs = new Output[](numOutputs);
-        for (uint256 i = 0; i < numOutputs; ++i) {
-            OutputDescription memory catalystOutput = orderKey.outputs[i];
-            swapperOutputs[i] = Output({
-                token: catalystOutput.token,
-                amount: catalystOutput.amount,
-                recipient: catalystOutput.recipient,
-                chainId: catalystOutput.chainId
-            });
-        }
-
-        // fillerOutputs are of the Output type and as a result, we can't just
-        // load swapperInputs into fillerOutputs. As a result, we need to parse
-        // the individual inputs and make a new struct.
-        uint256 _governanceFee = governanceFee;
-        uint256 numInputs = swapperInputs.length;
-        Output[] memory fillerOutputs = new Output[](numInputs);
-        Output memory fillerOutput;
-        for (uint256 i; i < numInputs; ++i) {
-            Input memory input = swapperInputs[i];
-            fillerOutput = Output({
-                token: bytes32(uint256(uint160(input.token))),
-                amount: _amountLessfee(input.amount, _governanceFee),
-                recipient: bytes32(uint256(uint160(fillerAddress))),
-                chainId: uint32(block.chainid)
-            });
-            fillerOutputs[i] = fillerOutput;
-        }
-
-        // Lastly, complete the ResolvedCrossChainOrder struct.
-        resolvedOrder = ResolvedCrossChainOrder({
-            settlementContract: order.settlementContract,
-            swapper: order.swapper,
-            nonce: order.nonce,
-            originChainId: order.originChainId,
-            initiateDeadline: order.initiateDeadline,
-            fillDeadline: order.fillDeadline,
-            swapperInputs: swapperInputs,
-            swapperOutputs: swapperOutputs,
-            fillerOutputs: fillerOutputs
-        });
-    }
-
-    /**
-     * @notice ERC-7683: Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
-     * @dev Intended to improve standardized integration of various order types and settlement contracts
-     * @param order CrossChainOrder to resolve.
-     * @param fillerData Any filler-defined data required by the settler
-     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
-     */
-    function resolve(
-        CrossChainOrder calldata order,
-        bytes calldata fillerData
-    ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        return _resolve(order, fillerData);
     }
 
     //--- Order Resolution Helpers ---//

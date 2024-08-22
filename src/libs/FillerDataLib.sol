@@ -39,7 +39,7 @@ library FillerDataLib {
         }
         if (version == VERSION_2) {
             (fillerAddress, orderPurchaseDeadline, orderDiscount, identifier) = _decode2(fillerData);
-            return (fillerAddress, orderPurchaseDeadline, orderDiscount, identifier, V1_ORDER_DISCOUNT_END);
+            return (fillerAddress, orderPurchaseDeadline, orderDiscount, identifier, V2_CALLDATA_HASH_END);
         }
         revert NotImplemented(version);
     }

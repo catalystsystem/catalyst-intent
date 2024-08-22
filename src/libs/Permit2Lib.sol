@@ -11,7 +11,7 @@ import { OrderKey } from "../interfaces/Structs.sol";
  */
 library Permit2Lib {
     /**
-     * @notice Converts OrderKey into a PermitTransferFrom
+     * @notice Converts an OrderKey into a PermitBatchTransferFrom
      */
     function toPermit(
         OrderKey memory order,
@@ -24,8 +24,8 @@ library Permit2Lib {
             ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
         )
     {
-        // Load the number of inputs. We need them to set the array size & to iterate through each
-        // convert the input struct into a transferDetails struct.
+        // Load the number of inputs. We need them to set the array size & convert each
+        // input struct into a transferDetails struct.
         uint256 numInputs = order.inputs.length;
         ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](numInputs);
         transferDetails = new ISignatureTransfer.SignatureTransferDetails[](numInputs);

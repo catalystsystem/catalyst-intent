@@ -24,8 +24,8 @@ event OptimisticPayout(bytes32 indexed orderHash);
 event OrderChallenged(bytes32 indexed orderHash, address indexed disputer);
 
 /**
- * @notice A challanged order was not proven and enough time has passed
- * since it was challanged so it has been assumed no delivery was made.
+ * @notice A challenged order was not proven and enough time has passed
+ * since it was challenged so it has been assumed no delivery was made.
  */
 event FraudAccepted(bytes32 indexed orderHash);
 

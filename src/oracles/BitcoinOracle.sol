@@ -127,7 +127,7 @@ contract BitcoinOracle is BaseOracle {
         // Important, this function validate that blockHash = hash(inclusionProof.blockHeader);
         (sats, txOutScript) = BtcProof.validateTx(blockHash, inclusionProof, txOutIx);
 
-        // TODO: Check if there are gas savings if we mlve scripts as hashes.
+        // TODO: Check if there are gas savings if we move scripts as hashes.
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
     }
 
@@ -265,10 +265,41 @@ contract BitcoinOracle is BaseOracle {
         _provenOutput[outputHash][fillTime][bytes32(0)] = true;
     }
 
-    // TODO: Expose these function
-    /* 
-    function verify(...) external {
-        _verify(...)
-    }
+    /**
+     * @notice Validate an output is correct.
+     * @dev Specifically, this function uses the other validation functions and adds some
+     * Bitcoin context surrounding it.
+     * @param output Output to prove.
+     * @param fillTime Proof Deadline of order
+     * @param blockNum Bitcoin block number of the transaction that the output is included in.
+     * @param inclusionProof Proof of inclusion. fillTime is validated against Bitcoin block timestamp.
+     * @param txOutIx Index of the output in the transaction being proved.
      */
+    function verify(
+        OutputDescription calldata output,
+        uint32 fillTime,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx
+    ) external {
+        _verify(output, fillTime, blockNum, inclusionProof, txOutIx);
+    }
+
+    /**
+     * @notice Function overload of verify but allows specifying an older block.
+     * @dev This function technically extends the verification of outputs 1 block (~10 minutes)
+     * into the past beyond what _validateTimestamp would ordinary allow.
+     * The purpose is to protect against slow block mining. Even if it took days to get confirmation on a transaction,
+     * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
+     */
+    function verify(
+        OutputDescription calldata output,
+        uint32 fillTime,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx,
+        bytes calldata previousBlockHeader
+    ) external {
+        _verify(output, fillTime, blockNum, inclusionProof, txOutIx, previousBlockHeader);
+    }
 }

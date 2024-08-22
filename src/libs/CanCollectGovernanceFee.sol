@@ -4,11 +4,16 @@ pragma solidity ^0.8.26;
 import { Ownable } from "solady/src/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { GovernanceFeeChanged, GovernanceFeesCollected } from "../interfaces/Events.sol";
+import { GovernanceFeeChanged, GovernanceFeesDistributed } from "../interfaces/Events.sol";
 
 import { IsContractLib } from "./IsContractLib.sol";
 
+/**
+ * @dev Required for inheritance linearization
+ */
 abstract contract ICanCollectGovernanceFee {
+    function _amountLessfee(uint256 amount, uint256 fee) internal pure virtual returns (uint256 amountLessFee);
+
     function _amountLessfee(uint256 amount) internal view virtual returns (uint256 amountLessFee);
 }
 
@@ -82,7 +87,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENUM based.
      * @return amountLessFee Amount with fee subtracted from it.
      */
-    function _amountLessfee(uint256 amount, uint256 fee) internal pure returns (uint256 amountLessFee) {
+    function _amountLessfee(uint256 amount, uint256 fee) internal pure override returns (uint256 amountLessFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
             if (amount >= type(uint256).max / fee) return amountLessFee = amount;
@@ -94,7 +99,8 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
 
     /**
      * @notice Helper function to compute an amount where the fee is subtracted.
-     * @param amount To subtract fee from
+     * The governanceFee is read from storage and passed to _amountLessfee(uint256,uint256)
+     * @param amount To subtract fee from.
      * @return amountLessFee Amount with fee subtracted from it.
      */
     function _amountLessfee(uint256 amount) internal view override returns (uint256 amountLessFee) {
@@ -102,7 +108,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     }
 
     /**
-     * @notice Sets governanceFee
+     * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
      * @param newGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
      */
     function setGovernanceFee(uint256 newGovernanceFee) external onlyOwner {

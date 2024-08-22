@@ -35,7 +35,6 @@ library CrossChainOrderType {
         return keccak256(abi.encode(keccak256(INPUT_TYPE_STUB), input.token, input.amount));
     }
 
-    // TODO: Permit2 description of output
     function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(

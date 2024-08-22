@@ -2,11 +2,14 @@
 pragma solidity >=0.8.0;
 
 /**
- * @notice Implement callback handling for Cross cats settlements.
+ * @notice Implement callback handling for Cross cats payouts, both outputs and inputs.
  * @dev Callbacks are opt-in. If you opt-in, take care to not revert.
- * Funds are likely in danger if it happens. Please be careful.
+ * Funds are likely in danger if the calls revert. Please be careful.
  *
  * If you don't need this functionality, stay away.
+ * To enable for outputs, set `remoteCall` to the calldata. recipient is called.
+ * To enable for inputs, use fillerData version 2. You set a hash of the data.
+ * The first 20 bytes of the data is called.
  */
 interface ICrossCatsCallback {
     /**
@@ -37,6 +40,8 @@ interface ICrossCatsCallback {
      * executionData is never explicitly provided on chain, only a hash of it is. If this is not
      * publicly known, it can act as a kind of secret and people cannot call the main functions.
      * If you lose it you will have to call the backup functions which only the registered filler can.
+     *
+     * The address to call is the first 20 bytes of the data to execute.
      *
      * @param orderKeyHash Hash of the order key. Can be used for identification.
      * @param executionData Custom data that the filler asked to be provided with the call.

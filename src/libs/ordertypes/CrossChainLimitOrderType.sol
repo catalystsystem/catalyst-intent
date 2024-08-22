@@ -20,7 +20,6 @@ struct LimitOrderData {
 
 /**
  * @notice Helper library for the Limit order type.
- * @dev Notice that when hashing limit order, we hash it as a large struct instead of a lot of smaller structs.
  */
 library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(

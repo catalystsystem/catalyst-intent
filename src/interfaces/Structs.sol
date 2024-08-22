@@ -73,7 +73,7 @@ struct OrderKey {
     ReactorInfo reactorContext;
     // Who this order was claimed by.
     address swapper;
-    uint96 nonce;
+    uint96 nonce; // TODO: What is this nonce used for?
     // Collateral
     Collateral collateral;
     uint32 originChainId;

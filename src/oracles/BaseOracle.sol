@@ -35,7 +35,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     constructor(address _escrow, uint32 chainId) {
         escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
-        // For some reason GARP does not expose a chain id we can use to record with.
+        // For some reason GARP does not expose a chain id we can use :|
         CHAIN_ID = chainId;
     }
 
@@ -48,7 +48,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     /**
-     * @notice Compute hash an output.
+     * @notice Compute the hash of an output.
      */
     function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
         // Remember to not include (aka. exclude) remoteOracle & chainId
@@ -56,7 +56,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     /**
-     * @notice Compute hash an output while output is in memory.
+     * @notice Compute the hash of an output in memory.
      * @dev Is slightly more expensive than _outputHash. If possible, try to use _outputHash.
      */
     function _outputHashM(OutputDescription memory output) internal pure returns (bytes32 outputHash) {
@@ -85,6 +85,8 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         }
     }
 
+    // TODO: Is this function compatible with channels?
+    // TODO: Is it better to just not check chainIds?
     function _validateChain(uint32 chainId) internal view {
         if (CHAIN_ID != chainId) revert WrongChain(CHAIN_ID, chainId);
     }

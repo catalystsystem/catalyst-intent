@@ -29,6 +29,11 @@ struct DutchOrderData {
     OutputDescription[] outputs;
 }
 
+/**
+ * @notice Helper library for the Dutch Auction order type.
+ * @dev The dutch auction order type has several more advanced features compared to the simpler limit order.
+ * This allows limit orders to remain simple and dutch auctions to present a rich feature set for users.
+ */
 library CrossChainDutchOrderType {
     error LengthsDoesNotMatch(uint256, uint256);
 

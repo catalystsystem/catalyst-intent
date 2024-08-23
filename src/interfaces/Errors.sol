@@ -20,3 +20,4 @@ error ProofPeriodHasNotPassed(uint32 time); // 0x39bd19f3
 error PurchaseTimePassed(); // 0xf8e451f1
 error WrongChain(uint32 expected, uint32 actual); // 0x264363e1
 error WrongOrderStatus(OrderStatus actual); // 0x858c6fe3
+error WrongRemoteOracle(bytes32 addressThis, bytes32 expected); // 0xe57d7773

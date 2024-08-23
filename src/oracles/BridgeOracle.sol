@@ -5,7 +5,8 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 
-import { WrongChain } from "../interfaces/Errors.sol";
+import { OutputFilled } from "../interfaces/Events.sol";
+import { WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -20,7 +21,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
 
-    constructor(address _escrow, uint32 chainId) BaseOracle(_escrow, chainId) { }
+    constructor(address _escrow, uint32 chainId) BaseOracle(_escrow) { }
 
     /**
      * @notice Allows calling an external function in a non-griefing manner.
@@ -81,12 +82,14 @@ contract GeneralisedIncentivesOracle is BaseOracle {
     function _fill(OutputDescription calldata output, uint32 fillDeadline) internal {
         // Check if this is the correct chain.
         _validateChain(output.chainId);
-
+        // Check if this is the correct remoteOracle
+        _validateRemoteOracleAddress(output.remoteOracle);
+        
         // Get hash of output.
         bytes32 outputHash = _outputHash(output);
 
         // Get the proof state of the fulfillment.
-        bool proofState = _provenOutput[outputHash][fillDeadline][bytes32(0)];
+        bool proofState = _provenOutput[outputHash][fillDeadline];
         // Early return if we have already seen proof.
         if (proofState) return;
 
@@ -102,7 +105,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _provenOutput[outputHash][fillDeadline][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline] = true;
 
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
@@ -112,7 +115,10 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
 
         // If there is an external call associated with the fill, execute it.
-        if (output.remoteCall.length > 0) _call(output);
+        uint256 remoteCallLength = output.remoteCall.length;
+        if (remoteCallLength > 0) _call(output);
+
+        emit OutputFilled(token, recipient, amount, remoteCallLength > 0 ? keccak256(output.remoteCall) : bytes32(0));
     }
 
     function _fill(OutputDescription[] calldata outputs, uint32[] calldata fillDeadlines) internal {

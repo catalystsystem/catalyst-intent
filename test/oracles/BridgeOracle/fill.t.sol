@@ -28,7 +28,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription[] memory outputs = new OutputDescription[](1);
@@ -62,7 +62,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription[] memory outputs = new OutputDescription[](1);
@@ -80,7 +80,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount + 1,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         outputs = new OutputDescription[](2);
@@ -99,7 +99,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription memory secondOutput = OutputDescription({
@@ -107,7 +107,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount + 1,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription[] memory outputs = new OutputDescription[](1);
@@ -146,7 +146,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount - 1,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription[] memory outputs = new OutputDescription[](1);
@@ -175,7 +175,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(sentToRecipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription[] memory outputs = new OutputDescription[](1);
@@ -207,7 +207,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
 
@@ -238,7 +238,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
 
@@ -273,7 +273,7 @@ contract TestBridgeOracle is TestCommonGARP {
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
                 chainId: uint32(block.chainid),
-                remoteOracle: bytes32(0),
+                remoteOracle: bytes32(uint256(uint160(address(oracle)))),
                 remoteCall: hex""
             });
         }
@@ -298,7 +298,7 @@ contract TestBridgeOracle is TestCommonGARP {
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
                 chainId: uint32(block.chainid),
-                remoteOracle: bytes32(0),
+                remoteOracle: bytes32(uint256(uint160(address(oracle)))),
                 remoteCall: hex""
             });
         }
@@ -316,7 +316,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription[] memory outputs = new OutputDescription[](2);
@@ -348,7 +348,7 @@ contract TestBridgeOracle is TestCommonGARP {
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: chainId,
-            remoteOracle: bytes32(0),
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
             remoteCall: hex""
         });
         OutputDescription[] memory outputs = new OutputDescription[](1);

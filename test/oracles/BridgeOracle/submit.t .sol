@@ -22,7 +22,7 @@ contract TestBridgeOracle is TestCommonGARP {
     }
 
     modifier setImplementationAddress(bytes32 chainIdentifier, bytes memory remoteImplementation) {
-        oracle.setRemoteImplementation(chainIdentifier, remoteImplementation);
+        oracle.setRemoteImplementation(chainIdentifier, uint32(block.chainid), remoteImplementation);
         _;
     }
 
@@ -51,7 +51,7 @@ contract TestBridgeOracle is TestCommonGARP {
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
                 chainId: uint32(block.chainid),
-                remoteOracle: bytes32(0),
+                remoteOracle: bytes32(uint256(uint160(address(oracle)))),
                 remoteCall: hex""
             });
         }

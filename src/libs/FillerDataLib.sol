@@ -106,10 +106,6 @@ library FillerDataLib {
     uint256 private constant V2_CALLDATA_HASH_START = V2_ORDER_DISCOUNT_END + 1;
     uint256 private constant V2_CALLDATA_HASH_END = 59;
 
-    function _getFiller2(bytes calldata fillerData) private pure returns (address fillerAddress) {
-        return fillerAddress = address(uint160(bytes20(fillerData[V2_ADDRESS_START:V2_ADDRESS_END])));
-    }
-
     function _decode2(bytes calldata fillerData)
         private
         pure

@@ -50,7 +50,7 @@ import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
  * reactors like: Token collection, order interfaces, order resolution:
  * - Optimistic Payout: Orders are assumed to have been filled correctly by the solver if not disputed.
  * - Order Dispute: Orders can be disputed such that proof of fillment has to be made.
- * - Oracle Interfaction: To provide the relevant proofs against order disputes.
+ * - Oracle Interaction: To provide the relevant proofs against order disputes.
  *
  * It is expected that proper order reactors implement:
  * - `_initiate`. To convert partially structured orders into order keys that describe fulfillment conditions.
@@ -192,7 +192,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     /**
      * @notice Prove that an order was filled. Requires that the order oracle exposes
      * a function, isProven(...), that returns true when called with the order details.
-     * @dev
+     * @dev // TODO: WHat is there no dev??
      */
     function proveOrderFulfilment(OrderKey calldata orderKey, bytes calldata executionData) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
@@ -244,7 +244,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         emit OrderProven(orderHash, msg.sender);
     }
-
 
     /**
      * @notice Prove that an order was filled. Requires that the order oracle exposes

@@ -1181,7 +1181,7 @@ abstract contract TestBaseReactor is Test {
 
     function _getVMOracle(address oracleAddress) internal returns (MockOracle oracleContract) {
         oracleContract = MockOracle(oracleAddress);
-        oracleContract.setRemoteImplementation(bytes32(block.chainid), abi.encode(escrow));
+        oracleContract.setRemoteImplementation(bytes32(block.chainid), uint32(block.chainid), abi.encode(escrow));
     }
 
     function _getFillDeadlines(uint256 length, uint32 fillDeadline) internal pure returns (uint32[] memory fillDeadlines) {

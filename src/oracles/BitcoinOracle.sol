@@ -37,7 +37,7 @@ contract BitcoinOracle is BaseOracle {
 
     mapping(bytes32 orderKey => uint256 fillDeadline) public filledOrders;
 
-    constructor(address _escrow, uint32 chainId, IBtcPrism _mirror) BaseOracle(_escrow, chainId) {
+    constructor(address _escrow, IBtcPrism _mirror) BaseOracle(_escrow) {
         mirror = _mirror;
     }
 
@@ -209,6 +209,7 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx
     ) internal {
         _validateChain(output.chainId);
+        _validateRemoteOracleAddress(output.remoteOracle);
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 
@@ -226,7 +227,7 @@ contract BitcoinOracle is BaseOracle {
         if (sats != output.amount) revert BadAmount();
 
         bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillDeadline][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline] = true;
     }
 
     /**
@@ -245,6 +246,7 @@ contract BitcoinOracle is BaseOracle {
         bytes calldata previousBlockHeader
     ) internal {
         _validateChain(output.chainId);
+        _validateRemoteOracleAddress(output.remoteOracle);
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 
@@ -262,7 +264,7 @@ contract BitcoinOracle is BaseOracle {
         if (sats != output.amount) revert BadAmount();
 
         bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillDeadline][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline] = true;
     }
 
     /**
@@ -282,6 +284,7 @@ contract BitcoinOracle is BaseOracle {
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
     ) external {
+
         _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx);
     }
 
@@ -300,6 +303,7 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx,
         bytes calldata previousBlockHeader
     ) external {
+
         _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx, previousBlockHeader);
     }
 }

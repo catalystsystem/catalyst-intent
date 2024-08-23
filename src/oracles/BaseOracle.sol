@@ -7,7 +7,13 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { CannotProveOrder, FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
+import {
+    CannotProveOrder,
+    FillDeadlineFarInFuture,
+    FillDeadlineInPast,
+    WrongChain,
+    WrongRemoteOracle
+} from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -38,9 +44,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      */
     mapping(bytes32 messagingProtocolChainIdentifier => uint32 blockChainId) _chainIdentifierToBlockChainId;
 
-
-    mapping(bytes32 outputHash => mapping(uint32 fillDeadline => bool proven)) internal
-        _provenOutput;
+    mapping(bytes32 outputHash => mapping(uint32 fillDeadline => bool proven)) internal _provenOutput;
 
     IIncentivizedMessageEscrowProofValidPeriod public immutable escrow;
 
@@ -52,10 +56,13 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     //-- View Functions --//
 
-    function getChainIdentifierToBlockChainId(bytes32 messagingProtocolChainIdentifier) view external returns(uint32) {
+    function getChainIdentifierToBlockChainId(bytes32 messagingProtocolChainIdentifier)
+        external
+        view
+        returns (uint32)
+    {
         return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
     }
-
 
     //-- Helpers --//
     /**
@@ -72,7 +79,16 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
         // Remember to not include (aka. exclude) remoteOracle & chainId
         // TODO: abi.encode cheaper?
-        outputHash = keccak256(bytes.concat(output.remoteOracle, output.token, bytes4(output.chainId), bytes32(output.amount), output.recipient, output.remoteCall));
+        outputHash = keccak256(
+            bytes.concat(
+                output.remoteOracle,
+                output.token,
+                bytes4(output.chainId),
+                bytes32(output.amount),
+                output.recipient,
+                output.remoteCall
+            )
+        );
     }
 
     /**
@@ -81,7 +97,16 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      */
     function _outputHashM(OutputDescription memory output) internal pure returns (bytes32 outputHash) {
         // Remember to not include (aka. exclude) remoteOracle & chainId
-        outputHash = keccak256(bytes.concat(output.remoteOracle, output.token, bytes4(output.chainId), bytes32(output.amount), output.recipient, output.remoteCall));
+        outputHash = keccak256(
+            bytes.concat(
+                output.remoteOracle,
+                output.token,
+                bytes4(output.chainId),
+                bytes32(output.amount),
+                output.recipient,
+                output.remoteCall
+            )
+        );
     }
 
     /**
@@ -104,9 +129,10 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             }
         }
     }
-    
 
-    /** @notice Validate that expected chain (@param chainId) matches this chain's chainId (block.chainId) */
+    /**
+     * @notice Validate that expected chain (@param chainId) matches this chain's chainId (block.chainId)
+     */
     function _validateChain(uint32 chainId) internal view {
         if (CHAIN_ID != chainId) revert WrongChain(CHAIN_ID, chainId);
     }
@@ -159,11 +185,15 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     //--- Sending Proofs & Generalised Incentives ---//
 
     /**
-     * @notice Defines the remote messaging protocol. 
+     * @notice Defines the remote messaging protocol.
      * @dev Can only be called once for each chain.
-    //todo: onlyOwner
+     * //todo: onlyOwner
      */
-    function setRemoteImplementation(bytes32 chainIdentifier, uint32 blockChainIdOfChainIdentifier, bytes calldata implementation) external {
+    function setRemoteImplementation(
+        bytes32 chainIdentifier,
+        uint32 blockChainIdOfChainIdentifier,
+        bytes calldata implementation
+    ) external {
         //  escrow.setRemoteImplementation does not allow calling multiple times.
         escrow.setRemoteImplementation(chainIdentifier, implementation);
 
@@ -328,11 +358,10 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @return outputs Decoded outputs.
      * @return fillDeadlines Decoded fill times.
      */
-    function _decode(bytes calldata encodedPayload, bytes32 remoteOracle)
-        internal
-        pure
-        returns (OutputDescription[] memory outputs, uint32[] memory fillDeadlines)
-    {
+    function _decode(
+        bytes calldata encodedPayload,
+        bytes32 remoteOracle
+    ) internal pure returns (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) {
         unchecked {
             uint256 numOutputs = uint256(uint16(bytes2(encodedPayload[NUM_OUTPUTS_START:NUM_OUTPUTS_END])));
 
@@ -351,8 +380,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
                     chainId: uint32(bytes4(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END])),
                     remoteCall: encodedPayload[pointer + REMOTE_CALL_START:pointer + REMOTE_CALL_START + remoteCallLength]
                 });
-                fillDeadlines[outputIndex] =
-                    uint32(bytes4(encodedPayload[pointer + OUTPUT_FILL_DEADLINE_START:pointer + OUTPUT_FILL_DEADLINE_END]));
+                fillDeadlines[outputIndex] = uint32(
+                    bytes4(encodedPayload[pointer + OUTPUT_FILL_DEADLINE_START:pointer + OUTPUT_FILL_DEADLINE_END])
+                );
 
                 pointer += OUTPUT_LENGTH + remoteCallLength;
             }

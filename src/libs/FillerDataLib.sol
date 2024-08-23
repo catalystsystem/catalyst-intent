@@ -92,7 +92,9 @@ library FillerDataLib {
         uint32 orderPurchaseDeadline,
         uint16 orderPurchaseDiscount
     ) internal pure returns (bytes memory fillerData) {
-        return bytes.concat(VERSION_1, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderPurchaseDiscount));
+        return bytes.concat(
+            VERSION_1, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderPurchaseDiscount)
+        );
     }
 
     //--- Version 2 ---/

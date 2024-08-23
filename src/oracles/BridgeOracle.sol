@@ -5,8 +5,8 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 
-import { OutputFilled } from "../interfaces/Events.sol";
 import { WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
+import { OutputFilled } from "../interfaces/Events.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -84,7 +84,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         _validateChain(output.chainId);
         // Check if this is the correct remoteOracle
         _validateRemoteOracleAddress(output.remoteOracle);
-        
+
         // Get hash of output.
         bytes32 outputHash = _outputHash(output);
 

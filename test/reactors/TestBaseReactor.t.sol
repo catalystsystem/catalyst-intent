@@ -440,9 +440,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.warp(warp);
         if (warp <= challengeDeadline) {
-            vm.expectRevert(
-                abi.encodeWithSignature("OrderNotReadyForOptimisticPayout(uint32)", challengeDeadline)
-            );
+            vm.expectRevert(abi.encodeWithSignature("OrderNotReadyForOptimisticPayout(uint32)", challengeDeadline));
         }
         reactor.optimisticPayout(orderKey, hex"");
     }
@@ -841,10 +839,13 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
+        bytes memory newFillerData =
+            FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         vm.expectEmit();
-        emit OrderPurchaseDetailsModified(orderHash, fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount, bytes32(0));
+        emit OrderPurchaseDetailsModified(
+            orderHash, fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount, bytes32(0)
+        );
         vm.prank(fillerAddress);
 
         reactor.modifyOrderFillerdata(orderKey, newFillerData);
@@ -874,7 +875,8 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_PROOF_DEADLINE
         );
 
-        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
+        bytes memory newFillerData =
+            FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
         vm.prank(malleciousModifier);
@@ -1184,7 +1186,10 @@ abstract contract TestBaseReactor is Test {
         oracleContract.setRemoteImplementation(bytes32(block.chainid), uint32(block.chainid), abi.encode(escrow));
     }
 
-    function _getFillDeadlines(uint256 length, uint32 fillDeadline) internal pure returns (uint32[] memory fillDeadlines) {
+    function _getFillDeadlines(
+        uint256 length,
+        uint32 fillDeadline
+    ) internal pure returns (uint32[] memory fillDeadlines) {
         fillDeadlines = new uint32[](length);
         for (uint256 i; i < length; ++i) {
             fillDeadlines[i] = fillDeadline;

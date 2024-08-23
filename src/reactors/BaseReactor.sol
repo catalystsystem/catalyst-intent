@@ -288,7 +288,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         emit OptimisticPayout(orderHash);
     }
 
-
     //--- Disputes ---//
 
     /**
@@ -432,7 +431,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         uint16 oldOrderPurchaseDiscount = orderContext.orderPurchaseDiscount;
         bytes32 oldIdentifier = orderContext.identifier;
         // Check if the discount is good. Remember that a larger number is a better discount.
-        if (minDiscount > oldOrderPurchaseDiscount) revert MinOrderPurchaseDiscountTooLow(minDiscount, oldOrderPurchaseDiscount);
+        if (minDiscount > oldOrderPurchaseDiscount) {
+            revert MinOrderPurchaseDiscountTooLow(minDiscount, oldOrderPurchaseDiscount);
+        }
 
         // We can now update the storage with the new filler data.
         // This allows us to avoid reentry protecting this function.
@@ -454,7 +455,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderPurchaseDiscount);
 
         // Check if there is an identifier, if there is execute data.
-        if (oldIdentifier != bytes32(0)) FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
+        if (oldIdentifier != bytes32(0)) {
+            FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
+        }
 
         emit OrderPurchased(orderKeyHash, msg.sender);
     }
@@ -473,8 +476,12 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         if (currentFiller == address(0) || currentFiller != msg.sender) revert OnlyFiller();
 
         // Decode filler data.
-        (address newFillerAddress, uint32 newOrderPurchaseDeadline, uint16 newOrderPurchaseDiscount, bytes32 newIdentifier,) =
-            FillerDataLib.decode(fillerData);
+        (
+            address newFillerAddress,
+            uint32 newOrderPurchaseDeadline,
+            uint16 newOrderPurchaseDiscount,
+            bytes32 newIdentifier,
+        ) = FillerDataLib.decode(fillerData);
 
         // Set new storage.
         if (newFillerAddress != currentFiller) orderContext.fillerAddress = newFillerAddress;
@@ -482,6 +489,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.orderPurchaseDiscount = newOrderPurchaseDiscount;
         orderContext.identifier = newIdentifier;
 
-        emit OrderPurchaseDetailsModified(orderKeyHash, newFillerAddress, newOrderPurchaseDeadline, newOrderPurchaseDiscount, newIdentifier);
+        emit OrderPurchaseDetailsModified(
+            orderKeyHash, newFillerAddress, newOrderPurchaseDeadline, newOrderPurchaseDiscount, newIdentifier
+        );
     }
 }

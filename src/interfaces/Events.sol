@@ -57,4 +57,4 @@ event OrderPurchaseDetailsModified(
 
 event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
 
-event OutputFilled(address token, address recipient,  uint256 amount, bytes32 calldataHash);
+event OutputFilled(address token, address recipient, uint256 amount, bytes32 calldataHash);

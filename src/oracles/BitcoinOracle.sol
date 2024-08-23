@@ -284,7 +284,6 @@ contract BitcoinOracle is BaseOracle {
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
     ) external {
-
         _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx);
     }
 
@@ -303,7 +302,6 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx,
         bytes calldata previousBlockHeader
     ) external {
-
         _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx, previousBlockHeader);
     }
 }

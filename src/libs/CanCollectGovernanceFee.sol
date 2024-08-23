@@ -12,9 +12,9 @@ import { IsContractLib } from "./IsContractLib.sol";
  * @dev Required for inheritance linearization
  */
 abstract contract ICanCollectGovernanceFee {
-    function _amountLessfee(uint256 amount, uint256 fee) internal pure virtual returns (uint256 amountLessFee);
+    function _calcFee(uint256 amount, uint256 fee) internal pure virtual returns (uint256 amountLessFee);
 
-    function _amountLessfee(uint256 amount) internal view virtual returns (uint256 amountLessFee);
+    function _calcFee(uint256 amount) internal view virtual returns (uint256 amountLessFee);
 }
 
 /**
@@ -25,7 +25,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     error CannotCollect0Fees(address token);
 
     uint256 public governanceFee = 0;
-    uint256 constant GOVERNANCE_FEE_DENUM = 10 ** 18;
+    uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25; // 25%
 
     constructor(address owner) {
@@ -49,7 +49,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     /**
      * @notice Subtract the governance fee from an amount AND store the fee as the difference.
      * @dev This function sets the subtracted governance fee as collected. If you just want to
-     * get the amount less fee, use `_amountLessfee`.
+     * get the amount less fee, use `_calcFee`.
      * Ideally this function wouldn't be called if the fee is 0. Regardless, this function
      * won't modify storage if the collected fee becomes 0.
      * @param token for fee to be set for. Only impacts storage not computation.
@@ -63,15 +63,14 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
         uint256 amount,
         uint256 fee
     ) internal returns (uint256 amountLessFee) {
+        uint256 governanceShare = _calcFee(amount, fee);
         unchecked {
-            // Compute the amount after fees has been subtracted.
-            amountLessFee = _amountLessfee(amount, fee);
-            // Compute the governance fee.
-            uint256 governanceShare = amount - amountLessFee; // amount >= amountLessFee
-
-            // Only set storage if the fee is not 0.
-            if (governanceShare != 0) _governanceTokens[token] = governanceShare;
+            // Get the governance fee.
+            // Compute the amount less fee.
+            amountLessFee = amount - governanceShare; // amount >= governanceShare
         }
+        // Only set storage if the fee is not 0.
+        if (governanceShare != 0) _governanceTokens[token] = _governanceTokens[token] + governanceShare;
     }
 
     /**
@@ -82,29 +81,29 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     }
 
     /**
-     * @notice Helper function to compute an amount where the fee is subtracted.
-     * @param amount To subtract fee from
-     * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENUM based.
-     * @return amountLessFee Amount with fee subtracted from it.
+     * @notice Helper function to compute the fee.
+     * @param amount To compute fee of.
+     * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENOM based.
+     * @return amountFee Fee
      */
-    function _amountLessfee(uint256 amount, uint256 fee) internal pure override returns (uint256 amountLessFee) {
+    function _calcFee(uint256 amount, uint256 fee) internal pure override returns (uint256 amountFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
-            if (amount >= type(uint256).max / fee) return amountLessFee = amount;
+            if (amount >= type(uint256).max / fee) return amountFee = 0;
             // The above check ensures that amount * fee < type(uint256).max.
-            // amount >= amount * fee / GOVERNANCE_FEE_DENUM since fee < GOVERNANCE_FEE_DENUM
-            amountLessFee = amount - amount * fee / GOVERNANCE_FEE_DENUM;
+            // amount >= amount * fee / GOVERNANCE_FEE_DENOM since fee < GOVERNANCE_FEE_DENOM
+            amountFee = amount * fee / GOVERNANCE_FEE_DENOM;
         }
     }
 
     /**
-     * @notice Helper function to compute an amount where the fee is subtracted.
-     * The governanceFee is read from storage and passed to _amountLessfee(uint256,uint256)
-     * @param amount To subtract fee from.
-     * @return amountLessFee Amount with fee subtracted from it.
+     * @notice Helper function to compute the fee.
+     * The governanceFee is read from storage and passed to _calcFee(uint256,uint256)
+     * @param amount To compute fee of.
+     * @return amountFee Fee
      */
-    function _amountLessfee(uint256 amount) internal view override returns (uint256 amountLessFee) {
-        return _amountLessfee(amount, governanceFee);
+    function _calcFee(uint256 amount) internal view override returns (uint256 amountFee) {
+        return _calcFee(amount, governanceFee);
     }
 
     /**

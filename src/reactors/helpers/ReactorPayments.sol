@@ -48,6 +48,7 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
      * @notice Collects tokens without permit2.
      * @dev Can only be used to collect tokens from msg.sender.
      * If inputs[i].amount * discount overflows the amount is set to inputs[i].amount.
+     * This function does not verify whether the provided token addresses are actual token contracts
      * @param inputs Tokens to collect from msg.sender.
      * @param to Destination address for the collected tokens. To collect to this contract, set address(this).
      */
@@ -65,7 +66,6 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
                 amount = (discount != 0 && amount < type(uint256).max / uint256(discount))
                     ? amount - (amount * uint256(discount)) / uint256(type(uint16).max)
                     : amount;
-                // Inputs have already been collected before. No need to verify if these are actual tokens.
                 SafeTransferLib.safeTransferFrom(token, from, to, amount);
             }
         }
@@ -77,7 +77,7 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
      * @param inputs List of inputs that are to be paid.
      * @param to Destination address.
      */
-    function _deliverInputs(Input[] calldata inputs, address to, uint256 fee) internal virtual {
+    function _deliverTokens(Input[] calldata inputs, address to, uint256 fee) internal virtual {
         // Read governance fee.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {

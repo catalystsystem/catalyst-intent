@@ -65,15 +65,17 @@ abstract contract ResolverERC7683 is ICanCollectGovernanceFee, ReactorAbstractio
         uint256 numInputs = swapperInputs.length;
         Output[] memory fillerOutputs = new Output[](numInputs);
         Output memory fillerOutput;
-        for (uint256 i; i < numInputs; ++i) {
-            Input memory input = swapperInputs[i];
-            fillerOutput = Output({
-                token: bytes32(uint256(uint160(input.token))),
-                amount: _amountLessfee(input.amount),
-                recipient: bytes32(uint256(uint160(fillerAddress))),
-                chainId: uint32(block.chainid)
-            });
-            fillerOutputs[i] = fillerOutput;
+        unchecked {
+            for (uint256 i; i < numInputs; ++i) {
+                Input memory input = swapperInputs[i];
+                fillerOutput = Output({
+                    token: bytes32(uint256(uint160(input.token))),
+                    amount: input.amount - _calcFee(input.amount),
+                    recipient: bytes32(uint256(uint160(fillerAddress))),
+                    chainId: uint32(block.chainid)
+                });
+                fillerOutputs[i] = fillerOutput;
+            }
         }
 
         // Lastly, complete the ResolvedCrossChainOrder struct.

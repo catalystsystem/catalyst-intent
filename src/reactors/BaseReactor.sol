@@ -217,7 +217,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         }
 
         // Payout input.
-        _deliverInputs(orderKey.inputs, fillerAddress, governanceFee);
+        _deliverTokens(orderKey.inputs, fillerAddress, governanceFee);
 
         // Return collateral to the filler. Load the collateral details from the order.
         // (Filler provided collateral).
@@ -274,7 +274,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         address fillerAddress = orderContext.fillerAddress;
 
         // Pay input tokens to filler.
-        _deliverInputs(orderKey.inputs, fillerAddress, governanceFee);
+        _deliverTokens(orderKey.inputs, fillerAddress, governanceFee);
 
         // Get order collateral.
         address collateralToken = orderKey.collateral.collateralToken;
@@ -366,7 +366,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.status = OrderStatus.Fraud;
 
         // Send the input tokens back to the user.
-        _deliverInputs(orderKey.inputs, orderKey.swapper, 0);
+        _deliverTokens(orderKey.inputs, orderKey.swapper, 0);
         // Divide the collateral between challenger and user.
         // Get order collateral.
         address collateralToken = orderKey.collateral.collateralToken;

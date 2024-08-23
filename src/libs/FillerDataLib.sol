@@ -24,7 +24,7 @@ library FillerDataLib {
         returns (
             address fillerAddress,
             uint32 orderPurchaseDeadline,
-            uint16 orderDiscount,
+            uint16 orderPurchaseDiscount,
             bytes32 identifier,
             uint256 pointer
         )
@@ -36,13 +36,13 @@ library FillerDataLib {
             return (msg.sender, 0, 0, bytes32(0), 1);
         }
         if (version == VERSION_1) {
-            (fillerAddress, orderPurchaseDeadline, orderDiscount) = _decode1(fillerData);
+            (fillerAddress, orderPurchaseDeadline, orderPurchaseDiscount) = _decode1(fillerData);
             // V1_ORDER_DISCOUNT_END is the length of the data.
-            return (fillerAddress, orderPurchaseDeadline, orderDiscount, bytes32(0), V1_ORDER_DISCOUNT_END);
+            return (fillerAddress, orderPurchaseDeadline, orderPurchaseDiscount, bytes32(0), V1_ORDER_DISCOUNT_END);
         }
         if (version == VERSION_2) {
-            (fillerAddress, orderPurchaseDeadline, orderDiscount, identifier) = _decode2(fillerData);
-            return (fillerAddress, orderPurchaseDeadline, orderDiscount, identifier, V2_CALLDATA_HASH_END);
+            (fillerAddress, orderPurchaseDeadline, orderPurchaseDiscount, identifier) = _decode2(fillerData);
+            return (fillerAddress, orderPurchaseDeadline, orderPurchaseDiscount, identifier, V2_CALLDATA_HASH_END);
         }
         revert NotImplemented(version);
     }
@@ -79,20 +79,20 @@ library FillerDataLib {
     function _decode1(bytes calldata fillerData)
         private
         pure
-        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount)
+        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderPurchaseDiscount)
     {
         fillerAddress = address(uint160(bytes20(fillerData[V1_ADDRESS_START:V1_ADDRESS_END])));
         orderPurchaseDeadline =
             uint32(bytes4(fillerData[V1_ORDER_PURCHASE_DEADLINE_START:V1_ORDER_PURCHASE_DEADLINE_END]));
-        orderDiscount = uint16(bytes2(fillerData[V1_ORDER_DISCOUNT_START:V1_ORDER_DISCOUNT_END]));
+        orderPurchaseDiscount = uint16(bytes2(fillerData[V1_ORDER_DISCOUNT_START:V1_ORDER_DISCOUNT_END]));
     }
 
     function _encode1(
         address fillerAddress,
         uint32 orderPurchaseDeadline,
-        uint16 orderDiscount
+        uint16 orderPurchaseDiscount
     ) internal pure returns (bytes memory fillerData) {
-        return bytes.concat(VERSION_1, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderDiscount));
+        return bytes.concat(VERSION_1, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderPurchaseDiscount));
     }
 
     //--- Version 2 ---/
@@ -113,23 +113,23 @@ library FillerDataLib {
     function _decode2(bytes calldata fillerData)
         private
         pure
-        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier)
+        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderPurchaseDiscount, bytes32 identifier)
     {
         fillerAddress = address(uint160(bytes20(fillerData[V2_ADDRESS_START:V2_ADDRESS_END])));
         orderPurchaseDeadline =
             uint32(bytes4(fillerData[V2_ORDER_PURCHASE_DEADLINE_START:V2_ORDER_PURCHASE_DEADLINE_END]));
-        orderDiscount = uint16(bytes2(fillerData[V2_ORDER_DISCOUNT_START:V2_ORDER_DISCOUNT_END]));
+        orderPurchaseDiscount = uint16(bytes2(fillerData[V2_ORDER_DISCOUNT_START:V2_ORDER_DISCOUNT_END]));
         identifier = bytes32(fillerData[V2_CALLDATA_HASH_START:V2_CALLDATA_HASH_END]);
     }
 
     function _encode2(
         address fillerAddress,
         uint32 orderPurchaseDeadline,
-        uint16 orderDiscount,
+        uint16 orderPurchaseDiscount,
         bytes32 identifier
     ) internal pure returns (bytes memory fillerData) {
         return bytes.concat(
-            VERSION_2, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderDiscount), identifier
+            VERSION_2, bytes20(fillerAddress), bytes4(orderPurchaseDeadline), bytes2(orderPurchaseDiscount), identifier
         );
     }
 }

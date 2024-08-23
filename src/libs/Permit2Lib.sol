@@ -46,7 +46,7 @@ library Permit2Lib {
         permitBatch = ISignatureTransfer.PermitBatchTransferFrom({
             permitted: permitted,
             nonce: order.nonce,
-            deadline: order.reactorContext.fillByDeadline
+            deadline: order.reactorContext.fillDeadline
         });
     }
 }

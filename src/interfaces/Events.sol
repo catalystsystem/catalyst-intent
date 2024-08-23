@@ -51,6 +51,6 @@ event OrderPurchaseDetailsModified(
     bytes32 indexed orderHash,
     address newFillerAddress,
     uint32 newPurchaseDeadline,
-    uint16 newOrderDiscount,
+    uint16 newOrderPurchaseDiscount,
     bytes32 newIdentifier
 );

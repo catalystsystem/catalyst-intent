@@ -23,7 +23,7 @@ import {
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
-    MinOrderDiscountTooLow,
+    MinOrderPurchaseDiscountTooLow,
     OnlyFiller,
     OrderAlreadyClaimed,
     OrderNotReadyForOptimisticPayout,
@@ -139,7 +139,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         (
             address fillerAddress,
             uint32 orderPurchaseDeadline,
-            uint16 orderDiscount,
+            uint16 orderPurchaseDiscount,
             bytes32 identifier,
             uint256 fillerDataPointer
         ) = FillerDataLib.decode(fillerData);
@@ -170,7 +170,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.status = OrderStatus.Claimed; // Now this order cannot be claimed again.
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
-        orderContext.orderDiscount = orderDiscount;
+        orderContext.orderPurchaseDiscount = orderPurchaseDiscount;
         if (identifier != bytes32(0)) orderContext.identifier = identifier;
 
         // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
@@ -194,7 +194,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * a function, isProven(...), that returns true when called with the order details.
      * @dev
      */
-    function proveOrderFulfillment(OrderKey calldata orderKey, bytes calldata executionData) external {
+    function proveOrderFulfilment(OrderKey calldata orderKey, bytes calldata executionData) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
 
@@ -208,11 +208,11 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Immediately set order status to filled. If the order hasn't been filled
         // then the next line will fail. This acts as a LOCAL reentry check.
-        orderContext.status = OrderStatus.Filled;
+        orderContext.status = OrderStatus.Proven;
 
         // The following call is a external call to an untrusted contract. As a result,
         // it is important that we protect this contract against reentry calls, even if read-only.
-        if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs, orderKey.reactorContext.fillByDeadline)) {
+        if (!IOracle(orderKey.localOracle).isProven(orderKey.outputs, orderKey.reactorContext.fillDeadline)) {
             revert CannotProveOrder();
         }
 
@@ -259,16 +259,14 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
         // If OrderStatus != Claimed then it must either be:
         // 1. One of the proved states => we already paid the inputs.
-        // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `proveOrderFulfillment(...)`
+        // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `proveOrderFulfilment(...)`
         // as a result, checking only we shall only continue if orderContext.status == OrderStatus.Claimed.
-        orderContext.status = OrderStatus.OPFilled;
+        orderContext.status = OrderStatus.OptimiscallyFilled;
 
         // If time is post challenge deadline, then the order can only progress to optimistic payout.
         uint256 challengeDeadline = orderKey.reactorContext.challengeDeadline;
         if (block.timestamp <= challengeDeadline) {
-            unchecked {
-                revert OrderNotReadyForOptimisticPayout(uint32(challengeDeadline - block.timestamp + 1));
-            }
+            revert OrderNotReadyForOptimisticPayout(uint32(challengeDeadline));
         }
 
         address fillerAddress = orderContext.fillerAddress;
@@ -350,9 +348,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // it has to be assumed that the order was not filled.
         uint256 proofDeadline = orderKey.reactorContext.proofDeadline;
         if (block.timestamp <= proofDeadline) {
-            unchecked {
-                revert ProofPeriodHasNotPassed(uint32(proofDeadline - block.timestamp + 1));
-            }
+            revert ProofPeriodHasNotPassed(uint32(proofDeadline));
         }
 
         // Check that the order is currently challenged. If is it currently challenged,
@@ -427,23 +423,23 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         (
             address fillerAddress,
             uint32 orderPurchaseDeadline,
-            uint16 orderDiscount,
+            uint16 orderPurchaseDiscount,
             bytes32 identifier,
             uint256 fillerDataPointer
         ) = FillerDataLib.decode(fillerData);
 
         // Load old storage variables.
         address oldFillerAddress = orderContext.fillerAddress;
-        uint16 oldOrderDiscount = orderContext.orderDiscount;
+        uint16 oldOrderPurchaseDiscount = orderContext.orderPurchaseDiscount;
         bytes32 oldIdentifier = orderContext.identifier;
         // Check if the discount is good. Remember that a larger number is a better discount.
-        if (minDiscount > oldOrderDiscount) revert MinOrderDiscountTooLow(minDiscount, oldOrderDiscount);
+        if (minDiscount > oldOrderPurchaseDiscount) revert MinOrderPurchaseDiscountTooLow(minDiscount, oldOrderPurchaseDiscount);
 
         // We can now update the storage with the new filler data.
         // This allows us to avoid reentry protecting this function.
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
-        orderContext.orderDiscount = orderDiscount;
+        orderContext.orderPurchaseDiscount = orderPurchaseDiscount;
         orderContext.identifier = identifier;
 
         // We can now make external calls without it impacting reentring into this call.
@@ -456,7 +452,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done through permit.
         // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
-        _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderDiscount);
+        _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderPurchaseDiscount);
 
         // Check if there is an identifier, if there is execute data.
         if (oldIdentifier != bytes32(0)) FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
@@ -472,21 +468,21 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
-        address filler = orderContext.fillerAddress;
+        address currentFiller = orderContext.fillerAddress;
 
         // This line also disallows modifying non-claimed orders.
-        if (filler == address(0) || filler != msg.sender) revert OnlyFiller();
+        if (currentFiller == address(0) || currentFiller != msg.sender) revert OnlyFiller();
 
         // Decode filler data.
-        (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier,) =
+        (address newFillerAddress, uint32 newOrderPurchaseDeadline, uint16 newOrderPurchaseDiscount, bytes32 newIdentifier,) =
             FillerDataLib.decode(fillerData);
 
         // Set new storage.
-        if (fillerAddress != filler) orderContext.fillerAddress = fillerAddress;
-        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
-        orderContext.orderDiscount = orderDiscount;
-        orderContext.identifier = identifier;
+        if (newFillerAddress != currentFiller) orderContext.fillerAddress = newFillerAddress;
+        orderContext.orderPurchaseDeadline = newOrderPurchaseDeadline;
+        orderContext.orderPurchaseDiscount = newOrderPurchaseDiscount;
+        orderContext.identifier = newIdentifier;
 
-        emit OrderPurchaseDetailsModified(orderKeyHash, fillerAddress, orderPurchaseDeadline, orderDiscount, identifier);
+        emit OrderPurchaseDetailsModified(orderKeyHash, newFillerAddress, newOrderPurchaseDeadline, newOrderPurchaseDiscount, newIdentifier);
     }
 }

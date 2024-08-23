@@ -441,7 +441,7 @@ abstract contract TestBaseReactor is Test {
         vm.warp(warp);
         if (warp <= challengeDeadline) {
             vm.expectRevert(
-                abi.encodeWithSignature("OrderNotReadyForOptimisticPayout(uint32)", challengeDeadline - warp + 1)
+                abi.encodeWithSignature("OrderNotReadyForOptimisticPayout(uint32)", challengeDeadline)
             );
         }
         reactor.optimisticPayout(orderKey, hex"");
@@ -627,7 +627,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.warp(warp);
         if (warp <= proofDeadline) {
-            vm.expectRevert(abi.encodeWithSignature("ProofPeriodHasNotPassed(uint32)", proofDeadline - warp + 1));
+            vm.expectRevert(abi.encodeWithSignature("ProofPeriodHasNotPassed(uint32)", proofDeadline));
         }
 
         reactor.completeDispute(orderKey);
@@ -672,7 +672,7 @@ abstract contract TestBaseReactor is Test {
         uint16 discount,
         address buyer,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
         CrossChainOrder memory order =
@@ -700,7 +700,7 @@ abstract contract TestBaseReactor is Test {
         MockERC20(inputToken).approve(address(reactor), type(uint256).max);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
-        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderDiscount);
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         uint256 amountAfterDiscount = inputAmount - uint256(inputAmount) * discount / uint256(type(uint16).max);
         vm.expectCall(
@@ -727,7 +727,7 @@ abstract contract TestBaseReactor is Test {
         // Check that the fillerAddress was change
         assertEq(orderContext.fillerAddress, buyer);
         assertEq(orderContext.orderPurchaseDeadline, newPurchaseDeadline);
-        assertEq(orderContext.orderDiscount, newOrderDiscount);
+        assertEq(orderContext.orderPurchaseDiscount, newOrderPurchaseDiscount);
     }
 
     function test_revert_purchase_non_existing_order(
@@ -736,13 +736,13 @@ abstract contract TestBaseReactor is Test {
         uint128 fillerCollateralAmount,
         address buyer,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         CrossChainOrder memory order =
             _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderDiscount);
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 0));
         vm.prank(buyer);
@@ -757,7 +757,7 @@ abstract contract TestBaseReactor is Test {
         address buyer,
         uint32 originalPurchaseTime,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(originalPurchaseTime < type(uint32).max - 1);
         CrossChainOrder memory order =
@@ -777,7 +777,7 @@ abstract contract TestBaseReactor is Test {
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, customFillerData);
 
-        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderDiscount);
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         vm.startPrank(buyer);
         vm.warp(originalPurchaseTime + 1);
@@ -785,7 +785,7 @@ abstract contract TestBaseReactor is Test {
         reactor.purchaseOrder(orderKey, newFillerData, 0);
     }
 
-    function test_revert_opFilled_purchase_order(
+    function test_revert_optimiscallyFilled_purchase_order(
         uint256 inputAmount,
         uint256 outputAmount,
         uint256 fillerCollateralAmount,
@@ -810,7 +810,7 @@ abstract contract TestBaseReactor is Test {
         vm.warp(challengeDeadline + 1);
         reactor.optimisticPayout(orderKey, hex"");
 
-        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OptimiscallyFilled)));
         vm.prank(purchaser);
         reactor.purchaseOrder(orderKey, hex"", 0);
     }
@@ -823,7 +823,7 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
             0,
@@ -841,10 +841,10 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderDiscount);
+        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         vm.expectEmit();
-        emit OrderPurchaseDetailsModified(orderHash, fillerAddress, newPurchaseDeadline, newOrderDiscount, bytes32(0));
+        emit OrderPurchaseDetailsModified(orderHash, fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount, bytes32(0));
         vm.prank(fillerAddress);
 
         reactor.modifyOrderFillerdata(orderKey, newFillerData);
@@ -857,7 +857,7 @@ abstract contract TestBaseReactor is Test {
         uint256 challengerCollateralAmount,
         address malleciousModifier,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(malleciousModifier != fillerAddress);
         OrderKey memory orderKey = _initiateOrder(
@@ -874,7 +874,7 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_PROOF_DEADLINE
         );
 
-        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderDiscount);
+        bytes memory newFillerData = FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
         vm.prank(malleciousModifier);
@@ -1005,10 +1005,10 @@ abstract contract TestBaseReactor is Test {
         emit OrderProven(orderHash, fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.proveOrderFulfillment(orderKey, hex"");
+        reactor.proveOrderFulfilment(orderKey, hex"");
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
-        assert(orderContext.status == OrderStatus.Filled);
+        assert(orderContext.status == OrderStatus.Proven);
     }
 
     function test_revert_oracle_cannot_be_proven(
@@ -1021,7 +1021,7 @@ abstract contract TestBaseReactor is Test {
             0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
         );
         vm.expectRevert(CannotProveOrder.selector);
-        reactor.proveOrderFulfillment(orderKey, hex"");
+        reactor.proveOrderFulfilment(orderKey, hex"");
     }
 
     function test_revert_oracle_proven_order(
@@ -1070,8 +1070,8 @@ abstract contract TestBaseReactor is Test {
         emit OptimisticPayout(orderHash);
         reactor.optimisticPayout(orderKey, hex"");
 
-        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
-        reactor.proveOrderFulfillment(orderKey, hex"");
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OptimiscallyFilled)));
+        reactor.proveOrderFulfilment(orderKey, hex"");
     }
 
     function test_oracle_challenged_order(
@@ -1144,11 +1144,11 @@ abstract contract TestBaseReactor is Test {
         emit OrderProven(reactor.getOrderKeyHash(orderKey), fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.proveOrderFulfillment(orderKey, hex"");
+        reactor.proveOrderFulfilment(orderKey, hex"");
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
 
-        assert(orderContext.status == OrderStatus.Filled);
+        assert(orderContext.status == OrderStatus.Proven);
         assertEq(MockERC20(collateralToken).balanceOf(fillerAddress), fillerBalanceBefore + challengerCollateralAmount);
     }
 
@@ -1184,10 +1184,10 @@ abstract contract TestBaseReactor is Test {
         oracleContract.setRemoteImplementation(bytes32(block.chainid), abi.encode(escrow));
     }
 
-    function _getFillTimes(uint256 length, uint32 fillByDeadline) internal pure returns (uint32[] memory fillTimes) {
+    function _getFillTimes(uint256 length, uint32 fillDeadline) internal pure returns (uint32[] memory fillTimes) {
         fillTimes = new uint32[](length);
         for (uint256 i; i < length; ++i) {
-            fillTimes[i] = fillByDeadline;
+            fillTimes[i] = fillDeadline;
         }
     }
 

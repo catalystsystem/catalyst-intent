@@ -10,21 +10,19 @@ import { Input } from "./ISettlementContract.sol";
 /**
  * @notice The progressive order status of cross-chain orders:
  * - Unfilled: Default state. Progresses to Claimed.
- * - Claimed: A solver has claimed this order. Progresses to Challenged or OPFilled.
+ * - Claimed: A solver has claimed this order. Progresses to Challenged or OptimiscallyFilled.
  * - Challenged: A claimed order was challenged. Progresses to Fraud or Proven.
  * - Fraud: The solver did not prove delivery & Challenger claiemd the collateral. Final.
- * - OPFilled: A claimed order was not challenged. Paid inputs to solver. Final.
- * - Proven: A solver proved settlement. Progresses to Filled.
- * - Filled: A proven settlement was paid. Final.
+ * - OptimiscallyFilled: A claimed order was not challenged. Paid inputs to solver. Final.
+ * - Proven: A solver proved settlement. Paid inputs to solver. Final.
  */
 enum OrderStatus {
     Unfilled,
     Claimed,
     Challenged,
     Fraud,
-    OPFilled,
-    Proven,
-    Filled
+    OptimiscallyFilled,
+    Proven
 }
 
 /**
@@ -32,7 +30,7 @@ enum OrderStatus {
  * @param status Description of the status. Is OrderStatus Enum.
  * @param fillerAddress Address of the filler (Address that will get the inputs after successful order).
  * @param orderPurchaseDeadline If configured, an initiated order can be purchased until this deadline.
- * @param orderDiscount The discount that an order gets by being purchased. Is of type(uint16).max.
+ * @param orderPurchaseDiscount The discount that an order gets by being purchased. Is of type(uint16).max.
  * @param challenger If the order has been challenged, is the address of challenger otherwise address(0).
  * @param identifier A hash used to configure the input payment with extra logic.
  */
@@ -40,7 +38,7 @@ struct OrderContext {
     OrderStatus status;
     address fillerAddress;
     uint32 orderPurchaseDeadline;
-    uint16 orderDiscount;
+    uint16 orderPurchaseDiscount;
     address challenger;
     bytes32 identifier;
 }
@@ -89,7 +87,7 @@ struct ReactorInfo {
     // The contract that is managing this order.
     address reactor;
     // Order resolution times
-    uint32 fillByDeadline;
+    uint32 fillDeadline;
     uint32 challengeDeadline;
     uint32 proofDeadline;
 }

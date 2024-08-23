@@ -45,7 +45,7 @@ contract LimitOrderReactor is BaseReactor {
             reactorContext: ReactorInfo({
                 reactor: order.settlementContract,
                 // Order resolution times
-                fillByDeadline: order.fillDeadline,
+                fillDeadline: order.fillDeadline,
                 challengeDeadline: limitData.challengeDeadline,
                 proofDeadline: limitData.proofDeadline
             }),

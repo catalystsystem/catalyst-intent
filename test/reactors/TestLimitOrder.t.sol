@@ -166,7 +166,7 @@ contract TestLimitOrder is TestBaseReactor {
         uint32[] memory fillTimes = _getFillTimes(length, fillDeadline);
 
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
-        reactor.proveOrderFulfillment(orderKey, hex"");
+        reactor.proveOrderFulfilment(orderKey, hex"");
     }
 
     /////////////////

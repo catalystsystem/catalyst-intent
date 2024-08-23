@@ -45,5 +45,5 @@ interface ICrossCatsCallback {
      * @param orderKeyHash Hash of the order key. Can be used for identification.
      * @param executionData Custom data that the filler asked to be provided with the call.
      */
-    function orderPurchaseCallback(bytes32 orderKeyHash, bytes calldata executionData) external;
+    function inputsFilled(bytes32 orderKeyHash, bytes calldata executionData) external;
 }

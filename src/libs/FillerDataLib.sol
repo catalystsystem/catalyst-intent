@@ -64,7 +64,7 @@ library FillerDataLib {
 
         // Importantly, notice that an order cannot be purchased
         // if this call reverts.
-        ICrossCatsCallback(toCall).orderPurchaseCallback(orderKeyHash, dataToCall);
+        ICrossCatsCallback(toCall).inputsFilled(orderKeyHash, dataToCall);
     }
 
     //--- Version 1 ---/
@@ -76,16 +76,12 @@ library FillerDataLib {
     uint256 private constant V1_ORDER_DISCOUNT_START = V1_ORDER_PURCHASE_DEADLINE_END;
     uint256 private constant V1_ORDER_DISCOUNT_END = 27;
 
-    function _getFiller1(bytes calldata fillerData) private pure returns (address fillerAddress) {
-        return fillerAddress = address(uint160(bytes20(fillerData[V1_ADDRESS_START:V1_ADDRESS_END])));
-    }
-
     function _decode1(bytes calldata fillerData)
         private
         pure
         returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount)
     {
-        fillerAddress = _getFiller1(fillerData);
+        fillerAddress = address(uint160(bytes20(fillerData[V1_ADDRESS_START:V1_ADDRESS_END])));
         orderPurchaseDeadline =
             uint32(bytes4(fillerData[V1_ORDER_PURCHASE_DEADLINE_START:V1_ORDER_PURCHASE_DEADLINE_END]));
         orderDiscount = uint16(bytes2(fillerData[V1_ORDER_DISCOUNT_START:V1_ORDER_DISCOUNT_END]));
@@ -103,9 +99,9 @@ library FillerDataLib {
     bytes1 private constant VERSION_2 = 0x02;
     uint256 private constant V2_ADDRESS_START = 1;
     uint256 private constant V2_ADDRESS_END = 21;
-    uint256 private constant V2_ORDER_PURCHASE_DEADLINE_START = V1_ADDRESS_END;
+    uint256 private constant V2_ORDER_PURCHASE_DEADLINE_START = V2_ADDRESS_END;
     uint256 private constant V2_ORDER_PURCHASE_DEADLINE_END = 25;
-    uint256 private constant V2_ORDER_DISCOUNT_START = V1_ORDER_PURCHASE_DEADLINE_END;
+    uint256 private constant V2_ORDER_DISCOUNT_START = V2_ORDER_PURCHASE_DEADLINE_END;
     uint256 private constant V2_ORDER_DISCOUNT_END = 27;
     uint256 private constant V2_CALLDATA_HASH_START = V2_ORDER_DISCOUNT_END + 1;
     uint256 private constant V2_CALLDATA_HASH_END = 59;
@@ -119,7 +115,7 @@ library FillerDataLib {
         pure
         returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderDiscount, bytes32 identifier)
     {
-        fillerAddress = _getFiller1(fillerData);
+        fillerAddress = address(uint160(bytes20(fillerData[V2_ADDRESS_START:V2_ADDRESS_END])));
         orderPurchaseDeadline =
             uint32(bytes4(fillerData[V2_ORDER_PURCHASE_DEADLINE_START:V2_ORDER_PURCHASE_DEADLINE_END]));
         orderDiscount = uint16(bytes2(fillerData[V2_ORDER_DISCOUNT_START:V2_ORDER_DISCOUNT_END]));

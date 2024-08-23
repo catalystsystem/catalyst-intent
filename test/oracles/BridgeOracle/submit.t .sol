@@ -26,8 +26,8 @@ contract TestBridgeOracle is TestCommonGARP {
         _;
     }
 
-    function _fillOutput(OutputDescription[] memory output, uint32[] memory fillTime) internal {
-        oracle.fill(output, fillTime);
+    function _fillOutput(OutputDescription[] memory output, uint32[] memory fillDeadline) internal {
+        oracle.fill(output, fillDeadline);
     }
 
     struct AmountRecipient {
@@ -41,11 +41,11 @@ contract TestBridgeOracle is TestCommonGARP {
         address destinationAddress
     ) external setImplementationAddress(destinationIdentifier, abi.encode(address(escrow))) {
         address token;
-        uint32[] memory fillTimes = new uint32[](amountRecipient.length);
+        uint32[] memory fillDeadlines = new uint32[](amountRecipient.length);
         OutputDescription[] memory outputs = new OutputDescription[](amountRecipient.length);
-        uint32 fillTime = uint32(block.timestamp);
+        uint32 fillDeadline = uint32(block.timestamp);
         for (uint256 i; i < amountRecipient.length; ++i) {
-            fillTimes[i] = fillTime;
+            fillDeadlines[i] = fillDeadline;
             outputs[i] = OutputDescription({
                 token: bytes32(abi.encode(token)),
                 amount: amountRecipient[i].amount,
@@ -56,11 +56,11 @@ contract TestBridgeOracle is TestCommonGARP {
             });
         }
 
-        oracle.fill(outputs, fillTimes);
+        oracle.fill(outputs, fillDeadlines);
 
         bytes memory encodedDestinationAddress = bytes.concat(bytes1(0x14), bytes32(0), abi.encode(destinationAddress));
         oracle.submit{ value: _getTotalIncentive(DEFAULT_INCENTIVE) }(
-            outputs, fillTimes, destinationIdentifier, encodedDestinationAddress, DEFAULT_INCENTIVE
+            outputs, fillDeadlines, destinationIdentifier, encodedDestinationAddress, DEFAULT_INCENTIVE
         );
     }
 }

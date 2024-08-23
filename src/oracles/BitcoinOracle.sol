@@ -35,7 +35,7 @@ contract BitcoinOracle is BaseOracle {
     error BadTokenFormat();
     error BlockhashMismatch(bytes32 actual, bytes32 proposed);
 
-    mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
+    mapping(bytes32 orderKey => uint256 fillDeadline) public filledOrders;
 
     constructor(address _escrow, uint32 chainId, IBtcPrism _mirror) BaseOracle(_escrow, chainId) {
         mirror = _mirror;
@@ -196,14 +196,14 @@ contract BitcoinOracle is BaseOracle {
      * @dev Specifically, this function uses the other validation functions and adds some
      * Bitcoin context surrounding it.
      * @param output Output to prove.
-     * @param fillTime Proof Deadline of order
+     * @param fillDeadline Proof Deadline of order
      * @param blockNum Bitcoin block number of the transaction that the output is included in.
-     * @param inclusionProof Proof of inclusion. fillTime is validated against Bitcoin block timestamp.
+     * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
      * @param txOutIx Index of the output in the transaction being proved.
      */
     function _verify(
         OutputDescription calldata output,
-        uint32 fillTime,
+        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
@@ -219,14 +219,14 @@ contract BitcoinOracle is BaseOracle {
 
         // Validate that the timestamp gotten from the TX is within bounds.
         // This ensures a Bitcoin output cannot be "reused" forever.
-        _validateTimestamp(uint32(timestamp), fillTime);
+        _validateTimestamp(uint32(timestamp), fillDeadline);
 
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".
         if (sats != output.amount) revert BadAmount();
 
         bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline][bytes32(0)] = true;
     }
 
     /**
@@ -238,7 +238,7 @@ contract BitcoinOracle is BaseOracle {
      */
     function _verify(
         OutputDescription calldata output,
-        uint32 fillTime,
+        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
@@ -257,12 +257,12 @@ contract BitcoinOracle is BaseOracle {
 
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".
-        _validateTimestamp(uint32(timestamp), fillTime);
+        _validateTimestamp(uint32(timestamp), fillDeadline);
 
         if (sats != output.amount) revert BadAmount();
 
         bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline][bytes32(0)] = true;
     }
 
     /**
@@ -270,19 +270,19 @@ contract BitcoinOracle is BaseOracle {
      * @dev Specifically, this function uses the other validation functions and adds some
      * Bitcoin context surrounding it.
      * @param output Output to prove.
-     * @param fillTime Proof Deadline of order
+     * @param fillDeadline Proof Deadline of order
      * @param blockNum Bitcoin block number of the transaction that the output is included in.
-     * @param inclusionProof Proof of inclusion. fillTime is validated against Bitcoin block timestamp.
+     * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
      * @param txOutIx Index of the output in the transaction being proved.
      */
     function verify(
         OutputDescription calldata output,
-        uint32 fillTime,
+        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
     ) external {
-        _verify(output, fillTime, blockNum, inclusionProof, txOutIx);
+        _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx);
     }
 
     /**
@@ -294,12 +294,12 @@ contract BitcoinOracle is BaseOracle {
      */
     function verify(
         OutputDescription calldata output,
-        uint32 fillTime,
+        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
         bytes calldata previousBlockHeader
     ) external {
-        _verify(output, fillTime, blockNum, inclusionProof, txOutIx, previousBlockHeader);
+        _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx, previousBlockHeader);
     }
 }

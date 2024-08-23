@@ -11,7 +11,7 @@ pragma solidity ^0.8.26;
 //      + AMOUNT                M_i+35      (32 bytes)
 //      + RECIPIENT             M_i+67      (32 bytes)
 //      + CHAIN_ID              M_i+99      (4 bytes)
-//      + FILLTIME              M_i+103     (4 bytes)
+//      + FILL_DEADLINE              M_i+103     (4 bytes)
 //      + REMOTE_CALL_LENGTH    M_i+107     (2 bytes)
 //      + REMOTE_CALL           M_i+109     (REMOTE_CALL_LENGTH bytes)
 //
@@ -49,8 +49,8 @@ uint256 constant OUTPUT_RECIPIENT_END = 99;
 uint256 constant OUTPUT_CHAIN_ID_START = 99;
 uint256 constant OUTPUT_CHAIN_ID_END = 103;
 
-uint256 constant OUTPUT_FILLTIME_START = 103;
-uint256 constant OUTPUT_FILLTIME_END = 107;
+uint256 constant OUTPUT_FILL_DEADLINE_START = 103;
+uint256 constant OUTPUT_FILL_DEADLINE_END = 107;
 
 uint256 constant REMOTE_CALL_LENGTH_START = 107;
 uint256 constant REMOTE_CALL_LENGTH_END = 109;

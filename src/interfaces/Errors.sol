@@ -7,8 +7,8 @@ error CannotProveOrder(); // 0x5276f999
 error ChallengeDeadlinePassed(); // 0x9b741c77
 error CodeSize0(); // 0xfbc1d8e2
 error FailedValidation(); // 0xbba6fbc6
-error FillTimeFarInFuture(); // 0x9dcd54b9
-error FillTimeInPast(); // 0x8cddc02b
+error FillDeadlineFarInFuture(); // 0x9dcd54b9
+error FillDeadlineInPast(); // 0x8cddc02b
 error InitiateDeadlineAfterFill(); // 0xc0bf59b1
 error InitiateDeadlinePassed(); // 0x606ef7f5
 error InvalidDeadlineOrder(); // 0x2494cf80

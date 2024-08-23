@@ -39,7 +39,7 @@ library CrossChainLimitOrderType {
         ")"
     );
 
-    bytes constant CROSS_LIMIT_ORDER_TYPE_STUP = abi.encodePacked(
+    bytes constant CROSS_LIMIT_ORDER_TYPE_STUB = abi.encodePacked(
         CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystLimitOrderData orderData", ")"
     );
 
@@ -85,7 +85,7 @@ library CrossChainLimitOrderType {
         LimitOrderData memory limitOrderData = decodeOrderData(order.orderData);
         return keccak256(
             abi.encode(
-                keccak256(abi.encodePacked(CROSS_LIMIT_ORDER_TYPE_STUP, LIMIT_ORDER_DATA_TYPE)),
+                keccak256(abi.encodePacked(CROSS_LIMIT_ORDER_TYPE_STUB, LIMIT_ORDER_DATA_TYPE)),
                 order.settlementContract,
                 order.swapper,
                 order.nonce,
@@ -102,7 +102,7 @@ library CrossChainLimitOrderType {
             abi.encodePacked(
                 "CrossChainOrder witness)",
                 LIMIT_ORDER_DATA_TYPE_ONLY,
-                CROSS_LIMIT_ORDER_TYPE_STUP,
+                CROSS_LIMIT_ORDER_TYPE_STUB,
                 CrossChainOrderType.INPUT_TYPE_STUB,
                 CrossChainOrderType.OUTPUT_TYPE_STUB,
                 CrossChainOrderType.TOKEN_PERMISSIONS_TYPE

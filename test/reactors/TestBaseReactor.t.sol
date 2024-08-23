@@ -980,7 +980,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
 
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
@@ -989,7 +989,7 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapOutput,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
         vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
@@ -1053,7 +1053,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
 
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
@@ -1062,7 +1062,7 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapOutput,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
         vm.warp(challengeDeadline + 1);
@@ -1115,7 +1115,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(1, DEFAULT_FILL_DEADLINE);
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, DEFAULT_FILL_DEADLINE);
 
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
@@ -1125,7 +1125,7 @@ abstract contract TestBaseReactor is Test {
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
 
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
         vm.expectCall(
             collateralToken,
@@ -1184,10 +1184,10 @@ abstract contract TestBaseReactor is Test {
         oracleContract.setRemoteImplementation(bytes32(block.chainid), abi.encode(escrow));
     }
 
-    function _getFillTimes(uint256 length, uint32 fillDeadline) internal pure returns (uint32[] memory fillTimes) {
-        fillTimes = new uint32[](length);
+    function _getFillDeadlines(uint256 length, uint32 fillDeadline) internal pure returns (uint32[] memory fillDeadlines) {
+        fillDeadlines = new uint32[](length);
         for (uint256 i; i < length; ++i) {
-            fillTimes[i] = fillDeadline;
+            fillDeadlines[i] = fillDeadline;
         }
     }
 
@@ -1195,7 +1195,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle remoteVMOracleContract,
         MockOracle localVMOracleContract,
         OrderKey memory orderKey,
-        uint32[] memory fillTimes
+        uint32[] memory fillDeadlines
     ) internal {
         OutputDescription[] memory outputs = orderKey.outputs;
 
@@ -1207,11 +1207,11 @@ abstract contract TestBaseReactor is Test {
 
         vm.startPrank(fillerAddress);
         remoteVMOracleContract.fillAndSubmit{ value: remoteVMOracleContract.getTotalIncentive(incentiveDescription) }(
-            outputs, fillTimes, destinationIdentifier, encodedDestinationAddress, incentiveDescription
+            outputs, fillDeadlines, destinationIdentifier, encodedDestinationAddress, incentiveDescription
         );
         vm.stopPrank();
 
-        bytes memory encodedPayload = localVMOracleContract.encode(outputs, fillTimes);
+        bytes memory encodedPayload = localVMOracleContract.encode(outputs, fillDeadlines);
 
         vm.prank(escrow);
 

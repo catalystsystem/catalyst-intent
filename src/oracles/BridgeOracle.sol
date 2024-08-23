@@ -68,7 +68,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
 
     /**
      * @notice Verifies & Fills an order.
-     * If an order has already been filled given the output & fillTime, then this function
+     * If an order has already been filled given the output & fillDeadline, then this function
      * doesn't "re"fill the order but returns early. Thus this function can also be used to verify
      * that an order was filled.
      * @dev Does not automatically submit the order (send the proof).
@@ -76,9 +76,9 @@ contract GeneralisedIncentivesOracle is BaseOracle {
      * (say 1 Ether to A & 1 Ether to A) can be filled by sending 1 Ether to A ONCE.
      * !Don't make orders with repeat outputs. This is true for any oracles.
      * @param output Output to fill.
-     * @param fillTime Filltime to match, is proof deadline of order.
+     * @param fillDeadline FillDeadline to match, is proof deadline of order.
      */
-    function _fill(OutputDescription calldata output, uint32 fillTime) internal {
+    function _fill(OutputDescription calldata output, uint32 fillDeadline) internal {
         // Check if this is the correct chain.
         _validateChain(output.chainId);
 
@@ -86,14 +86,14 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         bytes32 outputHash = _outputHash(output);
 
         // Get the proof state of the fulfillment.
-        bool proofState = _provenOutput[outputHash][fillTime][bytes32(0)];
+        bool proofState = _provenOutput[outputHash][fillDeadline][bytes32(0)];
         // Early return if we have already seen proof.
         if (proofState) return;
 
         // Validate that the timestamp that is to be set, is within bounds.
         // This ensures that one cannot fill passed orders and that it is not
         // possible to lay traps (like always transferring through this contract).
-        _validateTimestamp(uint32(block.timestamp), fillTime);
+        _validateTimestamp(uint32(block.timestamp), fillDeadline);
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
@@ -102,7 +102,7 @@ contract GeneralisedIncentivesOracle is BaseOracle {
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline][bytes32(0)] = true;
 
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
@@ -115,29 +115,29 @@ contract GeneralisedIncentivesOracle is BaseOracle {
         if (output.remoteCall.length > 0) _call(output);
     }
 
-    function _fill(OutputDescription[] calldata outputs, uint32[] calldata fillTimes) internal {
+    function _fill(OutputDescription[] calldata outputs, uint32[] calldata fillDeadlines) internal {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription calldata output = outputs[i];
-            uint32 fillTime = fillTimes[i];
-            _fill(output, fillTime);
+            uint32 fillDeadline = fillDeadlines[i];
+            _fill(output, fillDeadline);
         }
     }
 
     //--- Solver Interface ---//
 
-    function fill(OutputDescription[] calldata outputs, uint32[] calldata fillTimes) external {
-        _fill(outputs, fillTimes);
+    function fill(OutputDescription[] calldata outputs, uint32[] calldata fillDeadlines) external {
+        _fill(outputs, fillDeadlines);
     }
 
     function fillAndSubmit(
         OutputDescription[] calldata outputs,
-        uint32[] calldata fillTimes,
+        uint32[] calldata fillDeadlines,
         bytes32 destinationIdentifier,
         bytes calldata destinationAddress,
         IncentiveDescription calldata incentive
     ) external payable {
-        _fill(outputs, fillTimes);
-        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive);
+        _fill(outputs, fillDeadlines);
+        _submit(outputs, fillDeadlines, destinationIdentifier, destinationAddress, incentive);
     }
 }

@@ -173,7 +173,7 @@ contract TestPermitLimitOrder is TestPermit {
             )
         );
 
-        bytes32 actualHashedCrossOrderType = this._getWitnessHash(order);
+        bytes32 actualHashedCrossOrderType = this._getWitnessHash(order, limitOrderData);
 
         ISignatureTransfer.TokenPermissions[] memory expectedPermitted = new ISignatureTransfer.TokenPermissions[](1);
         expectedPermitted[0] = ISignatureTransfer.TokenPermissions({ token: tokenToSwapInput, amount: inputAmount });
@@ -248,7 +248,7 @@ contract TestPermitLimitOrder is TestPermit {
             actualTransferDetails,
             SWAPPER,
             actualHashedCrossOrderType,
-            CrossChainLimitOrderType.permit2WitnessType(),
+            CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE,
             sig
         );
 
@@ -259,12 +259,16 @@ contract TestPermitLimitOrder is TestPermit {
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, CrossChainLimitOrderType.permit2WitnessType()
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
+                CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE
             )
         );
     }
 
-    function _getWitnessHash(CrossChainOrder calldata order) public pure override returns (bytes32) {
-        return CrossChainLimitOrderType.crossOrderHash(order);
+    function _getWitnessHash(
+        CrossChainOrder calldata order,
+        LimitOrderData memory limitOrderData
+    ) public pure returns (bytes32) {
+        return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
     }
 }

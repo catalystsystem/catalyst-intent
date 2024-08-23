@@ -280,12 +280,16 @@ contract TestPermitDutchOrder is TestPermit {
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, CrossChainDutchOrderType.permit2WitnessType()
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
+                CrossChainDutchOrderType.PERMIT2_DUTCH_ORDER_WITNESS_STRING_TYPE
             )
         );
     }
 
-    function _getWitnessHash(CrossChainOrder calldata order) public pure override returns (bytes32) {
-        return CrossChainDutchOrderType.crossOrderHash(order);
+    function _getWitnessHash(
+        CrossChainOrder calldata order,
+        DutchOrderData memory dutchOrderData
+    ) public pure returns (bytes32) {
+        return CrossChainDutchOrderType.crossOrderHash(order, dutchOrderData);
     }
 }

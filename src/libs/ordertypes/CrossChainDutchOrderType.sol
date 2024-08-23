@@ -65,6 +65,17 @@ library CrossChainDutchOrderType {
 
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
+    string constant PERMIT2_DUTCH_ORDER_WITNESS_STRING_TYPE = string(
+        abi.encodePacked(
+            "CrossChainOrder witness)",
+            DUTCH_ORDER_DATA_TYPE_ONLY,
+            CROSS_DUTCH_ORDER_TYPE_STUB,
+            CrossChainOrderType.INPUT_TYPE_STUB,
+            CrossChainOrderType.OUTPUT_TYPE_STUB,
+            CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
+        )
+    );
+
     function decodeOrderData(bytes calldata orderBytes) internal pure returns (DutchOrderData memory dutchData) {
         dutchData = abi.decode(orderBytes, (DutchOrderData));
     }
@@ -111,8 +122,10 @@ library CrossChainDutchOrderType {
         );
     }
 
-    function crossOrderHash(CrossChainOrder calldata order) internal pure returns (bytes32) {
-        DutchOrderData memory dutchOrderData = decodeOrderData(order.orderData);
+    function crossOrderHash(
+        CrossChainOrder calldata order,
+        DutchOrderData memory dutchOrderData
+    ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 keccak256(abi.encodePacked(CROSS_DUTCH_ORDER_TYPE_STUB, DUTCH_ORDER_DATA_TYPE)),
@@ -123,19 +136,6 @@ library CrossChainDutchOrderType {
                 order.initiateDeadline,
                 order.fillDeadline,
                 hashOrderDataM(dutchOrderData)
-            )
-        );
-    }
-
-    function permit2WitnessType() internal pure returns (string memory permit2WitnessTypeString) {
-        permit2WitnessTypeString = string(
-            abi.encodePacked(
-                "CrossChainOrder witness)",
-                DUTCH_ORDER_DATA_TYPE_ONLY,
-                CROSS_DUTCH_ORDER_TYPE_STUB,
-                CrossChainOrderType.INPUT_TYPE_STUB,
-                CrossChainOrderType.OUTPUT_TYPE_STUB,
-                CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
             )
         );
     }

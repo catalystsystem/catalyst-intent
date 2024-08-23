@@ -64,7 +64,7 @@ contract TestLimitOrder is TestBaseReactor {
         uint160 fillerCollateralAmount,
         uint160 challengerAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerAmount, 1, 5, 10, 11, 0
         );
 
@@ -149,7 +149,7 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order, limitOrderData);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -180,12 +180,11 @@ contract TestLimitOrder is TestBaseReactor {
         uint256 challengerCollateralAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         uint256 amountToTransfer = uint256(inputAmount) + DEFAULT_COLLATERAL_AMOUNT;
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             amountToTransfer, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 5, 6, 10, 11, 0
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -208,7 +207,7 @@ contract TestLimitOrder is TestBaseReactor {
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, inputAmount);
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             amountToTransfer,
             outputAmount,
             BOB,
@@ -222,7 +221,6 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -248,7 +246,7 @@ contract TestLimitOrder is TestBaseReactor {
         uint32 challengeDeadline,
         uint32 proofDeadline
     ) internal override returns (OrderKey memory) {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             _inputAmount,
             _outputAmount,
             _swapper,
@@ -262,7 +260,6 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -277,16 +274,20 @@ contract TestLimitOrder is TestBaseReactor {
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, CrossChainLimitOrderType.permit2WitnessType()
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
+                CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE
             )
         );
     }
 
-    function _getWitnessHash(CrossChainOrder calldata order) public pure override returns (bytes32) {
-        return CrossChainLimitOrderType.crossOrderHash(order);
+    function _getWitnessHash(
+        CrossChainOrder calldata order,
+        LimitOrderData memory limitOrderData
+    ) public pure returns (bytes32) {
+        return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
     }
 
-    function _getCrossOrder(
+    function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,
         uint256 outputAmount,
         address recipient,
@@ -297,7 +298,7 @@ contract TestLimitOrder is TestBaseReactor {
         uint32 challengeDeadline,
         uint32 proofDeadline,
         uint256 nonce
-    ) internal view override returns (CrossChainOrder memory order) {
+    ) internal view override returns (CrossChainOrder memory order, bytes32 witnessHash) {
         LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
@@ -321,5 +322,7 @@ contract TestLimitOrder is TestBaseReactor {
             uint32(initiateDeadline),
             uint32(fillDeadline)
         );
+
+        witnessHash = this._getWitnessHash(order, limitOrderData);
     }
 }

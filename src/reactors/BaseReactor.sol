@@ -206,7 +206,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
             revert WrongOrderStatus(orderContext.status);
         }
 
-        // Immediately set order status to filled. If the order hasn't been filled
+        // Immediately set order status to proven.
         // then the next line will fail. This acts as a LOCAL reentry check.
         orderContext.status = OrderStatus.Proven;
 

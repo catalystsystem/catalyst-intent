@@ -19,24 +19,24 @@ contract DutchOrderReactor is BaseReactor {
         bytes calldata /* fillerData */
     ) internal view override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
-        DutchOrderData memory dutchData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
+        DutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
         // If the dutch auction is initiated before the slope starts, the order may be exclusive.
-        uint256 lockTime = dutchData.slopeStartingTime;
+        uint256 lockTime = dutchOrderData.slopeStartingTime;
         if (lockTime > block.timestamp) {
-            address verificationContract = dutchData.verificationContract;
+            address verificationContract = dutchOrderData.verificationContract;
             if (verificationContract != address(0)) {
-                if (!IPreValidation(verificationContract).validate(dutchData.verificationContext, msg.sender)) {
+                if (!IPreValidation(verificationContract).validate(dutchOrderData.verificationContext, msg.sender)) {
                     revert FailedValidation();
                 }
             }
         }
 
-        witness = CrossChainDutchOrderType.crossOrderHash(order);
-        witnessTypeString = CrossChainDutchOrderType.permit2WitnessType();
+        witness = CrossChainDutchOrderType.crossOrderHash(order, dutchOrderData);
+        witnessTypeString = CrossChainDutchOrderType.PERMIT2_DUTCH_ORDER_WITNESS_STRING_TYPE;
 
         // Set orderKey:
-        orderKey = _resolveKey(order, dutchData);
+        orderKey = _resolveKey(order, dutchOrderData);
     }
 
     function _resolveKey(

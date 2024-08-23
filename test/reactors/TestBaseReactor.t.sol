@@ -177,11 +177,10 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 0, 1, 5, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -199,11 +198,10 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 2, 11, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -221,11 +219,10 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 3, 2, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -247,7 +244,7 @@ abstract contract TestBaseReactor is Test {
     ) public {
         vm.assume(fillDeadline < initiateDeadline);
 
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount,
             outputAmount,
             SWAPPER,
@@ -260,7 +257,6 @@ abstract contract TestBaseReactor is Test {
             0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -673,10 +669,9 @@ abstract contract TestBaseReactor is Test {
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -736,8 +731,8 @@ abstract contract TestBaseReactor is Test {
         uint32 newPurchaseDeadline,
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order,) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
@@ -758,10 +753,9 @@ abstract contract TestBaseReactor is Test {
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(originalPurchaseTime < type(uint32).max - 1);
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -898,7 +892,7 @@ abstract contract TestBaseReactor is Test {
         uint256 governanceFee
     ) public {
         vm.assume(governanceFee > 0 && governanceFee < MAX_GOVERNANCE_FEE);
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
             inputAmount,
             outputAmount,
             recipient,
@@ -1227,8 +1221,6 @@ abstract contract TestBaseReactor is Test {
 
     function _getFullPermitTypeHash() internal virtual returns (bytes32);
 
-    function _getWitnessHash(CrossChainOrder calldata order) public virtual returns (bytes32);
-
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
@@ -1267,7 +1259,7 @@ abstract contract TestBaseReactor is Test {
         uint32 proofDeadline
     ) internal virtual returns (OrderKey memory);
 
-    function _getCrossOrder(
+    function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,
         uint256 outputAmount,
         address recipient,
@@ -1278,5 +1270,5 @@ abstract contract TestBaseReactor is Test {
         uint32 challengeDeadline,
         uint32 proofDeadline,
         uint256 nonce
-    ) internal view virtual returns (CrossChainOrder memory order);
+    ) internal view virtual returns (CrossChainOrder memory order, bytes32 witnessHash);
 }

@@ -43,6 +43,17 @@ library CrossChainLimitOrderType {
         CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystLimitOrderData orderData", ")"
     );
 
+    string constant PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE = string(
+        abi.encodePacked(
+            "CrossChainOrder witness)",
+            LIMIT_ORDER_DATA_TYPE_ONLY,
+            CROSS_LIMIT_ORDER_TYPE_STUB,
+            CrossChainOrderType.INPUT_TYPE_STUB,
+            CrossChainOrderType.OUTPUT_TYPE_STUB,
+            CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
+        )
+    );
+
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
 
     function decodeOrderData(bytes calldata orderBytes) internal pure returns (LimitOrderData memory limitData) {
@@ -81,8 +92,10 @@ library CrossChainLimitOrderType {
         );
     }
 
-    function crossOrderHash(CrossChainOrder calldata order) internal pure returns (bytes32) {
-        LimitOrderData memory limitOrderData = decodeOrderData(order.orderData);
+    function crossOrderHash(
+        CrossChainOrder calldata order,
+        LimitOrderData memory limitOrderData
+    ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 keccak256(abi.encodePacked(CROSS_LIMIT_ORDER_TYPE_STUB, LIMIT_ORDER_DATA_TYPE)),
@@ -93,19 +106,6 @@ library CrossChainLimitOrderType {
                 order.initiateDeadline,
                 order.fillDeadline,
                 hashOrderDataM(limitOrderData)
-            )
-        );
-    }
-
-    function permit2WitnessType() internal pure returns (string memory permit2WitnessTypeString) {
-        permit2WitnessTypeString = string(
-            abi.encodePacked(
-                "CrossChainOrder witness)",
-                LIMIT_ORDER_DATA_TYPE_ONLY,
-                CROSS_LIMIT_ORDER_TYPE_STUB,
-                CrossChainOrderType.INPUT_TYPE_STUB,
-                CrossChainOrderType.OUTPUT_TYPE_STUB,
-                CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
             )
         );
     }

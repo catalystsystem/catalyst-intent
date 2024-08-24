@@ -44,7 +44,7 @@ library CrossChainOrderType {
                 output.amount,
                 output.recipient,
                 output.chainId,
-                output.remoteCall
+                keccak256(output.remoteCall)
             )
         );
     }

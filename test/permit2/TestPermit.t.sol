@@ -36,6 +36,4 @@ abstract contract TestPermit is Test {
     }
 
     function _getFullPermitTypeHash() internal virtual returns (bytes32);
-
-    function _getWitnessHash(CrossChainOrder calldata order) public virtual returns (bytes32);
 }

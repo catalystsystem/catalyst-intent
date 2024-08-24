@@ -16,13 +16,13 @@ contract LimitOrderReactor is BaseReactor {
         bytes calldata /* fillerData */
     ) internal pure override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
-        LimitOrderData memory limitData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
+        LimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
 
-        witness = CrossChainLimitOrderType.crossOrderHash(order);
-        witnessTypeString = CrossChainLimitOrderType.permit2WitnessType();
+        witness = CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
+        witnessTypeString = CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE;
 
         // Set orderKey:
-        orderKey = _resolveKey(order, limitData);
+        orderKey = _resolveKey(order, limitOrderData);
     }
 
     function _resolveKey(

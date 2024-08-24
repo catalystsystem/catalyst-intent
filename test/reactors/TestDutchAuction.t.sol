@@ -59,7 +59,7 @@ contract TestDutchAuction is TestBaseReactor {
         uint32 challengeDeadline,
         uint32 proofDeadline
     ) internal virtual override returns (OrderKey memory) {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             _inputAmount,
             _outputAmount,
             _swapper,
@@ -73,7 +73,6 @@ contract TestDutchAuction is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        bytes32 crossOrderHash = this._getWitnessHash(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
@@ -88,27 +87,31 @@ contract TestDutchAuction is TestBaseReactor {
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, CrossChainDutchOrderType.permit2WitnessType()
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
+                CrossChainDutchOrderType.PERMIT2_DUTCH_ORDER_WITNESS_STRING_TYPE
             )
         );
     }
 
-    function _getWitnessHash(CrossChainOrder calldata order) public pure override returns (bytes32) {
-        return CrossChainDutchOrderType.crossOrderHash(order);
+    function _getWitnessHash(
+        CrossChainOrder calldata order,
+        DutchOrderData memory dutchOrderData
+    ) public pure returns (bytes32) {
+        return CrossChainDutchOrderType.crossOrderHash(order, dutchOrderData);
     }
 
-    function _getCrossOrder(
+    function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,
         uint256 outputAmount,
         address recipient,
         uint256 fillerAmount,
-        uint256 challengerAmount,
+        uint256 challengerCollateralAmount,
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
         uint32 proofDeadline,
         uint256 nonce
-    ) internal view virtual override returns (CrossChainOrder memory order) {
+    ) internal view virtual override returns (CrossChainOrder memory order, bytes32 witnessHash) {
         DutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
@@ -117,7 +120,7 @@ contract TestDutchAuction is TestBaseReactor {
             recipient,
             collateralToken,
             fillerAmount,
-            challengerAmount, // TODO: Is this collateral amount?
+            challengerCollateralAmount,
             proofDeadline,
             challengeDeadline,
             localVMOracle,
@@ -135,6 +138,7 @@ contract TestDutchAuction is TestBaseReactor {
             uint32(initiateDeadline),
             uint32(fillDeadline)
         );
+        witnessHash = this._getWitnessHash(order, dutchOrderData);
     }
     //TODO: add private functions to set slopes for dutch order and test the dutch order when we fuzz the slopes
 

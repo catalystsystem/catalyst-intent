@@ -108,7 +108,7 @@ contract TestPermitDutchOrder is TestPermit {
     //             outputAmount,
     //             expectedRecipientBytes,
     //             uint32(block.chainid),
-    //             dutchOrderData.outputs[0].remoteCall
+    //             keccak256(dutchOrderData.outputs[0].remoteCall)
     //         )
     //     );
 

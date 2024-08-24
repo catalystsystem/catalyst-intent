@@ -105,7 +105,7 @@ contract TestPermitLimitOrder is TestPermit {
                 outputAmount,
                 expectedRecipientBytes,
                 uint32(block.chainid),
-                limitOrderData.outputs[0].remoteCall
+                keccak256(limitOrderData.outputs[0].remoteCall)
             )
         );
         bytes32 expectedHashedOutputArray = keccak256(abi.encode(expectedHashedOutput));

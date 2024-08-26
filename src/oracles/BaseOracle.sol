@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
@@ -7,13 +7,24 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { CannotProveOrder, FillTimeFarInFuture, FillTimeInPast, WrongChain } from "../interfaces/Errors.sol";
+import {
+    CannotProveOrder,
+    FillDeadlineFarInFuture,
+    FillDeadlineInPast,
+    WrongChain,
+    WrongRemoteOracle
+} from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
-import { Output } from "../interfaces/ISettlementContract.sol";
-import { OrderKey } from "../interfaces/Structs.sol";
+import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
+import { MapMessagingProtocolIdentifierToChainId } from "../interfaces/Events.sol";
+
 import "./OraclePayload.sol";
+
+interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscrow {
+    function proofValidPeriod(bytes32 destinationIdentifier) external view returns (uint64 duration);
+}
 
 /**
  * @dev Oracles are also fillers
@@ -21,103 +32,249 @@ import "./OraclePayload.sol";
 abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOracle {
     uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
 
-    mapping(bytes32 outputHash => mapping(uint32 fillTime => mapping(bytes32 oracle => bool proven))) internal
-        _provenOutput;
+    uint32 public immutable CHAIN_ID = uint32(block.chainid);
+    bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
 
-    IIncentivizedMessageEscrow public immutable escrow;
+    /**
+     * @notice Takes a messagingProtocolChainIdentifier and returns the expected (and configured)
+     * block.chainId.
+     * @dev This allows us to translate incoming messages from messaging protocols to easy to
+     * understand chain ids that match the most coming identifier for chains. (their actual
+     * identifier) rather than an arbitrary number that most messaging protocols use.
+     */
+    mapping(bytes32 messagingProtocolChainIdentifier => uint32 blockChainId) _chainIdentifierToBlockChainId;
+
+    mapping(bytes32 outputHash => mapping(uint32 fillDeadline => bool proven)) internal _provenOutput;
+
+    IIncentivizedMessageEscrowProofValidPeriod public immutable escrow;
 
     error NotApprovedEscrow();
 
     constructor(address _escrow) {
-        escrow = IIncentivizedMessageEscrow(_escrow);
+        escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
     }
 
+    //-- View Functions --//
+
+    function getChainIdentifierToBlockChainId(bytes32 messagingProtocolChainIdentifier)
+        external
+        view
+        returns (uint32)
+    {
+        return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
+    }
+
+    //-- Helpers --//
+    /**
+     * @notice Only allow the message escrow to call these functions
+     */
     modifier onlyEscrow() {
         if (msg.sender != address(escrow)) revert NotApprovedEscrow();
         _;
     }
 
-    function _isProven(Output calldata output, bytes32 oracle, uint32 fillTime) internal view returns (bool proven) {
+    /**
+     * @notice Compute the hash of an output.
+     */
+    function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
+        // Remember to not include (aka. exclude) remoteOracle & chainId
+        // TODO: abi.encode cheaper?
+        outputHash = keccak256(
+            bytes.concat(
+                output.remoteOracle,
+                output.token,
+                bytes4(output.chainId),
+                bytes32(output.amount),
+                output.recipient,
+                output.remoteCall
+            )
+        );
+    }
+
+    /**
+     * @notice Compute the hash of an output in memory.
+     * @dev Is slightly more expensive than _outputHash. If possible, try to use _outputHash.
+     */
+    function _outputHashM(OutputDescription memory output) internal pure returns (bytes32 outputHash) {
+        // Remember to not include (aka. exclude) remoteOracle & chainId
+        outputHash = keccak256(
+            bytes.concat(
+                output.remoteOracle,
+                output.token,
+                bytes4(output.chainId),
+                bytes32(output.amount),
+                output.recipient,
+                output.remoteCall
+            )
+        );
+    }
+
+    /**
+     * @notice Validates that fillDeadline honors the conditions:
+     * - Fill time is not in the past (< currentTimestamp).
+     * - Fill time is not too far in the future,
+     * @param currentTimestamp Timestamp to compare filldeadline with. Is expected to be current time.
+     * @param fillDeadline Timestamp to compare against currentTimestamp. Is timestamp that the conditions
+     * will be checked for.
+     */
+    function _validateTimestamp(uint32 currentTimestamp, uint32 fillDeadline) internal pure {
+        unchecked {
+            // FillDeadline may not be in the past.
+            if (fillDeadline < currentTimestamp) revert FillDeadlineInPast();
+            // Check that fillDeadline isn't far in the future.
+            // The idea is to protect users against random transfers through this contract.
+            // unchecked: type(uint32).max * 2 < type(uint256).max
+            if (uint256(fillDeadline) > uint256(currentTimestamp) + uint256(MAX_FUTURE_FILL_TIME)) {
+                revert FillDeadlineFarInFuture();
+            }
+        }
+    }
+
+    /**
+     * @notice Validate that expected chain (@param chainId) matches this chain's chainId (block.chainId)
+     */
+    function _validateChain(uint32 chainId) internal view {
+        if (CHAIN_ID != chainId) revert WrongChain(CHAIN_ID, chainId);
+    }
+
+    /**
+     * @notice Validate that the remote oracle address is this oracle.
+     * @dev For some oracles, it might be required that you "cheat" and change the encoding here.
+     * Don't worry (or do worry) because the other side loads the payload as bytes32(bytes).
+     */
+    function _validateRemoteOracleAddress(bytes32 remoteOracle) internal view {
+        if (ADDRESS_THIS != remoteOracle) revert WrongRemoteOracle(ADDRESS_THIS, remoteOracle);
+    }
+
+    //--- Output Proofs ---/
+
+    /**
+     * @notice Check if an output has been proven.
+     * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
+     * @param output Output to check for.
+     * @param fillDeadline The expected fill time. Is used as a time & collision check.
+     */
+    function _isProven(OutputDescription calldata output, uint32 fillDeadline) internal view returns (bool proven) {
         bytes32 outputHash = _outputHash(output);
-        return _provenOutput[outputHash][fillTime][oracle];
+        return _provenOutput[outputHash][fillDeadline];
     }
 
-    function isProven(Output calldata output, bytes32 oracle, uint32 fillTime) external view returns (bool proven) {
-        return _isProven(output, oracle, fillTime);
+    /**
+     * @notice Check if an output has been proven.
+     * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
+     * @param output Output to check for.
+     * @param fillDeadline The expected fill time. Is used as a time & collision check.
+     */
+    function isProven(OutputDescription calldata output, uint32 fillDeadline) external view returns (bool proven) {
+        return _isProven(output, fillDeadline);
     }
 
-    function isProven(Output[] calldata outputs, bytes32[] memory oracles, uint32 fillTime) public view returns (bool proven) {
+    /**
+     * @dev Function overload for isProven that allows proving multiple outputs in a single call.
+     */
+    function isProven(OutputDescription[] calldata outputs, uint32 fillDeadline) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
-            if (!_isProven(outputs[i], oracles[i], fillTime)) {
+            if (!_isProven(outputs[i], fillDeadline)) {
                 return proven = false;
             }
         }
         return proven = true;
     }
 
-    /**
-     * discriminate between different outputs in time & space.
-     */
-    function _outputHash(Output calldata output) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
-    }
-
-    function _outputHashM(Output memory output) internal pure returns (bytes32) {
-        return keccak256(bytes.concat(abi.encode(output))); // TODO: Efficiency? // TODO: hash with orderKeyHash for collision?
-    }
-
-    function _validateTimestamp(uint32 timestamp, uint32 fillTime) internal pure {
-        unchecked {
-            // FillTime may not be in the past.
-            if (fillTime < timestamp) revert FillTimeInPast();
-            // Check that fillTime isn't far in the future.
-            // The idea is to protect users against random transfers through this contract.
-            if (uint256(fillTime) > uint256(timestamp) + uint256(MAX_FUTURE_FILL_TIME)) revert FillTimeFarInFuture();
-        }
-    }
-
     //--- Sending Proofs & Generalised Incentives ---//
 
-    //todo: onlyOwner
-    function setRemoteImplementation(bytes32 chainIdentifier, bytes calldata implementation) external {
+    /**
+     * @notice Defines the remote messaging protocol.
+     * @dev Can only be called once for each chain.
+     * //todo: onlyOwner
+     */
+    function setRemoteImplementation(
+        bytes32 chainIdentifier,
+        uint32 blockChainIdOfChainIdentifier,
+        bytes calldata implementation
+    ) external {
+        //  escrow.setRemoteImplementation does not allow calling multiple times.
         escrow.setRemoteImplementation(chainIdentifier, implementation);
+
+        _chainIdentifierToBlockChainId[chainIdentifier] = blockChainIdOfChainIdentifier;
+        emit MapMessagingProtocolIdentifierToChainId(chainIdentifier, blockChainIdOfChainIdentifier);
     }
 
-    // TODO: figure out what the best best interface for this function is
+    /**
+     * @notice Submits a proof the associated messaging protocol.
+     * @dev Does not check implement any check on the outputs.
+     * It is expected that this proof will arrive at a supported oracle (destinationAddress)
+     * and where the proof of fulfillment is needed.
+     * fillDeadlines.length < outputs.length is checked but fillDeadlines.length > outputs.length is not.
+     * Before calling this function ensure !(fillDeadlines.length > outputs.length).
+     * @param outputs Outputs to prove. This function does not validate that these outputs are valid
+     * or has been proven. When using this function, it is important to ensure that these outputs
+     * are true AND these proofs were created by this (or the inheriting) contract.
+     * @param fillDeadlines The fill times associated with the outputs. Used to match against the order.
+     * @param destinationIdentifier Chain id to send the order to. Is based on the messaging
+     * protocol.
+     * @param destinationAddress Oracle address on the destination.
+     * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
+     */
     function _submit(
-        Output[] calldata outputs,
-        uint32[] calldata fillTimes,
+        OutputDescription[] calldata outputs,
+        uint32[] calldata fillDeadlines,
         bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
+        bytes calldata destinationAddress,
+        IncentiveDescription calldata incentive
     ) internal {
-        // TODO: Figure out a better idea than abi.encode
-        bytes memory message = _encode(outputs, fillTimes);
-        // Deadline is set to 0.
-        escrow.submitMessage{ value: msg.value }(
-            destinationIdentifier, destinationAddress, message, incentive, deadline
-        );
+        // This call fails if fillDeadlines.length < outputs.length
+        bytes memory message = _encode(outputs, fillDeadlines);
+
+        // Read proofValidPeriod from the escrow. We will set this optimally for the caller.
+        uint64 proofValidPeriod = escrow.proofValidPeriod(destinationIdentifier);
+        unchecked {
+            // Unchecked: timestamps doesn't overflow in uint64.
+            uint64 deadline = proofValidPeriod == 0 ? 0 : uint64(block.timestamp) + proofValidPeriod;
+
+            escrow.submitMessage{ value: msg.value }(
+                destinationIdentifier, destinationAddress, message, incentive, deadline
+            );
+        }
     }
 
+    /**
+     * @notice Submits a proof the associated messaging protocol.
+     * @dev It is expected that this proof will arrive at a supported oracle (destinationAddress)
+     * and where the proof of fulfillment is needed.
+     * It is required that outputs.length == fillDeadlines.length. This is checked through 2 indirect checks of
+     * not (fillDeadlines.length > outputs.length & fillDeadlines.length < outputs.length) => fillDeadlines.length == outputs.length.
+     * @param outputs Outputs to prove. This function validates that the outputs has been correct set.
+     * @param fillDeadlines The fill times associated with the outputs. Used to match against the order.
+     * @param destinationIdentifier Chain id to send the order to. Is based on the messaging
+     * protocol.
+     * @param destinationAddress Oracle address on the destination.
+     * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
+     */
     function submit(
-        Output[] calldata outputs,
-        uint32[] calldata fillTimes,
+        OutputDescription[] calldata outputs,
+        uint32[] calldata fillDeadlines,
         bytes32 destinationIdentifier,
-        bytes memory destinationAddress,
-        IncentiveDescription calldata incentive,
-        uint64 deadline
+        bytes calldata destinationAddress,
+        IncentiveDescription calldata incentive
     ) external payable {
-        // The follow code chunk will fail if fillTimes.length > outputs.length.
-        uint256 numFillTimes = fillTimes.length;
-        for (uint256 i; i < numFillTimes; ++i) {
-            if (!_isProven(outputs[i], bytes32(0), fillTimes[i])) {
-                revert CannotProveOrder();
+        // The follow code chunk will fail if fillDeadlines.length > outputs.length.
+        uint256 numFillDeadlines = fillDeadlines.length;
+        unchecked {
+            for (uint256 i; i < numFillDeadlines; ++i) {
+                OutputDescription calldata output = outputs[i];
+                // The chainId of the output has to match this chain. This is required to ensure that it originated here.
+                _validateChain(output.chainId);
+                _validateRemoteOracleAddress(output.remoteOracle);
+                // Validate that we have proofs for each output.
+                if (!_isProven(output, fillDeadlines[i])) {
+                    revert CannotProveOrder();
+                }
             }
         }
-        // The submit call will fail if fillTimes.length < outputs.length
-        _submit(outputs, fillTimes, destinationIdentifier, destinationAddress, incentive, deadline);
+        // The submit call will fail if fillDeadlines.length < outputs.length
+        _submit(outputs, fillDeadlines, destinationIdentifier, destinationAddress, incentive);
     }
 
     function receiveMessage(
@@ -126,19 +283,25 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        (Output[] memory outputs, uint32[] memory fillTimes) = _decode(message);
+        // Do not use remoteOracle from decoded outputs.
+        bytes32 remoteOracle = bytes32(fromApplication);
+        (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) = _decode(message, remoteOracle);
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
 
+        // Load the expected chainId (not the messaging protocol identifier).
+        uint32 expectedBlockChainId = _chainIdentifierToBlockChainId[sourceIdentifierbytes];
         for (uint256 i; i < numOutputs; ++i) {
-            Output memory output = outputs[i];
-            // Check if sourceIdentifierbytes
-            // TODO: unify chainIdentifiers. (types)
-            if (uint32(uint256(sourceIdentifierbytes)) != output.chainId) revert WrongChain();
-            uint32 fillTime = fillTimes[i];
+            OutputDescription memory output = outputs[i];
+            // Check if sourceIdentifierbytes matches the output.
+            if (expectedBlockChainId != output.chainId) {
+                revert WrongChain(expectedBlockChainId, output.chainId);
+            }
+            uint32 fillDeadline = fillDeadlines[i];
             bytes32 outputHash = _outputHashM(output);
-            _provenOutput[outputHash][fillTime][bytes32(fromApplication)] = true;
+            // even if fromApplication.length < 32 OR that generalised incentives always returns 32 byte length.
+            _provenOutput[outputHash][fillDeadline] = true;
         }
 
         // We don't care about the ack.
@@ -150,65 +313,78 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes32 messageIdentifier,
         bytes calldata acknowledgement
     ) external onlyEscrow {
-        // We don't actually do anything on ack.
+        // We don't do anything on ack.
     }
 
     //--- Message Encoding & Decoding ---//
 
     /**
-     * @notice Encodes outputs and fillTimes into a bytearray that can be sent cross-implementations.
-     * @dev This function does not check if fillTimes.length > outputs. Use with care.
-     * This function will revert if fillTimes.length < outputs.
+     * @notice Encodes outputs and fillDeadlines into a bytearray that can be sent cross chain and cross implementations.
+     * @dev This function reverts if fillDeadlines.length < outputs but not if fillDeadlines.length > outputs. Use with care.
      */
     function _encode(
-        Output[] calldata outputs,
-        uint32[] calldata fillTimes
+        OutputDescription[] calldata outputs,
+        uint32[] calldata fillDeadlines
     ) internal pure returns (bytes memory encodedPayload) {
         uint256 numOutputs = outputs.length;
-        encodedPayload = bytes.concat(EXECUTE_PROOFS, bytes2(uint16(numOutputs)));
-        for (uint256 i; i < numOutputs; ++i) {
-            Output calldata output = outputs[i];
-            uint32 fillTime = fillTimes[i];
-            encodedPayload = bytes.concat(
-                encodedPayload,
-                output.token,
-                bytes32(output.amount),
-                output.recipient,
-                bytes32(uint256(output.chainId)),
-                bytes4(fillTime)
-            );
+        encodedPayload = bytes.concat(bytes1(0x00), bytes2(uint16(numOutputs)));
+        unchecked {
+            for (uint256 i; i < numOutputs; ++i) {
+                OutputDescription calldata output = outputs[i];
+                // if fillDeadlines.length < outputs.length then fillDeadlines[i] will fail with out of index.
+                uint32 fillDeadline = fillDeadlines[i];
+                encodedPayload = bytes.concat(
+                    encodedPayload,
+                    output.token,
+                    bytes32(output.amount),
+                    output.recipient,
+                    bytes4(output.chainId),
+                    bytes4(fillDeadline),
+                    bytes2(uint16(output.remoteCall.length)),
+                    output.remoteCall
+                );
+            }
         }
     }
 
     /**
-     * @notice Converts an encoded payload into a decoded list of structs.
-     * @param encodedPayload Encoded payload to decode.
-     * @return outputs Decoded outputs
-     * @return fillTimes Decoded fill times.
+     * @notice Converts an encoded payload into decoded proof descriptions.
+     * @dev Do not use remoteOracle from decoded outputs.
+     * encodedPayload does not contain any "security". The payload will be "decoded by fire" as it is expected
+     * to be encoded by _encode.
+     * If a foreign contract can out anything here, it important to only attribute the decoded outputs as from that contract
+     * to ensure the outputs does not poison other storage.
+     * @param encodedPayload Payload that has been encoded with _encode. Will be decoded into outputs and fillDeadlines.
+     * @return outputs Decoded outputs.
+     * @return fillDeadlines Decoded fill times.
      */
-    function _decode(bytes calldata encodedPayload)
-        internal
-        pure
-        returns (Output[] memory outputs, uint32[] memory fillTimes)
-    {
+    function _decode(
+        bytes calldata encodedPayload,
+        bytes32 remoteOracle
+    ) internal pure returns (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) {
         unchecked {
             uint256 numOutputs = uint256(uint16(bytes2(encodedPayload[NUM_OUTPUTS_START:NUM_OUTPUTS_END])));
 
-            outputs = new Output[](numOutputs);
-            fillTimes = new uint32[](numOutputs);
+            outputs = new OutputDescription[](numOutputs);
+            fillDeadlines = new uint32[](numOutputs);
             uint256 pointer = 0;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
-                outputs[outputIndex] = Output({
+                uint256 remoteCallLength =
+                    uint16(bytes2(encodedPayload[pointer + REMOTE_CALL_LENGTH_START:pointer + REMOTE_CALL_LENGTH_END]));
+                // TODO: can we optimise this decoding scheme? I think yes.
+                outputs[outputIndex] = OutputDescription({
+                    remoteOracle: remoteOracle,
                     token: bytes32(encodedPayload[pointer + OUTPUT_TOKEN_START:pointer + OUTPUT_TOKEN_END]),
                     amount: uint256(bytes32(encodedPayload[pointer + OUTPUT_AMOUNT_START:pointer + OUTPUT_AMOUNT_END])),
                     recipient: bytes32(encodedPayload[pointer + OUTPUT_RECIPIENT_START:pointer + OUTPUT_RECIPIENT_END]),
-                    chainId: uint32(
-                        uint256(bytes32(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END]))
-                    )
+                    chainId: uint32(bytes4(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END])),
+                    remoteCall: encodedPayload[pointer + REMOTE_CALL_START:pointer + REMOTE_CALL_START + remoteCallLength]
                 });
-                fillTimes[outputIndex] =
-                    uint32(bytes4(encodedPayload[pointer + OUTPUT_FILLTIME_START:pointer + OUTPUT_FILLTIME_END]));
-                pointer += OUTPUT_LENGTH;
+                fillDeadlines[outputIndex] = uint32(
+                    bytes4(encodedPayload[pointer + OUTPUT_FILL_DEADLINE_START:pointer + OUTPUT_FILL_DEADLINE_END])
+                );
+
+                pointer += OUTPUT_LENGTH + remoteCallLength;
             }
         }
     }

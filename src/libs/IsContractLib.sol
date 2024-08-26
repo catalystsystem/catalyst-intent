@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { CodeSize0 } from "../interfaces/Errors.sol";
 
 library IsContractLib {
     /**
-     * @notice Checks if an address has contract code.
+     * @notice Checks if an address has contract code. Reverts with custom error CodeSize0() if size == 0.
      * @dev The intended use of this function is in combination with safeTransferFrom.
      * Solady's safeTransferFrom does not check if a token exists. For some use cases this
      * is an issue since a call that worked earlier fails later in the flow if a token is
@@ -14,7 +14,7 @@ library IsContractLib {
      */
     function checkCodeSize(address addr) internal view {
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(addr)
         }
         if (size == 0) revert CodeSize0();

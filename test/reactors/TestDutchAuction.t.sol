@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { DeployDutchOrderReactor } from "../../script/Reactor/DeployDutchOrderReactor.s.sol";
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 
-import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 
 import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
@@ -14,7 +14,7 @@ import { ExclusiveOrder } from "../../src/validation/ExclusiveOrder.sol";
 
 import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol";
 
-import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
+import { Collateral, OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
@@ -46,10 +46,6 @@ contract TestDutchAuction is TestBaseReactor {
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 
-    function _orderType() internal virtual override returns (bytes memory) {
-        return CrossChainDutchOrderType.getOrderType();
-    }
-
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
@@ -63,7 +59,7 @@ contract TestDutchAuction is TestBaseReactor {
         uint32 challengeDeadline,
         uint32 proofDeadline
     ) internal virtual override returns (OrderKey memory) {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             _inputAmount,
             _outputAmount,
             _swapper,
@@ -77,42 +73,45 @@ contract TestDutchAuction is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.prank(_fillerSender);
         return reactor.initiate(order, signature, fillerData);
     }
 
-    function _getTypeAndDataHashes(CrossChainOrder calldata order)
-        public
-        virtual
-        override
-        returns (bytes32 typeHash, bytes32 dataHash, bytes32 orderHash)
-    {
-        DutchOrderData memory dutchOrderData = abi.decode(order.orderData, (DutchOrderData));
-        typeHash = CrossChainDutchOrderType.orderTypeHash();
-        dataHash = CrossChainDutchOrderType.hashOrderDataM(dutchOrderData);
-        orderHash = CrossChainOrderType.hash(order, typeHash, dataHash);
+    function _getFullPermitTypeHash() internal pure override returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
+                CrossChainDutchOrderType.PERMIT2_DUTCH_ORDER_WITNESS_STRING_TYPE
+            )
+        );
     }
 
-    function _getCrossOrder(
+    function _getWitnessHash(
+        CrossChainOrder calldata order,
+        DutchOrderData memory dutchOrderData
+    ) public pure returns (bytes32) {
+        return CrossChainDutchOrderType.crossOrderHash(order, dutchOrderData);
+    }
+
+    function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,
         uint256 outputAmount,
         address recipient,
         uint256 fillerAmount,
-        uint256 challengerAmount,
+        uint256 challengerCollateralAmount,
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
         uint32 proofDeadline,
         uint256 nonce
-    ) internal view virtual override returns (CrossChainOrder memory order) {
+    ) internal view virtual override returns (CrossChainOrder memory order, bytes32 witnessHash) {
         DutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
@@ -121,7 +120,7 @@ contract TestDutchAuction is TestBaseReactor {
             recipient,
             collateralToken,
             fillerAmount,
-            challengerAmount, // TODO: Is this collateral amount?
+            challengerCollateralAmount,
             proofDeadline,
             challengeDeadline,
             localVMOracle,
@@ -139,10 +138,11 @@ contract TestDutchAuction is TestBaseReactor {
             uint32(initiateDeadline),
             uint32(fillDeadline)
         );
+        witnessHash = this._getWitnessHash(order, dutchOrderData);
     }
-    //TODO: add private functions to set slopes for dutch order and  test the dutch order when we fuzz the slopes
+    //TODO: add private functions to set slopes for dutch order and test the dutch order when we fuzz the slopes
 
     function test_exclusive_order() external {
-        ExclusiveOrder validationContract = new ExclusiveOrder();
+        // ExclusiveOrder validationContract = new ExclusiveOrder();
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { DeployLimitOrderReactor } from "../../script/Reactor/DeployLimitOrderReactor.s.sol";
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
@@ -13,20 +13,17 @@ import { MockUtils } from "../utils/MockUtils.sol";
 import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
-import { CrossChainOrder, Input, Output } from "../../src/interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 
 import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
-import { Collateral, OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
+import { Collateral, OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 import {
-    InitiateDeadlineAfterFill,
-    InitiateDeadlinePassed,
-    InvalidDeadlineOrder,
-    OrderAlreadyClaimed
+    InitiateDeadlineAfterFill, InitiateDeadlinePassed, InvalidDeadlineOrder
 } from "../../src/interfaces/Errors.sol";
 
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
@@ -67,7 +64,7 @@ contract TestLimitOrder is TestBaseReactor {
         uint160 fillerCollateralAmount,
         uint160 challengerAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerAmount, 1, 5, 10, 11, 0
         );
 
@@ -81,13 +78,15 @@ contract TestLimitOrder is TestBaseReactor {
 
         //Output tests
         assertEq(orderKey.outputs.length, 1);
-        Output memory expectedOutput = Output({
+        OutputDescription memory expectedOutput = OutputDescription({
             token: bytes32(abi.encode(tokenToSwapOutput)),
             amount: outputAmount,
             recipient: bytes32(abi.encode(SWAPPER)),
-            chainId: uint32(block.chainid)
+            chainId: uint32(block.chainid),
+            remoteOracle: orderKey.outputs[0].remoteOracle,
+            remoteCall: orderKey.outputs[0].remoteCall
         });
-        Output memory actualOutput = orderKey.outputs[0];
+        OutputDescription memory actualOutput = orderKey.outputs[0];
         assertEq(keccak256(abi.encode(actualOutput)), keccak256(abi.encode(expectedOutput)));
 
         //Swapper test
@@ -96,7 +95,7 @@ contract TestLimitOrder is TestBaseReactor {
 
         //Oracles tests
         assertEq(orderKey.localOracle, localVMOracle);
-        assertEq(orderKey.remoteOracles[0], bytes32(uint256(uint160(remoteVMOracle))));
+        assertEq(orderKey.outputs[0].remoteOracle, bytes32(uint256(uint160(remoteVMOracle))));
 
         //Collateral test
         Collateral memory expectedCollateral = Collateral({
@@ -116,11 +115,9 @@ contract TestLimitOrder is TestBaseReactor {
         uint32 fillDeadline,
         uint32 challengeDeadline,
         uint32 proofDeadline,
-        uint64 deadline,
         uint8 length
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(length > 0);
-        vm.assume(deadline > uint64(challengeDeadline) + 1);
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
         MockERC20(tokenToSwapInput).mint(SWAPPER, uint256(length) * uint256(inputAmount));
         MockERC20(tokenToSwapOutput).mint(fillerAddress, uint256(length) * uint256(outputAmount));
@@ -152,13 +149,13 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
+        bytes32 crossOrderHash = this._getWitnessHash(order, limitOrderData);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, fillerData);
@@ -166,10 +163,10 @@ contract TestLimitOrder is TestBaseReactor {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(length, fillDeadline);
+        uint32[] memory fillDeadlines = _getFillDeadlines(length, fillDeadline);
 
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
-        reactor.oracle(orderKey);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
+        reactor.proveOrderFulfilment(orderKey, hex"");
     }
 
     /////////////////
@@ -183,17 +180,16 @@ contract TestLimitOrder is TestBaseReactor {
         uint256 challengerCollateralAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         uint256 amountToTransfer = uint256(inputAmount) + DEFAULT_COLLATERAL_AMOUNT;
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             amountToTransfer, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 5, 6, 10, 11, 0
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
@@ -211,7 +207,7 @@ contract TestLimitOrder is TestBaseReactor {
         MockERC20(tokenToSwapInput).mint(BOB, amountToTransfer);
         vm.prank(BOB);
         MockERC20(tokenToSwapInput).approve(permit2, inputAmount);
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             amountToTransfer,
             outputAmount,
             BOB,
@@ -225,21 +221,16 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            BOB_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            BOB_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, fillerData);
-    }
-
-    function _orderType() internal pure override returns (bytes memory) {
-        return CrossChainLimitOrderType.getOrderType();
     }
 
     function _initiateOrder(
@@ -255,7 +246,7 @@ contract TestLimitOrder is TestBaseReactor {
         uint32 challengeDeadline,
         uint32 proofDeadline
     ) internal override returns (OrderKey memory) {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             _inputAmount,
             _outputAmount,
             _swapper,
@@ -269,31 +260,34 @@ contract TestLimitOrder is TestBaseReactor {
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.prank(_fillerSender);
         return reactor.initiate(order, signature, fillerData);
     }
 
-    function _getTypeAndDataHashes(CrossChainOrder calldata order)
-        public
-        pure
-        override
-        returns (bytes32 typeHash, bytes32 dataHash, bytes32 orderHash)
-    {
-        LimitOrderData memory limitOrderData = abi.decode(order.orderData, (LimitOrderData));
-        typeHash = CrossChainLimitOrderType.orderTypeHash();
-        dataHash = CrossChainLimitOrderType.hashOrderDataM(limitOrderData);
-        orderHash = CrossChainOrderType.hash(order, typeHash, dataHash);
+    function _getFullPermitTypeHash() internal pure override returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
+                CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE
+            )
+        );
     }
 
-    function _getCrossOrder(
+    function _getWitnessHash(
+        CrossChainOrder calldata order,
+        LimitOrderData memory limitOrderData
+    ) public pure returns (bytes32) {
+        return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
+    }
+
+    function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,
         uint256 outputAmount,
         address recipient,
@@ -304,7 +298,7 @@ contract TestLimitOrder is TestBaseReactor {
         uint32 challengeDeadline,
         uint32 proofDeadline,
         uint256 nonce
-    ) internal view override returns (CrossChainOrder memory order) {
+    ) internal view override returns (CrossChainOrder memory order, bytes32 witnessHash) {
         LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
@@ -328,5 +322,7 @@ contract TestLimitOrder is TestBaseReactor {
             uint32(initiateDeadline),
             uint32(fillDeadline)
         );
+
+        witnessHash = this._getWitnessHash(order, limitOrderData);
     }
 }

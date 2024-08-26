@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
-
-struct BitcoinPayment {
-    uint64 amount;
-    bytes outputScript;
-}
+pragma solidity ^0.8.26;
 
 import { Endian } from "bitcoinprism-evm/src/Endian.sol";
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
@@ -16,21 +11,23 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import { Output } from "../interfaces/ISettlementContract.sol";
-import { OrderKey } from "../interfaces/Structs.sol";
+import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { BaseOracle } from "./BaseOracle.sol";
 
 /**
- * Bitcoin oracle can operate in 2 modes:
+ * @dev Bitcoin oracle can operate in 2 modes:
  * 1. Directly Oracle. This requires a local light client along side the relevant reactor.
  * 2. Indirectly oracle through the bridge oracle. This requires a local light client and a bridge connection to the relevant reactor.
+ * 0xB17C012
  */
 contract BitcoinOracle is BaseOracle {
-    // The Bitcoin Identifier (0xBB) is set in the 20'th byte (from right). This ensures
-    // That implementations that only read the last 20 bytes, can still notice
-    // that this is a Bitcoin address.
-    bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BB0000000000000000000000000000000000;
+    // The Bitcoin Identifier (0xBC) is set in the 20'th byte (from right). This ensures
+    // implementations that are only reading the last 20 bytes, still notice this is a Bitcoin address.
+    // It also makes it more difficult for there to be a collision (even though low numeric value
+    // addresses are generally pre-compiles and thus would be safe).
+    // This also add standardizes support for other light clients coins (Lightcoin 0x1C?)
+    bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BC0000000000000000000000000000000000;
     IBtcPrism public immutable mirror;
 
     error BadDestinationIdentifier();
@@ -38,23 +35,25 @@ contract BitcoinOracle is BaseOracle {
     error BadTokenFormat();
     error BlockhashMismatch(bytes32 actual, bytes32 proposed);
 
-    bytes32 constant BITCOIN_DESTINATION_Identifier = bytes32(uint256(0x0B17C012)); // Bitcoin
+    mapping(bytes32 orderKey => uint256 fillDeadline) public filledOrders;
 
-    uint256 constant MIN_CONFIRMATIONS = 3; // TODO: Verify.
-
-    mapping(bytes32 orderKey => uint256 fillTime) public filledOrders;
-
-    constructor(IBtcPrism _mirror, address _escrow) BaseOracle(_escrow) {
+    constructor(address _escrow, IBtcPrism _mirror) BaseOracle(_escrow) {
         mirror = _mirror;
     }
 
+    /**
+     * @notice Slices the timestamp from a Bitcoin block header.
+     */
     function _getTimestampOfBlock(bytes calldata blockHeader) internal pure returns (uint256 timestamp) {
         uint32 time = uint32(bytes4(blockHeader[68:68 + 4]));
         timestamp = Endian.reverse32(time);
     }
 
     /**
-     * @notice Returns the associated Bitcoin script given an order token (sets for Bitcoin) & destination (scriptHash)
+     * @notice Returns the associated Bitcoin script given an order token (address type) & destination (script hash).
+     * @param token Bitcoin signifier (checked) and an address version.
+     * @param scriptHash Bitcoin address identifier hash. Public key hash, script hash, or witness hash.
+     * @return script Bitcoin output script matching the given parameters.
      */
     function _bitcoinScript(bytes32 token, bytes32 scriptHash) internal pure returns (bytes memory script) {
         // Check for the Bitcoin signifier:
@@ -66,7 +65,36 @@ contract BitcoinOracle is BaseOracle {
     }
 
     /**
-     * @notice Validate the underlying Bitcoin payment. Does not return when it happened.
+     * @notice Loads the number of confirmations from the second last byte of the token.
+     * @dev "0" confirmations are converted into 1.
+     * How long does it take for us to get 99,9% confidence that a transaction will
+     * be confirmable. Examine n identically distributed exponentially random variables
+     * with rate 1/10. The sum of the random variables are distributed gamma(n, 1/10).
+     * The 99,9% quantile of the distribution can be found in R as qgamma(0.999, n, 1/10)
+     * 1 confirmations: 69 minutes.
+     * 3 confirmations: 112 minutes.
+     * 5 confirmations: 148 minutes.
+     * 7 confimrations: 181 minutes.
+     * You may wonder why the delta decreases as we increase confirmations?
+     * That is the law of large numbers in action.
+     */
+    function _getNumConfirmations(bytes32 token) internal pure returns (uint8 numConfirmations) {
+        // Shift 8 bits to move the second byte to the right.
+        numConfirmations = uint8(uint256(token) >> 8);
+        // If numConfirmations == 0, set it to 1.
+        numConfirmations = numConfirmations == 0 ? 1 : numConfirmations;
+    }
+
+    /**
+     * @notice Verifies the existence of a Bitcoin transaction and returns the number of satoshis associated
+     * with output txOutIx of the transaction.
+     * @dev Does not return _when_ it happened except that it happened on blockNum.
+     * @param minConfirmations Number of confirmations before transaction is considered valid.
+     * @param blockNum Block number of the transaction.
+     * @param inclusionProof Proof for transaction & transaction data.
+     * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
+     * @param outputScript The expected output script. Compared to the actual, reverts if different.
+     * @return sats Value of txOutIx TXO of the transaction.
      */
     function _validateUnderlyingPayment(
         uint256 minConfirmations,
@@ -75,7 +103,7 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx,
         bytes memory outputScript
     ) internal view returns (uint256 sats) {
-        // Isolate correct height check. This decreases gas cost slightly.
+        // Isolate height check. This decreases gas cost slightly.
         {
             uint256 currentHeight = mirror.getLatestBlockHeight();
 
@@ -90,16 +118,29 @@ contract BitcoinOracle is BaseOracle {
             }
         }
 
+        // Load the expected hash for blockNum. This is the "security" call of the light client.
+        // If block hash matches the hash of inclusionProof.blockHeader then we know it is a
+        // valid block.
         bytes32 blockHash = mirror.getBlockHash(blockNum);
 
         bytes memory txOutScript;
+        // Important, this function validate that blockHash = hash(inclusionProof.blockHeader);
         (sats, txOutScript) = BtcProof.validateTx(blockHash, inclusionProof, txOutIx);
 
+        // TODO: Check if there are gas savings if we move scripts as hashes.
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
     }
 
     /**
-     * @notice Verifies a payment and returns the time of the block it happened in.
+     * @notice Verifies a payment and returns the time of the block it happened in & transaction amount.
+     * @param minConfirmations Number of confirmations before transaction is considered valid.
+     * @param blockNum Block number of the transaction.
+     * @param inclusionProof Proof for transaction & transaction data.
+     * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
+     * @param outputScript The expected output script. Compared to the actual, reverts if different.
+     * @return sats Value of txOutIx TXO of the transaction.
+     * @return timestamp Timestamp of blockNum. Is derived from the inclusionProof block header but
+     * the header is verified to belong to blockNum.
      */
     function _verifyPayment(
         uint256 minConfirmations,
@@ -115,8 +156,18 @@ contract BitcoinOracle is BaseOracle {
     }
 
     /**
-     * @notice Verifies a payment and returns the time of the block before it happened.
-     * This allows one to properly match a transaction against an order if no Bitcoin block happened for a long period of time.
+     * @notice Verifies a payment and returns the time of the block before it was included & transaction amount.
+     * @dev This allows one to properly match a transaction against an order if no Bitcoin block happened for a long period of time.
+     * @param minConfirmations Number of confirmations before transaction is considered valid.
+     * @param blockNum Block number of the transaction.
+     * @param inclusionProof Proof for transaction & transaction data.
+     * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
+     * @param outputScript The expected output script. Compared to the actual, reverts if different.
+     * @param previousBlockHeader The previous block header. Is checked for authenticity by loading
+     * the actual previous block hash from the current block header.
+     * @return sats Value of txOutIx TXO of the transaction.
+     * @return timestamp Timestamp of blockNum. Is derived from the inclusionProof block header but
+     * the header is verified to belong to blockNum.
      */
     function _verifyPayment(
         uint256 minConfirmations,
@@ -140,49 +191,117 @@ contract BitcoinOracle is BaseOracle {
         timestamp = _getTimestampOfBlock(previousBlockHeader);
     }
 
-    // TODO: convert to verifying a single output + some identifier.
+    /**
+     * @notice Validate an output is correct.
+     * @dev Specifically, this function uses the other validation functions and adds some
+     * Bitcoin context surrounding it.
+     * @param output Output to prove.
+     * @param fillDeadline Proof Deadline of order
+     * @param blockNum Bitcoin block number of the transaction that the output is included in.
+     * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
+     * @param txOutIx Index of the output in the transaction being proved.
+     */
     function _verify(
-        Output calldata output,
-        uint32 fillTime,
+        OutputDescription calldata output,
+        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
     ) internal {
-        if (output.chainId != block.chainid) revert BadDestinationIdentifier();
+        _validateChain(output.chainId);
+        _validateRemoteOracleAddress(output.remoteOracle);
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 
+        uint256 numConfirmations = _getNumConfirmations(output.token);
+
         (uint256 sats, uint256 timestamp) =
-            _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript);
+            _verifyPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript);
 
-        _validateTimestamp(uint32(timestamp), fillTime);
+        // Validate that the timestamp gotten from the TX is within bounds.
+        // This ensures a Bitcoin output cannot be "reused" forever.
+        _validateTimestamp(uint32(timestamp), fillDeadline);
 
+        // Check that the amount matches exactly. This is important since if the assertion
+        // was looser it will be much harder to protect against "double spends".
         if (sats != output.amount) revert BadAmount();
 
         bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline] = true;
     }
 
+    /**
+     * @notice Function overload of _verify but allows specifying an older block.
+     * @dev This function technically extends the verification of outputs 1 block (~10 minutes)
+     * into the past beyond what _validateTimestamp would ordinary allow.
+     * The purpose is to protect against slow block mining. Even if it took days to get confirmation on a transaction,
+     * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
+     */
     function _verify(
-        Output calldata output,
-        uint32 fillTime,
+        OutputDescription calldata output,
+        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
         bytes calldata previousBlockHeader
     ) internal {
-        if (output.chainId != block.chainid) revert BadDestinationIdentifier();
+        _validateChain(output.chainId);
+        _validateRemoteOracleAddress(output.remoteOracle);
 
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
 
-        (uint256 sats, uint256 timestamp) =
-            _verifyPayment(MIN_CONFIRMATIONS, blockNum, inclusionProof, txOutIx, outputScript, previousBlockHeader);
+        uint256 numConfirmations = _getNumConfirmations(output.token);
 
-        _validateTimestamp(uint32(timestamp), fillTime);
+        // Validate that the timestamp gotten from the TX is within bounds.
+        // This ensures a Bitcoin output cannot be "reused" forever.
+        (uint256 sats, uint256 timestamp) =
+            _verifyPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, previousBlockHeader);
+
+        // Check that the amount matches exactly. This is important since if the assertion
+        // was looser it will be much harder to protect against "double spends".
+        _validateTimestamp(uint32(timestamp), fillDeadline);
 
         if (sats != output.amount) revert BadAmount();
 
         bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillTime][bytes32(0)] = true;
+        _provenOutput[outputHash][fillDeadline] = true;
+    }
+
+    /**
+     * @notice Validate an output is correct.
+     * @dev Specifically, this function uses the other validation functions and adds some
+     * Bitcoin context surrounding it.
+     * @param output Output to prove.
+     * @param fillDeadline Proof Deadline of order
+     * @param blockNum Bitcoin block number of the transaction that the output is included in.
+     * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
+     * @param txOutIx Index of the output in the transaction being proved.
+     */
+    function verify(
+        OutputDescription calldata output,
+        uint32 fillDeadline,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx
+    ) external {
+        _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx);
+    }
+
+    /**
+     * @notice Function overload of verify but allows specifying an older block.
+     * @dev This function technically extends the verification of outputs 1 block (~10 minutes)
+     * into the past beyond what _validateTimestamp would ordinary allow.
+     * The purpose is to protect against slow block mining. Even if it took days to get confirmation on a transaction,
+     * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
+     */
+    function verify(
+        OutputDescription calldata output,
+        uint32 fillDeadline,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx,
+        bytes calldata previousBlockHeader
+    ) external {
+        _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx, previousBlockHeader);
     }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
-import { Output } from "../../src/interfaces/ISettlementContract.sol";
+import { OutputDescription } from "../../src/interfaces/Structs.sol";
 import { OrderKey } from "../../src/interfaces/Structs.sol";
 import { GeneralisedIncentivesOracle } from "../../src/oracles/BridgeOracle.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
@@ -13,7 +13,7 @@ contract MockOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
     uint48 constant PRICE_OF_DELIVERY_GAS = 1 gwei;
     uint48 constant PRICE_OF_ACK_GAS = 1 gwei;
 
-    constructor(address escrowAddress) GeneralisedIncentivesOracle(escrowAddress) { }
+    constructor(address escrowAddress, uint32 chainId) GeneralisedIncentivesOracle(escrowAddress, chainId) { }
 
     function getTotalIncentive(IncentiveDescription memory incentive) public pure returns (uint256) {
         return incentive.maxGasDelivery * incentive.priceOfDeliveryGas + incentive.maxGasAck * incentive.priceOfAckGas;
@@ -31,21 +31,23 @@ contract MockOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
     }
 
     function encode(
-        Output[] memory outputs,
-        uint32[] memory fillTimes
+        OutputDescription[] memory outputs,
+        uint32[] memory fillDeadlines
     ) public pure returns (bytes memory encodedPayload) {
         uint256 numOutputs = outputs.length;
-        encodedPayload = bytes.concat(bytes1(0x01), bytes2(uint16(numOutputs)));
+        encodedPayload = bytes.concat(bytes1(0x00), bytes2(uint16(numOutputs)));
         for (uint256 i; i < numOutputs; ++i) {
-            Output memory output = outputs[i];
-            uint32 fillTime = fillTimes[i];
+            OutputDescription memory output = outputs[i];
+            uint32 fillDeadline = fillDeadlines[i];
             encodedPayload = bytes.concat(
                 encodedPayload,
                 output.token,
                 bytes32(output.amount),
                 output.recipient,
-                bytes32(uint256(output.chainId)),
-                bytes4(fillTime)
+                bytes4(output.chainId),
+                bytes4(fillDeadline),
+                bytes2(uint16(output.remoteCall.length)),
+                output.remoteCall
             );
         }
     }

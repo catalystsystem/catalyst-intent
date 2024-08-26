@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
-import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
-import { Collateral, OrderKey, ReactorInfo } from "../interfaces/Structs.sol";
+import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
+import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 import { CrossChainLimitOrderType, LimitOrderData } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
@@ -16,15 +16,13 @@ contract LimitOrderReactor is BaseReactor {
         bytes calldata /* fillerData */
     ) internal pure override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
-        LimitOrderData memory limitData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
+        LimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
 
-        witness = CrossChainLimitOrderType.hashOrderDataM(limitData);
-        bytes32 orderTypeHash = CrossChainLimitOrderType.orderTypeHash();
-        witness = CrossChainOrderType.hash(order, orderTypeHash, witness);
-        witnessTypeString = CrossChainOrderType.permit2WitnessType(CrossChainLimitOrderType.getOrderType());
+        witness = CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
+        witnessTypeString = CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE;
 
         // Set orderKey:
-        orderKey = _resolveKey(order, limitData);
+        orderKey = _resolveKey(order, limitOrderData);
     }
 
     function _resolveKey(
@@ -40,14 +38,14 @@ contract LimitOrderReactor is BaseReactor {
         LimitOrderData memory limitData
     ) internal pure returns (OrderKey memory orderKey) {
         Input[] memory inputs = limitData.inputs;
-        Output[] memory outputs = limitData.outputs;
+        OutputDescription[] memory outputs = limitData.outputs;
 
         // Set orderKey:
         orderKey = OrderKey({
             reactorContext: ReactorInfo({
                 reactor: order.settlementContract,
                 // Order resolution times
-                fillByDeadline: order.fillDeadline,
+                fillDeadline: order.fillDeadline,
                 challengeDeadline: limitData.challengeDeadline,
                 proofDeadline: limitData.proofDeadline
             }),
@@ -61,8 +59,6 @@ contract LimitOrderReactor is BaseReactor {
             originChainId: order.originChainId,
             // Proof Context
             localOracle: limitData.localOracle,
-            remoteOracles: limitData.remoteOracles,
-            oracleProofHash: bytes32(0),
             inputs: inputs,
             outputs: outputs
         });

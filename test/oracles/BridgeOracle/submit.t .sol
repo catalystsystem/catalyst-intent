@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
 
-import { Output } from "../../../src/interfaces/ISettlementContract.sol";
+import { OutputDescription } from "../../../src/interfaces/Structs.sol";
 import { GeneralisedIncentivesOracle } from "../../../src/oracles/BridgeOracle.sol";
 import { TestCommonGARP } from "../TestCommonGARP.sol";
 
@@ -16,18 +16,18 @@ contract TestBridgeOracle is TestCommonGARP {
     GeneralisedIncentivesOracle oracle;
 
     function setUp() external {
-        oracle = new GeneralisedIncentivesOracle(address(escrow));
+        oracle = new GeneralisedIncentivesOracle(address(escrow), uint32(block.chainid));
 
         // TODO: mock with ERC20.
     }
 
     modifier setImplementationAddress(bytes32 chainIdentifier, bytes memory remoteImplementation) {
-        oracle.setRemoteImplementation(chainIdentifier, remoteImplementation);
+        oracle.setRemoteImplementation(chainIdentifier, uint32(block.chainid), remoteImplementation);
         _;
     }
 
-    function _fillOutput(Output[] memory output, uint32[] memory fillTime) internal {
-        oracle.fill(output, fillTime);
+    function _fillOutput(OutputDescription[] memory output, uint32[] memory fillDeadline) internal {
+        oracle.fill(output, fillDeadline);
     }
 
     struct AmountRecipient {
@@ -38,29 +38,29 @@ contract TestBridgeOracle is TestCommonGARP {
     function test_fill_then_submit(
         AmountRecipient[] calldata amountRecipient,
         bytes32 destinationIdentifier,
-        address destinationAddress,
-        uint64 deadline
+        address destinationAddress
     ) external setImplementationAddress(destinationIdentifier, abi.encode(address(escrow))) {
-        vm.assume(deadline > block.timestamp);
         address token;
-        uint32[] memory fillTimes = new uint32[](amountRecipient.length);
-        Output[] memory outputs = new Output[](amountRecipient.length);
-        uint32 fillTime = uint32(block.timestamp);
+        uint32[] memory fillDeadlines = new uint32[](amountRecipient.length);
+        OutputDescription[] memory outputs = new OutputDescription[](amountRecipient.length);
+        uint32 fillDeadline = uint32(block.timestamp);
         for (uint256 i; i < amountRecipient.length; ++i) {
-            fillTimes[i] = fillTime;
-            outputs[i] = Output({
+            fillDeadlines[i] = fillDeadline;
+            outputs[i] = OutputDescription({
                 token: bytes32(abi.encode(token)),
                 amount: amountRecipient[i].amount,
                 recipient: amountRecipient[i].recipient,
-                chainId: uint32(block.chainid)
+                chainId: uint32(block.chainid),
+                remoteOracle: bytes32(uint256(uint160(address(oracle)))),
+                remoteCall: hex""
             });
         }
 
-        oracle.fill(outputs, fillTimes);
+        oracle.fill(outputs, fillDeadlines);
 
         bytes memory encodedDestinationAddress = bytes.concat(bytes1(0x14), bytes32(0), abi.encode(destinationAddress));
         oracle.submit{ value: _getTotalIncentive(DEFAULT_INCENTIVE) }(
-            outputs, fillTimes, destinationIdentifier, encodedDestinationAddress, DEFAULT_INCENTIVE, deadline
+            outputs, fillDeadlines, destinationIdentifier, encodedDestinationAddress, DEFAULT_INCENTIVE
         );
     }
 }

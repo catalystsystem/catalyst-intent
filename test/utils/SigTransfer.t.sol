@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { Vm } from "forge-std/Vm.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
@@ -18,7 +18,7 @@ library SigTransfer {
         bytes32 typeHash,
         bytes32 witness,
         bytes32 domainSeparator,
-        address sender
+        address spender
     ) internal pure returns (bytes memory sig) {
         bytes32[] memory tokenPermissions = new bytes32[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
@@ -33,7 +33,7 @@ library SigTransfer {
                     abi.encode(
                         typeHash,
                         keccak256(abi.encodePacked(tokenPermissions)),
-                        sender,
+                        spender,
                         permit.nonce,
                         permit.deadline,
                         witness

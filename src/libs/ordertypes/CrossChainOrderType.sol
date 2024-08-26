@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
-import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../interfaces/ISettlementContract.sol";
+
+import { OutputDescription } from "../../interfaces/Structs.sol";
 
 library CrossChainOrderType {
-    bytes constant CROSS_CHAIN_ORDER_TYPE_STUB = abi.encodePacked(
+    bytes constant CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB = abi.encodePacked(
         "CrossChainOrder(",
         "address settlementContract,",
         "address swapper,",
@@ -16,23 +18,34 @@ library CrossChainOrderType {
 
     bytes constant INPUT_TYPE_STUB = abi.encodePacked("Input(", "address token,", "uint256 amount", ")");
 
-    bytes constant OUTPUT_TYPE_STUB =
-        abi.encodePacked("Output(", "bytes32 token,", "uint256 amount,", "bytes32 recipient,", "uint32 chainId", ")");
+    bytes constant OUTPUT_TYPE_STUB = abi.encodePacked(
+        "OutputDescription(",
+        "bytes32 remoteOracle,",
+        "bytes32 token,",
+        "uint256 amount,",
+        "bytes32 recipient,",
+        "uint32 chainId,",
+        "bytes remoteCall",
+        ")"
+    );
 
     string constant TOKEN_PERMISSIONS_TYPE = "TokenPermissions(address token,uint256 amount)";
-
-    function crossOrderType(bytes memory orderData, bytes memory orderType) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(orderType, CROSS_CHAIN_ORDER_TYPE_STUB, orderData, ")", INPUT_TYPE_STUB, OUTPUT_TYPE_STUB);
-    }
 
     function hashInput(Input memory input) internal pure returns (bytes32) {
         return keccak256(abi.encode(keccak256(INPUT_TYPE_STUB), input.token, input.amount));
     }
 
-    function hashOutput(Output memory output) internal pure returns (bytes32) {
+    function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(keccak256(OUTPUT_TYPE_STUB), output.token, output.amount, output.recipient, output.chainId)
+            abi.encode(
+                keccak256(OUTPUT_TYPE_STUB),
+                output.remoteOracle,
+                output.token,
+                output.amount,
+                output.recipient,
+                output.chainId,
+                keccak256(output.remoteCall)
+            )
         );
     }
 
@@ -50,7 +63,7 @@ library CrossChainOrderType {
         }
     }
 
-    function hashOutputs(Output[] memory outputs) internal pure returns (bytes32) {
+    function hashOutputs(OutputDescription[] memory outputs) internal pure returns (bytes32) {
         unchecked {
             bytes memory currentHash = new bytes(32 * outputs.length);
 
@@ -62,33 +75,5 @@ library CrossChainOrderType {
             }
             return keccak256(currentHash);
         }
-    }
-
-    function hash(
-        CrossChainOrder calldata order,
-        bytes32 orderTypeHash,
-        bytes32 orderDataHash
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                orderTypeHash,
-                order.settlementContract,
-                order.swapper,
-                order.nonce,
-                order.originChainId,
-                order.initiateDeadline,
-                order.fillDeadline,
-                orderDataHash
-            )
-        );
-    }
-
-    function permit2WitnessType(bytes memory orderType)
-        internal
-        pure
-        returns (string memory permit2WitnessTypeString)
-    {
-        permit2WitnessTypeString =
-            string(abi.encodePacked("CrossChainOrder witness)", orderType, TOKEN_PERMISSIONS_TYPE));
     }
 }

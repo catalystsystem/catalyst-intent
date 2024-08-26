@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
+
+import { OutputDescription } from "../../interfaces/Structs.sol";
 
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
@@ -12,38 +14,31 @@ struct DutchOrderData {
     uint32 challengeDeadline;
     address collateralToken;
     uint256 fillerCollateralAmount;
-    uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
+    uint256 challengerCollateralAmount;
     address localOracle;
-    bytes32[] remoteOracles;
     uint32 slopeStartingTime;
-    int256[] inputSlopes; // The rate of input that is changing.
-    int256[] outputSlopes; // The rate of output that is changing.
+    /**
+     * @dev Input rate of change.
+     */
+    int256[] inputSlopes;
+    /**
+     * @dev Output rate of change.
+     */
+    int256[] outputSlopes;
     Input[] inputs;
-    Output[] outputs;
+    OutputDescription[] outputs;
 }
 
+/**
+ * @notice Helper library for the Dutch Auction order type.
+ * @dev The dutch auction order type has several more advanced features compared to the simpler limit order.
+ * This allows limit orders to remain simple and dutch auctions to present a rich feature set for users.
+ */
 library CrossChainDutchOrderType {
     error LengthsDoesNotMatch(uint256, uint256);
 
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
-        "CatalystDutchOrderData(",
-        "bytes32 verificationContext,",
-        "address verificationContract,",
-        "uint32 proofDeadline,",
-        "uint32 challengeDeadline,",
-        "address collateralToken,",
-        "uint256 fillerCollateralAmount,",
-        "uint256 challengerCollateralAmount,",
-        "address localOracle,",
-        "bytes32[] remoteOracles,",
-        "uint32 slopeStartingTime,",
-        "int256[] inputSlopes,",
-        "int256[] outputSlopes,",
-        "Input[] inputs,",
-        "Output[] outputs",
-        ")",
-        CrossChainOrderType.INPUT_TYPE_STUB,
-        CrossChainOrderType.OUTPUT_TYPE_STUB
+        DUTCH_ORDER_DATA_TYPE_ONLY, CrossChainOrderType.INPUT_TYPE_STUB, CrossChainOrderType.OUTPUT_TYPE_STUB
     );
 
     bytes constant DUTCH_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
@@ -56,60 +51,48 @@ library CrossChainDutchOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32[] remoteOracles,",
         "uint32 slopeStartingTime,",
         "int256[] inputSlopes,",
         "int256[] outputSlopes,",
         "Input[] inputs,",
-        "Output[] outputs",
+        "OutputDescription[] outputs",
         ")"
     );
+
+    bytes constant CROSS_DUTCH_ORDER_TYPE_STUB = abi.encodePacked(
+        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystDutchOrderData orderData", ")"
+    );
+
     bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
-    function orderTypeHash() internal pure returns (bytes32) {
-        return keccak256(getOrderType());
+    string constant PERMIT2_DUTCH_ORDER_WITNESS_STRING_TYPE = string(
+        abi.encodePacked(
+            "CrossChainOrder witness)",
+            DUTCH_ORDER_DATA_TYPE_ONLY,
+            CROSS_DUTCH_ORDER_TYPE_STUB,
+            CrossChainOrderType.INPUT_TYPE_STUB,
+            CrossChainOrderType.OUTPUT_TYPE_STUB,
+            CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
+        )
+    );
+
+    function decodeOrderData(bytes calldata orderBytes) internal pure returns (DutchOrderData memory dutchData) {
+        dutchData = abi.decode(orderBytes, (DutchOrderData));
     }
 
     function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
-                bytes.concat(
-                    DUTCH_ORDER_DATA_TYPE_HASH,
-                    bytes32(orderData.verificationContext),
-                    bytes32(uint256(uint160(orderData.verificationContract))),
-                    bytes32(uint256(orderData.proofDeadline)),
-                    bytes32(uint256(orderData.challengeDeadline)),
-                    bytes32(uint256(uint160(orderData.collateralToken))),
-                    bytes32(orderData.fillerCollateralAmount)
-                ),
-                bytes.concat(
-                    bytes32(orderData.challengerCollateralAmount),
-                    bytes32(uint256(uint160(orderData.localOracle))),
-                    keccak256((abi.encodePacked(orderData.remoteOracles))),
-                    bytes32(uint256(orderData.slopeStartingTime)),
-                    keccak256(abi.encodePacked(orderData.inputSlopes)),
-                    keccak256(abi.encodePacked(orderData.outputSlopes)),
-                    CrossChainOrderType.hashInputs(orderData.inputs),
-                    CrossChainOrderType.hashOutputs(orderData.outputs)
-                )
-            )
-        );
-    }
-
-    function hashOrderData(DutchOrderData calldata orderData) internal pure returns (bytes32) {
-        return keccak256(
-            bytes.concat(
+            abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
-                bytes32(orderData.verificationContext),
-                bytes32(uint256(uint160(orderData.verificationContract))),
-                bytes32(uint256(orderData.proofDeadline)),
-                bytes32(uint256(orderData.challengeDeadline)),
-                bytes32(uint256(uint160(orderData.collateralToken))),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes32(uint256(uint160(orderData.localOracle))),
-                keccak256((abi.encodePacked(orderData.remoteOracles))),
-                bytes32(uint256(orderData.slopeStartingTime)),
+                orderData.verificationContext,
+                orderData.verificationContract,
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
+                orderData.slopeStartingTime,
                 keccak256(abi.encodePacked(orderData.inputSlopes)),
                 keccak256(abi.encodePacked(orderData.outputSlopes)),
                 CrossChainOrderType.hashInputs(orderData.inputs),
@@ -118,12 +101,43 @@ library CrossChainDutchOrderType {
         );
     }
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns (DutchOrderData memory dutchData) {
-        dutchData = abi.decode(orderBytes, (DutchOrderData));
+    function hashOrderData(DutchOrderData calldata orderData) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                DUTCH_ORDER_DATA_TYPE_HASH,
+                orderData.verificationContext,
+                orderData.verificationContract,
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
+                orderData.slopeStartingTime,
+                keccak256(abi.encodePacked(orderData.inputSlopes)),
+                keccak256(abi.encodePacked(orderData.outputSlopes)),
+                CrossChainOrderType.hashInputs(orderData.inputs),
+                CrossChainOrderType.hashOutputs(orderData.outputs)
+            )
+        );
     }
 
-    function getOrderType() internal pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("CatalystDutchOrderData orderData", DUTCH_ORDER_DATA_TYPE_ONLY);
+    function crossOrderHash(
+        CrossChainOrder calldata order,
+        DutchOrderData memory dutchOrderData
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(abi.encodePacked(CROSS_DUTCH_ORDER_TYPE_STUB, DUTCH_ORDER_DATA_TYPE)),
+                order.settlementContract,
+                order.swapper,
+                order.nonce,
+                order.originChainId,
+                order.initiateDeadline,
+                order.fillDeadline,
+                hashOrderDataM(dutchOrderData)
+            )
+        );
     }
 
     /**
@@ -188,7 +202,7 @@ library CrossChainDutchOrderType {
     function getOutputsAfterDecay(DutchOrderData memory dutchOrderData)
         internal
         view
-        returns (Output[] memory orderOutputs)
+        returns (OutputDescription[] memory orderOutputs)
     {
         orderOutputs = dutchOrderData.outputs;
         int256[] memory outputSlopes = dutchOrderData.outputSlopes;

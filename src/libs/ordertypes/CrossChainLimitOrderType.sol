@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
-import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, Input } from "../../interfaces/ISettlementContract.sol";
+
+import { OutputDescription } from "../../interfaces/Structs.sol";
+
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
 struct LimitOrderData {
@@ -9,32 +12,18 @@ struct LimitOrderData {
     uint32 challengeDeadline;
     address collateralToken;
     uint256 fillerCollateralAmount;
-    uint256 challengerCollateralAmount; // TODO: use factor on fillerCollateralAmount
+    uint256 challengerCollateralAmount;
     address localOracle;
-    bytes32[] remoteOracles;
     Input[] inputs;
-    Output[] outputs;
+    OutputDescription[] outputs;
 }
 
 /**
  * @notice Helper library for the Limit order type.
- * @dev Notice that when hashing limit order, we hash it as a large struct instead of a lot of smaller structs.
  */
 library CrossChainLimitOrderType {
     bytes constant LIMIT_ORDER_DATA_TYPE = abi.encodePacked(
-        "CatalystLimitOrderData(",
-        "uint32 proofDeadline,",
-        "uint32 challengeDeadline,",
-        "address collateralToken,",
-        "uint256 fillerCollateralAmount,",
-        "uint256 challengerCollateralAmount,",
-        "address localOracle,",
-        "bytes32[] remoteOracles,",
-        "Input[] inputs,",
-        "Output[] outputs",
-        ")",
-        CrossChainOrderType.INPUT_TYPE_STUB,
-        CrossChainOrderType.OUTPUT_TYPE_STUB
+        LIMIT_ORDER_DATA_TYPE_ONLY, CrossChainOrderType.INPUT_TYPE_STUB, CrossChainOrderType.OUTPUT_TYPE_STUB
     );
 
     bytes constant LIMIT_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
@@ -45,29 +34,42 @@ library CrossChainLimitOrderType {
         "uint256 fillerCollateralAmount,",
         "uint256 challengerCollateralAmount,",
         "address localOracle,",
-        "bytes32[] remoteOracles,",
         "Input[] inputs,",
-        "Output[] outputs",
+        "OutputDescription[] outputs",
         ")"
+    );
+
+    bytes constant CROSS_LIMIT_ORDER_TYPE_STUB = abi.encodePacked(
+        CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystLimitOrderData orderData", ")"
+    );
+
+    string constant PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE = string(
+        abi.encodePacked(
+            "CrossChainOrder witness)",
+            LIMIT_ORDER_DATA_TYPE_ONLY,
+            CROSS_LIMIT_ORDER_TYPE_STUB,
+            CrossChainOrderType.INPUT_TYPE_STUB,
+            CrossChainOrderType.OUTPUT_TYPE_STUB,
+            CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
+        )
     );
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
 
-    function orderTypeHash() internal pure returns (bytes32) {
-        return keccak256(getOrderType());
+    function decodeOrderData(bytes calldata orderBytes) internal pure returns (LimitOrderData memory limitData) {
+        return limitData = abi.decode(orderBytes, (LimitOrderData));
     }
 
     function hashOrderDataM(LimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                 bytes32(uint256(orderData.proofDeadline)),
-                bytes32(uint256(orderData.challengeDeadline)),
-                bytes32(uint256(uint160(orderData.collateralToken))),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes32(uint256(uint160(orderData.localOracle))),
-                keccak256((abi.encodePacked(orderData.remoteOracles))),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )
@@ -76,26 +78,35 @@ library CrossChainLimitOrderType {
 
     function hashOrderData(LimitOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            bytes.concat(
+            abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
-                bytes32(uint256(orderData.proofDeadline)),
-                bytes32(uint256(orderData.challengeDeadline)),
-                bytes32(uint256(uint160(orderData.collateralToken))),
-                bytes32(orderData.fillerCollateralAmount),
-                bytes32(orderData.challengerCollateralAmount),
-                bytes32(uint256(uint160(orderData.localOracle))),
-                keccak256((abi.encodePacked(orderData.remoteOracles))),
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                orderData.collateralToken,
+                orderData.fillerCollateralAmount,
+                orderData.challengerCollateralAmount,
+                orderData.localOracle,
                 CrossChainOrderType.hashInputs(orderData.inputs),
                 CrossChainOrderType.hashOutputs(orderData.outputs)
             )
         );
     }
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns (LimitOrderData memory limitData) {
-        return limitData = abi.decode(orderBytes, (LimitOrderData));
-    }
-
-    function getOrderType() internal pure returns (bytes memory) {
-        return CrossChainOrderType.crossOrderType("CatalystLimitOrderData orderData", LIMIT_ORDER_DATA_TYPE_ONLY);
+    function crossOrderHash(
+        CrossChainOrder calldata order,
+        LimitOrderData memory limitOrderData
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(abi.encodePacked(CROSS_LIMIT_ORDER_TYPE_STUB, LIMIT_ORDER_DATA_TYPE)),
+                order.settlementContract,
+                order.swapper,
+                order.nonce,
+                order.originChainId,
+                order.initiateDeadline,
+                order.fillDeadline,
+                hashOrderDataM(limitOrderData)
+            )
+        );
     }
 }

@@ -1,35 +1,79 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { Ownable } from "solady/src/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { GovernanceFeeChanged } from "../interfaces/Events.sol";
+import { GovernanceFeeChanged, GovernanceFeesDistributed } from "../interfaces/Events.sol";
 
 import { IsContractLib } from "./IsContractLib.sol";
 
 /**
+ * @dev Required for inheritance linearization
+ */
+abstract contract ICanCollectGovernanceFee {
+    function _calcFee(uint256 amount, uint256 fee) internal pure virtual returns (uint256 amountLessFee);
+
+    function _calcFee(uint256 amount) internal view virtual returns (uint256 amountLessFee);
+}
+
+/**
  * @title Extendable contract that allows an implementation to collect governance fees.
  */
-abstract contract CanCollectGovernanceFee is Ownable {
+abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     error GovernanceFeeTooHigh();
+    error CannotCollect0Fees(address token);
 
     uint256 public governanceFee = 0;
-    uint256 constant GOVERNANCE_FEE_DENUM = 10 ** 18;
+    uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25; // 25%
 
     constructor(address owner) {
         _initializeOwner(owner);
     }
 
+    /**
+     * @notice Tokens collected by governance.
+     * @dev Can be accessed through getGovernanceTokens.
+     */
     mapping(address token => uint256 amount) internal _governanceTokens;
 
     /**
-     * @notice Returns the amount collected for a given token.
+     * @notice Returns the amount of tokens collected by governance.
      * @dev View function for _governanceTokens stoarge slot.
      */
     function getGovernanceTokens(address token) external view returns (uint256 amountTokens) {
         return amountTokens = _governanceTokens[token];
+    }
+
+    /**
+     * @notice Subtract the governance fee from an amount AND store the fee as the difference.
+     * @dev This function sets the subtracted governance fee as collected. If you just want to
+     * get the amount less fee, use `_calcFee`.
+     * Ideally this function wouldn't be called if the fee is 0. Regardless, this function
+     * won't modify storage if the collected fee becomes 0.
+     * @param token for fee to be set for. Only impacts storage not computation.
+     * @param amount for fee to be taken of.
+     * @param fee to take of amount and set for token. Fee is provided as a variable to
+     * save gas when used in a loop. The fee is out of 10**18.
+     * @return amountLessFee amount - fee.
+     */
+    // TODO: implement governance fee.
+    function _collectGovernanceFee(
+        address token,
+        uint256 amount,
+        uint256 fee
+    ) internal returns (uint256 amountLessFee) {
+        unchecked {
+            // Get the governance share of the amountLessFee.
+            uint256 governanceShare = _calcFee(amount, fee);
+
+            // Compute the amount less fee.
+            amountLessFee = amount - governanceShare; // amount >= governanceShare
+
+            // Only set storage if the fee is not 0.
+            if (governanceShare != 0) _governanceTokens[token] = _governanceTokens[token] + governanceShare;
+        }
     }
 
     /**
@@ -40,46 +84,33 @@ abstract contract CanCollectGovernanceFee is Ownable {
     }
 
     /**
-     * @notice Subtract the governance fee from an amount AND store the fee as the difference.
-     * @dev This function sets the subtracted governance fee as collected. If you just want to
-     * get amountLessFee use `_amountLessfee`.
-     * @param token for fee to be set for.
-     * @param amount for fee to be taken of.
-     * @param fee To take of amount and set for token. Fee is provided as a variable to
-     * save gas when used in a loop.
-     * @return amountLessFee amount - fee.
+     * @notice Helper function to compute the fee.
+     * @param amount To compute fee of.
+     * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENOM based.
+     * @return amountFee Fee
      */
-    function _collectGovernanceFee(
-        address token,
-        uint256 amount,
-        uint256 fee
-    ) internal returns (uint256 amountLessFee) {
-        unchecked {
-            amountLessFee = _amountLessfee(amount, fee);
-            // Set the governanceFee
-            uint256 governanceShare = amount - amountLessFee; // amount >= amountLessFee
-            if (governanceShare != 0) _governanceTokens[token] = governanceShare;
-        }
-    }
-
-    /**
-     * @notice Helper function to compute an amount where the fee is subtracted.
-     * @param amount To subtract fee from
-     * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENUM based.
-     * @return amountLessFee Amount with fee subtracted from it.
-     */
-    function _amountLessfee(uint256 amount, uint256 fee) internal pure returns (uint256 amountLessFee) {
+    function _calcFee(uint256 amount, uint256 fee) internal pure override returns (uint256 amountFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
-            if (amount >= type(uint256).max / fee) return amountLessFee = amount;
+            if (amount >= type(uint256).max / fee) return amountFee = 0;
             // The above check ensures that amount * fee < type(uint256).max.
-            // amount >= amount * fee / GOVERNANCE_FEE_DENUM since fee < GOVERNANCE_FEE_DENUM
-            amountLessFee = amount - amount * fee / GOVERNANCE_FEE_DENUM;
+            // amount >= amount * fee / GOVERNANCE_FEE_DENOM since fee < GOVERNANCE_FEE_DENOM
+            amountFee = amount * fee / GOVERNANCE_FEE_DENOM;
         }
     }
 
     /**
-     * @notice Sets governanceFee
+     * @notice Helper function to compute the fee.
+     * The governanceFee is read from storage and passed to _calcFee(uint256,uint256)
+     * @param amount To compute fee of.
+     * @return amountFee Fee
+     */
+    function _calcFee(uint256 amount) internal view override returns (uint256 amountFee) {
+        return _calcFee(amount, governanceFee);
+    }
+
+    /**
+     * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
      * @param newGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
      */
     function setGovernanceFee(uint256 newGovernanceFee) external onlyOwner {
@@ -92,31 +123,38 @@ abstract contract CanCollectGovernanceFee is Ownable {
 
     /**
      * @notice Distributes tokens allocated for governance.
-     * @dev Only the owner of the contract can call this, however, the owner can set another destination
+     * @dev You cannot collect tokens for which the amount is 0.
+     * Only the owner of the contract can call this, however, the owner can set another destination
      * as the target for the tokens.
      * Pulls 100% of the collected tokens in the tokens list.
      * An example of a distribution mechanic would be requiring users to pay 1 Ether to call this function.
      * (from the owner contract). Once the fees are high enough someone would pay. This works kindof like
      * a dutch auction.
      * @param tokens List of tokens to collect governance fee from.
+     * Each token has to have getGovernanceTokens(tokens[i]) > 0.
      * @param to Recipient of the tokens.
      */
     function distributeGovernanceTokens(
         address[] calldata tokens,
         address to
-    ) external onlyOwner returns (uint256[] memory collectedTokens) {
+    ) external onlyOwner returns (uint256[] memory collectedAmounts) {
         unchecked {
             uint256 numTokens = tokens.length;
-            collectedTokens = new uint256[](numTokens);
+            collectedAmounts = new uint256[](numTokens);
             for (uint256 i = 0; i < numTokens; ++i) {
                 address token = tokens[i];
                 // Read the collected governance tokens and then set to 0 immediately.
                 uint256 tokensToBeClaimed = _governanceTokens[token];
+                if (tokensToBeClaimed == 0) revert CannotCollect0Fees(token);
                 _governanceTokens[token] = 0;
 
-                collectedTokens[i] = tokensToBeClaimed;
+                collectedAmounts[i] = tokensToBeClaimed;
+                // Since we have "collected" the fee, it is expected that this function will go through.
+                // Regardless, if it calls a non-contract address it doesn't really matter.
                 SafeTransferLib.safeTransfer(token, to, tokensToBeClaimed);
             }
         }
+
+        emit GovernanceFeesDistributed(to, tokens, collectedAmounts);
     }
 }

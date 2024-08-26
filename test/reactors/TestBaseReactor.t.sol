@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.26;
 
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 
@@ -20,14 +20,13 @@ import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/orderty
 
 import { Test, console } from "forge-std/Test.sol";
 
-import { OrderContext, OrderKey, OrderStatus } from "../../src/interfaces/Structs.sol";
+import { OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
 
 import {
     CannotProveOrder,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
-    InvalidDeadlineOrder,
-    OrderAlreadyClaimed
+    InvalidDeadlineOrder
 } from "../../src/interfaces/Errors.sol";
 
 import {
@@ -35,7 +34,7 @@ import {
     GovernanceFeeChanged,
     OptimisticPayout,
     OrderChallenged,
-    OrderFilled,
+    OrderProven,
     OrderPurchaseDetailsModified,
     OrderPurchased
 } from "../../src/interfaces/Events.sol";
@@ -129,13 +128,6 @@ abstract contract TestBaseReactor is Test {
         fillerData = FillerDataLib._encode1(fillerAddress, 0, 0);
     }
 
-    bytes32 public FULL_ORDER_PERMIT2_TYPE_HASH = keccak256(
-        abi.encodePacked(
-            SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
-            CrossChainOrderType.permit2WitnessType(_orderType())
-        )
-    );
-
     function test_collect_tokens(
         uint256 inputAmount,
         uint256 outputAmount,
@@ -151,13 +143,13 @@ abstract contract TestBaseReactor is Test {
         assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
     }
 
-    // // function test_collect_tokens_from_msg_sender(uint256 amount, address sender) public approvedAndMinted(sender, tokenToSwapInput, amount) {
-    // //     (uint256 swapperInputBalance, uint256 reactorInputBalance) =
-    // //         MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
-    // //     _initiateOrder(0, SWAPPER, amount, sender);
-    // //     assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
-    // //     assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
-    // // }
+    // function test_collect_tokens_from_msg_sender(uint256 amount, address sender) public approvedAndMinted(sender, tokenToSwapInput, amount) {
+    //     (uint256 swapperInputBalance, uint256 reactorInputBalance) =
+    //         MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
+    //     _initiateOrder(0, SWAPPER, amount, sender);
+    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
+    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
+    // }
 
     function test_balances_multiple_orders(
         uint160 inputAmount,
@@ -185,17 +177,16 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 0, 1, 5, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InitiateDeadlinePassed.selector);
         reactor.initiate(order, signature, fillerData);
@@ -207,17 +198,16 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 2, 11, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
         reactor.initiate(order, signature, fillerData);
@@ -229,17 +219,16 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount
     ) public {
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 3, 2, 10, 0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
         reactor.initiate(order, signature, fillerData);
@@ -255,7 +244,7 @@ abstract contract TestBaseReactor is Test {
     ) public {
         vm.assume(fillDeadline < initiateDeadline);
 
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount,
             outputAmount,
             SWAPPER,
@@ -268,13 +257,12 @@ abstract contract TestBaseReactor is Test {
             0
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
         vm.expectRevert(InitiateDeadlineAfterFill.selector);
         reactor.initiate(order, signature, fillerData);
@@ -448,11 +436,9 @@ abstract contract TestBaseReactor is Test {
 
         vm.warp(warp);
         if (warp <= challengeDeadline) {
-            vm.expectRevert(
-                abi.encodeWithSignature("OrderNotReadyForOptimisticPayout(uint32)", challengeDeadline - warp + 1)
-            );
+            vm.expectRevert(abi.encodeWithSignature("OrderNotReadyForOptimisticPayout(uint32)", challengeDeadline));
         }
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
     }
 
     function test_optimistic_payout(
@@ -496,7 +482,7 @@ abstract contract TestBaseReactor is Test {
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
         );
         // Check that we emitted the payout status.
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
     }
 
     function test_revert_challenged_optimistic_payout(
@@ -529,7 +515,7 @@ abstract contract TestBaseReactor is Test {
         reactor.dispute(orderKey);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", OrderStatus.Challenged));
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
     }
 
     //--- Resolve Disputed Orders ---//
@@ -635,7 +621,7 @@ abstract contract TestBaseReactor is Test {
 
         vm.warp(warp);
         if (warp <= proofDeadline) {
-            vm.expectRevert(abi.encodeWithSignature("ProofPeriodHasNotPassed(uint32)", proofDeadline - warp + 1));
+            vm.expectRevert(abi.encodeWithSignature("ProofPeriodHasNotPassed(uint32)", proofDeadline));
         }
 
         reactor.completeDispute(orderKey);
@@ -680,19 +666,18 @@ abstract contract TestBaseReactor is Test {
         uint16 discount,
         address buyer,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderPermitOrderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
 
         bytes memory customFillerData = FillerDataLib._encode1(fillerAddress, type(uint32).max, discount);
@@ -707,6 +692,8 @@ abstract contract TestBaseReactor is Test {
         vm.startPrank(buyer);
         MockERC20(inputToken).approve(address(reactor), type(uint256).max);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         uint256 amountAfterDiscount = inputAmount - uint256(inputAmount) * discount / uint256(type(uint16).max);
         vm.expectCall(
@@ -725,7 +712,7 @@ abstract contract TestBaseReactor is Test {
         emit Transfer(buyer, fillerAddress, amountAfterDiscount);
         vm.expectEmit();
         emit OrderPurchased(orderHash, buyer);
-        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.purchaseOrder(orderKey, newFillerData, 0);
 
         // Check storage
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
@@ -733,7 +720,7 @@ abstract contract TestBaseReactor is Test {
         // Check that the fillerAddress was change
         assertEq(orderContext.fillerAddress, buyer);
         assertEq(orderContext.orderPurchaseDeadline, newPurchaseDeadline);
-        assertEq(orderContext.orderDiscount, newOrderDiscount);
+        assertEq(orderContext.orderPurchaseDiscount, newOrderPurchaseDiscount);
     }
 
     function test_revert_purchase_non_existing_order(
@@ -742,15 +729,17 @@ abstract contract TestBaseReactor is Test {
         uint128 fillerCollateralAmount,
         address buyer,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order,) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 0));
         vm.prank(buyer);
-        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.purchaseOrder(orderKey, newFillerData, 0);
     }
 
     function test_revert_purchase_time_passed(
@@ -761,19 +750,18 @@ abstract contract TestBaseReactor is Test {
         address buyer,
         uint32 originalPurchaseTime,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(originalPurchaseTime < type(uint32).max - 1);
-        CrossChainOrder memory order =
-            _getCrossOrder(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
-        (,, bytes32 orderPermitOrderHash) = this._getTypeAndDataHashes(order);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor));
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, FULL_ORDER_PERMIT2_TYPE_HASH, orderPermitOrderHash, DOMAIN_SEPARATOR, address(reactor)
+            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
 
         bytes memory customFillerData = FillerDataLib._encode1(fillerAddress, originalPurchaseTime, discount);
@@ -781,13 +769,15 @@ abstract contract TestBaseReactor is Test {
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, customFillerData);
 
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
+
         vm.startPrank(buyer);
         vm.warp(originalPurchaseTime + 1);
         vm.expectRevert(abi.encodeWithSignature("PurchaseTimePassed()"));
-        reactor.purchaseOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.purchaseOrder(orderKey, newFillerData, 0);
     }
 
-    function test_revert_opFilled_purchase_order(
+    function test_revert_optimiscallyFilled_purchase_order(
         uint256 inputAmount,
         uint256 outputAmount,
         uint256 fillerCollateralAmount,
@@ -810,11 +800,11 @@ abstract contract TestBaseReactor is Test {
             challengeDeadline + 1 hours
         );
         vm.warp(challengeDeadline + 1);
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
 
-        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OptimiscallyFilled)));
         vm.prank(purchaser);
-        reactor.purchaseOrder(orderKey, 0, 0);
+        reactor.purchaseOrder(orderKey, hex"", 0);
     }
 
     //--- Modify Orders ---//
@@ -825,7 +815,7 @@ abstract contract TestBaseReactor is Test {
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
             0,
@@ -843,10 +833,16 @@ abstract contract TestBaseReactor is Test {
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
+        bytes memory newFillerData =
+            FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
+
         vm.expectEmit();
-        emit OrderPurchaseDetailsModified(orderHash, newPurchaseDeadline, newOrderDiscount);
+        emit OrderPurchaseDetailsModified(
+            orderHash, fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount, bytes32(0)
+        );
         vm.prank(fillerAddress);
-        reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+
+        reactor.modifyOrderFillerdata(orderKey, newFillerData);
     }
 
     function test_revert_nonFiller_modify(
@@ -856,7 +852,7 @@ abstract contract TestBaseReactor is Test {
         uint256 challengerCollateralAmount,
         address malleciousModifier,
         uint32 newPurchaseDeadline,
-        uint16 newOrderDiscount
+        uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(malleciousModifier != fillerAddress);
         OrderKey memory orderKey = _initiateOrder(
@@ -872,9 +868,13 @@ abstract contract TestBaseReactor is Test {
             DEFAULT_CHALLENGE_DEADLINE,
             DEFAULT_PROOF_DEADLINE
         );
+
+        bytes memory newFillerData =
+            FillerDataLib._encode1(fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount);
+
         vm.expectRevert(abi.encodeWithSignature("OnlyFiller()"));
         vm.prank(malleciousModifier);
-        reactor.modifyBuyableOrder(orderKey, newPurchaseDeadline, newOrderDiscount);
+        reactor.modifyOrderFillerdata(orderKey, newFillerData);
     }
 
     //--- Resolve Orders ---//
@@ -892,7 +892,7 @@ abstract contract TestBaseReactor is Test {
         uint256 governanceFee
     ) public {
         vm.assume(governanceFee > 0 && governanceFee < MAX_GOVERNANCE_FEE);
-        CrossChainOrder memory order = _getCrossOrder(
+        (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
             inputAmount,
             outputAmount,
             recipient,
@@ -912,8 +912,13 @@ abstract contract TestBaseReactor is Test {
         ResolvedCrossChainOrder memory actual = reactor.resolve(order, fillerData);
 
         Input[] memory inputs = OrderDataBuilder.getInputs(tokenToSwapInput, inputAmount, 1);
-        Output[] memory outputs =
-            OrderDataBuilder.getOutputs(tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), 1);
+        Output[] memory outputs = OrderDataBuilder.getSettlementOutputs(
+            bytes32(uint256(uint160(tokenToSwapOutput))),
+            outputAmount,
+            bytes32(uint256(uint160(recipient))),
+            uint32(block.chainid),
+            1
+        );
         Output[] memory fillerOutputs = new Output[](1);
 
         if (inputAmount < type(uint256).max / governanceFee) {
@@ -951,10 +956,8 @@ abstract contract TestBaseReactor is Test {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline,
-        uint64 deadline
+        uint32 proofDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        vm.assume(deadline > block.timestamp);
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
         OrderKey memory orderKey = _initiateOrder(
             0,
@@ -973,7 +976,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
 
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
@@ -982,7 +985,7 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapOutput,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
         vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
@@ -995,13 +998,13 @@ abstract contract TestBaseReactor is Test {
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
         vm.expectEmit();
-        emit OrderFilled(orderHash, fillerAddress, orderKey.remoteOracles);
+        emit OrderProven(orderHash, fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.oracle(orderKey);
+        reactor.proveOrderFulfilment(orderKey, hex"");
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
-        assert(orderContext.status == OrderStatus.Filled);
+        assert(orderContext.status == OrderStatus.Proven);
     }
 
     function test_revert_oracle_cannot_be_proven(
@@ -1014,7 +1017,7 @@ abstract contract TestBaseReactor is Test {
             0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
         );
         vm.expectRevert(CannotProveOrder.selector);
-        reactor.oracle(orderKey);
+        reactor.proveOrderFulfilment(orderKey, hex"");
     }
 
     function test_revert_oracle_proven_order(
@@ -1025,11 +1028,9 @@ abstract contract TestBaseReactor is Test {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline,
-        uint64 deadline
+        uint32 proofDeadline
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
-        vm.assume(deadline > challengeDeadline + 1);
 
         OrderKey memory orderKey = _initiateOrder(
             0,
@@ -1048,7 +1049,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(1, fillDeadline);
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
 
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
@@ -1057,16 +1058,16 @@ abstract contract TestBaseReactor is Test {
             tokenToSwapOutput,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
-        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, deadline);
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
         vm.warp(challengeDeadline + 1);
         vm.expectEmit();
         emit OptimisticPayout(orderHash);
-        reactor.optimisticPayout(orderKey);
+        reactor.optimisticPayout(orderKey, hex"");
 
-        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OPFilled)));
-        reactor.oracle(orderKey);
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OptimiscallyFilled)));
+        reactor.proveOrderFulfilment(orderKey, hex"");
     }
 
     function test_oracle_challenged_order(
@@ -1110,7 +1111,7 @@ abstract contract TestBaseReactor is Test {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
-        uint32[] memory fillTimes = _getFillTimes(1, DEFAULT_FILL_DEADLINE);
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, DEFAULT_FILL_DEADLINE);
 
         vm.expectEmit();
         emit Transfer(fillerAddress, SWAPPER, outputAmount);
@@ -1120,9 +1121,7 @@ abstract contract TestBaseReactor is Test {
             abi.encodeWithSignature("transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmount)
         );
 
-        _fillAndSubmitOracle(
-            remoteVMOracleContract, localVMOracleContract, orderKey, fillTimes, DEFAULT_CHALLENGE_DEADLINE + 1
-        );
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
         vm.expectCall(
             collateralToken,
@@ -1138,14 +1137,14 @@ abstract contract TestBaseReactor is Test {
         );
 
         vm.expectEmit();
-        emit OrderFilled(reactor.getOrderKeyHash(orderKey), fillerAddress, orderKey.remoteOracles);
+        emit OrderProven(reactor.getOrderKeyHash(orderKey), fillerAddress);
 
         vm.prank(fillerAddress);
-        reactor.oracle(orderKey);
+        reactor.proveOrderFulfilment(orderKey, hex"");
 
         OrderContext memory orderContext = reactor.getOrderContext(orderKey);
 
-        assert(orderContext.status == OrderStatus.Filled);
+        assert(orderContext.status == OrderStatus.Proven);
         assertEq(MockERC20(collateralToken).balanceOf(fillerAddress), fillerBalanceBefore + challengerCollateralAmount);
     }
 
@@ -1178,13 +1177,16 @@ abstract contract TestBaseReactor is Test {
 
     function _getVMOracle(address oracleAddress) internal returns (MockOracle oracleContract) {
         oracleContract = MockOracle(oracleAddress);
-        oracleContract.setRemoteImplementation(bytes32(block.chainid), abi.encode(escrow));
+        oracleContract.setRemoteImplementation(bytes32(block.chainid), uint32(block.chainid), abi.encode(escrow));
     }
 
-    function _getFillTimes(uint256 length, uint32 fillByDeadline) internal pure returns (uint32[] memory fillTimes) {
-        fillTimes = new uint32[](length);
+    function _getFillDeadlines(
+        uint256 length,
+        uint32 fillDeadline
+    ) internal pure returns (uint32[] memory fillDeadlines) {
+        fillDeadlines = new uint32[](length);
         for (uint256 i; i < length; ++i) {
-            fillTimes[i] = fillByDeadline;
+            fillDeadlines[i] = fillDeadline;
         }
     }
 
@@ -1192,10 +1194,9 @@ abstract contract TestBaseReactor is Test {
         MockOracle remoteVMOracleContract,
         MockOracle localVMOracleContract,
         OrderKey memory orderKey,
-        uint32[] memory fillTimes,
-        uint64 deadline
+        uint32[] memory fillDeadlines
     ) internal {
-        Output[] memory outputs = orderKey.outputs;
+        OutputDescription[] memory outputs = orderKey.outputs;
 
         bytes memory encodedDestinationAddress = remoteVMOracleContract.encodeDestinationAddress(orderKey.localOracle);
         bytes32 destinationIdentifier = bytes32(block.chainid);
@@ -1205,19 +1206,20 @@ abstract contract TestBaseReactor is Test {
 
         vm.startPrank(fillerAddress);
         remoteVMOracleContract.fillAndSubmit{ value: remoteVMOracleContract.getTotalIncentive(incentiveDescription) }(
-            outputs, fillTimes, destinationIdentifier, encodedDestinationAddress, incentiveDescription, deadline
+            outputs, fillDeadlines, destinationIdentifier, encodedDestinationAddress, incentiveDescription
         );
         vm.stopPrank();
 
-        bytes memory encodedPayload = localVMOracleContract.encode(outputs, fillTimes);
+        bytes memory encodedPayload = localVMOracleContract.encode(outputs, fillDeadlines);
 
         vm.prank(escrow);
+
         localVMOracleContract.receiveMessage(
-            destinationIdentifier, bytes32(0), bytes.concat(orderKey.remoteOracles[0]), encodedPayload
+            destinationIdentifier, bytes32(0), abi.encodePacked(orderKey.outputs[0].remoteOracle), encodedPayload
         );
     }
 
-    function _orderType() internal virtual returns (bytes memory);
+    function _getFullPermitTypeHash() internal virtual returns (bytes32);
 
     function _initiateOrder(
         uint256 _nonce,
@@ -1257,12 +1259,7 @@ abstract contract TestBaseReactor is Test {
         uint32 proofDeadline
     ) internal virtual returns (OrderKey memory);
 
-    function _getTypeAndDataHashes(CrossChainOrder calldata order)
-        public
-        virtual
-        returns (bytes32 typeHash, bytes32 dataHash, bytes32 orderHash);
-
-    function _getCrossOrder(
+    function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,
         uint256 outputAmount,
         address recipient,
@@ -1273,5 +1270,5 @@ abstract contract TestBaseReactor is Test {
         uint32 challengeDeadline,
         uint32 proofDeadline,
         uint256 nonce
-    ) internal view virtual returns (CrossChainOrder memory order);
+    ) internal view virtual returns (CrossChainOrder memory order, bytes32 witnessHash);
 }

@@ -23,6 +23,7 @@ import {
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
+    InvalidSettlementAddress,
     MinOrderPurchaseDiscountTooLow,
     OnlyFiller,
     OrderAlreadyClaimed,
@@ -121,6 +122,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         bytes calldata signature,
         bytes calldata fillerData
     ) external returns (OrderKey memory orderKey) {
+        // Check if this is the right contract.
+        if (order.settlementContract != address(this)) revert InvalidSettlementAddress();
         // Check if the expected chain of the order is the rigtht one.
         if (order.originChainId != block.chainid) revert WrongChain(uint32(block.chainid), order.originChainId);
 

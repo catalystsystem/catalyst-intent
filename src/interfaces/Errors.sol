@@ -12,6 +12,7 @@ error FillDeadlineInPast(); // 0x8cddc02b
 error InitiateDeadlineAfterFill(); // 0xc0bf59b1
 error InitiateDeadlinePassed(); // 0x606ef7f5
 error InvalidDeadlineOrder(); // 0x2494cf80
+error InvalidSettlementAddress(); // 0x78c8b5df
 error MinOrderPurchaseDiscountTooLow(uint256 minimum, uint256 configured); // 0xf8e451f1
 error OnlyFiller(); // 0x422d60ed
 error OrderAlreadyClaimed(OrderStatus orderStatus); // 0x87d33f7e

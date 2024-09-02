@@ -47,8 +47,8 @@ contract TestConfig is Test, DeployPermit2, DeployBaseReactor {
 
         escrow = address(new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0));
 
-        localVMOracle = address(new MockOracle(escrow, uint32(block.chainid)));
-        remoteVMOracle = address(new MockOracle(escrow, uint32(block.chainid)));
+        localVMOracle = address(new MockOracle(escrow));
+        remoteVMOracle = address(new MockOracle(escrow));
         vm.stopBroadcast();
 
     }

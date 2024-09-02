@@ -37,8 +37,8 @@ contract BitcoinOracle is BaseOracle {
 
     mapping(bytes32 orderKey => uint256 fillDeadline) public filledOrders;
 
-    constructor(address _escrow, IBtcPrism _mirror) BaseOracle(_escrow) {
-        mirror = _mirror;
+    constructor(address _escrow, address _mirror) BaseOracle(_escrow) {
+        mirror = IBtcPrism(_mirror);
     }
 
     /**

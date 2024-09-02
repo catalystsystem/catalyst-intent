@@ -2,18 +2,19 @@
 pragma solidity ^0.8.22;
 
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
+import { DeployBaseReactor } from "./DeployBaseReactor.s.sol";
 import { ReactorHelperConfig } from "./HelperConfig.s.sol";
-import { Script } from "forge-std/Script.sol";
 
-contract DeployDutchOrderReactor is Script {
-    function run() external returns (DutchOrderReactor, ReactorHelperConfig) {
-        ReactorHelperConfig helperConfig = new ReactorHelperConfig();
-        (,,,,,, address permit2, uint256 deployerKey) = helperConfig.currentConfig();
-        address deployer = vm.addr(deployerKey);
+contract DeployDutchOrderReactor is DeployBaseReactor {
+    function deploy(address owner) public returns (DutchOrderReactor) {
         vm.startBroadcast(deployerKey);
-        DutchOrderReactor dutchOrderReactor = new DutchOrderReactor{ salt: bytes32(0) }(permit2, deployer);
+        DutchOrderReactor dutchOrderReactor = new DutchOrderReactor{ salt: bytes32(0) }(PERMIT2, owner);
         vm.stopBroadcast();
 
-        return (dutchOrderReactor, helperConfig);
+        return dutchOrderReactor;
+    }
+
+    function deploy() external returns(DutchOrderReactor) {
+        return deploy(CATALYST_ADDRESS);
     }
 }

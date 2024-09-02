@@ -25,24 +25,14 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-contract TestDutchAuction is TestBaseReactor {
+contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
+    using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
+    
     function testA() external pure { }
 
-    using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
-
     function setUp() public {
-        DeployDutchOrderReactor deployer = new DeployDutchOrderReactor();
-        (reactor, reactorHelperConfig) = deployer.run();
-        (
-            tokenToSwapInput,
-            tokenToSwapOutput,
-            collateralToken,
-            localVMOracle,
-            remoteVMOracle,
-            escrow,
-            permit2,
-            deployerKey
-        ) = reactorHelperConfig.currentConfig();
+        address reactorDeployer = vm.addr(deployerKey);
+        reactor = deploy(reactorDeployer);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 

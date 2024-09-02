@@ -187,6 +187,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Collect input tokens from user.
         _collectTokensViaPermit2(orderKey, order.swapper, witness, witnessTypeString, signature);
 
+        // TODO: Fillerdata.
         emit OrderInitiated(orderHash, fillerAddress, msg.sender, orderKey);
     }
 
@@ -400,6 +401,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
      * your funds may be at risk.
      * Set newPurchaseDeadline in the past to disallow future takeovers.
+     * When you purchase orders, make sure you take into account that you are paying the
+     * entirety while you will get out the entirety MINUS any governance fee.
      * @param orderKey Claimed order to be purchased from the filler
      * @param fillerData New filler data + potential execution data post-pended.
      */

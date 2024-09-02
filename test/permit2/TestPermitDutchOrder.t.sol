@@ -23,7 +23,7 @@ interface Permit2DomainSeparator {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 }
 
-contract TestPermitDutchOrder is TestPermit {
+contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
     bytes constant EXPECTED_PERMIT_BATCH_TYPE = abi.encodePacked(
         "PermitBatchWitnessTransferFrom"
         "(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,CrossChainOrder witness)"
@@ -38,10 +38,8 @@ contract TestPermitDutchOrder is TestPermit {
     );
 
     function setUp() public {
-        DeployDutchOrderReactor deployer = new DeployDutchOrderReactor();
-        (reactor, reactorHelperConfig) = deployer.run();
-        (tokenToSwapInput, tokenToSwapOutput, collateralToken, localVMOracle, remoteVMOracle,, permit2, deployerKey) =
-            reactorHelperConfig.currentConfig();
+        address reactorDeployer = vm.addr(deployerKey);
+        reactor = deploy(reactorDeployer);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
-
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
@@ -42,6 +40,7 @@ import {
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 
 import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
+import { TestConfig } from "../TestConfig.t.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 interface Permit2DomainSeparator {
@@ -50,8 +49,7 @@ interface Permit2DomainSeparator {
 
 event Transfer(address indexed from, address indexed to, uint256 amount);
 
-abstract contract TestBaseReactor is Test {
-    function test() external { }
+abstract contract TestBaseReactor is TestConfig {
 
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
@@ -65,15 +63,6 @@ abstract contract TestBaseReactor is Test {
 
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25;
     BaseReactor reactor;
-    ReactorHelperConfig reactorHelperConfig;
-    address tokenToSwapInput;
-    address tokenToSwapOutput;
-    address collateralToken;
-    address localVMOracle;
-    address remoteVMOracle;
-    address escrow;
-    address permit2;
-    uint256 deployerKey;
     address SWAPPER;
     uint256 SWAPPER_PRIVATE_KEY;
     bytes fillerData;
@@ -1215,7 +1204,7 @@ abstract contract TestBaseReactor is Test {
         vm.prank(escrow);
 
         localVMOracleContract.receiveMessage(
-            destinationIdentifier, bytes32(0), abi.encodePacked(orderKey.outputs[0].remoteOracle), encodedPayload
+            destinationIdentifier, bytes32(0), abi.encodePacked(uint8(20), bytes32(0), orderKey.outputs[0].remoteOracle), encodedPayload
         );
     }
 

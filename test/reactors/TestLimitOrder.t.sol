@@ -33,24 +33,14 @@ import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
-contract TestLimitOrder is TestBaseReactor {
+contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     function testA() external pure { }
 
     function setUp() public {
-        DeployLimitOrderReactor deployer = new DeployLimitOrderReactor();
-        (reactor, reactorHelperConfig) = deployer.run();
-        (
-            tokenToSwapInput,
-            tokenToSwapOutput,
-            collateralToken,
-            localVMOracle,
-            remoteVMOracle,
-            escrow,
-            permit2,
-            deployerKey
-        ) = reactorHelperConfig.currentConfig();
+        address reactorDeployer = vm.addr(deployerKey);
+        reactor = deploy(reactorDeployer);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
     }
 

@@ -35,26 +35,7 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
     uint256 public ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
     constructor() {
-        if (block.chainid == 11_155_111) {
-            currentConfig = _getSepoliaConfig();
-        } else {
-            currentConfig = _getAnvilConfig();
-        }
-    }
-
-    function _getSepoliaConfig() internal view returns (NetworkConfig memory sepoliaConfig) {
-        sepoliaConfig = NetworkConfig({
-            tokenToSwapInput: 0xdd13E55209Fd76AfE204dBda4007C227904f0a81, //WETH address on sepolia
-            tokenToSwapOutput: 0x61EDCDf5bb737ADffE5043706e7C5bb1f1a56eEA, //BETH address on sepolia
-            //TODO: Change with a valid address
-            collateralToken: address(0),
-            // TODO: change with the deployed oracle addresses and their escrow when deployed to testnets
-            localVMOracle: address(0),
-            remoteVMOracle: address(0),
-            escrow: address(0),
-            permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3, //Permit2 multichain address
-            deployerKey: vm.envUint("PK")
-        });
+        currentConfig = _getAnvilConfig();
     }
 
     function _getAnvilConfig() internal returns (NetworkConfig memory anvilConfig) {

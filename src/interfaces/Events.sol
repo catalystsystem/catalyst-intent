@@ -6,7 +6,7 @@ import { OrderKey } from "./Structs.sol";
 /**
  * @notice An order has been initiated.
  */
-event OrderInitiated(bytes32 indexed orderHash, address indexed filler, address caller, OrderKey orderKey);
+event OrderInitiated(bytes32 indexed orderHash, address indexed caller, bytes filler, OrderKey orderKey);
 
 /**
  * @notice An order has been proven and settled.
@@ -49,10 +49,7 @@ event GovernanceFeesDistributed(address indexed to, address[] tokens, uint256[] 
  */
 event OrderPurchaseDetailsModified(
     bytes32 indexed orderHash,
-    address newFillerAddress,
-    uint32 newPurchaseDeadline,
-    uint16 newOrderPurchaseDiscount,
-    bytes32 newIdentifier
+    bytes fillerdata
 );
 
 event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);

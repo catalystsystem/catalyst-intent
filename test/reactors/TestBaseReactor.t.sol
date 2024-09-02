@@ -826,7 +826,7 @@ abstract contract TestBaseReactor is TestConfig {
 
         vm.expectEmit();
         emit OrderPurchaseDetailsModified(
-            orderHash, fillerAddress, newPurchaseDeadline, newOrderPurchaseDiscount, bytes32(0)
+            orderHash, newFillerData
         );
         vm.prank(fillerAddress);
 

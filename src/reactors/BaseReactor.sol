@@ -187,8 +187,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Collect input tokens from user.
         _collectTokensViaPermit2(orderKey, order.swapper, witness, witnessTypeString, signature);
 
-        // TODO: Fillerdata.
-        emit OrderInitiated(orderHash, fillerAddress, msg.sender, orderKey);
+        emit OrderInitiated(orderHash, msg.sender, fillerData, orderKey);
     }
 
     //--- Order Resolution Helpers ---//
@@ -496,7 +495,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.identifier = newIdentifier;
 
         emit OrderPurchaseDetailsModified(
-            orderKeyHash, newFillerAddress, newOrderPurchaseDeadline, newOrderPurchaseDiscount, newIdentifier
+            orderKeyHash, fillerData
         );
     }
 }

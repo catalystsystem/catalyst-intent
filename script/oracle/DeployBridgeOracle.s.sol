@@ -5,7 +5,6 @@ import { BridgeOracle } from "../../src/oracles/BridgeOracle.sol";
 import { Script } from "forge-std/Script.sol";
 
 contract DeployBridgeOracle is Script {
-
     uint256 deployerKey;
 
     function deploy(address escrow) public returns (BridgeOracle) {

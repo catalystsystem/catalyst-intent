@@ -18,7 +18,6 @@ interface Permit2DomainSeparator {
 }
 
 contract TestConfig is Test, DeployPermit2, DeployBaseReactor {
-
     function test() external { }
 
     address immutable permit2;
@@ -50,6 +49,5 @@ contract TestConfig is Test, DeployPermit2, DeployBaseReactor {
         localVMOracle = address(new MockOracle(escrow));
         remoteVMOracle = address(new MockOracle(escrow));
         vm.stopBroadcast();
-
     }
 }

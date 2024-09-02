@@ -7,14 +7,18 @@ import { ReactorHelperConfig } from "./HelperConfig.s.sol";
 
 contract DeployLimitOrderReactor is DeployBaseReactor {
     function deploy(address owner) public returns (LimitOrderReactor) {
-        vm.startBroadcast(deployerKey);
+        if (deployerKey != 0) {
+            vm.startBroadcast(deployerKey);
+        } else {
+            vm.startBroadcast();
+        }
         LimitOrderReactor limitOrderReactor = new LimitOrderReactor{ salt: bytes32(0) }(PERMIT2, owner);
         vm.stopBroadcast();
 
         return limitOrderReactor;
     }
 
-    function deploy() external returns(LimitOrderReactor) {
+    function deploy() external returns (LimitOrderReactor) {
         return deploy(CATALYST_ADDRESS);
     }
 }

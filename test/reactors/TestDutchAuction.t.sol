@@ -27,7 +27,7 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 
 contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
-    
+
     function testA() external pure { }
 
     function setUp() public {

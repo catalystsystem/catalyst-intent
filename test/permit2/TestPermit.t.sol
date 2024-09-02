@@ -6,8 +6,9 @@ import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
 import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
-import { SigTransfer } from "../utils/SigTransfer.t.sol";
+
 import { TestConfig } from "../TestConfig.t.sol";
+import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 abstract contract TestPermit is TestConfig {
     BaseReactor reactor;

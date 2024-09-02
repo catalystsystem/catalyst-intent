@@ -39,8 +39,8 @@ import {
 
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 
-import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
 import { TestConfig } from "../TestConfig.t.sol";
+import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 interface Permit2DomainSeparator {
@@ -50,7 +50,6 @@ interface Permit2DomainSeparator {
 event Transfer(address indexed from, address indexed to, uint256 amount);
 
 abstract contract TestBaseReactor is TestConfig {
-
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
@@ -1204,7 +1203,10 @@ abstract contract TestBaseReactor is TestConfig {
         vm.prank(escrow);
 
         localVMOracleContract.receiveMessage(
-            destinationIdentifier, bytes32(0), abi.encodePacked(uint8(20), bytes32(0), orderKey.outputs[0].remoteOracle), encodedPayload
+            destinationIdentifier,
+            bytes32(0),
+            abi.encodePacked(uint8(20), bytes32(0), orderKey.outputs[0].remoteOracle),
+            encodedPayload
         );
     }
 

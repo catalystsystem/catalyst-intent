@@ -40,7 +40,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
 
     /**
      * @notice Returns the amount of tokens collected by governance.
-     * @dev View function for _governanceTokens stoarge slot.
+     * @dev View function for _governanceTokens storage slot.
      */
     function getGovernanceTokens(address token) external view returns (uint256 amountTokens) {
         return amountTokens = _governanceTokens[token];

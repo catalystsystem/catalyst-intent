@@ -5,8 +5,8 @@ import { DeployLimitOrderReactor } from "../../script/Reactor/DeployLimitOrderRe
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { LimitOrderReactor } from "../../src/reactors/LimitOrderReactor.sol";
 
+import { MockBridgeOracle } from "../mocks/MockBridgeOracle.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
-import { MockOracle } from "../mocks/MockOracle.sol";
 
 import { MockUtils } from "../utils/MockUtils.sol";
 
@@ -160,8 +160,8 @@ contract TestLimitOrder is TestBaseReactor {
         vm.prank(fillerAddress);
         reactor.initiate(order, signature, fillerData);
 
-        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
-        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+        MockBridgeOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockBridgeOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
         uint32[] memory fillDeadlines = _getFillDeadlines(length, fillDeadline);
 

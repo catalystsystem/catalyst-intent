@@ -6,7 +6,7 @@ import { OrderKey } from "../../src/interfaces/Structs.sol";
 import { GeneralisedIncentivesOracle } from "../../src/oracles/BridgeOracle.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-contract MockOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
+contract MockBridgeOracle is IMessageEscrowStructs, GeneralisedIncentivesOracle {
     address constant REFUND_GAS_TO = address(uint160(0xdeaddead));
     uint48 constant MAX_GAS_DELIVERY = 200_000;
     uint48 constant MAX_GAS_ACK = 200_000;

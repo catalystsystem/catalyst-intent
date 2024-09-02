@@ -1,37 +1,27 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { MockBridgeOracle } from "../../test/mocks/MockBridgeOracle.sol";
 import { MockERC20 } from "../../test/mocks/MockERC20.sol";
 
 import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 
+import { BtcPrism } from "bitcoinprism-evm/src/BtcPrism.sol";
 import { Script } from "forge-std/Script.sol";
 
-import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
+import "../../test/oracles/BitcoinOracle/blockInfo.t.sol";
 
-interface Permit2DomainSeparator {
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
-}
-
-contract ReactorHelperConfig is Script, DeployPermit2 {
+contract OracleHelperConfig is Script {
     NetworkConfig public currentConfig;
 
-    // We can also add the domain separator here.
     struct NetworkConfig {
-        //TODO: Possible to make it array in the future;
         address tokenToSwapInput;
         address tokenToSwapOutput;
-        address collateralToken;
-        address localVMOracle;
-        address remoteVMOracle;
         address escrow;
-        address permit2;
+        address prismAddress;
         uint256 deployerKey;
     }
 
-    // Default ANVIL KEY
     uint256 public ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
     constructor() {
@@ -46,13 +36,8 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
         sepoliaConfig = NetworkConfig({
             tokenToSwapInput: 0xdd13E55209Fd76AfE204dBda4007C227904f0a81, //WETH address on sepolia
             tokenToSwapOutput: 0x61EDCDf5bb737ADffE5043706e7C5bb1f1a56eEA, //BETH address on sepolia
-            //TODO: Change with a valid address
-            collateralToken: address(0),
-            // TODO: change with the deployed oracle addresses and their escrow when deployed to testnets
-            localVMOracle: address(0),
-            remoteVMOracle: address(0),
             escrow: address(0),
-            permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3, //Permit2 multichain address
+            prismAddress: address(0),
             deployerKey: vm.envUint("PK")
         });
     }
@@ -60,26 +45,22 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
     function _getAnvilConfig() internal returns (NetworkConfig memory anvilConfig) {
         if (currentConfig.tokenToSwapInput != address(0)) return currentConfig;
         vm.startBroadcast();
+
         MockERC20 input = new MockERC20("TestTokenInput", "TTI", 18);
         MockERC20 output = new MockERC20("TestTokenOutput", "ERC", 18);
-        MockERC20 collateral = new MockERC20("TestCollateralToken", "TTC", 18);
 
         IIncentivizedMessageEscrow escrow =
             new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
 
-        MockBridgeOracle localOracle = new MockBridgeOracle(address(escrow), uint32(block.chainid));
-        MockBridgeOracle remoteOracle = new MockBridgeOracle(address(escrow), uint32(block.chainid));
-        address permit2 = deployPermit2();
+        BtcPrism prism = new BtcPrism(BLOCK_HEIGHT, BLOCK_HASH, BLOCK_TIME, EXPECTED_TARGET, false);
+
         vm.stopBroadcast();
 
         anvilConfig = NetworkConfig({
             tokenToSwapInput: address(input),
             tokenToSwapOutput: address(output),
-            collateralToken: address(collateral),
-            localVMOracle: address(localOracle),
-            remoteVMOracle: address(remoteOracle),
             escrow: address(escrow),
-            permit2: permit2,
+            prismAddress: address(prism),
             deployerKey: ANVIL_PRIVATE_KEY
         });
     }

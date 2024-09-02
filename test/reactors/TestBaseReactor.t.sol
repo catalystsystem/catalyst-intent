@@ -9,8 +9,8 @@ import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
+import { MockBridgeOracle } from "../mocks/MockBridgeOracle.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
-import { MockOracle } from "../mocks/MockOracle.sol";
 import { MockUtils } from "../utils/MockUtils.sol";
 import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
@@ -973,8 +973,8 @@ abstract contract TestBaseReactor is Test {
             proofDeadline
         );
 
-        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
-        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+        MockBridgeOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockBridgeOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
         uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
 
@@ -1046,8 +1046,8 @@ abstract contract TestBaseReactor is Test {
             proofDeadline
         );
 
-        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
-        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+        MockBridgeOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockBridgeOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
         uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
 
@@ -1108,8 +1108,8 @@ abstract contract TestBaseReactor is Test {
         reactor.dispute(orderKey);
         vm.stopPrank();
 
-        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
-        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+        MockBridgeOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockBridgeOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
         uint32[] memory fillDeadlines = _getFillDeadlines(1, DEFAULT_FILL_DEADLINE);
 
@@ -1175,8 +1175,8 @@ abstract contract TestBaseReactor is Test {
         );
     }
 
-    function _getVMOracle(address oracleAddress) internal returns (MockOracle oracleContract) {
-        oracleContract = MockOracle(oracleAddress);
+    function _getVMOracle(address oracleAddress) internal returns (MockBridgeOracle oracleContract) {
+        oracleContract = MockBridgeOracle(oracleAddress);
         oracleContract.setRemoteImplementation(bytes32(block.chainid), uint32(block.chainid), abi.encode(escrow));
     }
 
@@ -1191,8 +1191,8 @@ abstract contract TestBaseReactor is Test {
     }
 
     function _fillAndSubmitOracle(
-        MockOracle remoteVMOracleContract,
-        MockOracle localVMOracleContract,
+        MockBridgeOracle remoteVMOracleContract,
+        MockBridgeOracle localVMOracleContract,
         OrderKey memory orderKey,
         uint32[] memory fillDeadlines
     ) internal {

@@ -187,7 +187,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Collect input tokens from user.
         _collectTokensViaPermit2(orderKey, order.swapper, witness, witnessTypeString, signature);
 
-        emit OrderInitiated(orderHash, fillerAddress, msg.sender, orderKey);
+        emit OrderInitiated(orderHash, msg.sender, fillerData, orderKey);
     }
 
     //--- Order Resolution Helpers ---//
@@ -400,6 +400,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
      * your funds may be at risk.
      * Set newPurchaseDeadline in the past to disallow future takeovers.
+     * When you purchase orders, make sure you take into account that you are paying the
+     * entirety while you will get out the entirety MINUS any governance fee.
      * @param orderKey Claimed order to be purchased from the filler
      * @param fillerData New filler data + potential execution data post-pended.
      */
@@ -493,7 +495,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.identifier = newIdentifier;
 
         emit OrderPurchaseDetailsModified(
-            orderKeyHash, newFillerAddress, newOrderPurchaseDeadline, newOrderPurchaseDiscount, newIdentifier
+            orderKeyHash, fillerData
         );
     }
 }

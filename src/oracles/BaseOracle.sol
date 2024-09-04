@@ -283,8 +283,8 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata fromApplication,
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
-        // Do not use remoteOracle from decoded outputs.
-        bytes32 remoteOracle = bytes32(fromApplication);
+        // Length of fromApplication is 65 bytes. We need the last 32 bytes.
+        bytes32 remoteOracle = bytes32(fromApplication[33: ]);
         (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) = _decode(message, remoteOracle);
 
         // set the proof locally.

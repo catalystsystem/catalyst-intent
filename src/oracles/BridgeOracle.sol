@@ -15,13 +15,13 @@ import { BaseOracle } from "./BaseOracle.sol";
  * @dev Oracles are also fillers
  */
 
-contract GeneralisedIncentivesOracle is BaseOracle {
+contract BridgeOracle is BaseOracle {
     error NotEnoughGasExecution();
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
 
-    constructor(address _escrow, uint32 chainId) BaseOracle(_escrow) { }
+    constructor(address _escrow) BaseOracle(_escrow) { }
 
     /**
      * @notice Allows calling an external function in a non-griefing manner.

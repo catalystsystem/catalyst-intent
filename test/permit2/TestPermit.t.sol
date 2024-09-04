@@ -3,23 +3,16 @@ pragma solidity ^0.8.26;
 
 import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
-import { Test } from "forge-std/Test.sol";
 
 import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
+
+import { TestConfig } from "../TestConfig.t.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
-abstract contract TestPermit is Test {
+abstract contract TestPermit is TestConfig {
     BaseReactor reactor;
     ReactorHelperConfig reactorHelperConfig;
-    address tokenToSwapInput;
-    address tokenToSwapOutput;
-    address collateralToken;
-    address localVMOracle;
-    address remoteVMOracle;
-    // address escrow;
-    address permit2;
-    uint256 deployerKey;
 
     bytes fillerData;
     address fillerAddress;

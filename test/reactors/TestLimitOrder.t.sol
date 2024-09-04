@@ -15,7 +15,7 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
@@ -112,7 +112,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         MockERC20(tokenToSwapInput).mint(SWAPPER, uint256(length) * uint256(inputAmount));
         MockERC20(tokenToSwapOutput).mint(fillerAddress, uint256(length) * uint256(outputAmount));
 
-        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitMultipleOrders(
+        CatalystLimitOrderData memory limitOrderData = OrderDataBuilder.getLimitMultipleOrders(
             tokenToSwapInput,
             tokenToSwapOutput,
             inputAmount,
@@ -142,7 +142,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         bytes32 crossOrderHash = this._getWitnessHash(order, limitOrderData);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -177,7 +177,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
         );
@@ -213,7 +213,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             BOB_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -252,7 +252,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -272,7 +272,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
 
     function _getWitnessHash(
         CrossChainOrder calldata order,
-        LimitOrderData memory limitOrderData
+        CatalystLimitOrderData memory limitOrderData
     ) public pure returns (bytes32) {
         return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
     }
@@ -289,7 +289,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         uint32 proofDeadline,
         uint256 nonce
     ) internal view override returns (CrossChainOrder memory order, bytes32 witnessHash) {
-        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
+        CatalystLimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
             inputAmount,

@@ -6,7 +6,7 @@ import { IPreValidation } from "../interfaces/IPreValidation.sol";
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 
-import { CrossChainDutchOrderType, DutchOrderData } from "../libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CrossChainDutchOrderType, CatalystDutchOrderData } from "../libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
@@ -19,7 +19,7 @@ contract DutchOrderReactor is BaseReactor {
         bytes calldata /* fillerData */
     ) internal view override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
-        DutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
+        CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
         // If the dutch auction is initiated before the slope starts, the order may be exclusive.
         uint256 lockTime = dutchOrderData.slopeStartingTime;
@@ -43,13 +43,13 @@ contract DutchOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
     ) internal view override returns (OrderKey memory orderKey) {
-        DutchOrderData memory dutchData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
+        CatalystDutchOrderData memory dutchData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
         return _resolveKey(order, dutchData);
     }
 
     function _resolveKey(
         CrossChainOrder calldata order,
-        DutchOrderData memory dutchData
+        CatalystDutchOrderData memory dutchData
     ) internal view returns (OrderKey memory orderKey) {
         // Get the current Input(amount and token) structure based on the decay function and the time passed.
         Input[] memory inputs = CrossChainDutchOrderType.getInputsAfterDecay(dutchData);

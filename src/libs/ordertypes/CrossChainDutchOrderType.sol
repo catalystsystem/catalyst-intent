@@ -7,7 +7,7 @@ import { OutputDescription } from "../../interfaces/Structs.sol";
 
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
-struct DutchOrderData {
+struct CatalystDutchOrderData {
     bytes32 verificationContext;
     address verificationContract;
     uint32 proofDeadline;
@@ -76,11 +76,11 @@ library CrossChainDutchOrderType {
         )
     );
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns (DutchOrderData memory dutchData) {
-        dutchData = abi.decode(orderBytes, (DutchOrderData));
+    function decodeOrderData(bytes calldata orderBytes) internal pure returns (CatalystDutchOrderData memory dutchData) {
+        dutchData = abi.decode(orderBytes, (CatalystDutchOrderData));
     }
 
-    function hashOrderDataM(DutchOrderData memory orderData) internal pure returns (bytes32) {
+    function hashOrderDataM(CatalystDutchOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
@@ -101,7 +101,7 @@ library CrossChainDutchOrderType {
         );
     }
 
-    function hashOrderData(DutchOrderData calldata orderData) internal pure returns (bytes32) {
+    function hashOrderData(CatalystDutchOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 DUTCH_ORDER_DATA_TYPE_HASH,
@@ -124,7 +124,7 @@ library CrossChainDutchOrderType {
 
     function crossOrderHash(
         CrossChainOrder calldata order,
-        DutchOrderData memory dutchOrderData
+        CatalystDutchOrderData memory dutchOrderData
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
@@ -173,7 +173,7 @@ library CrossChainDutchOrderType {
      * @param dutchOrderData The order data to calculate the current input value from.
      * @return orderInputs The input after applying the decay function based on the time passed
      */
-    function getInputsAfterDecay(DutchOrderData memory dutchOrderData)
+    function getInputsAfterDecay(CatalystDutchOrderData memory dutchOrderData)
         internal
         view
         returns (Input[] memory orderInputs)
@@ -199,7 +199,7 @@ library CrossChainDutchOrderType {
      * @param dutchOrderData The order data to calculate the current output value from.
      * @return orderOutputs The output after applying the decay function based on the time passed
      */
-    function getOutputsAfterDecay(DutchOrderData memory dutchOrderData)
+    function getOutputsAfterDecay(CatalystDutchOrderData memory dutchOrderData)
         internal
         view
         returns (OutputDescription[] memory orderOutputs)

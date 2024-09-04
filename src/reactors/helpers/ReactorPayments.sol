@@ -31,6 +31,7 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
      */
     function _collectTokensViaPermit2(
         OrderKey memory orderKey,
+        uint32 permitDeadline,
         address owner,
         bytes32 witness,
         string memory witnessTypeString,
@@ -39,7 +40,7 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
         (
             ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
             ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
-        ) = orderKey.toPermit(address(this));
+        ) = orderKey.toPermit(address(this), permitDeadline);
 
         PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, owner, witness, witnessTypeString, signature);
     }

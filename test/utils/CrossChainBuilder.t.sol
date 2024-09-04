@@ -5,8 +5,8 @@ import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract
 
 import { OutputDescription } from "../../src/interfaces/Structs.sol";
 
-import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
-import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CatalystDutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CatalystLimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 //Here we can make functions that accept no order at all
 //or an order but with some fields missing
@@ -15,7 +15,7 @@ library CrossChainBuilder {
     function test() public pure { }
 
     function getCrossChainOrder(
-        LimitOrderData memory limitOrderData,
+        CatalystLimitOrderData memory limitOrderData,
         address limitOrderReactorAddress,
         address swapper,
         uint256 nonce,
@@ -35,7 +35,7 @@ library CrossChainBuilder {
     }
 
     function getCrossChainOrder(
-        DutchOrderData memory dutchOrderData,
+        CatalystDutchOrderData memory dutchOrderData,
         address limitOrderReactorAddress,
         address swapper,
         uint256 nonce,
@@ -56,7 +56,7 @@ library CrossChainBuilder {
 
     //For other reactors
     function getDutchCrossChainOrder(
-        DutchOrderData memory dutchOrderData,
+        CatalystDutchOrderData memory dutchOrderData,
         address dutchAutctionReactorAddress,
         address swapper,
         uint256 nonce,

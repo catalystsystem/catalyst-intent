@@ -7,7 +7,7 @@ import { OutputDescription } from "../../interfaces/Structs.sol";
 
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
-struct LimitOrderData {
+struct CatalystLimitOrderData {
     uint32 proofDeadline;
     uint32 challengeDeadline;
     address collateralToken;
@@ -56,11 +56,11 @@ library CrossChainLimitOrderType {
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns (LimitOrderData memory limitData) {
-        return limitData = abi.decode(orderBytes, (LimitOrderData));
+    function decodeOrderData(bytes calldata orderBytes) internal pure returns (CatalystLimitOrderData memory limitData) {
+        return limitData = abi.decode(orderBytes, (CatalystLimitOrderData));
     }
 
-    function hashOrderDataM(LimitOrderData memory orderData) internal pure returns (bytes32) {
+    function hashOrderDataM(CatalystLimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
@@ -76,7 +76,7 @@ library CrossChainLimitOrderType {
         );
     }
 
-    function hashOrderData(LimitOrderData calldata orderData) internal pure returns (bytes32) {
+    function hashOrderData(CatalystLimitOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 LIMIT_ORDER_DATA_TYPE_HASH,
@@ -94,7 +94,7 @@ library CrossChainLimitOrderType {
 
     function crossOrderHash(
         CrossChainOrder calldata order,
-        LimitOrderData memory limitOrderData
+        CatalystLimitOrderData memory limitOrderData
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(

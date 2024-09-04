@@ -6,8 +6,8 @@ import { Input, Output } from "../../src/interfaces/ISettlementContract.sol";
 import { OutputDescription } from "../../src/interfaces/Structs.sol";
 
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
-import { DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
-import { LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CatalystDutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CatalystLimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 library OrderDataBuilder {
     function test() public pure { }
@@ -25,7 +25,7 @@ library OrderDataBuilder {
         uint32 challengeDeadline,
         address localOracle,
         address remoteOracle
-    ) internal view returns (LimitOrderData memory limitOrderData) {
+    ) internal view returns (CatalystLimitOrderData memory limitOrderData) {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         OutputDescription[] memory outputs = new OutputDescription[](1);
@@ -33,7 +33,7 @@ library OrderDataBuilder {
             bytes32(abi.encode(remoteOracle)), tokenToSwapOutput, outputAmount, recipient, uint32(block.chainid), hex""
         );
 
-        limitOrderData = LimitOrderData({
+        limitOrderData = CatalystLimitOrderData({
             proofDeadline: proofDeadline,
             challengeDeadline: challengeDeadline,
             collateralToken: collateralToken,
@@ -59,7 +59,7 @@ library OrderDataBuilder {
         address localOracle,
         address remoteOracle,
         uint256 length
-    ) internal view returns (LimitOrderData memory limitOrderData) {
+    ) internal view returns (CatalystLimitOrderData memory limitOrderData) {
         Input[] memory inputs = getInputs(tokenToSwapInput, inputAmount, length);
         OutputDescription[] memory outputs = getDescriptionOutputs(
             bytes32(abi.encode(remoteOracle)),
@@ -71,7 +71,7 @@ library OrderDataBuilder {
             length
         );
 
-        limitOrderData = LimitOrderData({
+        limitOrderData = CatalystLimitOrderData({
             proofDeadline: proofDeadline,
             challengeDeadline: challengeDeadline,
             collateralToken: collateralToken,
@@ -98,7 +98,7 @@ library OrderDataBuilder {
         address remoteOracle,
         bytes32 verificationContext,
         address verificationContract
-    ) internal view returns (DutchOrderData memory dutchOrderData) {
+    ) internal view returns (CatalystDutchOrderData memory dutchOrderData) {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
         OutputDescription[] memory outputs = new OutputDescription[](1);
@@ -109,7 +109,7 @@ library OrderDataBuilder {
         int256[] memory inputSlopes = new int256[](1);
         int256[] memory outputSlopes = new int256[](1);
 
-        dutchOrderData = DutchOrderData({
+        dutchOrderData = CatalystDutchOrderData({
             verificationContext: verificationContext,
             verificationContract: verificationContract,
             proofDeadline: proofDeadline,

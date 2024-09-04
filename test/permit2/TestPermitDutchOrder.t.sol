@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import { DeployDutchOrderReactor } from "../../script/Reactor/DeployDutchOrderReactor.s.sol";
 
 import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
-import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CrossChainDutchOrderType, CatalystDutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 import { CrossChainBuilder } from "../utils/CrossChainBuilder.t.sol";
 
@@ -57,7 +57,7 @@ contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
     //     uint32 fillDeadline
     // ) public {
     //     vm.assume(fillDeadline > 0);
-    //     DutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
+    //     CatalystDutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
     //         tokenToSwapInput,
     //         tokenToSwapOutput,
     //         inputAmount,
@@ -286,7 +286,7 @@ contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
 
     function _getWitnessHash(
         CrossChainOrder calldata order,
-        DutchOrderData memory dutchOrderData
+        CatalystDutchOrderData memory dutchOrderData
     ) public pure returns (bytes32) {
         return CrossChainDutchOrderType.crossOrderHash(order, dutchOrderData);
     }

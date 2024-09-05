@@ -14,7 +14,7 @@ import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { FillerDataLib } from "../../src/libs/FillerDataLib.sol";
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 import { Test, console } from "forge-std/Test.sol";
 
@@ -171,7 +171,7 @@ abstract contract TestBaseReactor is TestConfig {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -192,7 +192,7 @@ abstract contract TestBaseReactor is TestConfig {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -213,7 +213,7 @@ abstract contract TestBaseReactor is TestConfig {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -247,7 +247,7 @@ abstract contract TestBaseReactor is TestConfig {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -662,7 +662,7 @@ abstract contract TestBaseReactor is TestConfig {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -746,7 +746,7 @@ abstract contract TestBaseReactor is TestConfig {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)

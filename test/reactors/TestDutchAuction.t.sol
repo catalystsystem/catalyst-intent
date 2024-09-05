@@ -7,7 +7,7 @@ import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 
-import { CrossChainDutchOrderType, DutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CrossChainDutchOrderType, CatalystDutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
 import { ExclusiveOrder } from "../../src/validation/ExclusiveOrder.sol";
@@ -65,7 +65,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor));
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
             SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -85,7 +85,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
     function _getWitnessHash(
         CrossChainOrder calldata order,
-        DutchOrderData memory dutchOrderData
+        CatalystDutchOrderData memory dutchOrderData
     ) public pure returns (bytes32) {
         return CrossChainDutchOrderType.crossOrderHash(order, dutchOrderData);
     }
@@ -102,7 +102,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 proofDeadline,
         uint256 nonce
     ) internal view virtual override returns (CrossChainOrder memory order, bytes32 witnessHash) {
-        DutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
+        CatalystDutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
             inputAmount,

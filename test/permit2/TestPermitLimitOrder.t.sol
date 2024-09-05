@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { DeployLimitOrderReactor } from "../../script/Reactor/DeployLimitOrderReactor.s.sol";
-import { CrossChainLimitOrderType, LimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 
@@ -54,8 +54,8 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
         uint256 fillerCollateralAmount,
         uint32 fillDeadline
     ) public {
-        vm.assume(fillDeadline > 0);
-        LimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
+        vm.assume(fillDeadline > 1);
+        CatalystLimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
             inputAmount,
@@ -71,7 +71,7 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
         );
 
         CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
-            limitOrderData, address(reactor), SWAPPER, 0, uint32(block.chainid), 0, fillDeadline
+            limitOrderData, address(reactor), SWAPPER, 0, uint32(block.chainid), 1, fillDeadline
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -183,7 +183,7 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
             ISignatureTransfer.SignatureTransferDetails({ to: address(reactor), requestedAmount: inputAmount });
 
         ISignatureTransfer.PermitBatchTransferFrom memory expectedPermitBatch = ISignatureTransfer
-            .PermitBatchTransferFrom({ permitted: expectedPermitted, nonce: 0, deadline: uint32(fillDeadline) });
+            .PermitBatchTransferFrom({ permitted: expectedPermitted, nonce: 0, deadline: uint32(order.initiateDeadline) });
 
         bytes32 expectedHashedTokenPermission =
             keccak256(abi.encodePacked(keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, expectedPermitted[0]))));
@@ -207,7 +207,7 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
         (
             ISignatureTransfer.PermitBatchTransferFrom memory actualPermitBatch,
             ISignatureTransfer.SignatureTransferDetails[] memory actualTransferDetails
-        ) = Permit2Lib.toPermit(orderKey, address(reactor));
+        ) = Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
         bytes32[] memory actualTokenPermissions = new bytes32[](actualPermitBatch.permitted.length);
         for (uint256 i = 0; i < actualPermitBatch.permitted.length; ++i) {
@@ -265,7 +265,7 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
 
     function _getWitnessHash(
         CrossChainOrder calldata order,
-        LimitOrderData memory limitOrderData
+        CatalystLimitOrderData memory limitOrderData
     ) public pure returns (bytes32) {
         return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
     }

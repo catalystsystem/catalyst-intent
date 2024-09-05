@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
-import { CrossChainLimitOrderType, LimitOrderData } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
@@ -16,7 +16,7 @@ contract LimitOrderReactor is BaseReactor {
         bytes calldata /* fillerData */
     ) internal pure override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
-        LimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
+        CatalystLimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
 
         witness = CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
         witnessTypeString = CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE;
@@ -29,13 +29,13 @@ contract LimitOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
     ) internal pure override returns (OrderKey memory orderKey) {
-        LimitOrderData memory limitData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
+        CatalystLimitOrderData memory limitData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
         return _resolveKey(order, limitData);
     }
 
     function _resolveKey(
         CrossChainOrder calldata order,
-        LimitOrderData memory limitData
+        CatalystLimitOrderData memory limitData
     ) internal pure returns (OrderKey memory orderKey) {
         Input[] memory inputs = limitData.inputs;
         OutputDescription[] memory outputs = limitData.outputs;

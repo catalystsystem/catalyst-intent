@@ -15,7 +15,8 @@ library Permit2Lib {
      */
     function toPermit(
         OrderKey memory order,
-        address to
+        address to,
+        uint32 deadline
     )
         internal
         pure
@@ -46,7 +47,7 @@ library Permit2Lib {
         permitBatch = ISignatureTransfer.PermitBatchTransferFrom({
             permitted: permitted,
             nonce: order.nonce,
-            deadline: order.reactorContext.fillDeadline
+            deadline: deadline
         });
     }
 }

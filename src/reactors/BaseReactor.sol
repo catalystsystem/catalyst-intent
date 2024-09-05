@@ -185,7 +185,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         );
 
         // Collect input tokens from user.
-        _collectTokensViaPermit2(orderKey, order.swapper, witness, witnessTypeString, signature);
+        _collectTokensViaPermit2(orderKey, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature);
 
         emit OrderInitiated(orderHash, msg.sender, fillerData, orderKey);
     }

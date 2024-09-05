@@ -105,7 +105,7 @@ library FillerDataLib {
     uint256 private constant V2_ORDER_PURCHASE_DEADLINE_END = 25;
     uint256 private constant V2_ORDER_DISCOUNT_START = V2_ORDER_PURCHASE_DEADLINE_END;
     uint256 private constant V2_ORDER_DISCOUNT_END = 27;
-    uint256 private constant V2_CALLDATA_HASH_START = V2_ORDER_DISCOUNT_END + 1;
+    uint256 private constant V2_CALLDATA_HASH_START = V2_ORDER_DISCOUNT_END;
     uint256 private constant V2_CALLDATA_HASH_END = 59;
 
     function _decode2(bytes calldata fillerData)

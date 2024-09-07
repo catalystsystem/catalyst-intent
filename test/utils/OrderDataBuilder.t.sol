@@ -92,12 +92,10 @@ library OrderDataBuilder {
         address collateralToken,
         uint256 fillerAmount,
         uint256 challengerAmount,
-        uint32 proofDeadline,
         uint32 challengeDeadline,
+        uint32 proofDeadline,
         address localOracle,
-        address remoteOracle,
-        bytes32 verificationContext,
-        address verificationContract
+        address remoteOracle
     ) internal view returns (CatalystDutchOrderData memory dutchOrderData) {
         Input[] memory inputs = new Input[](1);
         inputs[0] = getInput(tokenToSwapInput, inputAmount);
@@ -110,10 +108,10 @@ library OrderDataBuilder {
         int256[] memory outputSlopes = new int256[](1);
 
         dutchOrderData = CatalystDutchOrderData({
-            verificationContext: verificationContext,
-            verificationContract: verificationContract,
-            proofDeadline: proofDeadline,
+            verificationContext: "0x",
+            verificationContract: address(0),
             challengeDeadline: challengeDeadline,
+            proofDeadline: proofDeadline,
             collateralToken: collateralToken,
             fillerCollateralAmount: fillerAmount,
             challengerCollateralAmount: challengerAmount,

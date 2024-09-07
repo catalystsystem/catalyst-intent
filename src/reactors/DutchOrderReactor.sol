@@ -6,10 +6,11 @@ import { IPreValidation } from "../interfaces/IPreValidation.sol";
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 
-import { CrossChainDutchOrderType, CatalystDutchOrderData } from "../libs/ordertypes/CrossChainDutchOrderType.sol";
+import { CatalystDutchOrderData, CrossChainDutchOrderType } from "../libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
+import { console } from "forge-std/Test.sol";
 
 contract DutchOrderReactor is BaseReactor {
     constructor(address permit2, address owner) BaseReactor(permit2, owner) { }

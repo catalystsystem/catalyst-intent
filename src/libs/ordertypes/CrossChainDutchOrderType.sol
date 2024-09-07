@@ -7,6 +7,8 @@ import { OutputDescription } from "../../interfaces/Structs.sol";
 
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
 
+import { console } from "forge-std/Test.sol";
+
 struct CatalystDutchOrderData {
     bytes32 verificationContext;
     address verificationContract;
@@ -76,50 +78,56 @@ library CrossChainDutchOrderType {
         )
     );
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns (CatalystDutchOrderData memory dutchData) {
+    function decodeOrderData(bytes calldata orderBytes)
+        internal
+        pure
+        returns (CatalystDutchOrderData memory dutchData)
+    {
         dutchData = abi.decode(orderBytes, (CatalystDutchOrderData));
     }
 
     function hashOrderDataM(CatalystDutchOrderData memory orderData) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                DUTCH_ORDER_DATA_TYPE_HASH,
-                orderData.verificationContext,
-                orderData.verificationContract,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
-                orderData.slopeStartingTime,
-                keccak256(abi.encodePacked(orderData.inputSlopes)),
-                keccak256(abi.encodePacked(orderData.outputSlopes)),
-                CrossChainOrderType.hashInputs(orderData.inputs),
-                CrossChainOrderType.hashOutputs(orderData.outputs)
-            )
+        bytes memory dutchPlainDataEncoded = abi.encode(
+            DUTCH_ORDER_DATA_TYPE_HASH,
+            orderData.verificationContext,
+            orderData.verificationContract,
+            orderData.proofDeadline,
+            orderData.challengeDeadline,
+            orderData.collateralToken,
+            orderData.fillerCollateralAmount,
+            orderData.challengerCollateralAmount,
+            orderData.localOracle,
+            orderData.slopeStartingTime
         );
+        bytes memory dutchArrayDataEncoded = abi.encode(
+            keccak256(abi.encodePacked(orderData.inputSlopes)),
+            keccak256(abi.encodePacked(orderData.outputSlopes)),
+            CrossChainOrderType.hashInputs(orderData.inputs),
+            CrossChainOrderType.hashOutputs(orderData.outputs)
+        );
+        return keccak256(bytes.concat(dutchPlainDataEncoded, dutchArrayDataEncoded));
     }
 
     function hashOrderData(CatalystDutchOrderData calldata orderData) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                DUTCH_ORDER_DATA_TYPE_HASH,
-                orderData.verificationContext,
-                orderData.verificationContract,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
-                orderData.slopeStartingTime,
-                keccak256(abi.encodePacked(orderData.inputSlopes)),
-                keccak256(abi.encodePacked(orderData.outputSlopes)),
-                CrossChainOrderType.hashInputs(orderData.inputs),
-                CrossChainOrderType.hashOutputs(orderData.outputs)
-            )
+        bytes memory dutchPlainDataEncoded = abi.encode(
+            DUTCH_ORDER_DATA_TYPE_HASH,
+            orderData.verificationContext,
+            orderData.verificationContract,
+            orderData.proofDeadline,
+            orderData.challengeDeadline,
+            orderData.collateralToken,
+            orderData.fillerCollateralAmount,
+            orderData.challengerCollateralAmount,
+            orderData.localOracle,
+            orderData.slopeStartingTime
         );
+        bytes memory dutchArrayDataEncoded = abi.encode(
+            keccak256(abi.encodePacked(orderData.inputSlopes)),
+            keccak256(abi.encodePacked(orderData.outputSlopes)),
+            CrossChainOrderType.hashInputs(orderData.inputs),
+            CrossChainOrderType.hashOutputs(orderData.outputs)
+        );
+        return keccak256(bytes.concat(dutchPlainDataEncoded, dutchArrayDataEncoded));
     }
 
     function crossOrderHash(
@@ -187,7 +195,6 @@ library CrossChainDutchOrderType {
             for (uint256 i; i < numInputs; ++i) {
                 int256 inputSlope = inputSlopes[i];
                 if (inputSlope == 0) continue;
-
                 orderInputs[i].amount = _calcSlope(inputSlope, dutchOrderData.slopeStartingTime, orderInputs[i].amount);
             }
         }

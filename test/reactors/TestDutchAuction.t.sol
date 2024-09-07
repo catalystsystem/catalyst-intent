@@ -7,7 +7,9 @@ import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 
-import { CrossChainDutchOrderType, CatalystDutchOrderData } from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
+import {
+    CatalystDutchOrderData, CrossChainDutchOrderType
+} from "../../src/libs/ordertypes/CrossChainDutchOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
 import { ExclusiveOrder } from "../../src/validation/ExclusiveOrder.sol";
@@ -23,17 +25,341 @@ import { OrderDataBuilder } from "../utils/OrderDataBuilder.t.sol";
 import { OrderKeyInfo } from "../utils/OrderKeyInfo.t.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
+import { MockERC20 } from "../mocks/MockERC20.sol";
+import { MockOracle } from "../mocks/MockOracle.sol";
+import { MockUtils } from "../utils/MockUtils.sol";
+
+import { OrderInitiated, OrderProven } from "../../src/interfaces/Events.sol";
+import { console } from "forge-std/Test.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
-    using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
+event Transfer(address indexed from, address indexed to, uint256 amount);
 
+contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
     function testA() external pure { }
 
     function setUp() public {
         address reactorDeployer = vm.addr(deployerKey);
         reactor = deploy(reactorDeployer);
         DOMAIN_SEPARATOR = Permit2DomainSeparator(permit2).DOMAIN_SEPARATOR();
+    }
+
+    /////////////////
+    //Valid cases////
+    /////////////////
+
+    function test_input_slope(
+        uint256 inputAmount,
+        uint160 outputAmount,
+        uint32 slopeStartingTime,
+        uint32 timeIncrement,
+        int160 slope
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
+        uint32 PROOF_DEADLINE_INCRMENT = 4;
+        uint256 timePassed = uint256(timeIncrement);
+        int256 slopeParsed = int256(slope);
+
+        vm.assume(
+            timeIncrement > 0 && slopeStartingTime < type(uint32).max - PROOF_DEADLINE_INCRMENT
+                && timeIncrement <= type(uint32).max - PROOF_DEADLINE_INCRMENT - slopeStartingTime
+        );
+        vm.assume(slope < 0);
+
+        uint256 inputAmountAfterDecrement = _dutchInputResult(inputAmount, -slopeParsed, timePassed);
+        if (inputAmountAfterDecrement == 0) return;
+
+        vm.warp(slopeStartingTime);
+
+        uint32 challengeDeadline = slopeStartingTime + timeIncrement + 3;
+        uint32 proofDeadline = slopeStartingTime + timeIncrement + PROOF_DEADLINE_INCRMENT;
+
+        (uint256 swapperBalanceBefore, uint256 reactorBalanceBefore) =
+            MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
+        CatalystDutchOrderData memory currentDutchOrderData = OrderDataBuilder.getDutchOrder(
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            collateralToken,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            challengeDeadline,
+            proofDeadline,
+            localVMOracle,
+            remoteVMOracle
+        );
+
+        int256[] memory inputSlopes = new int256[](1);
+        inputSlopes[0] = slope;
+
+        currentDutchOrderData =
+            _withSlopesData(currentDutchOrderData, slopeStartingTime, inputSlopes, currentDutchOrderData.outputSlopes);
+
+        CrossChainOrder memory crossOrder = CrossChainBuilder.getCrossChainOrder(
+            currentDutchOrderData,
+            address(reactor),
+            SWAPPER,
+            0,
+            uint32(block.chainid),
+            slopeStartingTime + timeIncrement + 1,
+            slopeStartingTime + timeIncrement + 2
+        );
+        vm.warp(slopeStartingTime + timeIncrement);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor), crossOrder.initiateDeadline);
+
+        bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
+
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
+        );
+        vm.prank(fillerAddress);
+        vm.expectCall(
+            tokenToSwapInput,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)", SWAPPER, address(reactor), inputAmountAfterDecrement
+            )
+        );
+        vm.expectEmit();
+        emit Transfer(SWAPPER, address(reactor), inputAmountAfterDecrement);
+        vm.expectEmit();
+        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
+        reactor.initiate(crossOrder, signature, fillerData);
+
+        (uint256 swapperBalanceAfter, uint256 reactorBalanceAfter) =
+            MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
+
+        assertEq(swapperBalanceBefore, inputAmount);
+        assertEq(reactorBalanceBefore, 0);
+        assertEq(reactorBalanceAfter, inputAmountAfterDecrement);
+        assertEq(swapperBalanceAfter, inputAmount - inputAmountAfterDecrement);
+    }
+
+    function test_output_slope(
+        uint256 inputAmount,
+        uint160 outputAmount,
+        uint32 slopeStartingTime,
+        uint32 timeIncrement,
+        int160 slope
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
+        uint32 PROOF_DEADLINE_INCREMENT = 4;
+        uint32 FILL_DEADLINE_INCREMENT = 2;
+        uint256 timePassed = uint256(timeIncrement);
+        int256 slopeParsed = int256(slope);
+
+        vm.assume(
+            timeIncrement > 0 && slopeStartingTime < type(uint32).max - PROOF_DEADLINE_INCREMENT
+                && timeIncrement <= type(uint32).max - PROOF_DEADLINE_INCREMENT - slopeStartingTime
+        );
+        vm.assume(slope > 0);
+
+        uint256 outputAmountAfterIncrement = _dutchOutputResult(outputAmount, slopeParsed, timePassed);
+        if (outputAmountAfterIncrement == 0) return;
+        MockERC20(tokenToSwapOutput).mint(fillerAddress, outputAmountAfterIncrement - outputAmount);
+
+        vm.warp(slopeStartingTime);
+
+        uint32 challengeDeadline = slopeStartingTime + timeIncrement + 3;
+        uint32 proofDeadline = slopeStartingTime + timeIncrement + PROOF_DEADLINE_INCREMENT;
+        uint32 fillDeadline = slopeStartingTime + timeIncrement + FILL_DEADLINE_INCREMENT;
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        (uint256 swapperBalanceBefore, uint256 fillerBalanceBefore) =
+            MockUtils.getCurrentBalances(tokenToSwapOutput, SWAPPER, fillerAddress);
+        CatalystDutchOrderData memory currentDutchOrderData = OrderDataBuilder.getDutchOrder(
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            collateralToken,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            challengeDeadline,
+            proofDeadline,
+            localVMOracle,
+            remoteVMOracle
+        );
+
+        int256[] memory outputSlopes = new int256[](1);
+        outputSlopes[0] = slope;
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
+
+        currentDutchOrderData =
+            _withSlopesData(currentDutchOrderData, slopeStartingTime, currentDutchOrderData.inputSlopes, outputSlopes);
+
+        CrossChainOrder memory crossOrder = CrossChainBuilder.getCrossChainOrder(
+            currentDutchOrderData,
+            address(reactor),
+            SWAPPER,
+            0,
+            uint32(block.chainid),
+            slopeStartingTime + timeIncrement + 1,
+            fillDeadline
+        );
+        vm.warp(slopeStartingTime + timeIncrement);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor), crossOrder.initiateDeadline);
+
+        bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
+
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
+        );
+        vm.prank(fillerAddress);
+        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
+        reactor.initiate(crossOrder, signature, fillerData);
+
+        vm.expectCall(
+            tokenToSwapOutput,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmountAfterIncrement
+            )
+        );
+
+        vm.expectEmit();
+        emit Transfer(fillerAddress, SWAPPER, outputAmountAfterIncrement);
+
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
+
+        vm.prank(fillerAddress);
+        reactor.proveOrderFulfilment(orderKey, hex"");
+
+        (uint256 swapperBalanceAfter, uint256 fillerBalanceAfter) =
+            MockUtils.getCurrentBalances(tokenToSwapOutput, SWAPPER, fillerAddress);
+
+        assertEq(swapperBalanceBefore, 0);
+        assertEq(fillerBalanceBefore, outputAmountAfterIncrement);
+        assertEq(swapperBalanceAfter, outputAmountAfterIncrement);
+        assertEq(fillerBalanceAfter, 0);
+    }
+
+    function test_input_and_output_slopes(
+        uint256 inputAmount,
+        uint160 outputAmount,
+        uint32 slopeStartingTime,
+        uint32 timeIncrement,
+        int160 inputSlope,
+        int160 outputSlope
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
+        uint256 timePassed = uint256(timeIncrement);
+        int256 inputSlopeParsed = int256(inputSlope);
+        int256 outputSlopeParsed = int256(outputSlope);
+
+        vm.assume(
+            timeIncrement > 0 && slopeStartingTime < type(uint32).max - 4
+                && timeIncrement <= type(uint32).max - 4 - slopeStartingTime
+        );
+        vm.assume(outputSlopeParsed > 0 && inputSlopeParsed < 0);
+
+        uint256 inputAmountAfterDecrement = _dutchInputResult(inputAmount, -inputSlopeParsed, timePassed);
+        if (inputAmountAfterDecrement == 0) return;
+
+        uint256 outputAmountAfterIncrement = _dutchOutputResult(outputAmount, outputSlopeParsed, timePassed);
+        if (outputAmountAfterIncrement == 0) return;
+        MockERC20(tokenToSwapOutput).mint(fillerAddress, outputAmountAfterIncrement - outputAmount);
+
+        vm.warp(slopeStartingTime);
+
+        uint32 fillDeadline = slopeStartingTime + timeIncrement + 2;
+
+        CatalystDutchOrderData memory currentDutchOrderData = OrderDataBuilder.getDutchOrder(
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            collateralToken,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            slopeStartingTime + timeIncrement + 3,
+            slopeStartingTime + timeIncrement + 4,
+            localVMOracle,
+            remoteVMOracle
+        );
+
+        int256[] memory inputSlopes = new int256[](1);
+        inputSlopes[0] = inputSlopeParsed;
+
+        int256[] memory outputSlopes = new int256[](1);
+        outputSlopes[0] = outputSlopeParsed;
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, fillDeadline);
+
+        currentDutchOrderData = _withSlopesData(currentDutchOrderData, slopeStartingTime, inputSlopes, outputSlopes);
+
+        CrossChainOrder memory crossOrder = CrossChainBuilder.getCrossChainOrder(
+            currentDutchOrderData,
+            address(reactor),
+            SWAPPER,
+            0,
+            uint32(block.chainid),
+            slopeStartingTime + timeIncrement + 1,
+            fillDeadline
+        );
+        vm.warp(slopeStartingTime + timeIncrement);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor), crossOrder.initiateDeadline);
+
+        bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
+
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
+        );
+        vm.prank(fillerAddress);
+        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
+        reactor.initiate(crossOrder, signature, fillerData);
+
+        vm.expectCall(
+            tokenToSwapOutput,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)", fillerAddress, SWAPPER, outputAmountAfterIncrement
+            )
+        );
+
+        _fillAndSubmitOracle(_getVMOracle(remoteVMOracle), _getVMOracle(localVMOracle), orderKey, fillDeadlines);
+
+        vm.prank(fillerAddress);
+        vm.expectEmit();
+        emit OrderProven(orderHash, fillerAddress);
+        reactor.proveOrderFulfilment(orderKey, hex"");
+
+        uint256 swapperInputBalanceAfter = MockERC20(tokenToSwapInput).balanceOf(SWAPPER);
+        uint256 swapperOutputBalanceAfter = MockERC20(tokenToSwapOutput).balanceOf(SWAPPER);
+        uint256 fillerInputBalanceAfter = MockERC20(tokenToSwapInput).balanceOf(fillerAddress);
+        uint256 fillerOutputBalanceAfter = MockERC20(tokenToSwapOutput).balanceOf(fillerAddress);
+        uint256 reactorInputBalanceAfter = MockERC20(tokenToSwapInput).balanceOf(address(reactor));
+
+        assertEq(swapperInputBalanceAfter, inputAmount - inputAmountAfterDecrement);
+        assertEq(swapperOutputBalanceAfter, outputAmountAfterIncrement);
+        assertEq(fillerInputBalanceAfter, inputAmountAfterDecrement);
+        assertEq(fillerOutputBalanceAfter, 0);
+        assertEq(reactorInputBalanceAfter, 0);
     }
 
     function _initiateOrder(
@@ -67,11 +393,44 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
             Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
 
-        bytes memory signature = permitBatch.getPermitBatchWitnessSignature(
-            SWAPPER_PRIVATE_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
         );
         vm.prank(_fillerSender);
         return reactor.initiate(order, signature, fillerData);
+    }
+
+    function _withSlopesData(
+        CatalystDutchOrderData memory currentCatalystDutchOrderData,
+        uint32 slopeStaringTime,
+        int256[] memory inputSlopes,
+        int256[] memory outputSlopes
+    ) internal pure returns (CatalystDutchOrderData memory catalystDutchOrderData) {
+        catalystDutchOrderData = currentCatalystDutchOrderData;
+        catalystDutchOrderData.slopeStartingTime = slopeStaringTime;
+        catalystDutchOrderData.inputSlopes = inputSlopes;
+        catalystDutchOrderData.outputSlopes = outputSlopes;
+    }
+
+    function _dutchInputResult(uint256 inputAmount, int256 slope, uint256 timePassed) internal pure returns (uint256) {
+        if (inputAmount / timePassed > uint256(slope)) return inputAmount - timePassed * uint256(slope);
+        return 0;
+    }
+
+    function _dutchOutputResult(
+        uint256 outputAmount,
+        int256 slope,
+        uint256 timePassed
+    ) internal pure returns (uint256) {
+        if (type(uint256).max - outputAmount > timePassed * uint256(slope)) {
+            return outputAmount + timePassed * uint256(slope);
+        }
+        return 0;
     }
 
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {
@@ -111,12 +470,10 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             collateralToken,
             fillerAmount,
             challengerCollateralAmount,
-            proofDeadline,
             challengeDeadline,
+            proofDeadline,
             localVMOracle,
-            remoteVMOracle,
-            bytes32(0),
-            address(0)
+            remoteVMOracle
         );
 
         order = CrossChainBuilder.getCrossChainOrder(

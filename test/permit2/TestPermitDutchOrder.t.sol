@@ -56,9 +56,9 @@ contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
         uint256 outputAmount,
         uint256 challengerCollateralAmount,
         uint256 fillerCollateralAmount,
-        uint32 fillDeadline
+        uint32 initiateDeadline
     ) public {
-        vm.assume(fillDeadline > 0);
+        vm.assume(initiateDeadline > 0);
         CatalystDutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
@@ -68,14 +68,14 @@ contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
             collateralToken,
             challengerCollateralAmount,
             fillerCollateralAmount,
-            2,
             1,
+            2,
             localVMOracle,
             remoteVMOracle
         );
 
         CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
-            dutchOrderData, address(reactor), SWAPPER, 0, uint32(block.chainid), 0, fillDeadline
+            dutchOrderData, address(reactor), SWAPPER, 0, uint32(block.chainid), initiateDeadline, 1
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
@@ -152,6 +152,7 @@ contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
 
         bytes32 expectedHashedDutchOrderData =
             keccak256(bytes.concat(expectedDutchPlainDataEncoded, expectedDutchArrayDataEncoded));
+
         bytes memory expectedOrderType = abi.encodePacked(
             "CrossChainOrder(",
             "address settlementContract,",
@@ -190,7 +191,7 @@ contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
             ISignatureTransfer.SignatureTransferDetails({ to: address(reactor), requestedAmount: inputAmount });
 
         ISignatureTransfer.PermitBatchTransferFrom memory expectedPermitBatch = ISignatureTransfer
-            .PermitBatchTransferFrom({ permitted: expectedPermitted, nonce: 0, deadline: uint32(fillDeadline) });
+            .PermitBatchTransferFrom({ permitted: expectedPermitted, nonce: 0, deadline: uint32(order.initiateDeadline) });
 
         bytes32 expectedHashedTokenPermission =
             keccak256(abi.encodePacked(keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, expectedPermitted[0]))));

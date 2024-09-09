@@ -315,8 +315,8 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             collateralToken,
             fillerCollateralAmount,
             challengerCollateralAmount,
-            proofDeadline,
             challengeDeadline,
+            proofDeadline,
             localVMOracle,
             remoteVMOracle
         );

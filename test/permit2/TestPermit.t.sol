@@ -28,5 +28,7 @@ abstract contract TestPermit is TestConfig {
         (SWAPPER, SWAPPER_PRIVATE_KEY) = makeAddrAndKey("swapper");
     }
 
+    function testA() public { }
+
     function _getFullPermitTypeHash() internal virtual returns (bytes32);
 }

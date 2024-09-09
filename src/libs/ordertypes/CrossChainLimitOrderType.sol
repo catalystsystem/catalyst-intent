@@ -56,38 +56,48 @@ library CrossChainLimitOrderType {
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
 
-    function decodeOrderData(bytes calldata orderBytes) internal pure returns (CatalystLimitOrderData memory limitData) {
+    function decodeOrderData(bytes calldata orderBytes)
+        internal
+        pure
+        returns (CatalystLimitOrderData memory limitData)
+    {
         return limitData = abi.decode(orderBytes, (CatalystLimitOrderData));
     }
 
     function hashOrderDataM(CatalystLimitOrderData memory orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                LIMIT_ORDER_DATA_TYPE_HASH,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
-                CrossChainOrderType.hashInputs(orderData.inputs),
-                CrossChainOrderType.hashOutputs(orderData.outputs)
+            bytes.concat(
+                abi.encode(
+                    LIMIT_ORDER_DATA_TYPE_HASH,
+                    orderData.proofDeadline,
+                    orderData.challengeDeadline,
+                    orderData.collateralToken,
+                    orderData.fillerCollateralAmount,
+                    orderData.challengerCollateralAmount,
+                    orderData.localOracle
+                ),
+                abi.encode(
+                    CrossChainOrderType.hashInputs(orderData.inputs), CrossChainOrderType.hashOutputs(orderData.outputs)
+                )
             )
         );
     }
 
     function hashOrderData(CatalystLimitOrderData calldata orderData) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                LIMIT_ORDER_DATA_TYPE_HASH,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                orderData.collateralToken,
-                orderData.fillerCollateralAmount,
-                orderData.challengerCollateralAmount,
-                orderData.localOracle,
-                CrossChainOrderType.hashInputs(orderData.inputs),
-                CrossChainOrderType.hashOutputs(orderData.outputs)
+            bytes.concat(
+                abi.encode(
+                    LIMIT_ORDER_DATA_TYPE_HASH,
+                    orderData.proofDeadline,
+                    orderData.challengeDeadline,
+                    orderData.collateralToken,
+                    orderData.fillerCollateralAmount,
+                    orderData.challengerCollateralAmount,
+                    orderData.localOracle
+                ),
+                abi.encode(
+                    CrossChainOrderType.hashInputs(orderData.inputs), CrossChainOrderType.hashOutputs(orderData.outputs)
+                )
             )
         );
     }

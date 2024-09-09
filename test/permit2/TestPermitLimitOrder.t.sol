@@ -2,7 +2,9 @@
 pragma solidity ^0.8.26;
 
 import { DeployLimitOrderReactor } from "../../script/Reactor/DeployLimitOrderReactor.s.sol";
-import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import {
+    CatalystLimitOrderData, CrossChainLimitOrderType
+} from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
 import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 
@@ -52,9 +54,9 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
         uint256 outputAmount,
         uint256 challengerCollateralAmount,
         uint256 fillerCollateralAmount,
-        uint32 fillDeadline
+        uint32 initiateDeadline
     ) public {
-        vm.assume(fillDeadline > 1);
+        vm.assume(initiateDeadline > 0);
         CatalystLimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
             tokenToSwapInput,
             tokenToSwapOutput,
@@ -64,14 +66,14 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
             collateralToken,
             challengerCollateralAmount,
             fillerCollateralAmount,
-            2,
             1,
+            2,
             localVMOracle,
             remoteVMOracle
         );
 
         CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
-            limitOrderData, address(reactor), SWAPPER, 0, uint32(block.chainid), 1, fillDeadline
+            limitOrderData, address(reactor), SWAPPER, 0, uint32(block.chainid), initiateDeadline, 1
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -123,19 +125,20 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
             expectedOutputTypeStub
         );
 
-        bytes32 expectedHashedLimitOrderData = keccak256(
-            abi.encode(
-                keccak256(expectedLimitOrderDataType),
-                limitOrderData.proofDeadline,
-                limitOrderData.challengeDeadline,
-                limitOrderData.collateralToken,
-                limitOrderData.fillerCollateralAmount,
-                limitOrderData.challengerCollateralAmount,
-                limitOrderData.localOracle,
-                expectedHashedInputArray,
-                expectedHashedOutputArray
-            )
+        bytes memory expectedLimitPlainDataEncoded = abi.encode(
+            keccak256(expectedLimitOrderDataType),
+            limitOrderData.proofDeadline,
+            limitOrderData.challengeDeadline,
+            limitOrderData.collateralToken,
+            limitOrderData.fillerCollateralAmount,
+            limitOrderData.challengerCollateralAmount,
+            limitOrderData.localOracle
         );
+        bytes memory expectedLimitArrayDataEncoded = abi.encode(expectedHashedInputArray, expectedHashedOutputArray);
+
+        bytes32 expectedHashedLimitOrderData =
+            keccak256(bytes.concat(expectedLimitPlainDataEncoded, expectedLimitArrayDataEncoded));
+
         bytes memory expectedOrderType = abi.encodePacked(
             "CrossChainOrder(",
             "address settlementContract,",
@@ -145,18 +148,7 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
             "uint32 initiateDeadline,",
             "uint32 fillDeadline,",
             "CatalystLimitOrderData orderData)",
-            "CatalystLimitOrderData(",
-            "uint32 proofDeadline,",
-            "uint32 challengeDeadline,",
-            "address collateralToken,",
-            "uint256 fillerCollateralAmount,",
-            "uint256 challengerCollateralAmount,",
-            "address localOracle,",
-            "Input[] inputs,",
-            "OutputDescription[] outputs",
-            ")",
-            expectedInputTypeStub,
-            expectedOutputTypeStub
+            expectedLimitOrderDataType
         );
         bytes32 expectedHashedCrossOrderType = keccak256(
             abi.encode(
@@ -183,7 +175,7 @@ contract TestPermitLimitOrder is TestPermit, DeployLimitOrderReactor {
             ISignatureTransfer.SignatureTransferDetails({ to: address(reactor), requestedAmount: inputAmount });
 
         ISignatureTransfer.PermitBatchTransferFrom memory expectedPermitBatch = ISignatureTransfer
-            .PermitBatchTransferFrom({ permitted: expectedPermitted, nonce: 0, deadline: uint32(order.initiateDeadline) });
+            .PermitBatchTransferFrom({ permitted: expectedPermitted, nonce: 0, deadline: order.initiateDeadline });
 
         bytes32 expectedHashedTokenPermission =
             keccak256(abi.encodePacked(keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, expectedPermitted[0]))));

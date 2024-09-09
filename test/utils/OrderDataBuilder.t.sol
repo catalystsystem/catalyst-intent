@@ -21,8 +21,8 @@ library OrderDataBuilder {
         address collateralToken,
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount,
-        uint32 proofDeadline,
         uint32 challengeDeadline,
+        uint32 proofDeadline,
         address localOracle,
         address remoteOracle
     ) internal view returns (CatalystLimitOrderData memory limitOrderData) {

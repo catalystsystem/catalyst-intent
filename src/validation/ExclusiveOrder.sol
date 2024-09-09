@@ -4,7 +4,6 @@ pragma solidity ^0.8.26;
 import { Ownable } from "solady/src/auth/Ownable.sol";
 
 import { IPreValidation } from "../interfaces/IPreValidation.sol";
-import { console } from "forge-std/Test.sol";
 
 /**
  * @notice Selectively allow solvers.

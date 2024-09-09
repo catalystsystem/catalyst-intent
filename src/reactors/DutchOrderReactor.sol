@@ -10,7 +10,6 @@ import { CatalystDutchOrderData, CrossChainDutchOrderType } from "../libs/ordert
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
-import { console } from "forge-std/Test.sol";
 
 contract DutchOrderReactor is BaseReactor {
     constructor(address permit2, address owner) BaseReactor(permit2, owner) { }

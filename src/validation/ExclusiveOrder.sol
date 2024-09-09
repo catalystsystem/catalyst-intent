@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import { Ownable } from "solady/src/auth/Ownable.sol";
 
 import { IPreValidation } from "../interfaces/IPreValidation.sol";
+import { console } from "forge-std/Test.sol";
 
 /**
  * @notice Selectively allow solvers.
@@ -18,6 +19,10 @@ contract ExclusiveOrder is IPreValidation, Ownable {
 
     mapping(bytes32 => mapping(address => bool)) _allowList;
 
+    constructor(address owner) {
+        _initializeOwner(owner);
+    }
+
     /**
      * @notice Check if initiator is in allowlist key.
      * @dev If the first 12 bytes of key is empty, then the key is used as an explicit map.
@@ -27,7 +32,7 @@ contract ExclusiveOrder is IPreValidation, Ownable {
     function validate(bytes32 key, address initiator) external view returns (bool) {
         return (bytes12(key) == bytes12(0))
             ? address(uint160(uint256(key))) == initiator || address(uint160(uint256(key))) == owner()
-            : _allowList[key][initiator] || address(uint160(uint256(key))) == owner();
+            : _allowList[key][initiator];
     }
 
     /**

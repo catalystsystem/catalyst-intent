@@ -364,7 +364,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         assertEq(reactorInputBalanceAfter, 0);
     }
 
-    function test_allow_list_exlcusive_order(bytes32 key, address initiator, bool config) public {
+    function test_allow_list_exclusive_order(bytes32 key, address initiator, bool config) public {
         vm.assume(bytes12(key) != bytes12(0));
 
         vm.expectEmit();

@@ -138,8 +138,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         vm.expectEmit();
         emit Transfer(SWAPPER, address(reactor), inputAmountAfterDecrement);
         vm.expectEmit();
-        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
-        reactor.initiate(crossOrder, signature, fillerData);
+        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
+        reactor.initiate(crossOrder, signature, fillDataV1);
 
         (uint256 swapperBalanceAfter, uint256 reactorBalanceAfter) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
@@ -229,8 +229,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.prank(fillerAddress);
         vm.expectEmit();
-        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
-        reactor.initiate(crossOrder, signature, fillerData);
+        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
+        reactor.initiate(crossOrder, signature, fillDataV1);
 
         vm.expectCall(
             tokenToSwapOutput,
@@ -334,8 +334,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             address(reactor)
         );
         vm.prank(fillerAddress);
-        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
-        reactor.initiate(crossOrder, signature, fillerData);
+        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
+        reactor.initiate(crossOrder, signature, fillDataV1);
 
         vm.expectCall(
             tokenToSwapOutput,
@@ -451,7 +451,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
 
         vm.prank(fillerAddress);
-        reactor.initiate(crossOrder, signature, fillerData);
+        reactor.initiate(crossOrder, signature, fillDataV1);
     }
 
     function test_output_lengths_no_match(
@@ -522,7 +522,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             )
         );
         vm.prank(fillerAddress);
-        reactor.initiate(crossOrder, signature, fillerData);
+        reactor.initiate(crossOrder, signature, fillDataV1);
     }
 
     function test_failed_validation(
@@ -574,7 +574,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.prank(fillerAddress);
         vm.expectRevert(FailedValidation.selector);
-        reactor.initiate(crossOrder, signature, fillerData);
+        reactor.initiate(crossOrder, signature, fillDataV1);
     }
 
     function _initiateOrder(
@@ -588,7 +588,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline
+        uint32 proofDeadline,
+        bytes memory fillData
     ) internal virtual override returns (OrderKey memory) {
         (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             _inputAmount,
@@ -617,7 +618,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             address(reactor)
         );
         vm.prank(_fillerSender);
-        return reactor.initiate(order, signature, fillerData);
+        return reactor.initiate(order, signature, fillData);
     }
 
     function test_set_invalid_exclusive_key(address initiator, bool config) public {

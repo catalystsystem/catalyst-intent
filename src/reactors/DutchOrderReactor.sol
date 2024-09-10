@@ -17,12 +17,31 @@ contract DutchOrderReactor is BaseReactor {
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
-    ) internal view override returns (OrderKey memory orderKey, bytes32 witness, string memory witnessTypeString) {
+    ) internal view override returns (OrderKey memory orderKey, uint256[] memory permittedAmounts, bytes32 witness, string memory witnessTypeString) {
         // Permit2 context
         CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
-        // If the dutch auction is initiated before the slope starts, the order may be exclusive.
         uint256 lockTime = dutchOrderData.slopeStartingTime;
+
+        // Set permitted inputs
+        uint256 numInputs = dutchOrderData.inputs.length;
+        permittedAmounts = new uint256[](numInputs);
+        for (uint256 i = 0; i < numInputs; ++i) {
+            // The permitted amount is the max of slope.
+            int256 slope = dutchOrderData.inputSlopes[i];
+            if (slope <= 0) {
+                permittedAmounts[i] = dutchOrderData.inputs[i].amount;
+            } else {
+                uint256 maxTimePass;
+                unchecked {
+                    // unchecked: order.initiateDeadline > dutchOrderData.slopeStartingTime
+                    maxTimePass = (order.initiateDeadline - lockTime);
+                }
+                permittedAmounts[i] = dutchOrderData.inputs[i].amount + uint256(slope) * maxTimePass;
+            }
+        }
+
+        // If the dutch auction is initiated before the slope starts, the order may be exclusive.
         if (lockTime > block.timestamp) {
             address verificationContract = dutchOrderData.verificationContract;
             if (verificationContract != address(0)) {

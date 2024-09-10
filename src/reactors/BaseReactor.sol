@@ -44,7 +44,7 @@ import {
 } from "../interfaces/Events.sol";
 import { ReactorPayments } from "./helpers/ReactorPayments.sol";
 import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
-
+import { console } from "forge-std/Test.sol";
 /**
  * @title Base Cross-chain intent Reactor
  * @notice Cross-chain intent resolver. Implements core logic that is shared between all
@@ -475,6 +475,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderPurchaseDiscount);
 
         // Check if there is an identifier, if there is execute data.
+        console.logBytes32(identifier);
         if (oldIdentifier != bytes32(0)) {
             FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
         }

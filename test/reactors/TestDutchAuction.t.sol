@@ -154,7 +154,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.expectEmit();
         emit Transfer(SWAPPER, address(reactor), inputAmountAfterDecrement);
-        reactor.initiate(crossOrder, signature, fillerData);
+        vm.expectEmit();
+        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
+        reactor.initiate(crossOrder, signature, fillDataV1);
 
         (uint256 swapperBalanceAfter, uint256 reactorBalanceAfter) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
@@ -441,9 +443,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.inputs.length,
-                inputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.inputs.length, inputSlopes.length
             )
         );
 
@@ -468,9 +468,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.inputs.length,
-                inputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.inputs.length, inputSlopes.length
             )
         );
 
@@ -517,9 +515,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.outputs.length,
-                outputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.outputs.length, outputSlopes.length
             )
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
@@ -544,9 +540,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.outputs.length,
-                outputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.outputs.length, outputSlopes.length
             )
         );
         vm.prank(fillerAddress);

@@ -29,6 +29,7 @@ import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockOracle } from "../mocks/MockOracle.sol";
 import { MockUtils } from "../utils/MockUtils.sol";
 
+import { Input } from "../../src/interfaces/Structs.sol";
 import { FailedValidation } from "../../src/interfaces/Errors.sol";
 import { OrderInitiated, OrderProven } from "../../src/interfaces/Events.sol";
 import { Input } from "../../src/interfaces/Structs.sol";
@@ -62,6 +63,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 slopeStartingTime,
         uint32 timeIncrement,
         int160 slope
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, uint256(inputAmount) + (slope > 0 ? uint256(timeIncrement) * uint256(int256(slope)) : 0), outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
+
     )
         public
         approvedAndMinted(

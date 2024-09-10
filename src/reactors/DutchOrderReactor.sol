@@ -17,17 +17,24 @@ contract DutchOrderReactor is BaseReactor {
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
-    ) internal view override returns (OrderKey memory orderKey, uint256[] memory permittedAmounts, bytes32 witness, string memory witnessTypeString) {
+    )
+        internal
+        view
+        override
+        returns (
+            OrderKey memory orderKey,
+            uint256[] memory permittedAmounts,
+            bytes32 witness,
+            string memory witnessTypeString
+        )
+    {
         // Permit2 context
         CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
         uint256 lockTime = dutchOrderData.slopeStartingTime;
 
-        // Check if the number of inputs matches the number of slopes.
-        uint256 numInputs = dutchOrderData.inputs.length;
-        if (numInputs != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
-
         // Set permitted inputs
+        uint256 numInputs = dutchOrderData.inputs.length;
         permittedAmounts = new uint256[](numInputs);
         for (uint256 i = 0; i < numInputs; ++i) {
             // The permitted amount is the max of slope.
@@ -67,7 +74,9 @@ contract DutchOrderReactor is BaseReactor {
     ) internal view override returns (OrderKey memory orderKey) {
         CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
-        if (dutchOrderData.inputs.length != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(dutchOrderData.inputs.length, dutchOrderData.inputSlopes.length);
+        if (dutchOrderData.inputs.length != dutchOrderData.inputSlopes.length) {
+            revert LengthsDoesNotMatch(dutchOrderData.inputs.length, dutchOrderData.inputSlopes.length);
+        }
 
         return _resolveKey(order, dutchOrderData);
     }

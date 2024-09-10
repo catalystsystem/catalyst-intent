@@ -7,6 +7,7 @@ import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 import { CrossChainOrder, Input, Output, ResolvedCrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
 import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
+import { MockCallbackExecutor } from "../mocks/MockCallbackExecutor.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockOracle } from "../mocks/MockOracle.sol";
 import { MockUtils } from "../utils/MockUtils.sol";
@@ -26,7 +27,9 @@ import {
     CannotProveOrder,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
-    InvalidDeadlineOrder
+    InvalidDeadlineOrder,
+    InvalidSettlementAddress,
+    MinOrderPurchaseDiscountTooLow
 } from "../../src/interfaces/Errors.sol";
 
 import {
@@ -51,6 +54,8 @@ interface Permit2DomainSeparator {
 
 event Transfer(address indexed from, address indexed to, uint256 amount);
 
+event InputsFilled(bytes32 orderKeyHash, bytes executionData);
+
 abstract contract TestBaseReactor is TestConfig {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
@@ -66,9 +71,14 @@ abstract contract TestBaseReactor is TestConfig {
     BaseReactor reactor;
     address SWAPPER;
     uint256 SWAPPER_PRIVATE_KEY;
-    bytes fillerData;
+    bytes fillDataV1;
+    bytes fillDataV2;
     address fillerAddress;
     bytes32 DOMAIN_SEPARATOR;
+
+    MockCallbackExecutor mockCallbackExecutor;
+    bytes MOCK_CALLBACK_DATA = "Some Random data";
+    bytes MOCK_CALLBACK_DATA_WITH_ADDRESS;
 
     modifier approvedAndMinted(
         address _user,
@@ -91,31 +101,13 @@ abstract contract TestBaseReactor is TestConfig {
         _;
     }
 
-    //Will be used when we test functionalities after initialization like challenges
-    modifier orderInitiaited(
-        uint256 _nonce,
-        address _swapper,
-        uint256 _inputAmount,
-        uint256 _outputAmount,
-        uint256 _fillerCollateralAmount,
-        uint256 _challengerCollateralAmount
-    ) {
-        _initiateOrder(
-            _nonce,
-            _swapper,
-            _inputAmount,
-            _outputAmount,
-            _challengerCollateralAmount,
-            _fillerCollateralAmount,
-            fillerAddress
-        );
-        _;
-    }
-
     constructor() {
         (SWAPPER, SWAPPER_PRIVATE_KEY) = makeAddrAndKey("swapper");
+        mockCallbackExecutor = new MockCallbackExecutor();
+        MOCK_CALLBACK_DATA_WITH_ADDRESS = bytes.concat(bytes20(address(mockCallbackExecutor)), MOCK_CALLBACK_DATA);
         fillerAddress = address(1);
-        fillerData = FillerDataLib._encode1(fillerAddress, 0, 0);
+        fillDataV1 = FillerDataLib._encode1(fillerAddress, 0, 0);
+        fillDataV2 = FillerDataLib._encode2(fillerAddress, 0, 0, keccak256(MOCK_CALLBACK_DATA_WITH_ADDRESS));
     }
 
     function test_collect_tokens(
@@ -127,19 +119,18 @@ abstract contract TestBaseReactor is TestConfig {
         (uint256 swapperInputBalance, uint256 reactorInputBalance) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
         _initiateOrder(
-            0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+            0,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            fillDataV1
         );
         assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - inputAmount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
     }
-
-    // function test_collect_tokens_from_msg_sender(uint256 amount, address sender) public approvedAndMinted(sender, tokenToSwapInput, amount) {
-    //     (uint256 swapperInputBalance, uint256 reactorInputBalance) =
-    //         MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
-    //     _initiateOrder(0, SWAPPER, amount, sender);
-    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - amount);
-    //     assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + amount);
-    // }
 
     function test_balances_multiple_orders(
         uint160 inputAmount,
@@ -148,17 +139,57 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 challengerCollateralAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _initiateOrder(
-            0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+            0,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            fillDataV1
         );
         MockERC20(tokenToSwapInput).mint(SWAPPER, inputAmount);
         (uint256 swapperInputBalance, uint256 reactorInputBalance) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
         MockERC20(collateralToken).mint(fillerAddress, fillerCollateralAmount);
         _initiateOrder(
-            1, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+            1,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            fillDataV1
         );
         assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - inputAmount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
+    }
+
+    function test_revert_invalid_settlesment(
+        uint256 inputAmount,
+        bytes memory dumbSig,
+        bytes memory dumbFillerData,
+        uint256 outputAmount,
+        address settlementContract
+    ) public {
+        vm.assume(settlementContract != address(reactor));
+        (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            0
+        );
+        order.settlementContract = settlementContract;
+        vm.expectRevert(InvalidSettlementAddress.selector);
+        vm.prank(fillerAddress);
+        reactor.initiate(order, dumbSig, dumbFillerData);
     }
 
     function test_revert_passed_initiate_deadline(
@@ -184,7 +215,7 @@ abstract contract TestBaseReactor is TestConfig {
             address(reactor)
         );
         vm.expectRevert(InitiateDeadlinePassed.selector);
-        reactor.initiate(order, signature, fillerData);
+        reactor.initiate(order, signature, fillDataV1);
     }
 
     function test_revert_challenge_deadline_after_prove(
@@ -210,7 +241,7 @@ abstract contract TestBaseReactor is TestConfig {
             address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
-        reactor.initiate(order, signature, fillerData);
+        reactor.initiate(order, signature, fillDataV1);
     }
 
     function test_revert_challenge_deadline_before_fill(
@@ -236,7 +267,7 @@ abstract contract TestBaseReactor is TestConfig {
             address(reactor)
         );
         vm.expectRevert(InvalidDeadlineOrder.selector);
-        reactor.initiate(order, signature, fillerData);
+        reactor.initiate(order, signature, fillDataV1);
     }
 
     function test_revert_fill_deadline_before_initiate(
@@ -275,10 +306,8 @@ abstract contract TestBaseReactor is TestConfig {
             address(reactor)
         );
         vm.expectRevert(InitiateDeadlineAfterFill.selector);
-        reactor.initiate(order, signature, fillerData);
-    }
-
-    //--- Dispute ---//
+        reactor.initiate(order, signature, fillDataV1);
+    } //--- Dispute ---//
 
     function test_dispute_order(
         uint256 inputAmount,
@@ -298,7 +327,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            fillDataV1
         );
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
@@ -342,7 +372,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            fillDataV1
         );
 
         MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
@@ -377,7 +408,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            fillDataV1
         );
 
         vm.startPrank(challenger);
@@ -408,7 +440,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             challengeDeadline,
-            challengeDeadline + 1 hours
+            challengeDeadline + 1 hours,
+            fillDataV1
         );
 
         vm.warp(challengeDeadline + 1);
@@ -441,7 +474,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             challengeDeadline,
-            challengeDeadline + 1 hours
+            challengeDeadline + 1 hours,
+            fillDataV1
         );
 
         vm.warp(warp);
@@ -470,7 +504,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             challengeDeadline,
-            challengeDeadline + 1 hours
+            challengeDeadline + 1 hours,
+            fillDataV1
         );
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
@@ -516,7 +551,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             challengeDeadline,
-            challengeDeadline + 1 hours
+            challengeDeadline + 1 hours,
+            fillDataV1
         );
 
         MockERC20(collateralToken).mint(address(this), challengerCollateralAmount);
@@ -550,7 +586,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            fillDataV1
         );
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
@@ -617,7 +654,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            proofDeadline
+            proofDeadline,
+            fillDataV1
         );
 
         MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
@@ -657,7 +695,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            proofDeadline
+            proofDeadline,
+            fillDataV1
         );
 
         vm.startPrank(completeDisputer);
@@ -816,7 +855,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             challengeDeadline,
-            challengeDeadline + 1 hours
+            challengeDeadline + 1 hours,
+            fillDataV1
         );
         vm.warp(challengeDeadline + 1);
         reactor.optimisticPayout(orderKey, hex"");
@@ -824,6 +864,56 @@ abstract contract TestBaseReactor is TestConfig {
         vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", uint8(OrderStatus.OptimiscallyFilled)));
         vm.prank(purchaser);
         reactor.purchaseOrder(orderKey, hex"", 0);
+    }
+
+    function test_revert_high_min_discount(
+        uint128 inputAmount,
+        uint128 outputAmount,
+        uint16 discount,
+        uint16 minDiscount,
+        address buyer,
+        uint32 originalPurchaseTime,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderPurchaseDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
+        vm.assume(originalPurchaseTime > block.timestamp);
+        vm.assume(minDiscount > discount);
+
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            0
+        );
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
+        );
+        bytes memory customFillerData = FillerDataLib._encode1(fillerAddress, originalPurchaseTime, discount);
+        MockERC20(collateralToken).mint(fillerAddress, DEFAULT_COLLATERAL_AMOUNT);
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, customFillerData);
+
+        bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
+
+        vm.expectRevert(abi.encodeWithSelector(MinOrderPurchaseDiscountTooLow.selector, minDiscount, discount));
+        vm.prank(buyer);
+        reactor.purchaseOrder(orderKey, newFillerData, minDiscount);
     }
 
     //--- Modify Orders ---//
@@ -847,7 +937,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            fillDataV1
         );
 
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
@@ -883,7 +974,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            fillDataV1
         );
 
         bytes memory newFillerData =
@@ -926,8 +1018,7 @@ abstract contract TestBaseReactor is TestConfig {
         emit GovernanceFeeChanged(0, governanceFee);
         vm.prank(reactor.owner());
         reactor.setGovernanceFee(governanceFee);
-        ResolvedCrossChainOrder memory actual = reactor.resolve(order, fillerData);
-
+        ResolvedCrossChainOrder memory actual = reactor.resolve(order, fillDataV1);
         Input[] memory inputs = OrderDataBuilder.getInputs(tokenToSwapInput, inputAmount, 1);
         Output[] memory outputs = OrderDataBuilder.getSettlementOutputs(
             bytes32(uint256(uint160(tokenToSwapOutput))),
@@ -987,7 +1078,8 @@ abstract contract TestBaseReactor is TestConfig {
             initiateDeadline,
             fillDeadline,
             challengeDeadline,
-            proofDeadline
+            proofDeadline,
+            fillDataV1
         );
 
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
@@ -1031,7 +1123,14 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 challengerCollateralAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
-            0, SWAPPER, inputAmount, outputAmount, fillerCollateralAmount, challengerCollateralAmount, fillerAddress
+            0,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            fillDataV1
         );
         vm.expectRevert(CannotProveOrder.selector);
         reactor.proveOrderFulfilment(orderKey, hex"");
@@ -1060,7 +1159,8 @@ abstract contract TestBaseReactor is TestConfig {
             initiateDeadline,
             fillDeadline,
             challengeDeadline,
-            proofDeadline
+            proofDeadline,
+            fillDataV1
         );
 
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
@@ -1107,7 +1207,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            fillDataV1
         );
 
         MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
@@ -1163,6 +1264,158 @@ abstract contract TestBaseReactor is TestConfig {
 
         assert(orderContext.status == OrderStatus.Proven);
         assertEq(MockERC20(collateralToken).balanceOf(fillerAddress), fillerBalanceBefore + challengerCollateralAmount);
+    }
+
+    // Mock Executor tests
+    function test_execute_optimistic(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
+        uint32 challengeDeadline
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
+        OrderKey memory orderKey = _initiateOrder(
+            0,
+            SWAPPER,
+            inputAmount,
+            outputAmount,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            fillerAddress,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            challengeDeadline,
+            challengeDeadline + 1 hours,
+            fillDataV2
+        );
+
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        vm.warp(challengeDeadline + 1);
+
+        //Tested necessary emits and calls before here we just test v2 fill data;
+        vm.expectEmit();
+        emit InputsFilled(orderHash, MOCK_CALLBACK_DATA);
+        reactor.optimisticPayout(orderKey, MOCK_CALLBACK_DATA_WITH_ADDRESS);
+    }
+
+    function test_execute_purchase_order(
+        uint128 inputAmount,
+        uint128 fillerCollateralAmount,
+        uint128 outputAmount,
+        uint16 discount,
+        address buyer,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderPurchaseDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        address inputToken = tokenToSwapInput;
+        (CrossChainOrder memory order, bytes32 crossOrderHash) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
+        );
+
+        bytes memory customFillerData = FillerDataLib._encode2(
+            fillerAddress, type(uint32).max, discount, keccak256(MOCK_CALLBACK_DATA_WITH_ADDRESS)
+        );
+        MockERC20(collateralToken).mint(fillerAddress, fillerCollateralAmount);
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, customFillerData);
+
+        bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
+
+        MockERC20(inputToken).mint(buyer, inputAmount);
+        MockERC20(collateralToken).mint(buyer, fillerCollateralAmount);
+        vm.startPrank(buyer);
+        MockERC20(inputToken).approve(address(reactor), type(uint256).max);
+        MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+
+        bytes memory newMockData = "Some Test Data";
+        bytes memory newMockDataWithAddress = bytes.concat(bytes20(address(mockCallbackExecutor)), newMockData);
+        bytes memory newFillerData = FillerDataLib._encode2(
+            buyer, newPurchaseDeadline, newOrderPurchaseDiscount, keccak256(newMockDataWithAddress)
+        );
+        bytes memory newFillerDataWithExecutionData = bytes.concat(newFillerData, newMockDataWithAddress);
+        console.logBytes32(keccak256(MOCK_CALLBACK_DATA_WITH_ADDRESS));
+        console.logBytes(newFillerData);
+
+        // Tested necessary emits and calls before
+        vm.expectEmit();
+        emit InputsFilled(orderHash, newMockData);
+        reactor.purchaseOrder(orderKey, newFillerDataWithExecutionData, 0);
+
+        // Check storage
+        OrderContext memory orderContext = reactor.getOrderContext(orderKey);
+
+        // Check that the fillerAddress was change
+        assertEq(orderContext.identifier, keccak256(newMockDataWithAddress));
+        assertEq(orderContext.fillerAddress, buyer);
+        assertEq(orderContext.orderPurchaseDeadline, newPurchaseDeadline);
+        assertEq(orderContext.orderPurchaseDiscount, newOrderPurchaseDiscount);
+    }
+
+    function test_revert_execute_wrong_fill_data_format(
+        uint128 inputAmount,
+        uint128 fillerCollateralAmount,
+        uint128 outputAmount,
+        uint16 discount,
+        address buyer,
+        uint32 newPurchaseDeadline,
+        uint16 newOrderPurchaseDiscount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
+        address inputToken = tokenToSwapInput;
+        (CrossChainOrder memory order, bytes32 crossOrderHash) =
+            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
+        );
+
+        bytes memory customFillerData = FillerDataLib._encode2(
+            fillerAddress, type(uint32).max, discount, keccak256(MOCK_CALLBACK_DATA_WITH_ADDRESS)
+        );
+        MockERC20(collateralToken).mint(fillerAddress, fillerCollateralAmount);
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, customFillerData);
+
+        MockERC20(inputToken).mint(buyer, inputAmount);
+        MockERC20(collateralToken).mint(buyer, fillerCollateralAmount);
+        vm.startPrank(buyer);
+        MockERC20(inputToken).approve(address(reactor), type(uint256).max);
+        MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
+
+        bytes memory newMockData = "Some Test Data";
+        bytes memory newMockDataWithAddress = bytes.concat(bytes20(address(mockCallbackExecutor)), newMockData);
+        bytes memory newFillerData = FillerDataLib._encode2(
+            buyer, newPurchaseDeadline, newOrderPurchaseDiscount, keccak256("Some Other Test Data")
+        );
+        bytes memory newFillerDataWithExecutionData = bytes.concat(newFillerData, newMockDataWithAddress);
+        console.logBytes32(keccak256(MOCK_CALLBACK_DATA_WITH_ADDRESS));
+        console.logBytes(newFillerData);
+
+        // Tested necessary emits and calls before
+        vm.expectRevert(FillerDataLib.IdentifierMismatch.selector);
+        reactor.purchaseOrder(orderKey, newFillerDataWithExecutionData, 0);
     }
 
     //--- Helpers ---//
@@ -1248,7 +1501,8 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 _outputAmount,
         uint256 _fillerCollateralAmount,
         uint256 _challengerCollateralAmount,
-        address _fillerSender
+        address _fillerSender,
+        bytes memory _fillData
     ) internal virtual returns (OrderKey memory) {
         return _initiateOrder(
             _nonce,
@@ -1261,7 +1515,8 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
-            DEFAULT_PROOF_DEADLINE
+            DEFAULT_PROOF_DEADLINE,
+            _fillData
         );
     }
 
@@ -1276,7 +1531,8 @@ abstract contract TestBaseReactor is TestConfig {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline
+        uint32 proofDeadline,
+        bytes memory fillData
     ) internal virtual returns (OrderKey memory);
 
     function _getCrossOrderWithWitnessHash(

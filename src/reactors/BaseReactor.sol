@@ -44,7 +44,7 @@ import {
 } from "../interfaces/Events.sol";
 import { ReactorPayments } from "./helpers/ReactorPayments.sol";
 import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
-
+import { console } from "forge-std/Test.sol";
 /**
  * @title Base Cross-chain intent Reactor
  * @notice Cross-chain intent resolver. Implements core logic that is shared between all
@@ -70,6 +70,7 @@ import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
  * becomes stuck until the issue is resolved.
  * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could annoy users.
  */
+
 abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     bytes32 public constant VERSION_FLAGS = bytes32(uint256(1));
 
@@ -415,8 +416,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * Set newPurchaseDeadline in the past to disallow future takeovers.
      * When you purchase orders, make sure you take into account that you are paying the
      * entirety while you will get out the entirety MINUS any governance fee.
-     * @param orderKey Claimed order to be purchased from the filler
+     * @param orderKey Claimed order to be purchased from the filler.
      * @param fillerData New filler data + potential execution data post-pended.
+     * @param minDiscount The minimum discount the new filler is willing to buy at.
      */
     function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData, uint256 minDiscount) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
@@ -473,6 +475,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderPurchaseDiscount);
 
         // Check if there is an identifier, if there is execute data.
+        console.logBytes32(identifier);
         if (oldIdentifier != bytes32(0)) {
             FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
         }

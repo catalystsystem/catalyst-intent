@@ -155,7 +155,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             address(reactor)
         );
         vm.prank(fillerAddress);
-        reactor.initiate(order, signature, fillerData);
+        reactor.initiate(order, signature, fillDataV1);
 
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
@@ -195,7 +195,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
-        reactor.initiate(order, signature, fillerData);
+        reactor.initiate(order, signature, fillDataV1);
     }
 
     function test_not_enough_allowance(
@@ -232,33 +232,34 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         );
         vm.expectRevert("TRANSFER_FROM_FAILED");
         vm.prank(fillerAddress);
-        reactor.initiate(order, signature, fillerData);
+        reactor.initiate(order, signature, fillDataV1);
     }
 
     function _initiateOrder(
-        uint256 _nonce,
-        address _swapper,
-        uint256 _inputAmount,
-        uint256 _outputAmount,
-        uint256 _fillerCollateralAmount,
-        uint256 _challengerCollateralAmount,
-        address _fillerSender,
+        uint256 nonce,
+        address swapper,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 fillerCollateralAmount,
+        uint256 challengerCollateralAmount,
+        address fillerSender,
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline
+        uint32 proofDeadline,
+        bytes memory fillData
     ) internal override returns (OrderKey memory) {
         (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
-            _inputAmount,
-            _outputAmount,
-            _swapper,
-            _fillerCollateralAmount,
-            _challengerCollateralAmount,
+            inputAmount,
+            outputAmount,
+            swapper,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
             initiateDeadline,
             fillDeadline,
             challengeDeadline,
             proofDeadline,
-            _nonce
+            nonce
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -274,8 +275,8 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             DOMAIN_SEPARATOR,
             address(reactor)
         );
-        vm.prank(_fillerSender);
-        return reactor.initiate(order, signature, fillerData);
+        vm.prank(fillerSender);
+        return reactor.initiate(order, signature, fillData);
     }
 
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {

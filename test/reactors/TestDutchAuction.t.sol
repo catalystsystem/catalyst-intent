@@ -29,9 +29,9 @@ import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockOracle } from "../mocks/MockOracle.sol";
 import { MockUtils } from "../utils/MockUtils.sol";
 
-import { Input } from "../../src/interfaces/Structs.sol";
 import { FailedValidation } from "../../src/interfaces/Errors.sol";
 import { OrderInitiated, OrderProven } from "../../src/interfaces/Events.sol";
+import { Input } from "../../src/interfaces/Structs.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 
 event Transfer(address indexed from, address indexed to, uint256 amount);
@@ -62,8 +62,16 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 slopeStartingTime,
         uint32 timeIncrement,
         int160 slope
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, uint256(inputAmount) + (slope > 0 ? uint256(timeIncrement) * uint256(int256(slope)) : 0), outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
-
+    )
+        public
+        approvedAndMinted(
+            SWAPPER,
+            tokenToSwapInput,
+            uint256(inputAmount) + (slope > 0 ? uint256(timeIncrement) * uint256(int256(slope)) : 0),
+            outputAmount,
+            DEFAULT_COLLATERAL_AMOUNT
+        )
+    {
         vm.assume(
             timeIncrement > 0 && slopeStartingTime < type(uint32).max - 4
                 && timeIncrement <= type(uint32).max - 4 - slopeStartingTime
@@ -146,7 +154,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.expectEmit();
         emit Transfer(SWAPPER, address(reactor), inputAmountAfterDecrement);
-        reactor.initiate(crossOrder, signature, fillerData);
+        vm.expectEmit();
+        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
+        reactor.initiate(crossOrder, signature, fillDataV1);
 
         (uint256 swapperBalanceAfter, uint256 reactorBalanceAfter) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
@@ -219,8 +229,12 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), crossOrder.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey,
+            Permit2Lib.inputsToPermittedAmounts(orderKey.inputs),
+            address(reactor),
+            crossOrder.initiateDeadline
+        );
 
         bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
 
@@ -234,8 +248,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.prank(fillerAddress);
         vm.expectEmit();
-        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
-        reactor.initiate(crossOrder, signature, fillerData);
+        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
+        reactor.initiate(crossOrder, signature, fillDataV1);
 
         vm.expectCall(
             tokenToSwapOutput,
@@ -325,8 +339,12 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
         bytes32 orderHash = reactor.getOrderKeyHash(orderKey);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(currentDutchOrderData.inputs), address(reactor), crossOrder.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey,
+            Permit2Lib.inputsToPermittedAmounts(currentDutchOrderData.inputs),
+            address(reactor),
+            crossOrder.initiateDeadline
+        );
 
         bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
 
@@ -339,8 +357,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             address(reactor)
         );
         vm.prank(fillerAddress);
-        emit OrderInitiated(orderHash, fillerAddress, fillerData, orderKey);
-        reactor.initiate(crossOrder, signature, fillerData);
+        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
+        reactor.initiate(crossOrder, signature, fillDataV1);
 
         vm.expectCall(
             tokenToSwapOutput,
@@ -425,16 +443,18 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.inputs.length,
-                inputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.inputs.length, inputSlopes.length
             )
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), crossOrder.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey,
+            Permit2Lib.inputsToPermittedAmounts(orderKey.inputs),
+            address(reactor),
+            crossOrder.initiateDeadline
+        );
 
         bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
 
@@ -448,14 +468,12 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.inputs.length,
-                inputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.inputs.length, inputSlopes.length
             )
         );
 
         vm.prank(fillerAddress);
-        reactor.initiate(crossOrder, signature, fillerData);
+        reactor.initiate(crossOrder, signature, fillDataV1);
     }
 
     function test_output_lengths_no_match(
@@ -497,15 +515,17 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.outputs.length,
-                outputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.outputs.length, outputSlopes.length
             )
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), crossOrder.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey,
+            Permit2Lib.inputsToPermittedAmounts(orderKey.inputs),
+            address(reactor),
+            crossOrder.initiateDeadline
+        );
 
         bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
 
@@ -520,13 +540,11 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         vm.expectRevert(
             abi.encodeWithSignature(
-                "LengthsDoesNotMatch(uint256,uint256)",
-                currentDutchOrderData.outputs.length,
-                outputSlopes.length
+                "LengthsDoesNotMatch(uint256,uint256)", currentDutchOrderData.outputs.length, outputSlopes.length
             )
         );
         vm.prank(fillerAddress);
-        reactor.initiate(crossOrder, signature, fillerData);
+        reactor.initiate(crossOrder, signature, fillDataV1);
     }
 
     function test_failed_validation(
@@ -563,8 +581,12 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), crossOrder.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey,
+            Permit2Lib.inputsToPermittedAmounts(orderKey.inputs),
+            address(reactor),
+            crossOrder.initiateDeadline
+        );
 
         bytes32 crossOrderHash = this._getWitnessHash(crossOrder, currentDutchOrderData);
 
@@ -578,7 +600,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.prank(fillerAddress);
         vm.expectRevert(FailedValidation.selector);
-        reactor.initiate(crossOrder, signature, fillerData);
+        reactor.initiate(crossOrder, signature, fillDataV1);
     }
 
     function _initiateOrder(
@@ -592,7 +614,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline
+        uint32 proofDeadline,
+        bytes memory fillData
     ) internal virtual override returns (OrderKey memory) {
         (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
             _inputAmount,
@@ -609,8 +632,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
@@ -621,7 +645,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             address(reactor)
         );
         vm.prank(_fillerSender);
-        return reactor.initiate(order, signature, fillerData);
+        return reactor.initiate(order, signature, fillData);
     }
 
     function test_set_invalid_exclusive_key(address initiator, bool config) public {
@@ -657,7 +681,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
     function _dutchInputResult(uint256 inputAmount, int256 slope, uint256 timePassed) internal pure returns (uint256) {
         if (slope == 0) return inputAmount;
         if (slope > 0) {
-            if (type(uint256).max - inputAmount > timePassed * uint256(slope)) return inputAmount + timePassed * uint256(slope);
+            if (type(uint256).max - inputAmount > timePassed * uint256(slope)) {
+                return inputAmount + timePassed * uint256(slope);
+            }
         } else {
             if (inputAmount / timePassed > uint256(-slope)) return inputAmount - timePassed * uint256(-slope);
         }

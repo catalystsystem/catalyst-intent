@@ -42,15 +42,13 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
     address constant permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     bytes32 constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
 
-    uint256 chainId = block.chainid;
-
     constructor() LimitOrderReactor(permit2, address(0)) { }
 
     bytes32 private constant _HASHED_NAME = keccak256("Permit2");
     bytes32 private constant _TYPE_HASH =
         keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
 
-    function permit2_buildDomainSeparator(uint32 chainId) private view returns (bytes32) {
+    function permit2_buildDomainSeparator(uint32 chainId) private pure returns (bytes32) {
         return keccak256(abi.encode(_TYPE_HASH, _HASHED_NAME, chainId, permit2));
     }
 
@@ -70,7 +68,7 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
     function _getWitnessHash(
         CrossChainOrder calldata order,
         CatalystLimitOrderData memory limitOrderData
-    ) public view returns (bytes32) {
+    ) public pure returns (bytes32) {
         return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
     }
 
@@ -116,7 +114,7 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
         bytes32 crossOrderTypeHash = this._getWitnessHash(order, orderData);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(order.settlementContract), order.initiateDeadline);
+            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderData.inputs), address(order.settlementContract), order.initiateDeadline);
 
         bytes32[] memory tokenPermissions = new bytes32[](permitBatch.permitted.length);
         for (uint256 i = 0; i < permitBatch.permitted.length; ++i) {

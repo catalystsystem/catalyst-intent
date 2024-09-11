@@ -33,8 +33,13 @@ contract DutchOrderReactor is BaseReactor {
 
         uint256 lockTime = dutchOrderData.slopeStartingTime;
 
-        // Set permitted inputs
+        // Check if the number of inputs matches the number of slopes.
         uint256 numInputs = dutchOrderData.inputs.length;
+        if (numInputs != dutchOrderData.inputSlopes.length) {
+            revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
+        }
+
+        // Set permitted inputs
         permittedAmounts = new uint256[](numInputs);
         for (uint256 i = 0; i < numInputs; ++i) {
             // The permitted amount is the max of slope.

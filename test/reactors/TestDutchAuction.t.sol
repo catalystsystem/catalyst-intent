@@ -440,8 +440,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                CrossChainDutchOrderType.LengthsDoesNotMatch.selector,
+            abi.encodeWithSignature(
+                "LengthsDoesNotMatch(uint256,uint256)",
                 currentDutchOrderData.inputs.length,
                 inputSlopes.length
             )
@@ -466,18 +466,13 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             DOMAIN_SEPARATOR,
             address(reactor)
         );
-
-        // TODO: Fix, currently reverts with arithmetic underflow or overflow
-        // TODO: This is likely because of the permitAmount reading slopes before the
-        // TODO: Code chunk that triggers this specific revert.
-        // vm.expectRevert(
-        //     abi.encodeWithSelector(
-        //         CrossChainDutchOrderType.LengthsDoesNotMatch.selector,
-        //         currentDutchOrderData.inputs.length,
-        //         inputSlopes.length
-        //     )
-        // );
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "LengthsDoesNotMatch(uint256,uint256)",
+                currentDutchOrderData.inputs.length,
+                inputSlopes.length
+            )
+        );
 
         vm.prank(fillerAddress);
         reactor.initiate(crossOrder, signature, fillDataV1);
@@ -521,8 +516,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             DEFAULT_FILL_DEADLINE
         );
         vm.expectRevert(
-            abi.encodeWithSelector(
-                CrossChainDutchOrderType.LengthsDoesNotMatch.selector,
+            abi.encodeWithSignature(
+                "LengthsDoesNotMatch(uint256,uint256)",
                 currentDutchOrderData.outputs.length,
                 outputSlopes.length
             )
@@ -547,17 +542,13 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             address(reactor)
         );
 
-        // TODO: Fix, currently reverts with arithmetic underflow or overflow
-        // TODO: This is likely because of the permitAmount reading slopes before the
-        // TODO: Code chunk that triggers this specific revert.
-        // vm.expectRevert(
-        //     abi.encodeWithSelector(
-        //         CrossChainDutchOrderType.LengthsDoesNotMatch.selector,
-        //         currentDutchOrderData.outputs.length,
-        //         outputSlopes.length
-        //     )
-        // );
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "LengthsDoesNotMatch(uint256,uint256)",
+                currentDutchOrderData.outputs.length,
+                outputSlopes.length
+            )
+        );
         vm.prank(fillerAddress);
         reactor.initiate(crossOrder, signature, fillDataV1);
     }

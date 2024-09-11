@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { FailedValidation } from "../interfaces/Errors.sol";
+import { FailedValidation, LengthsDoesNotMatch } from "../interfaces/Errors.sol";
 import { IPreValidation } from "../interfaces/IPreValidation.sol";
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
@@ -23,8 +23,11 @@ contract DutchOrderReactor is BaseReactor {
 
         uint256 lockTime = dutchOrderData.slopeStartingTime;
 
-        // Set permitted inputs
+        // Check if the number of inputs matches the number of slopes.
         uint256 numInputs = dutchOrderData.inputs.length;
+        if (numInputs != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
+
+        // Set permitted inputs
         permittedAmounts = new uint256[](numInputs);
         for (uint256 i = 0; i < numInputs; ++i) {
             // The permitted amount is the max of slope.
@@ -62,8 +65,11 @@ contract DutchOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
     ) internal view override returns (OrderKey memory orderKey) {
-        CatalystDutchOrderData memory dutchData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
-        return _resolveKey(order, dutchData);
+        CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
+
+        if (dutchOrderData.inputs.length != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(dutchOrderData.inputs.length, dutchOrderData.inputSlopes.length);
+
+        return _resolveKey(order, dutchOrderData);
     }
 
     function _resolveKey(

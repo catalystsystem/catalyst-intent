@@ -187,7 +187,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     /**
      * @notice Defines the remote messaging protocol.
      * @dev Can only be called once for each chain.
-     * //todo: onlyOwner
+     * todo: onlyOwner
      */
     function setRemoteImplementation(
         bytes32 chainIdentifier,

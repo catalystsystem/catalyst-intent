@@ -15,6 +15,7 @@ library Permit2Lib {
      */
     function toPermit(
         OrderKey memory order,
+        uint256[] memory permittedAmounts,
         address to,
         uint32 deadline
     )
@@ -33,21 +34,25 @@ library Permit2Lib {
 
         // Iterate through each input.
         for (uint256 i; i < numInputs; ++i) {
-            address token = order.inputs[i].token;
-            uint256 amount = order.inputs[i].amount;
-            // TODO: Is permitted set correctly for dutch auctions?
             // Set the allowance. This is the explicit max allowed amount approved by the user.
-            permitted[i] = ISignatureTransfer.TokenPermissions({ token: token, amount: amount });
+            permitted[i] =
+                ISignatureTransfer.TokenPermissions({ token: order.inputs[i].token, amount: permittedAmounts[i] });
             // Set our requested transfer. This has to be less than or equal to the allowance
-            transferDetails[i] = ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
+            transferDetails[i] =
+                ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: order.inputs[i].amount });
         }
 
         // Always use a batch transfer from. This allows us to easily standardize
         // token collections for multiple inputs.
-        permitBatch = ISignatureTransfer.PermitBatchTransferFrom({
-            permitted: permitted,
-            nonce: order.nonce,
-            deadline: deadline
-        });
+        permitBatch =
+            ISignatureTransfer.PermitBatchTransferFrom({ permitted: permitted, nonce: order.nonce, deadline: deadline });
+    }
+
+    function inputsToPermittedAmounts(Input[] memory inputs) internal pure returns (uint256[] memory permittedAmounts) {
+        uint256 numInputs = inputs.length;
+        permittedAmounts = new uint256[](numInputs);
+        for (uint256 i = 0; i < numInputs; ++i) {
+            permittedAmounts[i] = inputs[i].amount;
+        }
     }
 }

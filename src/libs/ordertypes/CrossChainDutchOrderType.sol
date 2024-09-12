@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
-
+import { LengthsDoesNotMatch } from "../../interfaces/Errors.sol";
 import { OutputDescription } from "../../interfaces/Structs.sol";
 
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
@@ -35,8 +35,6 @@ struct CatalystDutchOrderData {
  * This allows limit orders to remain simple and dutch auctions to present a rich feature set for users.
  */
 library CrossChainDutchOrderType {
-    error LengthsDoesNotMatch(uint256, uint256);
-
     bytes constant DUTCH_ORDER_DATA_TYPE = abi.encodePacked(
         DUTCH_ORDER_DATA_TYPE_ONLY, CrossChainOrderType.INPUT_TYPE_STUB, CrossChainOrderType.OUTPUT_TYPE_STUB
     );
@@ -182,6 +180,8 @@ library CrossChainDutchOrderType {
     /**
      * @dev This functions calculates the the current amount the user pay in the source chain based on the time passed.
      * The order is treated as Limit Order if the slope did not start.
+     * If the number of inputs and slopes matches are not checked.
+     * It is expected to be checked before calling this function.
      * @param dutchOrderData The order data to calculate the current input value from.
      * @return orderInputs The input after applying the decay function based on the time passed
      */
@@ -194,7 +194,6 @@ library CrossChainDutchOrderType {
         int256[] memory inputSlopes = dutchOrderData.inputSlopes;
         // Validate that their lengths are equal.
         uint256 numInputs = orderInputs.length;
-        if (numInputs != inputSlopes.length) revert LengthsDoesNotMatch(numInputs, inputSlopes.length);
         unchecked {
             for (uint256 i; i < numInputs; ++i) {
                 int256 inputSlope = inputSlopes[i];

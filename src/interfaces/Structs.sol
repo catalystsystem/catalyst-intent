@@ -71,7 +71,10 @@ struct OrderKey {
     ReactorInfo reactorContext;
     // Who this order was claimed by.
     address swapper;
-    uint96 nonce; // TODO: What is this nonce used for?
+    // Nonce is unused in code but is used to make orderKeyHashes unique
+    // between orders. Since a nonce can only be used once, this makes an effective
+    // order differentiator.
+    uint96 nonce;
     // Collateral
     Collateral collateral;
     uint32 originChainId;

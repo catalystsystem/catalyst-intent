@@ -82,19 +82,27 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
     //--- Expose Storage ---//
 
-    function getOrderContext(bytes32 orderKeyHash) external view returns (OrderContext memory orderContext) {
+    function getOrderContext(
+        bytes32 orderKeyHash
+    ) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[orderKeyHash];
     }
 
-    function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32 orderKeyHash) {
+    function _orderKeyHash(
+        OrderKey memory orderKey
+    ) internal pure returns (bytes32 orderKeyHash) {
         return orderKeyHash = keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
     }
 
-    function getOrderKeyHash(OrderKey calldata orderKey) external pure returns (bytes32 orderKeyHash) {
+    function getOrderKeyHash(
+        OrderKey calldata orderKey
+    ) external pure returns (bytes32 orderKeyHash) {
         return orderKeyHash = _orderKeyHash(orderKey);
     }
 
-    function getOrderContext(OrderKey calldata orderKey) external view returns (OrderContext memory orderContext) {
+    function getOrderContext(
+        OrderKey calldata orderKey
+    ) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
     }
 
@@ -150,7 +158,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Initiate order.
         bytes32 witness;
         string memory witnessTypeString;
-        (orderKey, witness, witnessTypeString) = _initiate(order, fillerData[fillerDataPointer:]);
+        uint256[] memory permittedAmounts;
+        (orderKey, permittedAmounts, witness, witnessTypeString) = _initiate(order, fillerData[fillerDataPointer:]);
 
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
@@ -185,7 +194,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         );
 
         // Collect input tokens from user.
-        _collectTokensViaPermit2(orderKey, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature);
+        _collectTokensViaPermit2(orderKey, permittedAmounts, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature);
 
         emit OrderInitiated(orderHash, msg.sender, fillerData, orderKey);
     }
@@ -305,7 +314,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * the filler.
      * TODO: Are there more risks?
      */
-    function dispute(OrderKey calldata orderKey) external {
+    function dispute(
+        OrderKey calldata orderKey
+    ) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -341,7 +352,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     /**
      * @notice Finalise the dispute.
      */
-    function completeDispute(OrderKey calldata orderKey) external {
+    function completeDispute(
+        OrderKey calldata orderKey
+    ) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -494,8 +507,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.orderPurchaseDiscount = newOrderPurchaseDiscount;
         orderContext.identifier = newIdentifier;
 
-        emit OrderPurchaseDetailsModified(
-            orderKeyHash, fillerData
-        );
+        emit OrderPurchaseDetailsModified(orderKeyHash, fillerData);
     }
 }

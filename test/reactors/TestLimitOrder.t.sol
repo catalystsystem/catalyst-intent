@@ -144,7 +144,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         bytes32 crossOrderHash = this._getWitnessHash(order, limitOrderData);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
@@ -184,7 +184,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
             SWAPPER_PRIVATE_KEY,
@@ -225,7 +225,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch, BOB_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -264,7 +264,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,

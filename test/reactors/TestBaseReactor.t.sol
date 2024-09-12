@@ -20,7 +20,7 @@ import {
     CatalystLimitOrderData, CrossChainLimitOrderType
 } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
 import { OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
 
@@ -900,8 +900,9 @@ abstract contract TestBaseReactor is TestConfig {
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
@@ -1325,8 +1326,9 @@ abstract contract TestBaseReactor is TestConfig {
             _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
@@ -1358,8 +1360,6 @@ abstract contract TestBaseReactor is TestConfig {
             buyer, newPurchaseDeadline, newOrderPurchaseDiscount, keccak256(newMockDataWithAddress)
         );
         bytes memory newFillerDataWithExecutionData = bytes.concat(newFillerData, newMockDataWithAddress);
-        console.logBytes32(keccak256(MOCK_CALLBACK_DATA_WITH_ADDRESS));
-        console.logBytes(newFillerData);
 
         // Tested necessary emits and calls before
         vm.expectEmit();
@@ -1394,8 +1394,9 @@ abstract contract TestBaseReactor is TestConfig {
             _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
@@ -1425,8 +1426,6 @@ abstract contract TestBaseReactor is TestConfig {
             buyer, newPurchaseDeadline, newOrderPurchaseDiscount, keccak256("Some Other Test Data")
         );
         bytes memory newFillerDataWithExecutionData = bytes.concat(newFillerData, newMockDataWithAddress);
-        console.logBytes32(keccak256(MOCK_CALLBACK_DATA_WITH_ADDRESS));
-        console.logBytes(newFillerData);
 
         // Tested necessary emits and calls before
         vm.expectRevert(FillerDataLib.IdentifierMismatch.selector);

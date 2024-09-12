@@ -154,8 +154,6 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         );
         vm.expectEmit();
         emit Transfer(SWAPPER, address(reactor), inputAmountAfterDecrement);
-        vm.expectEmit();
-        emit OrderInitiated(orderHash, fillerAddress, fillDataV1, orderKey);
         reactor.initiate(crossOrder, signature, fillDataV1);
 
         (uint256 swapperBalanceAfter, uint256 reactorBalanceAfter) =

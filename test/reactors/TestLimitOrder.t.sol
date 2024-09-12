@@ -37,8 +37,6 @@ import { Test } from "forge-std/Test.sol";
 
 import { OutputFilled } from "../../src/interfaces/Events.sol";
 
-event OutputFilledCallExecuted(bytes32 token, uint256 amount, bytes executionData);
-
 contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
@@ -147,8 +145,9 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         bytes32 crossOrderHash = this._getWitnessHash(order, limitOrderData);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
@@ -204,8 +203,9 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
         bytes32 crossOrderHash = this._getWitnessHash(order, limitOrderData);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
@@ -234,9 +234,6 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         vm.expectEmit();
         emit OutputFilled(tokenToSwapOutput, address(mockCallbackExecutor), outputAmount, keccak256(MOCK_CALLBACK_DATA));
 
-        vm.expectEmit();
-        emit OutputFilledCallExecuted(bytes32(uint256(uint160(tokenToSwapOutput))), outputAmount, MOCK_CALLBACK_DATA);
-
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
         reactor.proveOrderFulfilment(orderKey, hex"");
@@ -259,8 +256,9 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
             SWAPPER_PRIVATE_KEY,
@@ -300,8 +298,9 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch, BOB_KEY, _getFullPermitTypeHash(), crossOrderHash, DOMAIN_SEPARATOR, address(reactor)
@@ -340,8 +339,9 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,

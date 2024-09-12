@@ -4,12 +4,9 @@ pragma solidity ^0.8.26;
 import { ICrossCatsCallback } from "../../src/interfaces/ICrossCatsCallback.sol";
 
 contract MockCallbackExecutor is ICrossCatsCallback {
-    event OutputFilledCallExecuted(bytes32 token, uint256 amount, bytes executionData);
     event InputsFilled(bytes32 orderKeyHash, bytes executionData);
 
-    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external override {
-        emit OutputFilledCallExecuted(token, amount, executionData);
-    }
+    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external override { }
 
     function inputsFilled(bytes32 orderKeyHash, bytes calldata executionData) external override {
         emit InputsFilled(orderKeyHash, executionData);

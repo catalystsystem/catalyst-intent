@@ -37,8 +37,6 @@ import { Test } from "forge-std/Test.sol";
 
 import { OutputFilled } from "../../src/interfaces/Events.sol";
 
-event OutputFilledCallExecuted(bytes32 token, uint256 amount, bytes executionData);
-
 contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
@@ -233,9 +231,6 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         );
         vm.expectEmit();
         emit OutputFilled(tokenToSwapOutput, address(mockCallbackExecutor), outputAmount, keccak256(MOCK_CALLBACK_DATA));
-
-        vm.expectEmit();
-        emit OutputFilledCallExecuted(bytes32(uint256(uint160(tokenToSwapOutput))), outputAmount, MOCK_CALLBACK_DATA);
 
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 

@@ -1297,6 +1297,10 @@ abstract contract TestBaseReactor is TestConfig {
         //Tested necessary emits and calls before here we just test v2 fill data;
         vm.expectEmit();
         emit InputsFilled(orderHash, MOCK_CALLBACK_DATA);
+        vm.expectCall(
+            address(mockCallbackExecutor),
+            abi.encodeWithSignature("inputsFilled(bytes32,bytes)", orderHash, MOCK_CALLBACK_DATA)
+        );
         reactor.optimisticPayout(orderKey, MOCK_CALLBACK_DATA_WITH_ADDRESS);
     }
 
@@ -1353,10 +1357,14 @@ abstract contract TestBaseReactor is TestConfig {
         // Tested necessary emits and calls before
         vm.expectEmit();
         emit InputsFilled(orderHash, newMockData);
+        vm.expectCall(
+            address(mockCallbackExecutor),
+            abi.encodeWithSignature("inputsFilled(bytes32,bytes)", orderHash, newMockData)
+        );
         reactor.purchaseOrder(orderKey, newFillerDataWithExecutionData, 0);
 
         // Check storage
-        OrderContext memory orderContext = reactor.getOrderContext(orderKey);
+        OrderContext memory orderContext = reactor.getOrderContext(orderHash);
 
         // Check that the fillerAddress was change
         assertEq(orderContext.identifier, keccak256(newMockDataWithAddress));

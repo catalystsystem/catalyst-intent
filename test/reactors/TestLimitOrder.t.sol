@@ -35,6 +35,10 @@ import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
+import { OutputFilled } from "../../src/interfaces/Events.sol";
+
+event OutputFilledCallExecuted(bytes32 token, uint256 amount, bytes executionData);
+
 contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
@@ -163,6 +167,78 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         uint32[] memory fillDeadlines = _getFillDeadlines(length, fillDeadline);
 
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
+        reactor.proveOrderFulfilment(orderKey, hex"");
+    }
+
+    function test_outputs_filled_call_back(
+        uint256 inputAmount,
+        uint256 outputAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
+        CatalystLimitOrderData memory limitOrderData = OrderDataBuilder.getLimitOrder(
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            address(mockCallbackExecutor),
+            collateralToken,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            localVMOracle,
+            remoteVMOracle
+        );
+
+        limitOrderData.outputs[0].remoteCall = MOCK_CALLBACK_DATA;
+
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
+            limitOrderData,
+            address(reactor),
+            SWAPPER,
+            0,
+            uint32(block.chainid),
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE
+        );
+
+        OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
+        bytes32 crossOrderHash = this._getWitnessHash(order, limitOrderData);
+
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
+            Permit2Lib.toPermit(orderKey, address(reactor), order.initiateDeadline);
+
+        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+            permitBatch,
+            SWAPPER_PRIVATE_KEY,
+            _getFullPermitTypeHash(),
+            crossOrderHash,
+            DOMAIN_SEPARATOR,
+            address(reactor)
+        );
+        vm.prank(fillerAddress);
+        reactor.initiate(order, signature, fillDataV1);
+
+        MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
+        MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
+
+        uint32[] memory fillDeadlines = _getFillDeadlines(1, DEFAULT_FILL_DEADLINE);
+        vm.expectCall(
+            address(mockCallbackExecutor),
+            abi.encodeWithSignature(
+                "outputFilled(bytes32,uint256,bytes)",
+                bytes32(uint256(uint160(tokenToSwapOutput))),
+                outputAmount,
+                MOCK_CALLBACK_DATA
+            )
+        );
+        vm.expectEmit();
+        emit OutputFilled(tokenToSwapOutput, address(mockCallbackExecutor), outputAmount, keccak256(MOCK_CALLBACK_DATA));
+
+        vm.expectEmit();
+        emit OutputFilledCallExecuted(bytes32(uint256(uint160(tokenToSwapOutput))), outputAmount, MOCK_CALLBACK_DATA);
+
+        _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
+
         reactor.proveOrderFulfilment(orderKey, hex"");
     }
 

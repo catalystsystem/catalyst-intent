@@ -73,8 +73,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         )
     {
         vm.assume(
-            timeIncrement > 0 && slopeStartingTime < type(uint32).max - 4
-                && timeIncrement <= type(uint32).max - 4 - slopeStartingTime
+            timeIncrement > 0 && slopeStartingTime < type(uint32).max - DEFAULT_PROOF_DEADLINE
+                && timeIncrement <= type(uint32).max - DEFAULT_PROOF_DEADLINE - slopeStartingTime
         );
 
         uint256 inputAmountAfterDecrement = _dutchInputResult(inputAmount, slope, uint256(timeIncrement));
@@ -84,8 +84,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         uint32 timeAtExecution = slopeStartingTime + timeIncrement;
 
-        uint32 challengeDeadline = timeAtExecution + 3;
-        uint32 proofDeadline = timeAtExecution + 4;
+        uint32 challengeDeadline = timeAtExecution + DEFAULT_CHALLENGE_DEADLINE;
+        uint32 proofDeadline = timeAtExecution + DEFAULT_PROOF_DEADLINE;
 
         (uint256 swapperBalanceBefore, uint256 reactorBalanceBefore) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
@@ -115,10 +115,10 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             currentDutchOrderData,
             address(reactor),
             SWAPPER,
-            0,
+            DEFAULT_ORDER_NONCE,
             uint32(block.chainid),
-            timeAtExecution + 1,
-            timeAtExecution + 2
+            timeAtExecution + DEFAULT_INITIATE_DEADLINE,
+            timeAtExecution + DEFAULT_FILL_DEADLINE
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
         uint256[] memory permittedAmounts;
@@ -170,7 +170,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 timeIncrement,
         int160 slope
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
-        uint32 PROOF_DEADLINE_INCREMENT = 4;
+        uint32 PROOF_DEADLINE_INCREMENT = DEFAULT_PROOF_DEADLINE;
         uint256 timePassed = uint256(timeIncrement);
         int256 slopeParsed = int256(slope);
 
@@ -186,9 +186,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         vm.warp(slopeStartingTime);
 
-        uint32 challengeDeadline = slopeStartingTime + timeIncrement + 3;
+        uint32 challengeDeadline = slopeStartingTime + timeIncrement + DEFAULT_CHALLENGE_DEADLINE;
         uint32 proofDeadline = slopeStartingTime + timeIncrement + PROOF_DEADLINE_INCREMENT;
-        uint32 fillDeadline = slopeStartingTime + timeIncrement + 2;
+        uint32 fillDeadline = slopeStartingTime + timeIncrement + DEFAULT_FILL_DEADLINE;
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
@@ -218,9 +218,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             currentDutchOrderData,
             address(reactor),
             SWAPPER,
-            0,
+            DEFAULT_ORDER_NONCE,
             uint32(block.chainid),
-            slopeStartingTime + timeIncrement + 1,
+            slopeStartingTime + timeIncrement + DEFAULT_INITIATE_DEADLINE,
             fillDeadline
         );
         vm.warp(slopeStartingTime + timeIncrement);
@@ -284,8 +284,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         int256 outputSlopeParsed = int256(outputSlope);
 
         vm.assume(
-            timeIncrement > 0 && slopeStartingTime < type(uint32).max - 4
-                && timeIncrement <= type(uint32).max - 4 - slopeStartingTime
+            timeIncrement > 0 && slopeStartingTime < type(uint32).max - DEFAULT_PROOF_DEADLINE
+                && timeIncrement <= type(uint32).max - DEFAULT_PROOF_DEADLINE - slopeStartingTime
         );
         vm.assume(outputSlopeParsed > 0 && inputSlopeParsed < 0);
 
@@ -298,7 +298,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         vm.warp(slopeStartingTime);
 
-        uint32 fillDeadline = slopeStartingTime + timeIncrement + 2;
+        uint32 fillDeadline = slopeStartingTime + timeIncrement + DEFAULT_FILL_DEADLINE;
 
         CatalystDutchOrderData memory currentDutchOrderData = OrderDataBuilder.getDutchOrder(
             tokenToSwapInput,
@@ -309,8 +309,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             collateralToken,
             DEFAULT_COLLATERAL_AMOUNT,
             DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
-            slopeStartingTime + timeIncrement + 3,
-            slopeStartingTime + timeIncrement + 4,
+            slopeStartingTime + timeIncrement + DEFAULT_CHALLENGE_DEADLINE,
+            slopeStartingTime + timeIncrement + DEFAULT_PROOF_DEADLINE,
             localVMOracle,
             remoteVMOracle
         );
@@ -328,9 +328,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             currentDutchOrderData,
             address(reactor),
             SWAPPER,
-            0,
+            DEFAULT_ORDER_NONCE,
             uint32(block.chainid),
-            slopeStartingTime + timeIncrement + 1,
+            slopeStartingTime + timeIncrement + DEFAULT_INITIATE_DEADLINE,
             fillDeadline
         );
         vm.warp(slopeStartingTime + timeIncrement);
@@ -433,7 +433,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             currentDutchOrderData,
             address(reactor),
             SWAPPER,
-            0,
+            DEFAULT_ORDER_NONCE,
             uint32(block.chainid),
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE
@@ -506,7 +506,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             currentDutchOrderData,
             address(reactor),
             SWAPPER,
-            0,
+            DEFAULT_ORDER_NONCE,
             uint32(block.chainid),
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE
@@ -562,8 +562,8 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             collateralToken,
             DEFAULT_COLLATERAL_AMOUNT,
             DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
-            3,
-            4,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
             localVMOracle,
             remoteVMOracle
         );
@@ -575,7 +575,13 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             currentDutchOrderData.outputSlopes
         );
         CrossChainOrder memory crossOrder = CrossChainBuilder.getCrossChainOrder(
-            currentDutchOrderData, address(reactor), SWAPPER, 0, uint32(block.chainid), 1, 2
+            currentDutchOrderData,
+            address(reactor),
+            SWAPPER,
+            DEFAULT_ORDER_NONCE,
+            uint32(block.chainid),
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(crossOrder, reactor);
 

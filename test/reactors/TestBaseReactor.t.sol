@@ -65,8 +65,10 @@ abstract contract TestBaseReactor is TestConfig {
 
     uint32 DEFAULT_INITIATE_DEADLINE = 5;
     uint32 DEFAULT_FILL_DEADLINE = 6;
-    uint32 DEFAULT_CHALLENGE_DEADLINE = 10;
-    uint32 DEFAULT_PROOF_DEADLINE = 11;
+    uint32 DEFAULT_CHALLENGE_DEADLINE = 7;
+    uint32 DEFAULT_PROOF_DEADLINE = 8;
+
+    uint256 DEFAULT_ORDER_NONCE = 0;
 
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25;
     BaseReactor reactor;
@@ -120,7 +122,7 @@ abstract contract TestBaseReactor is TestConfig {
         (uint256 swapperInputBalance, uint256 reactorInputBalance) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
         _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -140,7 +142,7 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 challengerCollateralAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -154,7 +156,7 @@ abstract contract TestBaseReactor is TestConfig {
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
         MockERC20(collateralToken).mint(fillerAddress, fillerCollateralAmount);
         _initiateOrder(
-            1,
+            DEFAULT_ORDER_NONCE + 1,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -185,7 +187,7 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
             DEFAULT_PROOF_DEADLINE,
-            0
+            DEFAULT_ORDER_NONCE
         );
         order.settlementContract = settlementContract;
         vm.expectRevert(InvalidSettlementAddress.selector);
@@ -200,7 +202,16 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 challengerCollateralAmount
     ) public {
         (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
-            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 0, 1, 5, 10, 0
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
@@ -216,6 +227,7 @@ abstract contract TestBaseReactor is TestConfig {
             DOMAIN_SEPARATOR,
             address(reactor)
         );
+        vm.warp(DEFAULT_INITIATE_DEADLINE + 1);
         vm.expectRevert(InitiateDeadlinePassed.selector);
         reactor.initiate(order, signature, fillDataV1);
     }
@@ -227,7 +239,16 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 challengerCollateralAmount
     ) public {
         (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
-            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 2, 11, 10, 0
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_PROOF_DEADLINE + 1,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
@@ -254,7 +275,16 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 challengerCollateralAmount
     ) public {
         (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
-            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 1, 3, 2, 10, 0
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_INITIATE_DEADLINE - 1,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
@@ -294,7 +324,7 @@ abstract contract TestBaseReactor is TestConfig {
             fillDeadline,
             DEFAULT_CHALLENGE_DEADLINE,
             DEFAULT_PROOF_DEADLINE,
-            0
+            DEFAULT_ORDER_NONCE
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
@@ -322,7 +352,7 @@ abstract contract TestBaseReactor is TestConfig {
         address challenger
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -367,7 +397,7 @@ abstract contract TestBaseReactor is TestConfig {
         address challenger
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -403,7 +433,7 @@ abstract contract TestBaseReactor is TestConfig {
         vm.assume(SWAPPER != challenger);
         vm.assume(challengerCollateralAmount > 0);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -435,7 +465,7 @@ abstract contract TestBaseReactor is TestConfig {
         vm.assume(fillDeadline < challengeDeadline);
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -469,7 +499,7 @@ abstract contract TestBaseReactor is TestConfig {
         vm.assume(fillDeadline < challengeDeadline);
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -499,7 +529,7 @@ abstract contract TestBaseReactor is TestConfig {
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -546,7 +576,7 @@ abstract contract TestBaseReactor is TestConfig {
         vm.assume(fillDeadline < challengeDeadline);
         vm.assume(challengeDeadline < type(uint32).max - 1 hours);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -581,7 +611,7 @@ abstract contract TestBaseReactor is TestConfig {
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -649,7 +679,7 @@ abstract contract TestBaseReactor is TestConfig {
         vm.assume(proofDeadline > DEFAULT_CHALLENGE_DEADLINE);
         vm.assume(warp >= DEFAULT_CHALLENGE_DEADLINE);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -690,7 +720,7 @@ abstract contract TestBaseReactor is TestConfig {
         vm.assume(proofDeadline > DEFAULT_CHALLENGE_DEADLINE);
         vm.assume(proofDeadline < type(uint32).max - 1);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -723,8 +753,18 @@ abstract contract TestBaseReactor is TestConfig {
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
-        (CrossChainOrder memory order, bytes32 crossOrderHash) =
-            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
@@ -791,8 +831,18 @@ abstract contract TestBaseReactor is TestConfig {
         uint32 newPurchaseDeadline,
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
-        (CrossChainOrder memory order,) =
-            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
@@ -813,8 +863,18 @@ abstract contract TestBaseReactor is TestConfig {
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(originalPurchaseTime < type(uint32).max - 1);
-        (CrossChainOrder memory order, bytes32 crossOrderHash) =
-            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
@@ -852,7 +912,7 @@ abstract contract TestBaseReactor is TestConfig {
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -896,7 +956,7 @@ abstract contract TestBaseReactor is TestConfig {
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
             DEFAULT_PROOF_DEADLINE,
-            0
+            DEFAULT_ORDER_NONCE
         );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
@@ -935,7 +995,7 @@ abstract contract TestBaseReactor is TestConfig {
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -972,7 +1032,7 @@ abstract contract TestBaseReactor is TestConfig {
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         vm.assume(malleciousModifier != fillerAddress);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -1076,7 +1136,7 @@ abstract contract TestBaseReactor is TestConfig {
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -1131,7 +1191,7 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 challengerCollateralAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -1157,7 +1217,7 @@ abstract contract TestBaseReactor is TestConfig {
         _assumeAllDeadlinesCorrectSequence(initiateDeadline, fillDeadline, challengeDeadline, proofDeadline);
 
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -1205,7 +1265,7 @@ abstract contract TestBaseReactor is TestConfig {
         uint256 fillerBalanceBefore = MockERC20(collateralToken).balanceOf(fillerAddress);
 
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -1284,7 +1344,7 @@ abstract contract TestBaseReactor is TestConfig {
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         _assumeValidDeadline(DEFAULT_FILL_DEADLINE, challengeDeadline);
         OrderKey memory orderKey = _initiateOrder(
-            0,
+            DEFAULT_ORDER_NONCE,
             SWAPPER,
             inputAmount,
             outputAmount,
@@ -1322,8 +1382,18 @@ abstract contract TestBaseReactor is TestConfig {
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
-        (CrossChainOrder memory order, bytes32 crossOrderHash) =
-            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
@@ -1390,8 +1460,18 @@ abstract contract TestBaseReactor is TestConfig {
         uint16 newOrderPurchaseDiscount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         address inputToken = tokenToSwapInput;
-        (CrossChainOrder memory order, bytes32 crossOrderHash) =
-            _getCrossOrderWithWitnessHash(inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, 0, 1, 2, 3, 10, 0);
+        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
+        );
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
 
         (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(

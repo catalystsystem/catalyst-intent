@@ -2,20 +2,24 @@
 pragma solidity ^0.8.22;
 
 import { BitcoinOracle } from "../../src/oracles/BitcoinOracle.sol";
+
+import "../helpers/bitcoinInterfaces.sol";
+import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
+import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
+
 import { BtcPrism } from "bitcoinprism-evm/src/BtcPrism.sol";
 import { Script } from "forge-std/Script.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 
 contract DeployBitcoinOracle is Script {
-    function deployBitcoinPrism() internal returns (BtcPrism btcPrism) {
+    function deployBitcoinPrism(BitcoinChain memory bitcoinChain) internal returns (BtcPrism btcPrism) {
+        Prism memory prism = bitcoinChain.prism;
+
         vm.startBroadcast();
 
         // TODO: set correct header & block height.
         btcPrism = new BtcPrism{ salt: 0 }(
-            2902384,
-            0x000000000000000f10b5de36d015586d3bf3f63a0faa418b73cb91aaff5de064,
-            1725015258,
-            0x0000000000000000000fffc00000000000000000000000000000000000000000,
-            true
+            prism.blockHeight, prism.blockHash, prism.blockTime, uint256(prism.expectedTarget), bitcoinChain.isTestNet
         );
         vm.stopBroadcast();
     }
@@ -36,9 +40,24 @@ contract DeployBitcoinOracle is Script {
         return bitcoinOracle;
     }
 
-    function deploy(address escrow) public returns (BitcoinOracle) {
-        BtcPrism btcPrism = deployBitcoinPrism();
+    function deploy() public returns (BitcoinOracle) {
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/script/oracle/bitcoin-info.json");
+        string memory json = vm.readFile(path);
+        string memory chain = vm.envString("chain");
+        bytes memory chainDataParsed = stdJson.parseRaw(json, string.concat(".", chain));
+        BitcoinChain memory bitcoinChain = abi.decode(chainDataParsed, (BitcoinChain));
+        address escrowAddress = bitcoinChain.escrow;
 
-        return deploy(escrow, address(btcPrism));
+        //TODO: change config with escrows addresses
+        if (escrowAddress == address(0) && keccak256(bytes(chain)) == keccak256(bytes("mainnet"))) {
+            IIncentivizedMessageEscrow escrow =
+                new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
+            escrowAddress = address(escrow);
+        }
+        bitcoinChain.escrow = escrowAddress;
+        BtcPrism btcPrism = deployBitcoinPrism(bitcoinChain);
+
+        return deploy(escrowAddress, address(btcPrism));
     }
 }

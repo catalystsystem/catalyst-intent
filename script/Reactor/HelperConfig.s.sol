@@ -20,7 +20,6 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
 
     // We can also add the domain separator here.
     struct NetworkConfig {
-        //TODO: Possible to make it array in the future;
         address tokenToSwapInput;
         address tokenToSwapOutput;
         address collateralToken;

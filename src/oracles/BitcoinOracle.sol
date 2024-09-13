@@ -81,6 +81,14 @@ contract BitcoinOracle is BaseOracle {
         numConfirmations = numConfirmations == 0 ? 1 : numConfirmations;
     }
 
+    function _getLatestBlockHeight() virtual internal view returns(uint256 currentHeight) {
+        return currentHeight = IBtcPrism(LIGHT_CLIENT).getLatestBlockHeight();
+    }
+
+    function _getBlockHash(uint256 blockNum) virtual internal view returns(bytes32 blockHash) {
+        return blockHash = IBtcPrism(LIGHT_CLIENT).getBlockHash(blockNum);
+    }
+
     /**
      * @notice Verifies the existence of a Bitcoin transaction and returns the number of satoshis associated
      * with output txOutIx of the transaction.
@@ -104,7 +112,7 @@ contract BitcoinOracle is BaseOracle {
     ) virtual internal view returns (uint256 sats) {
         // Isolate height check. This decreases gas cost slightly.
         {
-            uint256 currentHeight = IBtcPrism(LIGHT_CLIENT).getLatestBlockHeight();
+            uint256 currentHeight = _getLatestBlockHeight();
 
             if (currentHeight < blockNum) revert NoBlock(currentHeight, blockNum);
 
@@ -120,7 +128,7 @@ contract BitcoinOracle is BaseOracle {
         // Load the expected hash for blockNum. This is the "security" call of the light client.
         // If block hash matches the hash of inclusionProof.blockHeader then we know it is a
         // valid block.
-        bytes32 blockHash = IBtcPrism(LIGHT_CLIENT).getBlockHash(blockNum);
+        bytes32 blockHash = _getBlockHash(blockNum);
 
         bytes memory txOutScript;
         bytes memory txOutData;

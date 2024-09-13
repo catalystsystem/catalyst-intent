@@ -3,13 +3,9 @@ pragma solidity ^0.8.26;
 
 import { Endian } from "bitcoinprism-evm/src/Endian.sol";
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
-import { InvalidProof, NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
+import { NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
-
-import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
-import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -28,7 +24,7 @@ contract BitcoinOracle is BaseOracle {
     // addresses are generally pre-compiles and thus would be safe).
     // This also add standardizes support for other light clients coins (Lightcoin 0x1C?)
     bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BC0000000000000000000000000000000000;
-    IBtcPrism public immutable mirror;
+    address public immutable LIGHT_CLIENT;
 
     error BadDestinationIdentifier();
     error BadAmount();
@@ -37,8 +33,8 @@ contract BitcoinOracle is BaseOracle {
 
     mapping(bytes32 orderKey => uint256 fillDeadline) public filledOrders;
 
-    constructor(address _escrow, address _mirror) BaseOracle(_escrow) {
-        mirror = IBtcPrism(_mirror);
+    constructor(address _escrow, address _lightClient) BaseOracle(_escrow) {
+        LIGHT_CLIENT = _lightClient;
     }
 
     /**
@@ -105,10 +101,10 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx,
         bytes memory outputScript,
         bytes calldata embeddedData
-    ) internal view returns (uint256 sats) {
+    ) virtual internal view returns (uint256 sats) {
         // Isolate height check. This decreases gas cost slightly.
         {
-            uint256 currentHeight = mirror.getLatestBlockHeight();
+            uint256 currentHeight = IBtcPrism(LIGHT_CLIENT).getLatestBlockHeight();
 
             if (currentHeight < blockNum) revert NoBlock(currentHeight, blockNum);
 
@@ -124,7 +120,7 @@ contract BitcoinOracle is BaseOracle {
         // Load the expected hash for blockNum. This is the "security" call of the light client.
         // If block hash matches the hash of inclusionProof.blockHeader then we know it is a
         // valid block.
-        bytes32 blockHash = mirror.getBlockHash(blockNum);
+        bytes32 blockHash = IBtcPrism(LIGHT_CLIENT).getBlockHash(blockNum);
 
         bytes memory txOutScript;
         bytes memory txOutData;

@@ -3,7 +3,6 @@ pragma solidity ^0.8.22;
 
 import { BitcoinOracle } from "../../src/oracles/BitcoinOracle.sol";
 
-import "../helpers/bitcoinInterfaces.sol";
 import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 
@@ -12,14 +11,25 @@ import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
 contract DeployBitcoinOracle is Script {
-    function deployBitcoinPrism(BitcoinChain memory bitcoinChain) internal returns (BtcPrism btcPrism) {
-        Prism memory prism = bitcoinChain.prism;
+    struct BitcoinChain {
+        address escrow;
+        bool isTestNet;
+        bytes32 prismDeploymentBlockHash;
+        uint120 prismDeploymentBlockHeight;
+        uint120 prismDeploymentBlockTime;
+        bytes32 prismDeploymentExpectedTarget;
+    }
 
+    function deployBitcoinPrism(BitcoinChain memory bitcoinChain) internal returns (BtcPrism btcPrism) {
         vm.startBroadcast();
 
         // TODO: set correct header & block height.
         btcPrism = new BtcPrism{ salt: 0 }(
-            prism.blockHeight, prism.blockHash, prism.blockTime, uint256(prism.expectedTarget), bitcoinChain.isTestNet
+            bitcoinChain.prismDeploymentBlockHeight,
+            bitcoinChain.prismDeploymentBlockHash,
+            bitcoinChain.prismDeploymentBlockTime,
+            uint256(bitcoinChain.prismDeploymentExpectedTarget),
+            bitcoinChain.isTestNet
         );
         vm.stopBroadcast();
     }
@@ -50,7 +60,7 @@ contract DeployBitcoinOracle is Script {
         address escrowAddress = bitcoinChain.escrow;
 
         //TODO: change config with escrows addresses
-        if (escrowAddress == address(0) && keccak256(bytes(chain)) == keccak256(bytes("mainnet"))) {
+        if (escrowAddress == address(0)) {
             IIncentivizedMessageEscrow escrow =
                 new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
             escrowAddress = address(escrow);

@@ -1,0 +1,51 @@
+{
+  "testnet4": {
+    "blockHeader": "",
+    "escrow": "",
+    "isTestNet": true,
+    "iterBlock": {
+      "blockHeaders": "0x",
+      "blockHeight": 0
+    },
+    "prism": {
+      "blockHeight": 2902384,
+      "blockHash": "0x000000000000000f10b5de36d015586d3bf3f63a0faa418b73cb91aaff5de064",
+      "blockTime": 1725015258,
+      "expectedTarget": "0x0000000000000000000fffc00000000000000000000000000000000000000000"
+    },
+    "tx": {
+      "id": "",
+      "index": 0,
+      "merkleProof": "",
+      "outputIndex": 0,
+      "rawTx": "",
+      "satsAmount": 0,
+      "utxoType": ""
+    }
+  },
+
+  "mainnet": {
+    "blockHeader": "0x0000fc2ad11d24df427f64f0247bf960258fe2f5e13576dc56ca000000000000000000005ba9740466fb42e86b282a8c7963db417229ae45a8e6b47740a1fb949ca376787a8bcd66763d0317623a9313",
+    "escrow": "0x0000000000000000000000000000000000000000",
+    "isTestNet": false,
+    "iterBlock": {
+      "blockHeaders": "0x",
+      "blockHeight": 0
+    },
+    "prism": {
+      "blockHeight": 858615,
+      "blockHash": "0x00000000000000000000dd1ee5ffff1b823029ccb49ad30395d085d51f531d03",
+      "blockTime": 1724746618,
+      "expectedTarget": "0x0000000000000000000fffc00000000000000000000000000000000000000000"
+    },
+    "tx": {
+      "id": "0xf1051a6d34f90d86f11587773334c29811634c4027fcf8e979da9a652ba29cfb",
+      "index": 604,
+      "merkleProof": "27c1204045b7b4a58e1ba5beb8846cd550cf49ab0d77c18a99a8f542913a1890e055d3a47f147fac6df3b85b7cf82e5230d65d6dc22816de9b977b8cb2df684e01c0974f3097b27e1014824f750e5e9f0f7a2b01b2aa5b1e51b62306f2861e45903633a6206f5762fe362d00d5bf3d809082779648bb4db26aa2cb8938977ed3b88730e6d56563fc6dd3a3cd0854b375cb3592b3ce1df6db15badb1206bc87743ef1942fc274cb2c0ec699cdeb47706657b7e03ea8144ae3e3c44b163a5923c25b15ceaa521b82fbcfb1dd11edbb6be4654943491dfe35458af8a07fc37e639bcaa8d557783144e8687ce83660bf6e60672ab7504ed1d04af9d2519ceec66a233d165e7e4bcf3efd7dbc879dff65e5b4fa821ff3d727087ccf725786e9f264eb9d585a6e3c1c0db2a35232cf908f92c06a3a77dd7b42a76d08006a0587e5cc91fe0fb7e537e785016d125dccd0a75bdfdde7ae8794518ceb317c9194399570cf2da9ba5e8efe32ecb9a7045ae4b0f9a7e73430619569ed7c7fd8c862d5f8e5b5",
+      "outputIndex": 0,
+      "rawTx": "0x010000000233111d5e2595ae244b24b07cc86332b1070f7bbe53404c7946cffcb7d6ed21d60000000000ffffffff98c57ddc512930107dc81e045adb90c9daeff817a27667976f63f999c986e50f0100000000ffffffff01af970800000000001976a91493ab15e523955f293df3a68029ec41e6b1ca179088ac00000000",
+      "satsAmount": 563119,
+      "utxoType": "0x0000000000000000000000000000000000000001"
+    }
+  }
+}

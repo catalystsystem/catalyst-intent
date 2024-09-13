@@ -58,7 +58,6 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * save gas when used in a loop. The fee is out of 10**18.
      * @return amountLessFee amount - fee.
      */
-    // TODO: implement governance fee.
     function _collectGovernanceFee(
         address token,
         uint256 amount,

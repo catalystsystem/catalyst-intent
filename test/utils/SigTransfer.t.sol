@@ -12,7 +12,7 @@ library SigTransfer {
     string public constant PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB =
         "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,";
 
-    function getPermitBatchWitnessSignature(
+    function crossOrdergetPermitBatchWitnessSignature(
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         uint256 privateKey,
         bytes32 typeHash,

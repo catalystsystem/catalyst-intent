@@ -78,7 +78,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      */
     function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
         // Remember to not include (aka. exclude) remoteOracle & chainId
-        // TODO: abi.encode cheaper?
         outputHash = keccak256(
             bytes.concat(
                 output.remoteOracle,
@@ -367,24 +366,26 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
             outputs = new OutputDescription[](numOutputs);
             fillDeadlines = new uint32[](numOutputs);
-            uint256 pointer = 0;
+            uint256 pointer = OUTPUT_TOKEN_START;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
+                bytes32 token = bytes32(encodedPayload[pointer : pointer += (OUTPUT_TOKEN_END - OUTPUT_TOKEN_START)]);
+                uint256 amount = uint256(bytes32(encodedPayload[pointer : pointer += (OUTPUT_AMOUNT_END - OUTPUT_AMOUNT_START)]));
+                bytes32 recipient = bytes32(encodedPayload[pointer : pointer += (OUTPUT_RECIPIENT_END - OUTPUT_RECIPIENT_START)]);
+                uint32 chainId = uint32(bytes4(encodedPayload[pointer : pointer += (OUTPUT_CHAIN_ID_END - OUTPUT_CHAIN_ID_START)]));
+                fillDeadlines[outputIndex] = uint32(
+                    bytes4(encodedPayload[pointer : pointer += (OUTPUT_FILL_DEADLINE_END - OUTPUT_FILL_DEADLINE_START)])
+                );
                 uint256 remoteCallLength =
-                    uint16(bytes2(encodedPayload[pointer + REMOTE_CALL_LENGTH_START:pointer + REMOTE_CALL_LENGTH_END]));
-                // TODO: can we optimise this decoding scheme? I think yes.
+                    uint16(bytes2(encodedPayload[pointer : pointer += (REMOTE_CALL_LENGTH_END - REMOTE_CALL_LENGTH_START)]));
+
                 outputs[outputIndex] = OutputDescription({
                     remoteOracle: remoteOracle,
-                    token: bytes32(encodedPayload[pointer + OUTPUT_TOKEN_START:pointer + OUTPUT_TOKEN_END]),
-                    amount: uint256(bytes32(encodedPayload[pointer + OUTPUT_AMOUNT_START:pointer + OUTPUT_AMOUNT_END])),
-                    recipient: bytes32(encodedPayload[pointer + OUTPUT_RECIPIENT_START:pointer + OUTPUT_RECIPIENT_END]),
-                    chainId: uint32(bytes4(encodedPayload[pointer + OUTPUT_CHAIN_ID_START:pointer + OUTPUT_CHAIN_ID_END])),
-                    remoteCall: encodedPayload[pointer + REMOTE_CALL_START:pointer + REMOTE_CALL_START + remoteCallLength]
+                    token: token,
+                    amount: amount,
+                    recipient: recipient,
+                    chainId: chainId,
+                    remoteCall: encodedPayload[pointer : pointer += remoteCallLength]
                 });
-                fillDeadlines[outputIndex] = uint32(
-                    bytes4(encodedPayload[pointer + OUTPUT_FILL_DEADLINE_START:pointer + OUTPUT_FILL_DEADLINE_END])
-                );
-
-                pointer += OUTPUT_LENGTH + remoteCallLength;
             }
         }
     }

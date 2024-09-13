@@ -109,9 +109,10 @@ contract BridgeOracle is BaseOracle {
 
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
-        // TODO: Check if token is deployed contract?
-        // TODO: The disadvantage of checking is that it may invalidate a
-        // TODO: ongoing order putting the collateral at risk.
+        // The token is not checked for code as this may make a output
+        // unfillable. There are still ways to make an output unfillable
+        // but these can be migrated by whitelists. Regardless, don't
+        // set the output token to an undeployed token / without code.
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
 
         // If there is an external call associated with the fill, execute it.

@@ -3,7 +3,10 @@ pragma solidity ^0.8.26;
 
 import { BitcoinOracle } from "./BitcoinOracle.sol";
 
-import { ICitrea } from "./interfaces/ICitrea.sol";
+interface ICitrea {
+    function blockNumber() external view returns (uint256);
+    function blockHashes(uint256) external view returns (bytes32);
+}
 
 /**
  * @dev Bitcoin oracle using the Citrea ABI.

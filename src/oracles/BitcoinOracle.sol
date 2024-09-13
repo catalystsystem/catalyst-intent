@@ -127,7 +127,6 @@ contract BitcoinOracle is BaseOracle {
         // Important, this function validate that blockHash = hash(inclusionProof.blockHeader);
         (sats, txOutScript) = BtcProof.validateTx(blockHash, inclusionProof, txOutIx);
 
-        // TODO: Check if there are gas savings if we move scripts as hashes.
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
     }
 

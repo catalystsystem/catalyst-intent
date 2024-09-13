@@ -5,12 +5,11 @@ import { DeployBitcoinOracle } from "../../../script/oracle/DeployBitcoinOracle.
 import { BitcoinOracle } from "../../../src/oracles/BitcoinOracle.sol";
 import { Test } from "forge-std/Test.sol";
 
-contract TestBitcoinOracle is Test {
+contract TestBitcoinOracle is Test, DeployBitcoinOracle {
     BitcoinOracle bitcoinOracle;
-    DeployBitcoinOracle deployBitcoinOracle = new DeployBitcoinOracle();
 
     function setUp() public {
-        bitcoinOracle = deployBitcoinOracle.deploy();
+        bitcoinOracle = deploy("mainnet");
     }
 
     function testA() public { }

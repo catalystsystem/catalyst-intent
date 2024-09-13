@@ -50,12 +50,11 @@ contract DeployBitcoinOracle is Script {
         return bitcoinOracle;
     }
 
-    function deploy() public returns (BitcoinOracle) {
+    function deploy(string memory chainName) public returns (BitcoinOracle) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/script/oracle/bitcoin-info.json");
         string memory json = vm.readFile(path);
-        string memory chain = vm.envString("chain");
-        bytes memory chainDataParsed = stdJson.parseRaw(json, string.concat(".", chain));
+        bytes memory chainDataParsed = stdJson.parseRaw(json, string.concat(".", chainName));
         BitcoinChain memory bitcoinChain = abi.decode(chainDataParsed, (BitcoinChain));
         address escrowAddress = bitcoinChain.escrow;
 

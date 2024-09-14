@@ -1,7 +1,7 @@
 {
   "testnet4": {
     "escrow": "0x0000000000000000000000000000000000000000",
-    "isTestNet": true,
+    "isTestnet": true,
     "prismDeploymentBlockHeight": 2902384,
     "prismDeploymentBlockHash": "0x000000000000000f10b5de36d015586d3bf3f63a0faa418b73cb91aaff5de064",
     "prismDeploymentBlockTime": 1725015258,
@@ -10,7 +10,7 @@
 
   "mainnet": {
     "escrow": "0x0000000000000000000000000000000000000000",
-    "isTestNet": false,
+    "isTestnet": false,
     "prismDeploymentBlockHash": "0x00000000000000000000dd1ee5ffff1b823029ccb49ad30395d085d51f531d03",
     "prismDeploymentBlockHeight": 858615,
     "prismDeploymentBlockTime": 1724746618,

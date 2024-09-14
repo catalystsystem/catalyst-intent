@@ -13,23 +13,29 @@ import { stdJson } from "forge-std/StdJson.sol";
 contract DeployBitcoinOracle is Script {
     struct BitcoinChain {
         address escrow;
-        bool isTestNet;
+        bool isTestnet;
         bytes32 prismDeploymentBlockHash;
         uint120 prismDeploymentBlockHeight;
         uint120 prismDeploymentBlockTime;
         bytes32 prismDeploymentExpectedTarget;
     }
 
-    function deployBitcoinPrism(BitcoinChain memory bitcoinChain) internal returns (BtcPrism btcPrism) {
+    function deployBitcoinPrism(
+        uint120 prismDeploymentBlockHeight,
+        bytes32 prismDeploymentBlockHash,
+        uint120 prismDeploymentBlockTime,
+        bytes32 prismDeploymentExpectedTarget,
+        bool isTestnet
+    ) internal returns (BtcPrism btcPrism) {
         vm.startBroadcast();
 
         // TODO: set correct header & block height.
         btcPrism = new BtcPrism{ salt: 0 }(
-            bitcoinChain.prismDeploymentBlockHeight,
-            bitcoinChain.prismDeploymentBlockHash,
-            bitcoinChain.prismDeploymentBlockTime,
-            uint256(bitcoinChain.prismDeploymentExpectedTarget),
-            bitcoinChain.isTestNet
+            prismDeploymentBlockHeight,
+            prismDeploymentBlockHash,
+            prismDeploymentBlockTime,
+            uint256(prismDeploymentExpectedTarget),
+            isTestnet
         );
         vm.stopBroadcast();
     }
@@ -65,7 +71,13 @@ contract DeployBitcoinOracle is Script {
             escrowAddress = address(escrow);
         }
         bitcoinChain.escrow = escrowAddress;
-        BtcPrism btcPrism = deployBitcoinPrism(bitcoinChain);
+        BtcPrism btcPrism = deployBitcoinPrism(
+            bitcoinChain.prismDeploymentBlockHeight,
+            bitcoinChain.prismDeploymentBlockHash,
+            bitcoinChain.prismDeploymentBlockTime,
+            bitcoinChain.prismDeploymentExpectedTarget,
+            bitcoinChain.isTestnet
+        );
 
         return deploy(escrowAddress, address(btcPrism));
     }

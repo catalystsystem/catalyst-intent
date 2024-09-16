@@ -62,8 +62,6 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 slopeStartingTime,
         uint32 timeIncrement,
         int160 slope
-    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, uint256(inputAmount) + (slope > 0 ? uint256(timeIncrement) * uint256(int256(slope)) : 0), outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
-
     )
         public
         approvedAndMinted(
@@ -554,7 +552,9 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 slopeStartingTime
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, DEFAULT_COLLATERAL_AMOUNT) {
         vm.assume(slopeStartingTime > block.timestamp);
-        vm.assume(context != bytes32(uint256(uint160(exclusiveOwner))));
+        vm.assume(
+            context != bytes32(uint256(uint160(exclusiveOwner))) && context != bytes32(uint256(uint160(fillerAddress)))
+        );
         CatalystDutchOrderData memory currentDutchOrderData = OrderDataBuilder.getDutchOrder(
             tokenToSwapInput,
             tokenToSwapOutput,

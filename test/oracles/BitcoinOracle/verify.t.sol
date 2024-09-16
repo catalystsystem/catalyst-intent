@@ -93,7 +93,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
 
         bitcoinOracle.verify(
             outputNextBlock,
-            uint32(NEXT_BLOCK_TIME + timeIncrement),
+            uint32(NEXT_BLOCK_TIME) + timeIncrement,
             NEXT_BLOCK_HEIGHT,
             inclusionProofNextBlock,
             NEXT_TX_OUTPUT_INDEX

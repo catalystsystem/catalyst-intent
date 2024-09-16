@@ -86,7 +86,6 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
 
         uint32 challengeDeadline = timeAtExecution + DEFAULT_CHALLENGE_DEADLINE;
         uint32 proofDeadline = timeAtExecution + DEFAULT_PROOF_DEADLINE;
-
         (uint256 swapperBalanceBefore, uint256 reactorBalanceBefore) =
             MockUtils.getCurrentBalances(tokenToSwapInput, SWAPPER, address(reactor));
         CatalystDutchOrderData memory currentDutchOrderData = OrderDataBuilder.getDutchOrder(

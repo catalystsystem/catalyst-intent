@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { OutputDescription } from "../../../src/interfaces/Structs.sol";
-import "./blockInfo.t.sol";
+import "./blockinfo.t.sol";
 
 import { Endian } from "bitcoinprism-evm/src/Endian.sol";
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 //  To test bitcoin verification we deploy prism with the following constants.
-//  We start by delpoying the block #858615 in BTC mainnet.
+//  prism deployment block #858615 in BTC mainnet.
 
 uint120 constant BLOCK_HEIGHT = 858615;
 uint120 constant BLOCK_TIME = 1724746618;

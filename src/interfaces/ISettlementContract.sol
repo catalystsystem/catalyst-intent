@@ -69,7 +69,7 @@ struct Output {
     /// @dev The address to receive the output tokens
     bytes32 recipient; // ! CHANGED FROM ERC-7683. ABI.ENCODES THE SAME BUT NOT STORAGE
     /// @dev The destination chain for this output
-    uint32 chainId; // TODO: CONVERT TO BYTES32?
+    uint32 chainId;
 }
 
 /// @title ISettlementContract

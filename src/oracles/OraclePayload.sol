@@ -16,15 +16,11 @@ pragma solidity ^0.8.26;
 //      + REMOTE_CALL           M_i+109     (REMOTE_CALL_LENGTH bytes)
 //
 //  where M_i = N*109 + \sum REMOTE_CALL_LENGTH_i
-//
-// Context-depending Payload
-//    FLAG1 - 0x01 - Execute Proof // TODO:
-//       + ORDER_KEY        N*132+136   (TODO bytes)
+
 
 // Contexts *********************************************************************************************************************
 
 bytes1 constant NO_FLAG = 0x00;
-bytes1 constant EXECUTE_PROOFS = 0x01;
 
 // Common Payload ***************************************************************************************************************
 
@@ -57,6 +53,3 @@ uint256 constant REMOTE_CALL_LENGTH_END = 109;
 
 uint256 constant REMOTE_CALL_START = 109;
 
-// FLAG1 - 0x01 - Execute Proof
-
-uint256 constant FLAG1_START = 168;

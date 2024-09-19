@@ -3,13 +3,9 @@ pragma solidity ^0.8.26;
 
 import { Endian } from "bitcoinprism-evm/src/Endian.sol";
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
-import { InvalidProof, NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
+import { NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IBtcTxVerifier.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
-
-import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
-import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -28,7 +24,7 @@ contract BitcoinOracle is BaseOracle {
     // addresses are generally pre-compiles and thus would be safe).
     // This also add standardizes support for other light clients coins (Lightcoin 0x1C?)
     bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BC0000000000000000000000000000000000;
-    IBtcPrism public immutable mirror;
+    address public immutable LIGHT_CLIENT;
 
     error BadDestinationIdentifier();
     error BadAmount();
@@ -37,8 +33,8 @@ contract BitcoinOracle is BaseOracle {
 
     mapping(bytes32 orderKey => uint256 fillDeadline) public filledOrders;
 
-    constructor(address _escrow, address _mirror) BaseOracle(_escrow) {
-        mirror = IBtcPrism(_mirror);
+    constructor(address _escrow, address _lightClient) BaseOracle(_escrow) {
+        LIGHT_CLIENT = _lightClient;
     }
 
     /**
@@ -85,6 +81,14 @@ contract BitcoinOracle is BaseOracle {
         numConfirmations = numConfirmations == 0 ? 1 : numConfirmations;
     }
 
+    function _getLatestBlockHeight() virtual internal view returns(uint256 currentHeight) {
+        return currentHeight = IBtcPrism(LIGHT_CLIENT).getLatestBlockHeight();
+    }
+
+    function _getBlockHash(uint256 blockNum) virtual internal view returns(bytes32 blockHash) {
+        return blockHash = IBtcPrism(LIGHT_CLIENT).getBlockHash(blockNum);
+    }
+
     /**
      * @notice Verifies the existence of a Bitcoin transaction and returns the number of satoshis associated
      * with output txOutIx of the transaction.
@@ -94,6 +98,8 @@ contract BitcoinOracle is BaseOracle {
      * @param inclusionProof Proof for transaction & transaction data.
      * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
      * @param outputScript The expected output script. Compared to the actual, reverts if different.
+     * @param embeddedData If provided, the next input (txOutIx+1) is checked to contain an op_return
+     * with embeddedData as the payload.
      * @return sats Value of txOutIx TXO of the transaction.
      */
     function _validateUnderlyingPayment(
@@ -101,11 +107,12 @@ contract BitcoinOracle is BaseOracle {
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
-        bytes memory outputScript
-    ) internal view returns (uint256 sats) {
+        bytes memory outputScript,
+        bytes calldata embeddedData
+    ) virtual internal view returns (uint256 sats) {
         // Isolate height check. This decreases gas cost slightly.
         {
-            uint256 currentHeight = mirror.getLatestBlockHeight();
+            uint256 currentHeight = _getLatestBlockHeight();
 
             if (currentHeight < blockNum) revert NoBlock(currentHeight, blockNum);
 
@@ -121,74 +128,26 @@ contract BitcoinOracle is BaseOracle {
         // Load the expected hash for blockNum. This is the "security" call of the light client.
         // If block hash matches the hash of inclusionProof.blockHeader then we know it is a
         // valid block.
-        bytes32 blockHash = mirror.getBlockHash(blockNum);
+        bytes32 blockHash = _getBlockHash(blockNum);
 
         bytes memory txOutScript;
+        bytes memory txOutData;
+        if (embeddedData.length > 0) {
+            // Important, this function validate that blockHash = hash(inclusionProof.blockHeader);
+            (sats, txOutScript, txOutData) = BtcProof.validateTxData(blockHash, inclusionProof, txOutIx);
+
+            if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
+
+            // Get the expected op_return script. This prepend embeddedData with 0x6a + {push_length}.
+            bytes memory opReturnData = BtcScript.embedOpReturn(embeddedData);
+            if (!BtcProof.compareScripts(opReturnData, txOutData)) revert ScriptMismatch(opReturnData, txOutData);
+            return sats;
+        }
+
         // Important, this function validate that blockHash = hash(inclusionProof.blockHeader);
         (sats, txOutScript) = BtcProof.validateTx(blockHash, inclusionProof, txOutIx);
 
-        // TODO: Check if there are gas savings if we move scripts as hashes.
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
-    }
-
-    /**
-     * @notice Verifies a payment and returns the time of the block it happened in & transaction amount.
-     * @param minConfirmations Number of confirmations before transaction is considered valid.
-     * @param blockNum Block number of the transaction.
-     * @param inclusionProof Proof for transaction & transaction data.
-     * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
-     * @param outputScript The expected output script. Compared to the actual, reverts if different.
-     * @return sats Value of txOutIx TXO of the transaction.
-     * @return timestamp Timestamp of blockNum. Is derived from the inclusionProof block header but
-     * the header is verified to belong to blockNum.
-     */
-    function _verifyPayment(
-        uint256 minConfirmations,
-        uint256 blockNum,
-        BtcTxProof calldata inclusionProof,
-        uint256 txOutIx,
-        bytes memory outputScript
-    ) internal view returns (uint256 sats, uint256 timestamp) {
-        sats = _validateUnderlyingPayment(minConfirmations, blockNum, inclusionProof, txOutIx, outputScript);
-
-        // Get the timestamp of the block we validated it for.
-        timestamp = _getTimestampOfBlock(inclusionProof.blockHeader);
-    }
-
-    /**
-     * @notice Verifies a payment and returns the time of the block before it was included & transaction amount.
-     * @dev This allows one to properly match a transaction against an order if no Bitcoin block happened for a long period of time.
-     * @param minConfirmations Number of confirmations before transaction is considered valid.
-     * @param blockNum Block number of the transaction.
-     * @param inclusionProof Proof for transaction & transaction data.
-     * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
-     * @param outputScript The expected output script. Compared to the actual, reverts if different.
-     * @param previousBlockHeader The previous block header. Is checked for authenticity by loading
-     * the actual previous block hash from the current block header.
-     * @return sats Value of txOutIx TXO of the transaction.
-     * @return timestamp Timestamp of blockNum. Is derived from the inclusionProof block header but
-     * the header is verified to belong to blockNum.
-     */
-    function _verifyPayment(
-        uint256 minConfirmations,
-        uint256 blockNum,
-        BtcTxProof calldata inclusionProof,
-        uint256 txOutIx,
-        bytes memory outputScript,
-        bytes calldata previousBlockHeader
-    ) internal view returns (uint256 sats, uint256 timestamp) {
-        sats = _validateUnderlyingPayment(minConfirmations, blockNum, inclusionProof, txOutIx, outputScript);
-
-        // Get block hash of the previousBlockHeader.
-        bytes32 proposedPreviousBlockHash = BtcProof.getBlockHash(previousBlockHeader);
-        // Load the actual previous block hash from the header of the block we just proved.
-        bytes32 actualPreviousBlockHash = bytes32(Endian.reverse256(uint256(bytes32(inclusionProof.blockHeader[4:36]))));
-        if (actualPreviousBlockHash != proposedPreviousBlockHash) {
-            revert BlockhashMismatch(actualPreviousBlockHash, proposedPreviousBlockHash);
-        }
-
-        // Get the timestamp of the block we validated it for.
-        timestamp = _getTimestampOfBlock(previousBlockHeader);
     }
 
     /**
@@ -211,16 +170,20 @@ contract BitcoinOracle is BaseOracle {
         _validateChain(output.chainId);
         _validateRemoteOracleAddress(output.remoteOracle);
 
+        {
+            // Check the timestamp. This is done before inclusionProof is checked for validity
+            // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
+            // won't pass.
+            uint256 timestamp = _getTimestampOfBlock(inclusionProof.blockHeader);
+
+            // Validate that the timestamp gotten from the TX is within bounds.
+            // This ensures a Bitcoin output cannot be "reused" forever.
+            _validateTimestamp(uint32(timestamp), fillDeadline);
+        }
+
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
-
         uint256 numConfirmations = _getNumConfirmations(output.token);
-
-        (uint256 sats, uint256 timestamp) =
-            _verifyPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript);
-
-        // Validate that the timestamp gotten from the TX is within bounds.
-        // This ensures a Bitcoin output cannot be "reused" forever.
-        _validateTimestamp(uint32(timestamp), fillDeadline);
+        uint256 sats = _validateUnderlyingPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, output.remoteCall);
 
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".
@@ -248,19 +211,33 @@ contract BitcoinOracle is BaseOracle {
         _validateChain(output.chainId);
         _validateRemoteOracleAddress(output.remoteOracle);
 
+        {
+            // Check the timestamp. This is done before inclusionProof is checked for validity
+            // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
+            // won't pass.
+            
+            // Get block hash of the previousBlockHeader.
+            bytes32 proposedPreviousBlockHash = BtcProof.getBlockHash(previousBlockHeader);
+            // Load the actual previous block hash from the header of the block we just proved.
+            bytes32 actualPreviousBlockHash = bytes32(Endian.reverse256(uint256(bytes32(inclusionProof.blockHeader[4:36]))));
+            if (actualPreviousBlockHash != proposedPreviousBlockHash) {
+                revert BlockhashMismatch(actualPreviousBlockHash, proposedPreviousBlockHash);
+            }
+
+            // Get the timestamp of the block we validated it for.
+            uint256 timestamp = _getTimestampOfBlock(previousBlockHeader);
+
+            // Validate that the timestamp gotten from the TX is within bounds.
+            // This ensures a Bitcoin output cannot be "reused" forever.
+            _validateTimestamp(uint32(timestamp), fillDeadline);
+        }
+
         bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
-
         uint256 numConfirmations = _getNumConfirmations(output.token);
-
-        // Validate that the timestamp gotten from the TX is within bounds.
-        // This ensures a Bitcoin output cannot be "reused" forever.
-        (uint256 sats, uint256 timestamp) =
-            _verifyPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, previousBlockHeader);
+        uint256 sats = _validateUnderlyingPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, output.remoteCall);
 
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".
-        _validateTimestamp(uint32(timestamp), fillDeadline);
-
         if (sats != output.amount) revert BadAmount();
 
         bytes32 outputHash = _outputHash(output);

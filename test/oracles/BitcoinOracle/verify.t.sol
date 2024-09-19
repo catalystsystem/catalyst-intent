@@ -21,7 +21,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         bitcoinOracle = deploy("mainnet");
     }
 
-    function test_verify(bytes memory remoteCall, uint32 timeIncrement) public {
+    function test_verify(uint32 timeIncrement) public {
         vm.assume(timeIncrement <= 7 days);
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
@@ -29,7 +29,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
             recipient: bytes32(PHASH),
             amount: SATS_AMOUNT,
             chainId: uint32(block.chainid),
-            remoteCall: remoteCall
+            remoteCall: hex""
         });
 
         BtcTxProof memory inclusionProof = BtcTxProof({
@@ -45,7 +45,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         assert(bitcoinOracle.isProven(output, uint32(BLOCK_TIME) + timeIncrement));
     }
 
-    function test_verify_with_previous_block_header(bytes memory remoteCall, uint32 timeIncrement) public {
+    function test_verify_with_previous_block_header(uint32 timeIncrement) public {
         vm.assume(timeIncrement < 7 days);
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
@@ -53,7 +53,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
             recipient: bytes32(PHASH),
             amount: SATS_AMOUNT,
             chainId: uint32(block.chainid),
-            remoteCall: remoteCall
+            remoteCall: hex""
         });
 
         BtcTxProof memory inclusionProof = BtcTxProof({
@@ -69,9 +69,9 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         assert(bitcoinOracle.isProven(output, uint32(BLOCK_TIME) + timeIncrement));
     }
 
-    function test_verify_after_block_sumbission(bytes memory remoteCall, uint32 timeIncrement) public {
+    function test_verify_after_block_sumbission(uint32 timeIncrement) public {
         vm.assume(timeIncrement < 7 days);
-        bitcoinOracle.mirror().submit(NEXT_BLOCK_HEIGHT, NEXT_BLOCK_HEADER);
+        IBtcPrism(bitcoinOracle.LIGHT_CLIENT()).submit(NEXT_BLOCK_HEIGHT, NEXT_BLOCK_HEADER);
         OutputDescription memory outputNextBlock = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
             token: bytes32(
@@ -80,7 +80,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
             recipient: bytes32(NEXT_PHASH),
             amount: NEXT_SATS_AMOUNT,
             chainId: uint32(block.chainid),
-            remoteCall: remoteCall
+            remoteCall: hex""
         });
 
         BtcTxProof memory inclusionProofNextBlock = BtcTxProof({
@@ -126,11 +126,11 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         bitcoinOracle.verify(output, uint32(BLOCK_TIME - timeDecrement), BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 
-    function test_revert_bad_amount(bytes memory remoteCall, uint32 timeIncrement, uint256 amount) public {
+    function test_revert_bad_amount(uint32 timeIncrement, uint256 amount) public {
         vm.assume(amount != NEXT_SATS_AMOUNT);
         vm.assume(timeIncrement < 7 days);
 
-        bitcoinOracle.mirror().submit(NEXT_BLOCK_HEIGHT, NEXT_BLOCK_HEADER);
+        IBtcPrism(bitcoinOracle.LIGHT_CLIENT()).submit(NEXT_BLOCK_HEIGHT, NEXT_BLOCK_HEADER);
         OutputDescription memory outputNextBlock = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
             token: bytes32(
@@ -139,7 +139,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
             recipient: bytes32(NEXT_PHASH),
             amount: amount,
             chainId: uint32(block.chainid),
-            remoteCall: remoteCall
+            remoteCall: hex""
         });
 
         BtcTxProof memory inclusionProofNextBlock = BtcTxProof({

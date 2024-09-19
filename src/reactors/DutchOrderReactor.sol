@@ -17,7 +17,17 @@ contract DutchOrderReactor is BaseReactor {
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
-    ) internal view override returns (OrderKey memory orderKey, uint256[] memory permittedAmounts, bytes32 witness, string memory witnessTypeString) {
+    )
+        internal
+        view
+        override
+        returns (
+            OrderKey memory orderKey,
+            uint256[] memory permittedAmounts,
+            bytes32 witness,
+            string memory witnessTypeString
+        )
+    {
         // Permit2 context
         CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
@@ -26,7 +36,6 @@ contract DutchOrderReactor is BaseReactor {
         // Check if the number of inputs matches the number of slopes.
         uint256 numInputs = dutchOrderData.inputs.length;
         if (numInputs != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
-
         // Set permitted inputs
         permittedAmounts = new uint256[](numInputs);
         for (uint256 i = 0; i < numInputs; ++i) {

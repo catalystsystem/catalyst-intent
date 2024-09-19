@@ -59,7 +59,16 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         uint160 challengerAmount
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
-            inputAmount, outputAmount, SWAPPER, fillerCollateralAmount, challengerAmount, 1, 5, 10, 11, 0
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            challengerAmount,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
         );
 
         OrderKey memory orderKey = reactor.resolveKey(order, hex"");
@@ -136,7 +145,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             limitOrderData,
             address(reactor),
             SWAPPER,
-            0,
+            DEFAULT_ORDER_NONCE,
             uint32(block.chainid),
             uint32(initiateDeadline),
             uint32(fillDeadline)
@@ -194,7 +203,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             limitOrderData,
             address(reactor),
             SWAPPER,
-            0,
+            DEFAULT_ORDER_NONCE,
             uint32(block.chainid),
             DEFAULT_INITIATE_DEADLINE,
             DEFAULT_FILL_DEADLINE
@@ -251,7 +260,16 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, fillerCollateralAmount) {
         uint256 amountToTransfer = uint256(inputAmount) + DEFAULT_COLLATERAL_AMOUNT;
         (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
-            amountToTransfer, outputAmount, SWAPPER, fillerCollateralAmount, challengerCollateralAmount, 5, 6, 10, 11, 0
+            amountToTransfer,
+            outputAmount,
+            SWAPPER,
+            fillerCollateralAmount,
+            challengerCollateralAmount,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);
@@ -293,7 +311,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             DEFAULT_FILL_DEADLINE,
             DEFAULT_CHALLENGE_DEADLINE,
             DEFAULT_PROOF_DEADLINE,
-            0
+            DEFAULT_ORDER_NONCE
         );
 
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, reactor);

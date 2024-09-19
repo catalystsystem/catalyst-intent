@@ -15,7 +15,9 @@ import { SigTransfer } from "../../test/utils/SigTransfer.t.sol";
 
 import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 
-import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
+import {
+    CatalystLimitOrderData, CrossChainLimitOrderType
+} from "../../src/libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../../src/libs/ordertypes/CrossChainOrderType.sol";
 
 import { Collateral, OrderContext, OrderKey, OrderStatus, OutputDescription } from "../../src/interfaces/Structs.sol";
@@ -34,7 +36,6 @@ import { OrderDataBuilder } from "../../test/utils/OrderDataBuilder.t.sol";
 import { Permit2DomainSeparator, TestBaseReactor } from "../../test/reactors/TestBaseReactor.t.sol";
 
 import { Script } from "forge-std/Script.sol";
-import "forge-std/Test.sol";
 
 contract GetSignedLimitOrder is LimitOrderReactor, Script {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
@@ -53,10 +54,6 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
     }
 
     function _getFullPermitTypeHash() internal view returns (bytes32) {
-        console.logBytes(abi.encodePacked(
-                SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
-                CrossChainLimitOrderType.PERMIT2_LIMIT_ORDER_WITNESS_STRING_TYPE
-            ));
         return keccak256(
             abi.encodePacked(
                 SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
@@ -72,9 +69,16 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
         return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
     }
 
-    function GetLimitOrder(
-        uint256 privateKey
-    ) external view returns (CrossChainOrder memory order, CatalystLimitOrderData memory orderData, bytes memory signature, bytes32 signedHash) {
+    function GetLimitOrder(uint256 privateKey)
+        external
+        view
+        returns (
+            CrossChainOrder memory order,
+            CatalystLimitOrderData memory orderData,
+            bytes memory signature,
+            bytes32 signedHash
+        )
+    {
         Input[] memory inputs = new Input[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
 
@@ -113,8 +117,12 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
         OrderKey memory orderKey = OrderKeyInfo.getOrderKey(order, this);
         bytes32 crossOrderTypeHash = this._getWitnessHash(order, orderData);
 
-        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) =
-            Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderData.inputs), address(order.settlementContract), order.initiateDeadline);
+        (ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,) = Permit2Lib.toPermit(
+            orderKey,
+            Permit2Lib.inputsToPermittedAmounts(orderData.inputs),
+            address(order.settlementContract),
+            order.initiateDeadline
+        );
 
         bytes32[] memory tokenPermissions = new bytes32[](permitBatch.permitted.length);
         for (uint256 i = 0; i < permitBatch.permitted.length; ++i) {

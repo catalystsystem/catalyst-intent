@@ -19,7 +19,7 @@ import { IOracle } from "../interfaces/IOracle.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
-import { MapMessagingProtocolIdentifierToChainId } from "../interfaces/Events.sol";
+import { MapMessagingProtocolIdentifierToChainId, OutputProven } from "../interfaces/Events.sol";
 
 import "./OraclePayload.sol";
 
@@ -198,13 +198,12 @@ abstract contract BaseOracle is Ownable, ICrossChainReceiver, IMessageEscrowStru
     /**
      * @notice Defines the remote messaging protocol.
      * @dev Can only be called once for each chain.
-     * todo: onlyOwner
      */
     function setRemoteImplementation(
         bytes32 chainIdentifier,
         uint32 blockChainIdOfChainIdentifier,
         bytes calldata implementation
-    ) external {
+    ) external onlyOwner {
         //  escrow.setRemoteImplementation does not allow calling multiple times.
         escrow.setRemoteImplementation(chainIdentifier, implementation);
 
@@ -314,6 +313,8 @@ abstract contract BaseOracle is Ownable, ICrossChainReceiver, IMessageEscrowStru
             uint32 fillDeadline = fillDeadlines[i];
             bytes32 outputHash = _outputHashM(output);
             _provenOutput[outputHash][fillDeadline] = true;
+
+            emit OutputProven(fillDeadline, outputHash);
         }
 
         // We don't care about the ack.

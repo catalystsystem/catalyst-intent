@@ -148,7 +148,7 @@ contract BridgeOracle is BaseOracle {
         uint256 remoteCallLength = output.remoteCall.length;
         if (remoteCallLength > 0) _call(output);
 
-        emit OutputFilled(token, recipient, amount, remoteCallLength > 0 ? keccak256(output.remoteCall) : bytes32(0));
+        emit OutputFilled(fillDeadline, token, recipient, amount, remoteCallLength > 0 ? keccak256(output.remoteCall) : bytes32(0));
     }
 
     /**

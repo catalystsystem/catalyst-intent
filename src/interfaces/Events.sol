@@ -51,8 +51,10 @@ event OrderPurchaseDetailsModified(bytes32 indexed orderHash, bytes fillerdata);
 
 event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
 
-event OutputFilled(address token, address recipient, uint256 amount, bytes32 calldataHash);
+event OutputFilled(uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
 
 event OutputVerified(
-    bytes32 token, bytes32 recipient, uint256 amount, bytes32 calldataHash, bytes32 verificationContext
+    uint32 fillDeadline, bytes32 token, bytes32 recipient, uint256 amount, bytes32 calldataHash, bytes32 verificationContext
 );
+
+event OutputProven(uint32 fillDeadline, bytes32 outputHash);

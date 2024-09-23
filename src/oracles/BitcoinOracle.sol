@@ -234,6 +234,7 @@ contract BitcoinOracle is BaseOracle {
         _provenOutput[outputHash][fillDeadline] = true;
 
         emit OutputVerified(
+            fillDeadline,
             token,
             output.recipient,
             output.amount,
@@ -304,6 +305,7 @@ contract BitcoinOracle is BaseOracle {
         _provenOutput[outputHash][fillDeadline] = true;
 
         emit OutputVerified(
+            fillDeadline,
             token,
             output.recipient,
             output.amount,

@@ -48,7 +48,9 @@ library Permit2Lib {
             ISignatureTransfer.PermitBatchTransferFrom({ permitted: permitted, nonce: order.nonce, deadline: deadline });
     }
 
-    function inputsToPermittedAmounts(Input[] memory inputs) internal pure returns (uint256[] memory permittedAmounts) {
+    function inputsToPermittedAmounts(
+        Input[] memory inputs
+    ) internal pure returns (uint256[] memory permittedAmounts) {
         uint256 numInputs = inputs.length;
         permittedAmounts = new uint256[](numInputs);
         for (uint256 i = 0; i < numInputs; ++i) {

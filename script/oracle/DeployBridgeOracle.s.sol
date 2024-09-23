@@ -7,9 +7,12 @@ import { Script } from "forge-std/Script.sol";
 contract DeployBridgeOracle is Script {
     uint256 deployerKey;
 
-    function deploy(address escrow) public returns (BridgeOracle) {
+    function deploy(
+        address escrow
+    ) public returns (BridgeOracle) {
         vm.startBroadcast(deployerKey);
-        BridgeOracle bridgeOracle = new BridgeOracle{ salt: bytes32(0) }(escrow);
+        address deployerAddress = vm.addr(deployerKey);
+        BridgeOracle bridgeOracle = new BridgeOracle{ salt: bytes32(0) }(deployerAddress, escrow);
         vm.stopBroadcast();
 
         return bridgeOracle;

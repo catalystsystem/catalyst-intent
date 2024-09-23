@@ -31,11 +31,15 @@ library CrossChainOrderType {
 
     string constant TOKEN_PERMISSIONS_TYPE = "TokenPermissions(address token,uint256 amount)";
 
-    function hashInput(Input memory input) internal pure returns (bytes32) {
+    function hashInput(
+        Input memory input
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encode(keccak256(INPUT_TYPE_STUB), input.token, input.amount));
     }
 
-    function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
+    function hashOutput(
+        OutputDescription memory output
+    ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 keccak256(OUTPUT_TYPE_STUB),
@@ -49,11 +53,13 @@ library CrossChainOrderType {
         );
     }
 
-    function hashInputs(Input[] memory inputs) internal pure returns (bytes32) {
+    function hashInputs(
+        Input[] memory inputs
+    ) internal pure returns (bytes32) {
         unchecked {
             bytes memory currentHash = new bytes(32 * inputs.length);
 
-            for (uint256 i = 0; i < inputs.length; i++) {
+            for (uint256 i = 0; i < inputs.length; ++i) {
                 bytes32 inputHash = hashInput(inputs[i]);
                 assembly {
                     mstore(add(add(currentHash, 0x20), mul(i, 0x20)), inputHash)
@@ -63,11 +69,13 @@ library CrossChainOrderType {
         }
     }
 
-    function hashOutputs(OutputDescription[] memory outputs) internal pure returns (bytes32) {
+    function hashOutputs(
+        OutputDescription[] memory outputs
+    ) internal pure returns (bytes32) {
         unchecked {
             bytes memory currentHash = new bytes(32 * outputs.length);
 
-            for (uint256 i = 0; i < outputs.length; i++) {
+            for (uint256 i = 0; i < outputs.length; ++i) {
                 bytes32 outputHash = hashOutput(outputs[i]);
                 assembly {
                     mstore(add(add(currentHash, 0x20), mul(i, 0x20)), outputHash)

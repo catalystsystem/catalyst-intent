@@ -4,7 +4,8 @@ pragma solidity >=0.8.0;
 import { OrderKey } from "./Structs.sol";
 
 /// @title CrossChainOrder type
-/// @notice Standard order struct to be signed by swappers, disseminated to fillers, and submitted to settlement contracts
+/// @notice Standard order struct to be signed by swappers, disseminated to fillers, and submitted to settlement
+/// contracts
 struct CrossChainOrder {
     /// @dev The contract address that the order is meant to be settled by.
     /// Fillers send this order to this contract address on the origin chain
@@ -29,7 +30,8 @@ struct CrossChainOrder {
 /// @title ResolvedCrossChainOrder type
 /// @notice An implementation-generic representation of an order
 /// @dev Defines all requirements for filling an order by unbundling the implementation-specific orderData.
-/// @dev Intended to improve integration generalization by allowing fillers to compute the exact input and output information of any order
+/// @dev Intended to improve integration generalization by allowing fillers to compute the exact input and output
+/// information of any order
 struct ResolvedCrossChainOrder {
     /// @dev The contract address that the order is meant to be settled by.
     address settlementContract;
@@ -80,7 +82,8 @@ interface ISettlementContract {
     /// @param order The CrossChainOrder definition
     /// @param signature The swapper's signature over the order
     /// @param fillerData Any filler-defined data required by the settler
-    /// @return orderKey // ! Return type added that returns the resolved order key. This adds additional validation pathways if needed.
+    /// @return orderKey // ! Return type added that returns the resolved order key. This adds additional validation
+    /// pathways if needed.
     function initiate(
         CrossChainOrder calldata order,
         bytes calldata signature,

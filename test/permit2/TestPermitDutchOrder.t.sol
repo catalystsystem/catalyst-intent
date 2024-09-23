@@ -215,7 +215,9 @@ contract TestPermitDutchOrder is TestPermit, DeployDutchOrderReactor {
         (
             ISignatureTransfer.PermitBatchTransferFrom memory actualPermitBatch,
             ISignatureTransfer.SignatureTransferDetails[] memory actualTransferDetails
-        ) = Permit2Lib.toPermit(orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline);
+        ) = Permit2Lib.toPermit(
+            orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
+        );
 
         bytes32[] memory actualTokenPermissions = new bytes32[](actualPermitBatch.permitted.length);
         for (uint256 i = 0; i < actualPermitBatch.permitted.length; ++i) {

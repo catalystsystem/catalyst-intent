@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
 import { LengthsDoesNotMatch } from "../../interfaces/Errors.sol";
+import { CrossChainOrder, Input, Output } from "../../interfaces/ISettlementContract.sol";
 import { OutputDescription } from "../../interfaces/Structs.sol";
 
 import { CrossChainOrderType } from "./CrossChainOrderType.sol";
@@ -31,7 +31,7 @@ struct CatalystDutchOrderData {
 
 /**
  * @notice Helper library for the Dutch Auction order type.
- * @dev The dutch auction order type has several more advanced features compared to the simpler limit order.
+ * @dev The dutch auction order type has several advanced features compared to the simpler limit order.
  * This allows limit orders to remain simple and dutch auctions to present a rich feature set for users.
  */
 library CrossChainDutchOrderType {
@@ -57,32 +57,32 @@ library CrossChainDutchOrderType {
         ")"
     );
 
-    bytes constant CROSS_DUTCH_ORDER_TYPE_STUB = abi.encodePacked(
+    bytes constant DUTCH_CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
         CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystDutchOrderData orderData", ")"
     );
-
-    bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
 
     string constant PERMIT2_DUTCH_ORDER_WITNESS_STRING_TYPE = string(
         abi.encodePacked(
             "CrossChainOrder witness)",
             DUTCH_ORDER_DATA_TYPE_ONLY,
-            CROSS_DUTCH_ORDER_TYPE_STUB,
+            DUTCH_CROSS_CHAIN_ORDER_TYPE,
             CrossChainOrderType.INPUT_TYPE_STUB,
             CrossChainOrderType.OUTPUT_TYPE_STUB,
             CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
         )
     );
 
-    function decodeOrderData(bytes calldata orderBytes)
-        internal
-        pure
-        returns (CatalystDutchOrderData memory dutchData)
-    {
+    bytes32 constant DUTCH_ORDER_DATA_TYPE_HASH = keccak256(DUTCH_ORDER_DATA_TYPE);
+
+    function decodeOrderData(
+        bytes calldata orderBytes
+    ) internal pure returns (CatalystDutchOrderData memory dutchData) {
         dutchData = abi.decode(orderBytes, (CatalystDutchOrderData));
     }
 
-    function hashOrderDataM(CatalystDutchOrderData memory orderData) internal pure returns (bytes32) {
+    function hashOrderDataM(
+        CatalystDutchOrderData memory orderData
+    ) internal pure returns (bytes32) {
         return keccak256(
             bytes.concat(
                 abi.encode(
@@ -107,7 +107,9 @@ library CrossChainDutchOrderType {
         );
     }
 
-    function hashOrderData(CatalystDutchOrderData calldata orderData) internal pure returns (bytes32) {
+    function hashOrderData(
+        CatalystDutchOrderData calldata orderData
+    ) internal pure returns (bytes32) {
         return keccak256(
             bytes.concat(
                 abi.encode(
@@ -138,7 +140,7 @@ library CrossChainDutchOrderType {
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                keccak256(abi.encodePacked(CROSS_DUTCH_ORDER_TYPE_STUB, DUTCH_ORDER_DATA_TYPE)),
+                keccak256(abi.encodePacked(DUTCH_CROSS_CHAIN_ORDER_TYPE, DUTCH_ORDER_DATA_TYPE)),
                 order.settlementContract,
                 order.swapper,
                 order.nonce,
@@ -153,7 +155,7 @@ library CrossChainDutchOrderType {
     /**
      * @notice Computes the slope for a simple dutch order.
      * @dev For inputs, slope should generally be positive where for outputs it should be negative.
-     * However, no limitations are applied to how orders are structured.
+     * However, there are no limitation for the sign of the slope.
      * @param slope Change in amount per second.
      * @param startingTime Timestamp for when the order started. Is compared against block.timestamp.
      * @param startingAmount Initial amount.
@@ -174,53 +176,51 @@ library CrossChainDutchOrderType {
         }
         // If slope > 0, then add delta (slope * time). If slope < 0 then subtract delta (slope * time).
         currentAmount =
-            slope > 0 ? startingAmount + uint256(slope) * timePassed : startingAmount - uint256(-slope) * timePassed;
+            slope > 0 ? (startingAmount + uint256(slope) * timePassed) : (startingAmount - uint256(-slope) * timePassed);
     }
 
     /**
-     * @dev This functions calculates the the current amount the user pay in the source chain based on the time passed.
+     * @notice Calculates the the current amount the user pay in the source chain based on the time passed.
+     * @dev Modifies dutchOrderData in-place.
      * The order is treated as Limit Order if the slope did not start.
-     * If the number of inputs and slopes matches are not checked.
-     * It is expected to be checked before calling this function.
+     * The length of inputs and slopes are not checked.
+     * It is expected they have been checked before calling this function.
      * @param dutchOrderData The order data to calculate the current input value from.
      * @return orderInputs The input after applying the decay function based on the time passed
      */
-    function getInputsAfterDecay(CatalystDutchOrderData memory dutchOrderData)
-        internal
-        view
-        returns (Input[] memory orderInputs)
-    {
-        orderInputs = dutchOrderData.inputs;
-        int256[] memory inputSlopes = dutchOrderData.inputSlopes;
-        // Validate that their lengths are equal.
-        uint256 numInputs = orderInputs.length;
+    function getInputsAfterDecay(
+        CatalystDutchOrderData memory dutchOrderData
+    ) internal view returns (Input[] memory orderInputs) {
         unchecked {
+            int256[] memory inputSlopes = dutchOrderData.inputSlopes;
+            orderInputs = dutchOrderData.inputs;
+            uint256 numInputs = orderInputs.length;
             for (uint256 i; i < numInputs; ++i) {
                 int256 inputSlope = inputSlopes[i];
                 if (inputSlope == 0) continue;
+
                 orderInputs[i].amount = _calcSlope(inputSlope, dutchOrderData.slopeStartingTime, orderInputs[i].amount);
             }
         }
     }
 
     /**
-     * @dev This functions calculates the the current amount the user will get in the destination chain based on the time passed.
+     * @notice Calculates the the current amount the user will get in the destination chain based on the time passed.
+     * @dev Modifies dutchOrderData in-place.
      * The order is treated as Limit Order if the slope did not start.
      * @param dutchOrderData The order data to calculate the current output value from.
      * @return orderOutputs The output after applying the decay function based on the time passed
      */
-    function getOutputsAfterDecay(CatalystDutchOrderData memory dutchOrderData)
-        internal
-        view
-        returns (OutputDescription[] memory orderOutputs)
-    {
-        orderOutputs = dutchOrderData.outputs;
-        int256[] memory outputSlopes = dutchOrderData.outputSlopes;
-        // Validate that their lengths are equal.
-        uint256 numOutputs = orderOutputs.length;
-        if (numOutputs != outputSlopes.length) revert LengthsDoesNotMatch(numOutputs, outputSlopes.length);
-
+    function getOutputsAfterDecay(
+        CatalystDutchOrderData memory dutchOrderData
+    ) internal view returns (OutputDescription[] memory orderOutputs) {
         unchecked {
+            int256[] memory outputSlopes = dutchOrderData.outputSlopes;
+            orderOutputs = dutchOrderData.outputs;
+            // Validate that their lengths are equal.
+            uint256 numOutputs = orderOutputs.length;
+            if (numOutputs != outputSlopes.length) revert LengthsDoesNotMatch(numOutputs, outputSlopes.length);
+
             for (uint256 i; i < numOutputs; ++i) {
                 int256 outputSlope = outputSlopes[i];
                 if (outputSlope == 0) continue;

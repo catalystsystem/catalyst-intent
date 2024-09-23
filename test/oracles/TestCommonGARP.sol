@@ -42,7 +42,9 @@ contract TestCommonGARP is Test, IMessageEscrowStructs {
     // TODO
     function executeMessage() internal { }
 
-    function _getTotalIncentive(IncentiveDescription memory incentive) internal pure returns (uint256) {
+    function _getTotalIncentive(
+        IncentiveDescription memory incentive
+    ) internal pure returns (uint256) {
         return incentive.maxGasDelivery * incentive.priceOfDeliveryGas + incentive.maxGasAck * incentive.priceOfAckGas;
     }
 }

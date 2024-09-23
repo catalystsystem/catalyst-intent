@@ -49,11 +49,13 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
     bytes32 private constant _TYPE_HASH =
         keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
 
-    function permit2_buildDomainSeparator(uint32 chainId) private pure returns (bytes32) {
+    function permit2_buildDomainSeparator(
+        uint32 chainId
+    ) private pure returns (bytes32) {
         return keccak256(abi.encode(_TYPE_HASH, _HASHED_NAME, chainId, permit2));
     }
 
-    function _getFullPermitTypeHash() internal view returns (bytes32) {
+    function _getFullPermitTypeHash() internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
                 SigTransfer.PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
@@ -69,7 +71,9 @@ contract GetSignedLimitOrder is LimitOrderReactor, Script {
         return CrossChainLimitOrderType.crossOrderHash(order, limitOrderData);
     }
 
-    function GetLimitOrder(uint256 privateKey)
+    function GetLimitOrder(
+        uint256 privateKey
+    )
         external
         view
         returns (

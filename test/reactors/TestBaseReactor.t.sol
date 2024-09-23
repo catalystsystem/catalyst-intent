@@ -69,7 +69,7 @@ abstract contract TestBaseReactor is TestConfig {
 
     uint256 DEFAULT_ORDER_NONCE = 0;
 
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25;
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1;
     BaseReactor reactor;
     address SWAPPER;
     uint256 SWAPPER_PRIVATE_KEY;
@@ -1533,12 +1533,14 @@ abstract contract TestBaseReactor is TestConfig {
     ) internal view {
         vm.assume(
             block.timestamp < initiateDeadline && initiateDeadline < fillDeadline
-                && fillDeadline + block.timestamp < 7 days && fillDeadline < challengeDeadline
+                && fillDeadline + block.timestamp < 3 days && fillDeadline < challengeDeadline
                 && challengeDeadline < proofDeadline
         );
     }
 
-    function _getVMOracle(address oracleAddress) internal returns (MockOracle oracleContract) {
+    function _getVMOracle(
+        address oracleAddress
+    ) internal returns (MockOracle oracleContract) {
         oracleContract = MockOracle(oracleAddress);
         oracleContract.setRemoteImplementation(bytes32(block.chainid), uint32(block.chainid), abi.encode(escrow));
     }

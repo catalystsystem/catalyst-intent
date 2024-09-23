@@ -11,12 +11,12 @@ import { TestCommonGARP } from "../TestCommonGARP.sol";
  * @dev Oracles are also fillers
  */
 contract TestBridgeOracle is TestCommonGARP {
-    uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
+    uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
 
     BridgeOracle oracle;
 
     function setUp() external {
-        oracle = new BridgeOracle(address(escrow));
+        oracle = new BridgeOracle(address(this), address(escrow));
 
         // TODO: mock with ERC20.
     }

@@ -13,9 +13,11 @@ contract MockOracle is IMessageEscrowStructs, BridgeOracle {
     uint48 constant PRICE_OF_DELIVERY_GAS = 1 gwei;
     uint48 constant PRICE_OF_ACK_GAS = 1 gwei;
 
-    constructor(address escrowAddress) BridgeOracle(escrowAddress) { }
+    constructor(address _owner, address escrowAddress) BridgeOracle(_owner, escrowAddress) { }
 
-    function getTotalIncentive(IncentiveDescription memory incentive) public pure returns (uint256) {
+    function getTotalIncentive(
+        IncentiveDescription memory incentive
+    ) public pure returns (uint256) {
         return incentive.maxGasDelivery * incentive.priceOfDeliveryGas + incentive.maxGasAck * incentive.priceOfAckGas;
     }
 
@@ -52,11 +54,9 @@ contract MockOracle is IMessageEscrowStructs, BridgeOracle {
         }
     }
 
-    function encodeDestinationAddress(address oracleDestinationAddress)
-        public
-        pure
-        returns (bytes memory encodedDestinationAddress)
-    {
+    function encodeDestinationAddress(
+        address oracleDestinationAddress
+    ) public pure returns (bytes memory encodedDestinationAddress) {
         encodedDestinationAddress =
             bytes.concat(bytes1(0x14), bytes32(0), bytes32(uint256(uint160(oracleDestinationAddress))));
     }

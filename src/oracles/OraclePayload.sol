@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-// Cross-chain proof payload structure ***********************************************************************************************
+//--- Cross-chain proof payload structure ---//
 //
 // Outputs Payload (beginning)
 //    CONTEXT                   0       (1 byte)
@@ -11,25 +11,24 @@ pragma solidity ^0.8.26;
 //      + AMOUNT                M_i+35      (32 bytes)
 //      + RECIPIENT             M_i+67      (32 bytes)
 //      + CHAIN_ID              M_i+99      (4 bytes)
-//      + FILL_DEADLINE              M_i+103     (4 bytes)
+//      + FILL_DEADLINE         M_i+103     (4 bytes)
 //      + REMOTE_CALL_LENGTH    M_i+107     (2 bytes)
 //      + REMOTE_CALL           M_i+109     (REMOTE_CALL_LENGTH bytes)
 //
-//  where M_i = N*109 + \sum REMOTE_CALL_LENGTH_i
+//  where M_i = N*109 + \sum^i REMOTE_CALL_LENGTH_i
 
-
-// Contexts *********************************************************************************************************************
+//--- Contexts ---//
 
 bytes1 constant NO_FLAG = 0x00;
 
-// Common Payload ***************************************************************************************************************
+//--- Common Payload ---//
 
 uint256 constant CONTEXT_POS = 0;
 
 uint256 constant NUM_OUTPUTS_START = 1;
 uint256 constant NUM_OUTPUTS_END = 3;
 
-// Output Entries ***************************************************************************************************************
+//--- Output Entries ---//
 
 uint256 constant OUTPUT_LENGTH = REMOTE_CALL_START - OUTPUT_TOKEN_START;
 
@@ -52,4 +51,3 @@ uint256 constant REMOTE_CALL_LENGTH_START = 107;
 uint256 constant REMOTE_CALL_LENGTH_END = 109;
 
 uint256 constant REMOTE_CALL_START = 109;
-

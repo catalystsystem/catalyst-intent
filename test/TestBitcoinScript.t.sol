@@ -22,7 +22,9 @@ contract TestBitcoinScript is Test {
         assertEq(keccak256(actualScript), keccak256(expectedScript));
     }
 
-    function getScript(BitcoinAddress calldata btcAddress) external pure returns (bytes memory) {
+    function getScript(
+        BitcoinAddress calldata btcAddress
+    ) external pure returns (bytes memory) {
         return BtcScript.getBitcoinScript(btcAddress);
     }
 }

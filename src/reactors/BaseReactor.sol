@@ -67,7 +67,8 @@ import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
  * collateral their inputs may not be returnable.
  * 2. All inputs have to be trusted by all parties. If one input is unable to be transferred, the whole lot
  * becomes stuck until the issue is resolved.
- * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could annoy users.
+ * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could
+ * annoy users.
  */
 
 abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
@@ -82,19 +83,27 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
     //--- Expose Storage ---//
 
-    function getOrderContext(bytes32 orderKeyHash) external view returns (OrderContext memory orderContext) {
+    function getOrderContext(
+        bytes32 orderKeyHash
+    ) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[orderKeyHash];
     }
 
-    function _orderKeyHash(OrderKey memory orderKey) internal pure returns (bytes32 orderKeyHash) {
+    function _orderKeyHash(
+        OrderKey memory orderKey
+    ) internal pure returns (bytes32 orderKeyHash) {
         return orderKeyHash = keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
     }
 
-    function getOrderKeyHash(OrderKey calldata orderKey) external pure returns (bytes32 orderKeyHash) {
+    function getOrderKeyHash(
+        OrderKey calldata orderKey
+    ) external pure returns (bytes32 orderKeyHash) {
         return orderKeyHash = _orderKeyHash(orderKey);
     }
 
-    function getOrderContext(OrderKey calldata orderKey) external view returns (OrderContext memory orderContext) {
+    function getOrderContext(
+        OrderKey calldata orderKey
+    ) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
     }
 
@@ -156,8 +165,10 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
         ReactorInfo memory reactorInfo = orderKey.reactorContext;
-        // Check if order.fillDeadline < reactorInfo.challengeDeadline && reactorInfo.challengeDeadline < reactorInfo.proofDeadline.
-        // So if order.fillDeadline >= reactorInfo.challengeDeadline || reactorInfo.challengeDeadline >= reactorInfo.proofDeadline
+        // Check if order.fillDeadline < reactorInfo.challengeDeadline && reactorInfo.challengeDeadline <
+        // reactorInfo.proofDeadline.
+        // So if order.fillDeadline >= reactorInfo.challengeDeadline || reactorInfo.challengeDeadline >=
+        // reactorInfo.proofDeadline
         // then the deadlines are invalid.
         if (
             order.fillDeadline >= reactorInfo.challengeDeadline
@@ -233,7 +244,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // If the order was challenged, then the challenger also provided collateral. All of this goes to the filler.
         // The below logic relies on the implementation constraint of:
         // orderContext.challenger != address(0) if status == OrderStatus.Challenged
-        // This is valid since when `status = OrderStatus.Challenged` is set, right before the challenger's address is also set.
+        // This is valid since when `status = OrderStatus.Challenged` is set, right before the challenger's address is
+        // also set.
         if (status == OrderStatus.Challenged) {
             // Add collateral amount. Both collaterals were paid in the same tokens.
             // This lets us do only a single transfer call.
@@ -308,7 +320,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * the filler.
      * TODO: Are there more risks?
      */
-    function dispute(OrderKey calldata orderKey) external {
+    function dispute(
+        OrderKey calldata orderKey
+    ) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -344,7 +358,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     /**
      * @notice Finalise the dispute.
      */
-    function completeDispute(OrderKey calldata orderKey) external {
+    function completeDispute(
+        OrderKey calldata orderKey
+    ) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
@@ -385,7 +401,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
             // A: We don't want this to fail.
             // B: If this overflows, it is better than if nothing happened.
-            // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount = swapperCollateralAmount / 2.
+            // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount =
+            // swapperCollateralAmount / 2.
             SafeTransferLib.safeTransfer(
                 collateralToken,
                 orderContext.challenger,
@@ -459,7 +476,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // No need to check if collateral is valid, since it has already entered the contract.
         SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
 
-        // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done through permit.
+        // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done
+        // through permit.
         // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
         _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderPurchaseDiscount);
 

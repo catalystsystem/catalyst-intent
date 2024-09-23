@@ -21,8 +21,10 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         bitcoinOracle = deploy("mainnet");
     }
 
-    function test_verify(uint32 timeIncrement) public {
-        vm.assume(timeIncrement <= 7 days);
+    function test_verify(
+        uint32 timeIncrement
+    ) public {
+        vm.assume(timeIncrement <= 3 days);
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
             token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
@@ -45,8 +47,10 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         assert(bitcoinOracle.isProven(output, uint32(BLOCK_TIME) + timeIncrement));
     }
 
-    function test_verify_with_previous_block_header(uint32 timeIncrement) public {
-        vm.assume(timeIncrement < 7 days);
+    function test_verify_with_previous_block_header(
+        uint32 timeIncrement
+    ) public {
+        vm.assume(timeIncrement < 3 days);
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
             token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
@@ -69,8 +73,10 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         assert(bitcoinOracle.isProven(output, uint32(BLOCK_TIME) + timeIncrement));
     }
 
-    function test_verify_after_block_sumbission(uint32 timeIncrement) public {
-        vm.assume(timeIncrement < 7 days);
+    function test_verify_after_block_sumbission(
+        uint32 timeIncrement
+    ) public {
+        vm.assume(timeIncrement < 3 days);
         IBtcPrism(bitcoinOracle.LIGHT_CLIENT()).submit(NEXT_BLOCK_HEIGHT, NEXT_BLOCK_HEADER);
         OutputDescription memory outputNextBlock = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
@@ -128,7 +134,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
 
     function test_revert_bad_amount(uint32 timeIncrement, uint256 amount) public {
         vm.assume(amount != NEXT_SATS_AMOUNT);
-        vm.assume(timeIncrement < 7 days);
+        vm.assume(timeIncrement < 3 days);
 
         IBtcPrism(bitcoinOracle.LIGHT_CLIENT()).submit(NEXT_BLOCK_HEIGHT, NEXT_BLOCK_HEADER);
         OutputDescription memory outputNextBlock = OutputDescription({
@@ -162,7 +168,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
     }
 
     function test_revert_fill_deadline_far_in_future(bytes memory remoteCall, uint24 timeIncrement) public {
-        vm.assume(timeIncrement > 7 days);
+        vm.assume(timeIncrement > 3 days);
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
             token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
@@ -186,7 +192,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
 
     // Check against the hash of next block not the previous so it should revert
     function test_revert_block_hash_mismatch(bytes memory remoteCall, uint32 timeIncrement) public {
-        vm.assume(timeIncrement < 7 days);
+        vm.assume(timeIncrement < 3 days);
 
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
@@ -222,7 +228,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         bytes32 recipient,
         uint32 timeIncrement
     ) public {
-        vm.assume(timeIncrement < 7 days);
+        vm.assume(timeIncrement < 3 days);
         vm.assume(bytes30(token) != hex"000000000000000000000000BC0000000000000000000000000000000000");
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
@@ -253,7 +259,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         uint32 timeIncrement
     ) public {
         vm.assume(blockHeight > BLOCK_HEIGHT);
-        vm.assume(timeIncrement < 7 days);
+        vm.assume(timeIncrement < 3 days);
         OutputDescription memory output = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
             token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
@@ -275,15 +281,15 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         bitcoinOracle.verify(output, uint32(BLOCK_TIME) + timeIncrement, blockHeight, inclusionProof, TX_OUTPUT_INDEX);
     }
 
-    function _getBlockHashFromHeader(bytes calldata blockHeader) public pure returns (bytes32 blockHash) {
+    function _getBlockHashFromHeader(
+        bytes calldata blockHeader
+    ) public pure returns (bytes32 blockHash) {
         blockHash = BtcProof.getBlockHash(blockHeader);
     }
 
-    function _getPreviousBlockHashFromHeader(bytes calldata blockHeader)
-        public
-        pure
-        returns (bytes32 previousBlockHash)
-    {
+    function _getPreviousBlockHashFromHeader(
+        bytes calldata blockHeader
+    ) public pure returns (bytes32 previousBlockHash) {
         previousBlockHash = bytes32(Endian.reverse256(uint256(bytes32(blockHeader[4:36]))));
     }
 }

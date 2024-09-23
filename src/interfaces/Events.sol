@@ -47,11 +47,12 @@ event GovernanceFeesDistributed(address indexed to, address[] tokens, uint256[] 
 /**
  * @notice The order purchase details have been modified by the filler.
  */
-event OrderPurchaseDetailsModified(
-    bytes32 indexed orderHash,
-    bytes fillerdata
-);
+event OrderPurchaseDetailsModified(bytes32 indexed orderHash, bytes fillerdata);
 
 event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
 
 event OutputFilled(address token, address recipient, uint256 amount, bytes32 calldataHash);
+
+event OutputVerified(
+    bytes32 token, bytes32 recipient, uint256 amount, bytes32 calldataHash, bytes32 verificationContext
+);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { Ownable } from "solady/src/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
@@ -23,15 +24,22 @@ import { MapMessagingProtocolIdentifierToChainId } from "../interfaces/Events.so
 import "./OraclePayload.sol";
 
 interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscrow {
-    function proofValidPeriod(bytes32 destinationIdentifier) external view returns (uint64 duration);
+    function proofValidPeriod(
+        bytes32 destinationIdentifier
+    ) external view returns (uint64 duration);
 }
 
 /**
  * @dev Oracles are also fillers
  */
-abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOracle {
-    uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
+abstract contract BaseOracle is Ownable, ICrossChainReceiver, IMessageEscrowStructs, IOracle {
+    error NotApproved();
 
+    uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
+
+    /**
+     * @notice We use the chain's canonical id rather than the messaging protocol id for clarity.
+     */
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
     bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
 
@@ -48,19 +56,16 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     IIncentivizedMessageEscrowProofValidPeriod public immutable escrow;
 
-    error NotApprovedEscrow();
-
-    constructor(address _escrow) {
+    constructor(address _owner, address _escrow) {
+        _initializeOwner(_owner);
         escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
     }
 
     //-- View Functions --//
 
-    function getChainIdentifierToBlockChainId(bytes32 messagingProtocolChainIdentifier)
-        external
-        view
-        returns (uint32)
-    {
+    function getChainIdentifierToBlockChainId(
+        bytes32 messagingProtocolChainIdentifier
+    ) external view returns (uint32) {
         return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
     }
 
@@ -69,15 +74,16 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @notice Only allow the message escrow to call these functions
      */
     modifier onlyEscrow() {
-        if (msg.sender != address(escrow)) revert NotApprovedEscrow();
+        if (msg.sender != address(escrow)) revert NotApproved();
         _;
     }
 
     /**
-     * @notice Compute the hash of an output.
+     * @notice Compute the hash for an output. This allows us more easily identify it.
      */
-    function _outputHash(OutputDescription calldata output) internal pure returns (bytes32 outputHash) {
-        // Remember to not include (aka. exclude) remoteOracle & chainId
+    function _outputHash(
+        OutputDescription calldata output
+    ) internal pure returns (bytes32 outputHash) {
         outputHash = keccak256(
             bytes.concat(
                 output.remoteOracle,
@@ -94,8 +100,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @notice Compute the hash of an output in memory.
      * @dev Is slightly more expensive than _outputHash. If possible, try to use _outputHash.
      */
-    function _outputHashM(OutputDescription memory output) internal pure returns (bytes32 outputHash) {
-        // Remember to not include (aka. exclude) remoteOracle & chainId
+    function _outputHashM(
+        OutputDescription memory output
+    ) internal pure returns (bytes32 outputHash) {
         outputHash = keccak256(
             bytes.concat(
                 output.remoteOracle,
@@ -110,11 +117,12 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
 
     /**
      * @notice Validates that fillDeadline honors the conditions:
-     * - Fill time is not in the past (< currentTimestamp).
+     * - Fill time is not in the past (< paymentTimestamp).
      * - Fill time is not too far in the future,
-     * @param currentTimestamp Timestamp to compare filldeadline with. Is expected to be current time.
-     * @param fillDeadline Timestamp to compare against currentTimestamp. Is timestamp that the conditions
-     * will be checked for.
+     * @param currentTimestamp Timestamp to compare fillDeadline against.
+     * Is expected to be the time when the payment was recorded.
+     * @param fillDeadline Timestamp to compare against paymentTimestamp.
+     * The conditions will be checked against this timestamp.
      */
     function _validateTimestamp(uint32 currentTimestamp, uint32 fillDeadline) internal pure {
         unchecked {
@@ -132,7 +140,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     /**
      * @notice Validate that expected chain (@param chainId) matches this chain's chainId (block.chainId)
      */
-    function _validateChain(uint32 chainId) internal view {
+    function _validateChain(
+        uint32 chainId
+    ) internal view {
         if (CHAIN_ID != chainId) revert WrongChain(CHAIN_ID, chainId);
     }
 
@@ -141,7 +151,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @dev For some oracles, it might be required that you "cheat" and change the encoding here.
      * Don't worry (or do worry) because the other side loads the payload as bytes32(bytes).
      */
-    function _validateRemoteOracleAddress(bytes32 remoteOracle) internal view {
+    function _validateRemoteOracleAddress(
+        bytes32 remoteOracle
+    ) internal view virtual {
         if (ADDRESS_THIS != remoteOracle) revert WrongRemoteOracle(ADDRESS_THIS, remoteOracle);
     }
 
@@ -169,7 +181,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     /**
-     * @dev Function overload for isProven that allows proving multiple outputs in a single call.
+     * @dev Function overload for isProven to allow proving multiple outputs in a single call.
      */
     function isProven(OutputDescription[] calldata outputs, uint32 fillDeadline) public view returns (bool proven) {
         uint256 numOutputs = outputs.length;
@@ -243,11 +255,12 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @dev It is expected that this proof will arrive at a supported oracle (destinationAddress)
      * and where the proof of fulfillment is needed.
      * It is required that outputs.length == fillDeadlines.length. This is checked through 2 indirect checks of
-     * not (fillDeadlines.length > outputs.length & fillDeadlines.length < outputs.length) => fillDeadlines.length == outputs.length.
+     * not (fillDeadlines.length > outputs.length & fillDeadlines.length < outputs.length) => fillDeadlines.length ==
+     * outputs.length.
      * @param outputs Outputs to prove. This function validates that the outputs has been correct set.
      * @param fillDeadlines The fill times associated with the outputs. Used to match against the order.
-     * @param destinationIdentifier Chain id to send the order to. Is based on the messaging
-     * protocol.
+     * @param destinationIdentifier Messaging protocol's chain identifier to send the order to. Is not the same as
+     * chainId.
      * @param destinationAddress Oracle address on the destination.
      * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
      */
@@ -263,7 +276,8 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         unchecked {
             for (uint256 i; i < numFillDeadlines; ++i) {
                 OutputDescription calldata output = outputs[i];
-                // The chainId of the output has to match this chain. This is required to ensure that it originated here.
+                // The chainId of the output has to match this chain. This is required to ensure that it originated
+                // here.
                 _validateChain(output.chainId);
                 _validateRemoteOracleAddress(output.remoteOracle);
                 // Validate that we have proofs for each output.
@@ -283,7 +297,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
         bytes calldata message
     ) external onlyEscrow returns (bytes memory acknowledgement) {
         // Length of fromApplication is 65 bytes. We need the last 32 bytes.
-        bytes32 remoteOracle = bytes32(fromApplication[33: ]);
+        bytes32 remoteOracle = bytes32(fromApplication[65 - 32:]);
         (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) = _decode(message, remoteOracle);
 
         // set the proof locally.
@@ -299,7 +313,6 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             }
             uint32 fillDeadline = fillDeadlines[i];
             bytes32 outputHash = _outputHashM(output);
-            // even if fromApplication.length < 32 OR that generalised incentives always returns 32 byte length.
             _provenOutput[outputHash][fillDeadline] = true;
         }
 
@@ -308,9 +321,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     }
 
     function receiveAck(
-        bytes32 destinationIdentifier,
-        bytes32 messageIdentifier,
-        bytes calldata acknowledgement
+        bytes32, /* destinationIdentifier */
+        bytes32, /* messageIdentifier */
+        bytes calldata /* acknowledgement */
     ) external onlyEscrow {
         // We don't do anything on ack.
     }
@@ -318,8 +331,9 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
     //--- Message Encoding & Decoding ---//
 
     /**
-     * @notice Encodes outputs and fillDeadlines into a bytearray that can be sent cross chain and cross implementations.
-     * @dev This function reverts if fillDeadlines.length < outputs but not if fillDeadlines.length > outputs. Use with care.
+     * @notice Encodes outputs and fillDeadlines into a bytearray to be sent cross chain.
+     * @dev This function reverts if fillDeadlines.length < outputs but not if fillDeadlines.length > outputs.
+     * Use with care.
      */
     function _encode(
         OutputDescription[] calldata outputs,
@@ -351,8 +365,8 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
      * @dev Do not use remoteOracle from decoded outputs.
      * encodedPayload does not contain any "security". The payload will be "decoded by fire" as it is expected
      * to be encoded by _encode.
-     * If a foreign contract can out anything here, it important to only attribute the decoded outputs as from that contract
-     * to ensure the outputs does not poison other storage.
+     * If a foreign contract set anything here, it important to only attribute the decoded outputs to that contract
+     * to ensure the outputs does not poison other storage. If someone trusts that oracle, it is their problem.
      * @param encodedPayload Payload that has been encoded with _encode. Will be decoded into outputs and fillDeadlines.
      * @return outputs Decoded outputs.
      * @return fillDeadlines Decoded fill times.
@@ -368,15 +382,19 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
             fillDeadlines = new uint32[](numOutputs);
             uint256 pointer = OUTPUT_TOKEN_START;
             for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
-                bytes32 token = bytes32(encodedPayload[pointer : pointer += (OUTPUT_TOKEN_END - OUTPUT_TOKEN_START)]);
-                uint256 amount = uint256(bytes32(encodedPayload[pointer : pointer += (OUTPUT_AMOUNT_END - OUTPUT_AMOUNT_START)]));
-                bytes32 recipient = bytes32(encodedPayload[pointer : pointer += (OUTPUT_RECIPIENT_END - OUTPUT_RECIPIENT_START)]);
-                uint32 chainId = uint32(bytes4(encodedPayload[pointer : pointer += (OUTPUT_CHAIN_ID_END - OUTPUT_CHAIN_ID_START)]));
+                bytes32 token = bytes32(encodedPayload[pointer:pointer += (OUTPUT_TOKEN_END - OUTPUT_TOKEN_START)]);
+                uint256 amount =
+                    uint256(bytes32(encodedPayload[pointer:pointer += (OUTPUT_AMOUNT_END - OUTPUT_AMOUNT_START)]));
+                bytes32 recipient =
+                    bytes32(encodedPayload[pointer:pointer += (OUTPUT_RECIPIENT_END - OUTPUT_RECIPIENT_START)]);
+                uint32 chainId =
+                    uint32(bytes4(encodedPayload[pointer:pointer += (OUTPUT_CHAIN_ID_END - OUTPUT_CHAIN_ID_START)]));
                 fillDeadlines[outputIndex] = uint32(
-                    bytes4(encodedPayload[pointer : pointer += (OUTPUT_FILL_DEADLINE_END - OUTPUT_FILL_DEADLINE_START)])
+                    bytes4(encodedPayload[pointer:pointer += (OUTPUT_FILL_DEADLINE_END - OUTPUT_FILL_DEADLINE_START)])
                 );
-                uint256 remoteCallLength =
-                    uint16(bytes2(encodedPayload[pointer : pointer += (REMOTE_CALL_LENGTH_END - REMOTE_CALL_LENGTH_START)]));
+                uint256 remoteCallLength = uint16(
+                    bytes2(encodedPayload[pointer:pointer += (REMOTE_CALL_LENGTH_END - REMOTE_CALL_LENGTH_START)])
+                );
 
                 outputs[outputIndex] = OutputDescription({
                     remoteOracle: remoteOracle,
@@ -384,7 +402,7 @@ abstract contract BaseOracle is ICrossChainReceiver, IMessageEscrowStructs, IOra
                     amount: amount,
                     recipient: recipient,
                     chainId: chainId,
-                    remoteCall: encodedPayload[pointer : pointer += remoteCallLength]
+                    remoteCall: encodedPayload[pointer:pointer += remoteCallLength]
                 });
             }
         }

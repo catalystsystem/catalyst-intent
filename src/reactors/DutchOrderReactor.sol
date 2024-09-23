@@ -35,7 +35,10 @@ contract DutchOrderReactor is BaseReactor {
 
         // Check if the number of inputs matches the number of slopes.
         uint256 numInputs = dutchOrderData.inputs.length;
-        if (numInputs != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
+        if (numInputs != dutchOrderData.inputSlopes.length) {
+            revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
+        }
+
         // Set permitted inputs
         permittedAmounts = new uint256[](numInputs);
         for (uint256 i = 0; i < numInputs; ++i) {
@@ -76,7 +79,9 @@ contract DutchOrderReactor is BaseReactor {
     ) internal view override returns (OrderKey memory orderKey) {
         CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
-        if (dutchOrderData.inputs.length != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(dutchOrderData.inputs.length, dutchOrderData.inputSlopes.length);
+        if (dutchOrderData.inputs.length != dutchOrderData.inputSlopes.length) {
+            revert LengthsDoesNotMatch(dutchOrderData.inputs.length, dutchOrderData.inputSlopes.length);
+        }
 
         return _resolveKey(order, dutchOrderData);
     }
@@ -87,7 +92,8 @@ contract DutchOrderReactor is BaseReactor {
     ) internal view returns (OrderKey memory orderKey) {
         // Get the current Input(amount and token) structure based on the decay function and the time passed.
         Input[] memory inputs = CrossChainDutchOrderType.getInputsAfterDecay(dutchData);
-        // Get the current Output(amount,token and destination) structure based on the decay function and the time passed.
+        // Get the current Output(amount,token and destination) structure based on the decay function and the time
+        // passed.
         OutputDescription[] memory outputs = CrossChainDutchOrderType.getOutputsAfterDecay(dutchData);
 
         // Set orderKey:

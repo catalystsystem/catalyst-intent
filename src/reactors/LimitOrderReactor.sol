@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
-import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CatalystLimitOrderData, CrossChainLimitOrderType } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
@@ -14,7 +14,17 @@ contract LimitOrderReactor is BaseReactor {
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
-    ) internal pure override returns (OrderKey memory orderKey, uint256[] memory permittedAmounts, bytes32 witness, string memory witnessTypeString) {
+    )
+        internal
+        pure
+        override
+        returns (
+            OrderKey memory orderKey,
+            uint256[] memory permittedAmounts,
+            bytes32 witness,
+            string memory witnessTypeString
+        )
+    {
         // Permit2 context
         CatalystLimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
         // Set permitted inputs

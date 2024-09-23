@@ -11,12 +11,12 @@ import { TestCommonGARP } from "../TestCommonGARP.sol";
  * @dev Oracles are also fillers
  */
 contract TestBridgeOracle is TestCommonGARP {
-    uint256 constant MAX_FUTURE_FILL_TIME = 7 days;
+    uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
 
     BridgeOracle oracle;
 
     function setUp() external {
-        oracle = new BridgeOracle(address(escrow));
+        oracle = new BridgeOracle(address(this), address(escrow));
 
         // TODO: mock with ERC20.
     }
@@ -261,7 +261,9 @@ contract TestBridgeOracle is TestCommonGARP {
         bytes32 recipient;
     }
 
-    function test_fill_multiple_single_verify(AmountRecipient[] memory amountRecipient) external {
+    function test_fill_multiple_single_verify(
+        AmountRecipient[] memory amountRecipient
+    ) external {
         address token;
         uint32[] memory fillDeadlines = new uint32[](amountRecipient.length);
         OutputDescription[] memory outputs = new OutputDescription[](amountRecipient.length);
@@ -286,7 +288,9 @@ contract TestBridgeOracle is TestCommonGARP {
         }
     }
 
-    function test_fill_multiple_batch_verify(AmountRecipient[] memory amountRecipient) external {
+    function test_fill_multiple_batch_verify(
+        AmountRecipient[] memory amountRecipient
+    ) external {
         address token;
         uint32[] memory fillDeadlines = new uint32[](amountRecipient.length);
         OutputDescription[] memory outputs = new OutputDescription[](amountRecipient.length);

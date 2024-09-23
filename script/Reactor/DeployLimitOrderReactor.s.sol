@@ -6,7 +6,9 @@ import { DeployBaseReactor } from "./DeployBaseReactor.s.sol";
 import { ReactorHelperConfig } from "./HelperConfig.s.sol";
 
 contract DeployLimitOrderReactor is DeployBaseReactor {
-    function deploy(address owner) public returns (LimitOrderReactor) {
+    function deploy(
+        address owner
+    ) public returns (LimitOrderReactor) {
         if (deployerKey != 0) {
             vm.startBroadcast(deployerKey);
         } else {

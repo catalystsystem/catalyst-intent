@@ -50,13 +50,15 @@ contract DeployBitcoinOracle is Script {
 
     function deploy(address escrow, address bitcoinPrimsm) public returns (BitcoinOracle) {
         vm.startBroadcast();
-        BitcoinOracle bitcoinOracle = new BitcoinOracle{ salt: bytes32(0) }(escrow, bitcoinPrimsm);
+        BitcoinOracle bitcoinOracle = new BitcoinOracle{ salt: bytes32(0) }(address(0), escrow, bitcoinPrimsm);
         vm.stopBroadcast();
 
         return bitcoinOracle;
     }
 
-    function deploy(string memory chainName) public returns (BitcoinOracle) {
+    function deploy(
+        string memory chainName
+    ) public returns (BitcoinOracle) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/script/oracle/bitcoin-info.json");
         string memory json = vm.readFile(path);

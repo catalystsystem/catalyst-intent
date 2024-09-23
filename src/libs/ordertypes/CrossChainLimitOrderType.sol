@@ -39,7 +39,7 @@ library CrossChainLimitOrderType {
         ")"
     );
 
-    bytes constant CROSS_LIMIT_ORDER_TYPE_STUB = abi.encodePacked(
+    bytes constant LIMIT_CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
         CrossChainOrderType.CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystLimitOrderData orderData", ")"
     );
 
@@ -47,7 +47,7 @@ library CrossChainLimitOrderType {
         abi.encodePacked(
             "CrossChainOrder witness)",
             LIMIT_ORDER_DATA_TYPE_ONLY,
-            CROSS_LIMIT_ORDER_TYPE_STUB,
+            LIMIT_CROSS_CHAIN_ORDER_TYPE,
             CrossChainOrderType.INPUT_TYPE_STUB,
             CrossChainOrderType.OUTPUT_TYPE_STUB,
             CrossChainOrderType.TOKEN_PERMISSIONS_TYPE
@@ -56,15 +56,15 @@ library CrossChainLimitOrderType {
 
     bytes32 constant LIMIT_ORDER_DATA_TYPE_HASH = keccak256(LIMIT_ORDER_DATA_TYPE);
 
-    function decodeOrderData(bytes calldata orderBytes)
-        internal
-        pure
-        returns (CatalystLimitOrderData memory limitData)
-    {
+    function decodeOrderData(
+        bytes calldata orderBytes
+    ) internal pure returns (CatalystLimitOrderData memory limitData) {
         return limitData = abi.decode(orderBytes, (CatalystLimitOrderData));
     }
 
-    function hashOrderDataM(CatalystLimitOrderData memory orderData) internal pure returns (bytes32) {
+    function hashOrderDataM(
+        CatalystLimitOrderData memory orderData
+    ) internal pure returns (bytes32) {
         return keccak256(
             bytes.concat(
                 abi.encode(
@@ -83,7 +83,9 @@ library CrossChainLimitOrderType {
         );
     }
 
-    function hashOrderData(CatalystLimitOrderData calldata orderData) internal pure returns (bytes32) {
+    function hashOrderData(
+        CatalystLimitOrderData calldata orderData
+    ) internal pure returns (bytes32) {
         return keccak256(
             bytes.concat(
                 abi.encode(
@@ -108,7 +110,7 @@ library CrossChainLimitOrderType {
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                keccak256(abi.encodePacked(CROSS_LIMIT_ORDER_TYPE_STUB, LIMIT_ORDER_DATA_TYPE)),
+                keccak256(abi.encodePacked(LIMIT_CROSS_CHAIN_ORDER_TYPE, LIMIT_ORDER_DATA_TYPE)),
                 order.settlementContract,
                 order.swapper,
                 order.nonce,

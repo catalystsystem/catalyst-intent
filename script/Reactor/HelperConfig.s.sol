@@ -47,8 +47,8 @@ contract ReactorHelperConfig is Script, DeployPermit2 {
         IIncentivizedMessageEscrow escrow =
             new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
 
-        MockOracle localOracle = new MockOracle(address(escrow));
-        MockOracle remoteOracle = new MockOracle(address(escrow));
+        MockOracle localOracle = new MockOracle(address(this), address(escrow));
+        MockOracle remoteOracle = new MockOracle(address(this), address(escrow));
         address permit2 = deployPermit2();
         vm.stopBroadcast();
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+    // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
@@ -25,8 +25,8 @@ contract LimitOrderReactor is BaseReactor {
             string memory witnessTypeString
         )
     {
-        // Permit2 context
         CatalystLimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
+
         // Set permitted inputs
         uint256 numInputs = limitOrderData.inputs.length;
         permittedAmounts = new uint256[](numInputs);

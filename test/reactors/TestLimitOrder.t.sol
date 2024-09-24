@@ -241,7 +241,13 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             )
         );
         vm.expectEmit();
-        emit OutputFilled(fillDeadlines[0], tokenToSwapOutput, address(mockCallbackExecutor), outputAmount, keccak256(MOCK_CALLBACK_DATA));
+        emit OutputFilled(
+            fillDeadlines[0],
+            tokenToSwapOutput,
+            address(mockCallbackExecutor),
+            outputAmount,
+            keccak256(MOCK_CALLBACK_DATA)
+        );
 
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 

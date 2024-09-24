@@ -4,9 +4,10 @@ pragma solidity ^0.8.26;
 import { CrossChainOrder, ISettlementContract, Input, Output } from "../../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../../interfaces/Structs.sol";
 
+/**
+ * @dev Override for implementation
+ */
 abstract contract ReactorAbstractions is ISettlementContract {
-    //--- Override for implementation ---//
-
     /**
      * @notice Reactor Order implementations needs to implement this function to initiate their orders.
      * Return an orderKey with the relevant information to solve for.

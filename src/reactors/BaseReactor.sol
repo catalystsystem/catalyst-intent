@@ -47,9 +47,9 @@ import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
 /**
  * @title Base Cross-chain intent Reactor
  * @notice Cross-chain intent resolver. Implements core logic that is shared between all
- * reactors like: Token collection, order interfaces, order resolution:
+ * reactors like token collection, order interfaces, order resolution:
  * - Optimistic Payout: Orders are assumed to have been filled correctly by the solver if not disputed.
- * - Order Dispute: Orders can be disputed such that proof of fillment has to be made.
+ * - Order Dispute: Orders can be disputed such that proof of fulfillment has to be made.
  * - Oracle Interaction: To provide the relevant proofs against order disputes.
  *
  * It is expected that proper order reactors implement:
@@ -62,7 +62,7 @@ import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
  * impact this contract but trust as in a faulty / malicious token may be able to break the order status flow
  * and prevent proper delivery of inputs (to solver) and return of collateral.
  * As a result, it is important that users are aware of the following usage restrictions:
- * 1. Don't use a pausable/blacklist token if there is a risk of one of the actors (user / solver)
+ * 1. Don't use a pausable/blacklist token if there is a risk that one of the actors (user / solver)
  * being paused. This also applies from the user's perspective, if a pausable token is used for
  * collateral their inputs may not be returnable.
  * 2. All inputs have to be trusted by all parties. If one input is unable to be transferred, the whole lot
@@ -83,22 +83,22 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
     //--- Expose Storage ---//
 
-    function getOrderContext(
-        bytes32 orderKeyHash
-    ) external view returns (OrderContext memory orderContext) {
-        return orderContext = _orders[orderKeyHash];
-    }
-
     function _orderKeyHash(
         OrderKey memory orderKey
     ) internal pure returns (bytes32 orderKeyHash) {
-        return orderKeyHash = keccak256(abi.encode(orderKey)); // TODO: Is it more efficient to do this manually?
+        return orderKeyHash = keccak256(abi.encode(orderKey));
     }
 
     function getOrderKeyHash(
         OrderKey calldata orderKey
     ) external pure returns (bytes32 orderKeyHash) {
         return orderKeyHash = _orderKeyHash(orderKey);
+    }
+
+    function getOrderContext(
+        bytes32 orderKeyHash
+    ) external view returns (OrderContext memory orderContext) {
+        return orderContext = _orders[orderKeyHash];
     }
 
     function getOrderContext(
@@ -112,7 +112,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     /**
      * @notice Initiates a cross-chain order
      * @dev Called by the filler. Before calling, please check if someone else has already initiated.
-     * The check for if an order has already been initiated is quite late and thus may use a lot of gas.
+     * The check if an order has already been initiated is late and may use a lot of gas.
      * When a filler initiates a transaction it is important that they do the following:
      * 1. Trust the reactor. Technically, anyone can deploy a reactor that takes these interfaces.
      * As the filler has to provide collateral, this collateral could be at risk.
@@ -136,16 +136,16 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Check if the expected chain of the order is the rigtht one.
         if (order.originChainId != block.chainid) revert WrongChain(uint32(block.chainid), order.originChainId);
 
+        // Check if initiate Deadline has passed.
+        if (order.initiateDeadline < block.timestamp) revert InitiateDeadlinePassed();
+
         // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
         // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
         if (order.fillDeadline < order.initiateDeadline) revert InitiateDeadlineAfterFill();
 
-        // Check if initiate Deadline has passed.
-        if (order.initiateDeadline < block.timestamp) revert InitiateDeadlinePassed();
-
-        // Notice that the 2 above checks also check if order.fillDeadline < block.timestamp since
-        // (order.fillDeadline < order.initiateDeadline) & (order.initiateDeadline < block.timestamp)
-        // => order.fillDeadline < block.timestamp is disallowed.
+        // Notice that the 2 above checks also ensures that order.fillDeadline > block.timestamp since
+        // block.timestamp <= order.initiateDeadline && order.initiateDeadline <= order.fillDeadline
+        // => block.timestamp <= order.fillDeadline
 
         // Decode filler data.
         (
@@ -156,19 +156,19 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
             uint256 fillerDataPointer
         ) = FillerDataLib.decode(fillerData);
 
+        // Permit2 & EIP-712 object variables.
+        bytes32 witness; // Hash of our struct to be combined with permit2's struct hash.
+        string memory witnessTypeString; // Type of our order struct (witness).
+        uint256[] memory permittedAmounts; // The amounts the user signed (derived from order).
+
         // Initiate order.
-        bytes32 witness;
-        string memory witnessTypeString;
-        uint256[] memory permittedAmounts;
         (orderKey, permittedAmounts, witness, witnessTypeString) = _initiate(order, fillerData[fillerDataPointer:]);
 
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
         ReactorInfo memory reactorInfo = orderKey.reactorContext;
-        // Check if order.fillDeadline < reactorInfo.challengeDeadline && reactorInfo.challengeDeadline <
-        // reactorInfo.proofDeadline.
-        // So if order.fillDeadline >= reactorInfo.challengeDeadline || reactorInfo.challengeDeadline >=
-        // reactorInfo.proofDeadline
+        // Check if: order.fillDeadline < rI.challengeDeadline && rI.challengeDeadline < rI.proofDeadline.
+        // That implies if: order.fillDeadline >= rI.challengeDeadline || rI.challengeDeadline >= rI.proofDeadline
         // then the deadlines are invalid.
         if (
             order.fillDeadline >= reactorInfo.challengeDeadline
@@ -186,12 +186,13 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderPurchaseDiscount = orderPurchaseDiscount;
+        // Identifier is in its own storage slot.
         if (identifier != bytes32(0)) orderContext.identifier = identifier;
 
-        // Check first if it is not an EOA or undeployed contract because SafeTransferLib does not revert in this case.
+        // Check if the collatoral token is indeed a contract. SafeTransferLib does not revert on no code.
+        // This is important, since a later deployed token can screw up the whole pipeline.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.
-        // TODO: Maybe store another collateral refund address?
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
         );
@@ -209,7 +210,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     /**
      * @notice Prove that an order was filled. Requires that the order oracle exposes
      * a function, isProven(...), that returns true when called with the order details.
-     * @dev // TODO: WHat is there no dev??
+     * @dev If an order has configured some additional data that should be executed on
+     * initiation, then this has to be provided here as executionData. If the executionData
+     * is lost, then the filler should call `modifyOrderFillerdata` to set new executionData.
      */
     function proveOrderFulfilment(OrderKey calldata orderKey, bytes calldata executionData) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
@@ -218,13 +221,13 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         OrderStatus status = orderContext.status;
         address fillerAddress = orderContext.fillerAddress;
 
-        // Only allow processing if order status is either claimed or challenged
+        // Only allow processing if order status is either claimed or challenged.
         if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
             revert WrongOrderStatus(orderContext.status);
         }
 
-        // Immediately set order status to proven.
-        // then the next line will fail. This acts as a LOCAL reentry check.
+        // Immediately set order status to proven. This causes the previous line to fail.
+        // This acts as a LOCAL reentry check.
         orderContext.status = OrderStatus.Proven;
 
         // The following call is a external call to an untrusted contract. As a result,
@@ -233,7 +236,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
             revert CannotProveOrder();
         }
 
-        // Payout input.
+        // Payout inputs.
         _deliverTokens(orderKey.inputs, fillerAddress, governanceFee);
 
         // Return collateral to the filler. Load the collateral details from the order.
@@ -254,7 +257,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Pay collateral tokens
         // No need to check if collateralToken is a deployed contract.
-        // It has already been entered into our contract.
+        // It has already been entered into our contract & we don't want this call to revert.
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
 
         bytes32 identifier = orderContext.identifier;
@@ -277,7 +280,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // If OrderStatus != Claimed then it must either be:
         // 1. One of the proved states => we already paid the inputs.
         // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `proveOrderFulfilment(...)`
-        // as a result, checking only we shall only continue if orderContext.status == OrderStatus.Claimed.
+        // as a result, we shall only continue if orderContext.status == OrderStatus.Claimed.
         orderContext.status = OrderStatus.OptimiscallyFilled;
 
         // If time is post challenge deadline, then the order can only progress to optimistic payout.
@@ -318,7 +321,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * the challenger's collateral
      * 2. Remote Oracle. Likewise for the local oracle, remote oracles may be controllable by
      * the filler.
-     * TODO: Are there more risks?
      */
     function dispute(
         OrderKey calldata orderKey
@@ -343,8 +345,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.status = OrderStatus.Challenged;
 
         // Collect bond collateral.
-        // CollateralToken has already been entered so no need to check if
-        // it is a valid token.
+        // CollateralToken has already been entered so no need to check if it is a valid token.
         SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken,
             msg.sender,
@@ -364,7 +365,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
-        // Check if proof deadline has passed. If this is the case, (& the order hasn't been proven)
+        // Check if proof deadline has passed. If this is the case (& the order hasn't been proven)
         // it has to be assumed that the order was not filled.
         uint256 proofDeadline = orderKey.reactorContext.proofDeadline;
         if (block.timestamp <= proofDeadline) {
@@ -383,26 +384,24 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Send the input tokens back to the user.
         _deliverTokens(orderKey.inputs, orderKey.swapper, 0);
-        // Divide the collateral between challenger and user.
-        // Get order collateral.
-        address collateralToken = orderKey.collateral.collateralToken;
-        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-        uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
 
         unchecked {
+            // Divide the collateral between challenger and user. First, get order collateral.
+            address collateralToken = orderKey.collateral.collateralToken;
+            uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
+            uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
+
             // Send partial collateral back to user
             uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
             // We don't check if collateralToken is a token, since we don't
             // want this call to fail.
             SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
-            // Send the rest to the wallet that proof fraud:
-            // Similar to the above. We don't want this to fail.
-
+            // Send the rest to the wallet that called fraud. Similar to the above this should not fail.
             // A: We don't want this to fail.
             // B: If this overflows, it is better than if nothing happened.
             // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount =
-            // swapperCollateralAmount / 2.
+            // swapperCollateralAmount / 2 <= fillerCollateralAmount, = iff fillerCollateralAmount <= 1.
             SafeTransferLib.safeTransfer(
                 collateralToken,
                 orderContext.challenger,
@@ -425,17 +424,20 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * @param orderKey Claimed order to be purchased from the filler.
      * @param fillerData New filler data + potential execution data post-pended.
      * @param minDiscount The minimum discount the new filler is willing to buy at.
+     * Should be set to disallow someone frontrunning this call and decreasing the discount.
      */
     function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData, uint256 minDiscount) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
 
-        OrderStatus status = orderContext.status;
+        {
+            OrderStatus status = orderContext.status;
 
-        // The order should have been claimed and not paid / proven / fraud proven (inputs should be intact)
-        // for it to be purchased.
-        if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
-            revert WrongOrderStatus(orderContext.status);
+            // The order should have been claimed and not paid / proven / fraud proven (inputs should be intact)
+            // for it to be purchased.
+            if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
+                revert WrongOrderStatus(orderContext.status);
+            }
         }
 
         // The order cannot be purchased after the max time specified to be sold at has passed
@@ -468,7 +470,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         orderContext.orderPurchaseDiscount = orderPurchaseDiscount;
         orderContext.identifier = identifier;
 
-        // We can now make external calls without it impacting reentring into this call.
+        // We can now make external calls without allowing local reentries into this call.
 
         // Collateral is paid for in full.
         address collateralToken = orderKey.collateral.collateralToken;
@@ -476,8 +478,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // No need to check if collateral is valid, since it has already entered the contract.
         SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
 
-        // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token. This is not done
-        // through permit.
+        // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token.
+        // This is not done through permit.
         // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
         _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderPurchaseDiscount);
 

@@ -6,6 +6,7 @@ pragma solidity ^0.8.26;
 
 uint120 constant BLOCK_HEIGHT = 858615;
 uint120 constant BLOCK_TIME = 1724746618;
+uint120 constant PREV_BLOCK_TIME = 1724746618 - 1272;
 
 // The transaction to be verified is TX #f1051a6d34f90d86f11587773334c29811634c4027fcf8e979da9a652ba29cfb
 

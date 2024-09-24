@@ -265,7 +265,7 @@ contract BitcoinOracle is BaseOracle {
         {
             // Check that previousBlockHeader is 80 bytes. While technically not needed
             // since the hash of previousBlockHeader.length > 80 won't match the correct hash
-            // this is a sanity check that if nothing else ensures that objectivly bad
+            // this is a sanity check that if nothing else ensures that objectively bad
             // headers are never provided.
             require(previousBlockHeader.length == 80);
 

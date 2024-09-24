@@ -189,7 +189,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Identifier is in its own storage slot.
         if (identifier != bytes32(0)) orderContext.identifier = identifier;
 
-        // Check if the collatoral token is indeed a contract. SafeTransferLib does not revert on no code.
+        // Check if the collateral token is indeed a contract. SafeTransferLib does not revert on no code.
         // This is important, since a later deployed token can screw up the whole pipeline.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.

@@ -90,7 +90,7 @@ struct OrderKey {
     address swapper;
     /**
      * @dev Nonce is unused in code but aids to make orderKeyHashes unique between orders.
-     * This is beacuse swapper & nonce makes a unique pair. (via permit2)
+     * This is because swapper & nonce makes a unique pair. (via permit2)
      */
     uint96 nonce;
     /**

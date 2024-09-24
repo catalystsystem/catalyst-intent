@@ -24,7 +24,7 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
     }
 
     /**
-     * @notice Multi purpose order flow function that covnerts an order into a permit2
+     * @notice Multi purpose order flow function that converts an order into a permit2
      * structure and provides relevant token flow protections:
      * - Orders the collection of tokens. This includes checking if the user has enough & approval.
      * - Verification of the signature for the order. This ensures the user has accepted the order conditions.

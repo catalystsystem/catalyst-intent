@@ -69,7 +69,12 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
             rawTx: RAW_TX
         });
         bitcoinOracle.verify(
-            output, uint32(PREV_BLOCK_TIME) + timeIncrement, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX, PREV_BLOCK_HEADER
+            output,
+            uint32(PREV_BLOCK_TIME) + timeIncrement,
+            BLOCK_HEIGHT,
+            inclusionProof,
+            TX_OUTPUT_INDEX,
+            PREV_BLOCK_HEADER
         );
         assert(bitcoinOracle.isProven(output, uint32(PREV_BLOCK_TIME) + timeIncrement));
     }

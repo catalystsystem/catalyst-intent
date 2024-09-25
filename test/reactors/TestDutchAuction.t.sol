@@ -608,7 +608,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         reactor.initiate(crossOrder, signature, fillDataV1);
     }
 
-    function _initiateOrder(
+    function _prepareInitiateOrder(
         uint256 _nonce,
         address _swapper,
         uint256 _inputAmount,
@@ -619,10 +619,10 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline,
-        bytes memory fillData
-    ) internal virtual override returns (OrderKey memory) {
-        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+        uint32 proofDeadline
+    ) internal view virtual override returns (CrossChainOrder memory order, bytes memory signature) {
+        bytes32 crossOrderHash;
+        (order, crossOrderHash) = _getCrossOrderWithWitnessHash(
             _inputAmount,
             _outputAmount,
             _swapper,
@@ -641,7 +641,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
         );
 
-        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+        signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
             SWAPPER_PRIVATE_KEY,
             _getFullPermitTypeHash(),
@@ -649,8 +649,6 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
             DOMAIN_SEPARATOR,
             address(reactor)
         );
-        vm.prank(_fillerSender);
-        return reactor.initiate(order, signature, fillData);
     }
 
     function test_set_invalid_exclusive_key(address initiator, bool config) public {

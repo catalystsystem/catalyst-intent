@@ -134,6 +134,30 @@ abstract contract TestBaseReactor is TestConfig {
         assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
     }
 
+    function bitmapPositions(
+        uint256 nonce
+    ) private pure returns (uint256 wordPos, uint256 bitPos) {
+        wordPos = uint248(nonce >> 8);
+        bitPos = uint8(nonce);
+    }
+
+    function test_revert_cancel_allowance_collect_tokens(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint64 nonce // For some reason I havn't been able to invalidate higher nonces.
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, 1000) {
+        (uint256 wordPos, uint256 bitPos) = bitmapPositions(nonce);
+        vm.prank(SWAPPER);
+        ISignatureTransfer(permit2).invalidateUnorderedNonces(wordPos, 1 << bitPos);
+
+        (CrossChainOrder memory order, bytes memory signature) =
+            _prepareInitiateOrder(nonce, SWAPPER, inputAmount, outputAmount, 1000, 1000, fillerAddress);
+
+        vm.prank(fillerAddress);
+        vm.expectRevert(abi.encodeWithSignature("InvalidNonce()"));
+        reactor.initiate(order, signature, fillDataV1);
+    }
+
     function test_balances_multiple_orders(
         uint160 inputAmount,
         uint256 outputAmount,
@@ -1589,6 +1613,76 @@ abstract contract TestBaseReactor is TestConfig {
 
     function _getFullPermitTypeHash() internal virtual returns (bytes32);
 
+    function _prepareInitiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
+        address _fillerSender,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline
+    ) internal view virtual returns (CrossChainOrder memory order, bytes memory signature);
+
+    function _prepareInitiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
+        address _fillerSender
+    ) internal view virtual returns (CrossChainOrder memory order, bytes memory signature) {
+        return _prepareInitiateOrder(
+            _nonce,
+            _swapper,
+            _inputAmount,
+            _outputAmount,
+            _fillerCollateralAmount,
+            _challengerCollateralAmount,
+            _fillerSender,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+    }
+
+    function _initiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
+        address _fillerSender,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
+        bytes memory fillData
+    ) internal virtual returns (OrderKey memory) {
+        (CrossChainOrder memory order, bytes memory signature) = _prepareInitiateOrder(
+            _nonce,
+            _swapper,
+            _inputAmount,
+            _outputAmount,
+            _fillerCollateralAmount,
+            _challengerCollateralAmount,
+            _fillerSender,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline
+        );
+
+        vm.prank(_fillerSender);
+        return reactor.initiate(order, signature, fillData);
+    }
+
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
@@ -1614,21 +1708,6 @@ abstract contract TestBaseReactor is TestConfig {
             _fillData
         );
     }
-
-    function _initiateOrder(
-        uint256 _nonce,
-        address _swapper,
-        uint256 _inputAmount,
-        uint256 _outputAmount,
-        uint256 _fillerCollateralAmount,
-        uint256 _challengerCollateralAmount,
-        address _fillerSender,
-        uint32 initiateDeadline,
-        uint32 fillDeadline,
-        uint32 challengeDeadline,
-        uint32 proofDeadline,
-        bytes memory fillData
-    ) internal virtual returns (OrderKey memory);
 
     function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,

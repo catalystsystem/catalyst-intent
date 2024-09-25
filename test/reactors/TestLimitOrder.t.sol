@@ -334,7 +334,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         reactor.initiate(order, signature, fillDataV1);
     }
 
-    function _initiateOrder(
+    function _prepareInitiateOrder(
         uint256 nonce,
         address swapper,
         uint256 inputAmount,
@@ -345,10 +345,10 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline,
-        bytes memory fillData
-    ) internal override returns (OrderKey memory) {
-        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+        uint32 proofDeadline
+    ) internal view override returns (CrossChainOrder memory order, bytes memory signature) {
+        bytes32 crossOrderHash;
+        (order, crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount,
             outputAmount,
             swapper,
@@ -367,7 +367,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
         );
 
-        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+        signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
             SWAPPER_PRIVATE_KEY,
             _getFullPermitTypeHash(),
@@ -375,8 +375,6 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             DOMAIN_SEPARATOR,
             address(reactor)
         );
-        vm.prank(fillerSender);
-        return reactor.initiate(order, signature, fillData);
     }
 
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {

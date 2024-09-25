@@ -30,7 +30,6 @@ import { MockOracle } from "../mocks/MockOracle.sol";
 import { MockUtils } from "../utils/MockUtils.sol";
 
 import { FailedValidation } from "../../src/interfaces/Errors.sol";
-import { OrderInitiated, OrderProven } from "../../src/interfaces/Events.sol";
 import { Input } from "../../src/interfaces/Structs.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 

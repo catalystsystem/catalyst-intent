@@ -33,15 +33,6 @@ import {
     WrongChain,
     WrongOrderStatus
 } from "../interfaces/Errors.sol";
-import {
-    FraudAccepted,
-    OptimisticPayout,
-    OrderChallenged,
-    OrderInitiated,
-    OrderProven,
-    OrderPurchaseDetailsModified,
-    OrderPurchased
-} from "../interfaces/Events.sol";
 import { ReactorPayments } from "./helpers/ReactorPayments.sol";
 import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
 /**
@@ -73,6 +64,42 @@ import { ResolverERC7683 } from "./helpers/ResolverERC7683.sol";
 
 abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     bytes32 public constant VERSION_FLAGS = bytes32(uint256(1));
+
+    /**
+     * @notice An order has been initiated.
+     */
+    event OrderInitiated(bytes32 indexed orderHash, address indexed caller, bytes filler, OrderKey orderKey);
+
+    /**
+     * @notice An order has been proven and settled.
+     */
+    event OrderProven(bytes32 indexed orderHash, address indexed prover);
+
+    /**
+     * @notice An order has been optimistically resolved.
+     */
+    event OptimisticPayout(bytes32 indexed orderHash);
+
+    /**
+     * @notice An order has ben challenged.
+     */
+    event OrderChallenged(bytes32 indexed orderHash, address indexed disputer);
+
+    /**
+     * @notice A challenged order was not proven and enough time has passed
+     * since it was challenged so it has been assumed no delivery was made.
+     */
+    event FraudAccepted(bytes32 indexed orderHash);
+
+    /**
+     * @notice An order has been purchased by someone else and the filler has changed.
+     */
+    event OrderPurchased(bytes32 indexed orderHash, address newFiller);
+
+    /**
+     * @notice The order purchase details have been modified by the filler.
+     */
+    event OrderPurchaseDetailsModified(bytes32 indexed orderHash, bytes fillerdata);
 
     /**
      * @notice Maps an orderkey hash to the relevant orderContext.

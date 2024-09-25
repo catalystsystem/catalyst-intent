@@ -7,7 +7,6 @@ import { NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IB
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
-import { OutputVerified } from "../interfaces/Events.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { BaseOracle } from "./BaseOracle.sol";
@@ -24,6 +23,15 @@ contract BitcoinOracle is BaseOracle {
     error BadDestinationIdentifier(); // 0x111fe358
     error BadTokenFormat(); // 0x6a6ba82d
     error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
+
+    event OutputVerified(
+        uint32 fillDeadline,
+        bytes32 token,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 calldataHash,
+        bytes32 verificationContext
+    );
 
     // The Bitcoin Identifier (0xBC) is set in the 20'th byte (from right). This ensures
     // implementations that are only reading the last 20 bytes, still notice this is a Bitcoin address.

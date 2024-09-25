@@ -4,8 +4,6 @@ pragma solidity ^0.8.26;
 import { Ownable } from "solady/src/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { GovernanceFeeChanged, GovernanceFeesDistributed } from "../interfaces/Events.sol";
-
 import { IsContractLib } from "./IsContractLib.sol";
 
 /**
@@ -25,6 +23,16 @@ abstract contract ICanCollectGovernanceFee {
 abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     error GovernanceFeeTooHigh();
     error CannotCollect0Fees(address token);
+
+    /**
+     * @notice Governance fees has been distributed.
+     */
+    event GovernanceFeesDistributed(address indexed to, address[] tokens, uint256[] collectedAmounts);
+
+    /**
+     * @notice Governance fee changed. This fee is taken of the inputs.
+     */
+    event GovernanceFeeChanged(uint256 oldGovernanceFee, uint256 newGovernanceFee);
 
     uint256 public governanceFee = 0;
     uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;

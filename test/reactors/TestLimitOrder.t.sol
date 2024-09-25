@@ -35,11 +35,11 @@ import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { OutputFilled } from "../../src/interfaces/Events.sol";
-
 contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
+    event OutputFilled(uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
+    
     function testA() external pure { }
 
     function setUp() public {

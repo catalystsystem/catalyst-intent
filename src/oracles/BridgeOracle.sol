@@ -6,7 +6,6 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 
 import { WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
-import { OutputFilled } from "../interfaces/Events.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -18,6 +17,8 @@ import { BaseOracle } from "./BaseOracle.sol";
  */
 contract BridgeOracle is BaseOracle {
     error NotEnoughGasExecution(); // 0x6bc33587
+
+    event OutputFilled(uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;

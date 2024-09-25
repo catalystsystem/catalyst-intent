@@ -19,8 +19,6 @@ import { IOracle } from "../interfaces/IOracle.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 
-import { MapMessagingProtocolIdentifierToChainId, OutputProven } from "../interfaces/Events.sol";
-
 import "./OraclePayload.sol";
 
 interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscrow {
@@ -34,6 +32,10 @@ interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscr
  */
 abstract contract BaseOracle is Ownable, ICrossChainReceiver, IMessageEscrowStructs, IOracle {
     error NotApproved();
+
+    event OutputProven(uint32 fillDeadline, bytes32 outputHash);
+
+    event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
 
     uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
 

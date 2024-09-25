@@ -32,16 +32,6 @@ import {
     MinOrderPurchaseDiscountTooLow
 } from "../../src/interfaces/Errors.sol";
 
-import {
-    FraudAccepted,
-    GovernanceFeeChanged,
-    OptimisticPayout,
-    OrderChallenged,
-    OrderProven,
-    OrderPurchaseDetailsModified,
-    OrderPurchased
-} from "../../src/interfaces/Events.sol";
-
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 
 import { TestConfig } from "../TestConfig.t.sol";
@@ -58,6 +48,22 @@ event InputsFilled(bytes32 orderKeyHash, bytes executionData);
 
 abstract contract TestBaseReactor is TestConfig {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
+
+    event OrderInitiated(bytes32 indexed orderHash, address indexed caller, bytes filler, OrderKey orderKey);
+    
+    event OrderProven(bytes32 indexed orderHash, address indexed prover);
+
+    event OptimisticPayout(bytes32 indexed orderHash);
+
+    event OrderChallenged(bytes32 indexed orderHash, address indexed disputer);
+
+    event FraudAccepted(bytes32 indexed orderHash);
+
+    event OrderPurchased(bytes32 indexed orderHash, address newFiller);
+
+    event OrderPurchaseDetailsModified(bytes32 indexed orderHash, bytes fillerdata);
+
+    event GovernanceFeeChanged(uint256 oldGovernanceFee, uint256 newGovernanceFee);
 
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
     uint256 DEFAULT_CHALLENGER_COLLATERAL_AMOUNT = 10 ** 19;

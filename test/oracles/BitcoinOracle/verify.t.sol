@@ -4,6 +4,10 @@ pragma solidity ^0.8.26;
 import { OutputDescription } from "../../../src/interfaces/Structs.sol";
 import "./blocksinfo.t.sol";
 
+import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
+import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
+
+import { BtcPrism } from "bitcoinprism-evm/src/BtcPrism.sol";
 import { Endian } from "bitcoinprism-evm/src/Endian.sol";
 import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
@@ -19,7 +23,24 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
     BitcoinOracle bitcoinOracle;
 
     function setUp() public {
-        bitcoinOracle = deploy("mainnet");
+        IIncentivizedMessageEscrow escrow = new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
+        address escrowAddress = address(escrow);
+
+        bytes32 blockHash = 0x00000000000000000000dd1ee5ffff1b823029ccb49ad30395d085d51f531d03;
+        uint120 blockHeight = 858615;
+        uint120 blockTime = 1724746618;
+        bytes32 expectedTarget = 0x000000000000000000033d760000000000000000000000000000000000000000;
+        bool isTestnet = false;
+
+        BtcPrism btcPrism = deployBitcoinPrism(
+            blockHeight,
+            blockHash,
+            blockTime,
+            expectedTarget,
+            isTestnet
+        );
+
+        bitcoinOracle = deploy(escrowAddress, address(btcPrism));
     }
 
     function test_verify(

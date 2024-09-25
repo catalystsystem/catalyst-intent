@@ -83,27 +83,6 @@ library CrossChainLimitOrderType {
         );
     }
 
-    function hashOrderData(
-        CatalystLimitOrderData calldata orderData
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            bytes.concat(
-                abi.encode(
-                    LIMIT_ORDER_DATA_TYPE_HASH,
-                    orderData.proofDeadline,
-                    orderData.challengeDeadline,
-                    orderData.collateralToken,
-                    orderData.fillerCollateralAmount,
-                    orderData.challengerCollateralAmount,
-                    orderData.localOracle
-                ),
-                abi.encode(
-                    CrossChainOrderType.hashInputs(orderData.inputs), CrossChainOrderType.hashOutputs(orderData.outputs)
-                )
-            )
-        );
-    }
-
     function crossOrderHash(
         CrossChainOrder calldata order,
         CatalystLimitOrderData memory limitOrderData

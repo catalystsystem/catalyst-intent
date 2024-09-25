@@ -84,7 +84,7 @@ contract BridgeOracle is BaseOracle {
      */
     function call(
         OutputDescription calldata output
-    ) internal {
+    ) external {
         // Disallow calling on-chain.
         require(msg.sender == address(0));
 

@@ -65,8 +65,7 @@ library FillerDataLib {
         address toCall = address(bytes20(executionData[0:20]));
         bytes calldata dataToCall = executionData[20:];
 
-        // Importantly, notice that an order cannot be purchased
-        // if this call reverts.
+        // Importantly, notice that an order cannot be purchased if this call reverts.
         ICrossCatsCallback(toCall).inputsFilled(orderKeyHash, dataToCall);
     }
 

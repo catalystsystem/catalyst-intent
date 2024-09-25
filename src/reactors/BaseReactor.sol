@@ -106,7 +106,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
 
-    constructor(address permit2, address owner) ReactorPayments(permit2, owner) { }
+    constructor(address permit2, address owner) ReactorPayments(permit2, owner) payable { }
 
     //--- Expose Storage ---//
 

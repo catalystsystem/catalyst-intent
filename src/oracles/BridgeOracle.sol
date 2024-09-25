@@ -23,7 +23,7 @@ contract BridgeOracle is BaseOracle {
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
 
-    constructor(address _owner, address _escrow) BaseOracle(_owner, _escrow) { }
+    constructor(address _owner, address _escrow) BaseOracle(_owner, _escrow) payable { }
 
     /**
      * @notice Allows calling an external function in a non-griefing manner.

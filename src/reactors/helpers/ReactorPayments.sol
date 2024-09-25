@@ -19,7 +19,7 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
 
     ISignatureTransfer public immutable PERMIT2;
 
-    constructor(address permit2, address owner) CanCollectGovernanceFee(owner) {
+    constructor(address permit2, address owner) CanCollectGovernanceFee(owner) payable {
         PERMIT2 = ISignatureTransfer(permit2);
     }
 

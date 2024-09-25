@@ -58,7 +58,7 @@ abstract contract BaseOracle is Ownable, ICrossChainReceiver, IMessageEscrowStru
 
     IIncentivizedMessageEscrowProofValidPeriod public immutable escrow;
 
-    constructor(address _owner, address _escrow) {
+    constructor(address _owner, address _escrow) payable {
         _initializeOwner(_owner);
         escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
     }

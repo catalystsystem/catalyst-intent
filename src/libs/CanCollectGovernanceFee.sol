@@ -40,7 +40,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
 
     constructor(
         address owner
-    ) {
+    ) payable {
         _initializeOwner(owner);
     }
 

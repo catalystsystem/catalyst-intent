@@ -17,10 +17,4 @@ contract DeployBridgeOracle is Script {
 
         return bridgeOracle;
     }
-
-    // function deploy(address escrow) public returns(BridgeOracle) {
-    //     BtcPrism btcPrism = deployBitcoinPrism();
-
-    //     return deploy(escrow, address(btcPrism));
-    // }
 }

@@ -3,7 +3,6 @@ pragma solidity ^0.8.22;
 
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";
 import { DeployBaseReactor } from "./DeployBaseReactor.s.sol";
-import { ReactorHelperConfig } from "./HelperConfig.s.sol";
 
 contract DeployDutchOrderReactor is DeployBaseReactor {
     function deploy(

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import { DeployDutchOrderReactor } from "../../script/Reactor/DeployDutchOrderReactor.s.sol";
-import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 
 import { CrossChainOrder, Input } from "../../src/interfaces/ISettlementContract.sol";
 import { DutchOrderReactor } from "../../src/reactors/DutchOrderReactor.sol";

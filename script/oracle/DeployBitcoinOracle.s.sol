@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { BitcoinOracle } from "../../src/oracles/BitcoinOracle.sol";
+import { GARPBitcoinOracle } from "../../src/oracles/GARP/GARPBitcoinOracle.sol";
 
 import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
@@ -39,13 +39,13 @@ contract DeployBitcoinOracle is Script {
         vm.stopBroadcast();
     }
 
-    function deploy(address escrow, address bitcoinPrism) public returns (BitcoinOracle) {
+    function deploy(address escrow, address bitcoinPrism) public returns (GARPBitcoinOracle) {
         return deploy(escrow, bitcoinPrism, address(0));
     }
 
-     function deploy(address escrow, address bitcoinPrism, address owner) public returns (BitcoinOracle) {
+     function deploy(address escrow, address bitcoinPrism, address owner) public returns (GARPBitcoinOracle) {
         vm.startBroadcast();
-        BitcoinOracle bitcoinOracle = new BitcoinOracle{ salt: bytes32(0) }(owner, escrow, bitcoinPrism);
+        GARPBitcoinOracle bitcoinOracle = new GARPBitcoinOracle{ salt: bytes32(0) }(owner, escrow, bitcoinPrism);
         vm.stopBroadcast();
 
         return bitcoinOracle;

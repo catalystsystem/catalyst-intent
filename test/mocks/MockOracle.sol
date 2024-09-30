@@ -3,17 +3,17 @@ pragma solidity ^0.8.26;
 
 import { OutputDescription } from "../../src/interfaces/Structs.sol";
 import { OrderKey } from "../../src/interfaces/Structs.sol";
-import { BridgeOracle } from "../../src/oracles/BridgeOracle.sol";
+import { GARPBridgeOracle } from "../../src/oracles/GARP/GARPBridgeOracle.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-contract MockOracle is IMessageEscrowStructs, BridgeOracle {
+contract MockOracle is IMessageEscrowStructs, GARPBridgeOracle {
     address constant REFUND_GAS_TO = address(uint160(0xdeaddead));
     uint48 constant MAX_GAS_DELIVERY = 200_000;
     uint48 constant MAX_GAS_ACK = 200_000;
     uint48 constant PRICE_OF_DELIVERY_GAS = 1 gwei;
     uint48 constant PRICE_OF_ACK_GAS = 1 gwei;
 
-    constructor(address _owner, address escrowAddress) BridgeOracle(_owner, escrowAddress) { }
+    constructor(address _owner, address escrowAddress) GARPBridgeOracle(_owner, escrowAddress) { }
 
     function getTotalIncentive(
         IncentiveDescription memory incentive

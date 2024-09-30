@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 
 import { OutputDescription } from "../../../src/interfaces/Structs.sol";
-import { BridgeOracle } from "../../../src/oracles/BridgeOracle.sol";
+import { GARPBridgeOracle } from "../../../src/oracles/GARP/GARPBridgeOracle.sol";
 import { TestCommonGARP } from "../TestCommonGARP.sol";
 
 /**
@@ -13,10 +13,10 @@ import { TestCommonGARP } from "../TestCommonGARP.sol";
 contract TestBridgeOracle is TestCommonGARP {
     uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
 
-    BridgeOracle oracle;
+    GARPBridgeOracle oracle;
 
     function setUp() external {
-        oracle = new BridgeOracle(address(this), address(escrow));
+        oracle = new GARPBridgeOracle(address(this), address(escrow));
 
         // TODO: mock with ERC20.
     }

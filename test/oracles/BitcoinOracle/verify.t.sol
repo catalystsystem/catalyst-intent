@@ -15,12 +15,12 @@ import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/libra
 import { FillDeadlineInPast } from "../../../src/interfaces/Errors.sol";
 
 import { DeployBitcoinOracle } from "../../../script/oracle/DeployBitcoinOracle.s.sol";
-import { BitcoinOracle } from "../../../src/oracles/BitcoinOracle.sol";
+import { GARPBitcoinOracle } from "../../../src/oracles/GARP/GARPBitcoinOracle.sol";
 import { Test } from "forge-std/Test.sol";
 
 contract TestBitcoinOracle is Test, DeployBitcoinOracle {
     uint32 maxTimeIncrement = 3 days - 1;
-    BitcoinOracle bitcoinOracle;
+    GARPBitcoinOracle bitcoinOracle;
 
     function setUp() public {
         IIncentivizedMessageEscrow escrow = new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);

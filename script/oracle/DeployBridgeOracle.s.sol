@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { BridgeOracle } from "../../src/oracles/BridgeOracle.sol";
+import { GARPBridgeOracle } from "../../src/oracles/GARP/GARPBridgeOracle.sol";
 import { Script } from "forge-std/Script.sol";
 
 contract DeployBridgeOracle is Script {
@@ -9,10 +9,10 @@ contract DeployBridgeOracle is Script {
 
     function deploy(
         address escrow
-    ) public returns (BridgeOracle) {
+    ) public returns (GARPBridgeOracle) {
         vm.startBroadcast(deployerKey);
         address deployerAddress = vm.addr(deployerKey);
-        BridgeOracle bridgeOracle = new BridgeOracle{ salt: bytes32(0) }(deployerAddress, escrow);
+        GARPBridgeOracle bridgeOracle = new GARPBridgeOracle{ salt: bytes32(0) }(deployerAddress, escrow);
         vm.stopBroadcast();
 
         return bridgeOracle;

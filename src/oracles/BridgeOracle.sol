@@ -3,9 +3,6 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-
-import { WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
 import { Output } from "../interfaces/ISettlementContract.sol";
 import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
@@ -22,8 +19,6 @@ contract BridgeOracle is BaseOracle {
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
-
-    constructor(address _owner, address _escrow) BaseOracle(_owner, _escrow) payable { }
 
     /**
      * @notice Allows calling an external function in a non-griefing manner.
@@ -173,25 +168,5 @@ contract BridgeOracle is BaseOracle {
      */
     function fill(OutputDescription[] calldata outputs, uint32[] calldata fillDeadlines) external {
         _fill(outputs, fillDeadlines);
-    }
-
-    /**
-     * @notice Fills and then broadcasts the proof. If an output has already been filled the
-     * output will be checked for fill and won't be filled again.
-     */
-    function fillAndSubmit(
-        OutputDescription[] calldata outputs,
-        uint32[] calldata fillDeadlines,
-        bytes32 destinationIdentifier,
-        bytes calldata destinationAddress,
-        IncentiveDescription calldata incentive
-    ) external payable {
-        // If an order has already been filled, this doesn't refill but checks
-        // if the output has already been filled. Additionally, it reverts if the output is not
-        // paid on this oracle. (chain && oracleAddress check).
-        _fill(outputs, fillDeadlines);
-
-        // Submit the proof for the filled outputs.
-        _submit(outputs, fillDeadlines, destinationIdentifier, destinationAddress, incentive);
     }
 }

@@ -44,7 +44,9 @@ contract BitcoinOracle is BaseOracle {
      */
     address public immutable LIGHT_CLIENT;
 
-    constructor(address _lightClient) payable {
+    constructor(
+        address _lightClient
+    ) payable {
         LIGHT_CLIENT = _lightClient;
     }
 

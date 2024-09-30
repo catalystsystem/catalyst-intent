@@ -12,6 +12,9 @@ import { GeneralisedIncentivesOracle } from "./GeneralisedIncentivesOracle.sol";
  * 0xB17C012
  */
 contract GARPBitcoinOracle is BitcoinOracle, GeneralisedIncentivesOracle {
-    constructor(address _owner, address _escrow, address _lightClient) BitcoinOracle(_lightClient) GeneralisedIncentivesOracle(_owner, _escrow) payable {
-    }
+    constructor(
+        address _owner,
+        address _escrow,
+        address _lightClient
+    ) payable BitcoinOracle(_lightClient) GeneralisedIncentivesOracle(_owner, _escrow) { }
 }

@@ -38,7 +38,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     event OutputFilled(uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
-    
+
     function testA() external pure { }
 
     function setUp() public {

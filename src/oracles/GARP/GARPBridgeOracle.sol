@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { OutputDescription } from "../../interfaces/Structs.sol";
 import { BridgeOracle } from "../BridgeOracle.sol";
 import { GeneralisedIncentivesOracle } from "./GeneralisedIncentivesOracle.sol";
-import { OutputDescription } from "../../interfaces/Structs.sol";
 
 /**
  * @dev Solvers use Oracles to pay outputs. This allows us to record the payment.
  * Tokens never touch this contract but goes directly from solver to user.
  */
-contract GARPBridgeOracle is BridgeOracle, GeneralisedIncentivesOracle  {
-    constructor(address _owner, address _escrow) GeneralisedIncentivesOracle(_owner, _escrow) payable { }
+contract GARPBridgeOracle is BridgeOracle, GeneralisedIncentivesOracle {
+    constructor(address _owner, address _escrow) payable GeneralisedIncentivesOracle(_owner, _escrow) { }
 
     /**
      * @notice Fills and then broadcasts the proof. If an output has already been filled the

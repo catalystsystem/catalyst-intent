@@ -12,7 +12,7 @@ import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol"
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract DutchOrderReactor is BaseReactor {
-    constructor(address permit2, address owner) BaseReactor(permit2, owner) payable { }
+    constructor(address permit2, address owner) payable BaseReactor(permit2, owner) { }
 
     function _initiate(
         CrossChainOrder calldata order,

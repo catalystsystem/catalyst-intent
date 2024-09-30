@@ -38,7 +38,7 @@ OriginChainId is always the chainId that the chain believes it is (`block.chaini
 
 ### Oracle
 
-Oracles are located in `src/oracles`. `BaseOracle.sol` implements shared logic between all oracles, this mainly consists of messaging and standardizing proven outputs are exposed. `BridgeOracle.sol` and `BitcoinOracle.sol` implements logic for verifying VM payments and Bitcoin TXOs respectively. The Bridge Oracle allows solvers to fill outputs, outputs can be proven by calling `fill(...)`, while the Bitcoin Oracle allows solvers to verify outputs, outputs can be verified by calling `verify(...)`. By inheriting base oracle both oracles are able to relay & receive proofs to & from other oracles.
+Oracles are located in `src/oracles`. `BaseOracle.sol` implements shared logic between all oracles, this mainly consists of messaging and standardizing proven outputs are exposed. `BridgeOracle.sol` and `BitcoinOracle.sol` implements logic for verifying VM payments and Bitcoin TXOs respectively. The Bridge Oracle allows solvers to fill outputs, outputs can be proven by calling `fill(...)`, while the Bitcoin Oracle allows solvers to verify outputs, outputs can be verified by calling `verify(...)`. By extending oracles with the `GARP/GeneralisedIncentivesOracle.sol`, oracles get the ability to relay & receive proofs to & from other oracles.
 
 ### Bitcoin SPV (Light) Client
 

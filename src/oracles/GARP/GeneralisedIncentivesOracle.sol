@@ -7,10 +7,7 @@ import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChai
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
 
-import {
-    CannotProveOrder,
-    WrongChain
-} from "../../interfaces/Errors.sol";
+import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
 import { OutputDescription } from "../../interfaces/Structs.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 

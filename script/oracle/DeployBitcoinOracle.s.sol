@@ -29,13 +29,7 @@ contract DeployBitcoinOracle is Script {
     ) internal returns (BtcPrism btcPrism) {
         vm.startBroadcast();
 
-        btcPrism = new BtcPrism{ salt: 0 }(
-            blockHeight,
-            blockHash,
-            blockTime,
-            uint256(expectedTarget),
-            isTestnet
-        );
+        btcPrism = new BtcPrism{ salt: 0 }(blockHeight, blockHash, blockTime, uint256(expectedTarget), isTestnet);
         vm.stopBroadcast();
     }
 
@@ -43,7 +37,7 @@ contract DeployBitcoinOracle is Script {
         return deploy(escrow, bitcoinPrism, address(0));
     }
 
-     function deploy(address escrow, address bitcoinPrism, address owner) public returns (GARPBitcoinOracle) {
+    function deploy(address escrow, address bitcoinPrism, address owner) public returns (GARPBitcoinOracle) {
         vm.startBroadcast();
         GARPBitcoinOracle bitcoinOracle = new GARPBitcoinOracle{ salt: bytes32(0) }(owner, escrow, bitcoinPrism);
         vm.stopBroadcast();

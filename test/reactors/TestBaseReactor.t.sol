@@ -50,7 +50,7 @@ abstract contract TestBaseReactor is TestConfig {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
     event OrderInitiated(bytes32 indexed orderHash, address indexed caller, bytes filler, OrderKey orderKey);
-    
+
     event OrderProven(bytes32 indexed orderHash, address indexed prover);
 
     event OptimisticPayout(bytes32 indexed orderHash);

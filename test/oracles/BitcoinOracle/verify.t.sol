@@ -23,7 +23,8 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
     GARPBitcoinOracle bitcoinOracle;
 
     function setUp() public {
-        IIncentivizedMessageEscrow escrow = new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
+        IIncentivizedMessageEscrow escrow =
+            new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
         address escrowAddress = address(escrow);
 
         bytes32 blockHash = 0x00000000000000000000dd1ee5ffff1b823029ccb49ad30395d085d51f531d03;
@@ -32,13 +33,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
         bytes32 expectedTarget = 0x000000000000000000033d760000000000000000000000000000000000000000;
         bool isTestnet = false;
 
-        BtcPrism btcPrism = deployBitcoinPrism(
-            blockHeight,
-            blockHash,
-            blockTime,
-            expectedTarget,
-            isTestnet
-        );
+        BtcPrism btcPrism = deployBitcoinPrism(blockHeight, blockHash, blockTime, expectedTarget, isTestnet);
 
         bitcoinOracle = deploy(escrowAddress, address(btcPrism));
     }

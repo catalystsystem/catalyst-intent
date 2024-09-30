@@ -10,11 +10,8 @@ import { BaseReactor } from "../reactors/BaseReactor.sol";
  * @dev Oracles are also fillers
  */
 abstract contract BaseOracle is IOracle {
-    error NotApproved();
 
     event OutputProven(uint32 fillDeadline, bytes32 outputHash);
-
-    event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
 
     uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
 

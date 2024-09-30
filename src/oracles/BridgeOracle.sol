@@ -35,10 +35,8 @@ contract BridgeOracle is BaseOracle {
         bool success;
         assembly ("memory-safe") {
             // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables
-            // are assigned,
-            // the contract can be attacked by a so called return bomb. This incur additional cost to the relayer they
-            // aren't paid for.
-            // To protect the relayer, the call is made in inline assembly.
+            // are assigned, the contract can be attacked by a so called return bomb. This incur additional cost to the
+            // relayer they aren't paid for. To protect the relayer, the call is made in inline assembly.
             success := call(MAX_GAS_ON_CALL, recipient, 0, add(payload, 0x20), mload(payload), 0, 0)
             // This is what the call would look like non-assembly.
             // recipient.call{gas: MAX_GAS_ON_CALL}(
@@ -50,9 +48,8 @@ contract BridgeOracle is BaseOracle {
         // External calls are allocated gas according roughly the following: min( gasleft * 63/64, gasArg ).
         // If there is no check against gasleft, then a relayer could potentially cheat by providing less gas.
         // Without a check, they only have to provide enough gas such that any further logic executees on 1/64 of
-        // gasleft
-        // To ensure maximum compatibility with external tx simulation and gas estimation tools we will check a more
-        // complex but more forgiving expression.
+        // gasleft To ensure maximum compatibility with external tx simulation and gas estimation tools we will
+        // check a more complex but more forgiving expression.
         // Before the call, there needs to be at least maxGasAck * 64/63 gas available. With that available, then
         // the call is allocated exactly min(+(maxGasAck * 64/63 * 63/64), maxGasAck) = maxGasAck.
         // If the call uses up all of the gas, then there must be maxGasAck * 64/63 - maxGasAck = maxGasAck * 1/63
@@ -62,8 +59,7 @@ contract BridgeOracle is BaseOracle {
             if (!success) if (gasleft() < MAX_GAS_ON_CALL * 1 / 63) revert NotEnoughGasExecution();
         }
         // Why is this better (than checking before)?
-        // 1. We only have to check when the call fail. The vast majority of acks should not revert so it won't be
-        // checked.
+        // 1. Only when call fails is it checked.. The vast majority of acks should not revert so it won't be checked.
         // 2. For the majority of applications it is going to be hold that: gasleft > rest of logic > maxGasAck * 1 / 63
         // and as such won't impact and execution/gas simuatlion/estimation libs.
 
@@ -108,7 +104,7 @@ contract BridgeOracle is BaseOracle {
         _validateChain(output.chainId);
         _validateRemoteOracleAddress(output.remoteOracle);
         // Importantly, the above functions ensures that we cannot forward proofs coming
-        // from other chains. Only
+        // from other chains. Only ones that come from our contract.
 
         // Get hash of output.
         bytes32 outputHash = _outputHash(output);

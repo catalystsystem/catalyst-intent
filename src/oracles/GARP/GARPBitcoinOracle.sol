@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { BitcoinOracle } from "../Bitcoinoracle.sol";
+import { BitcoinOracle } from "../BitcoinOracle.sol";
 import { GeneralisedIncentivesOracle } from "./GeneralisedIncentivesOracle.sol";
 
 /**

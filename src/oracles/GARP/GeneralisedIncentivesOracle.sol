@@ -23,6 +23,10 @@ interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscr
  * @dev Oracles are also fillers
  */
 abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver, IMessageEscrowStructs, Ownable {
+    error NotApproved();
+
+    event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
+
     /**
      * @notice Only allow the message escrow to call these functions
      */

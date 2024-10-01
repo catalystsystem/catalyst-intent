@@ -7,12 +7,12 @@ Cross-cats is an intent based cross-chain swap protocol. Users sign intents: Wha
 ![System Diagram](./cross-cats-0-2.svg)
 Refer to the SVG diagram chart.
 
-Cross Cats consists of 2 core contract: Reactor and Oracle. A Reactor contains logic to handle the initiation of an order. Each Reactor implementation may have different order types. Oracles are in charge of telling Reactors that an order fulfillment has happened. Depending on the order type and assets, there a local oracle and remote oracle may be required to prove orders. Local oracles exist on the same chain as the Reactor while remote oracles exists on another chain.
+Cross Cats consists of 2 core contracts: Reactor and Oracle. A Reactor contains logic to handle the initiation of an order. Each Reactor implementation may have different order types. Oracles are in charge of telling Reactors that an order fulfillment has happened. Depending on the order type and assets, a local oracle and remote oracle may be required to prove orders. Local oracles exist on the same chain as the Reactor while remote oracles exist on another chain.
 
 
 ### Reactor
 
-Reactors are located in `src/reactors`. `BaseReactor.sol` contains shared logic between reactors while `LimitOrderReactor.sol` and `DutchOrderReactor.sol` implements logic for limit orders and dutch orders respectively. Reactors are in charge of the core intent flow:
+Reactors are located in `src/reactors`. `BaseReactor.sol` contains shared logic between reactors while `LimitOrderReactor.sol` and `DutchOrderReactor.sol` implement logic for limit orders and dutch orders respectively. Reactors are in charge of the core intent flow:
 - Collecting assets & Claiming Intents
 - Disputing Intents & Verifying orders against oracles
 - and secondary logic like selling & buying intents.
@@ -38,7 +38,7 @@ OriginChainId is always the chainId that the chain believes it is (`block.chaini
 
 ### Oracle
 
-Oracles are located in `src/oracles`. `BaseOracle.sol` implements shared logic between all oracles, this mainly consists of messaging and standardizing proven outputs are exposed. `BridgeOracle.sol` and `BitcoinOracle.sol` implements logic for verifying VM payments and Bitcoin TXOs respectively. The Bridge Oracle allows solvers to fill outputs, outputs can be proven by calling `fill(...)`, while the Bitcoin Oracle allows solvers to verify outputs, outputs can be verified by calling `verify(...)`. By extending oracles with the `GARP/GeneralisedIncentivesOracle.sol`, oracles get the ability to relay & receive proofs to & from other oracles.
+Oracles are located in `src/oracles`. `BaseOracle.sol` implement shared logic between all oracles, this mainly consists of messaging and standardizing proven outputs are exposed. `BridgeOracle.sol` and `BitcoinOracle.sol` implements logic for verifying VM payments and Bitcoin TXOs respectively. The Bridge Oracle allows solvers to fill outputs, outputs can be proven by calling `fill(...)`, while the Bitcoin Oracle allows solvers to verify outputs, outputs can be verified by calling `verify(...)`. By extending oracles with the `GARP/GeneralisedIncentivesOracle.sol`, oracles get the ability to relay & receive proofs to & from other oracles.
 
 ### Bitcoin SPV (Light) Client
 

@@ -37,7 +37,7 @@ import { Test } from "forge-std/Test.sol";
 contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
-    event OutputFilled(uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
+    event OutputFilled(bytes32 outputHash, uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
 
     function testA() external pure { }
 
@@ -229,6 +229,19 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
+        OutputDescription memory output = orderKey.outputs[0];
+
+        bytes32 outputHash = keccak256(
+            bytes.concat(
+                output.remoteOracle,
+                output.token,
+                bytes4(output.chainId),
+                bytes32(output.amount),
+                output.recipient,
+                output.remoteCall
+            )
+        );
+
         uint32[] memory fillDeadlines = _getFillDeadlines(1, DEFAULT_FILL_DEADLINE);
         vm.expectCall(
             address(mockCallbackExecutor),
@@ -241,6 +254,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         );
         vm.expectEmit();
         emit OutputFilled(
+            outputHash,
             fillDeadlines[0],
             tokenToSwapOutput,
             address(mockCallbackExecutor),

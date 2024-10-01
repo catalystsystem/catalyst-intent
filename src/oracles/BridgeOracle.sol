@@ -15,7 +15,7 @@ import { BaseOracle } from "./BaseOracle.sol";
 contract BridgeOracle is BaseOracle {
     error NotEnoughGasExecution(); // 0x6bc33587
 
-    event OutputFilled(uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
+    event OutputFilled(bytes32 outputHash, uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
@@ -141,6 +141,7 @@ contract BridgeOracle is BaseOracle {
         if (remoteCallLength > 0) _call(output);
 
         emit OutputFilled(
+            outputHash,
             fillDeadline, token, recipient, amount, remoteCallLength > 0 ? keccak256(output.remoteCall) : bytes32(0)
         );
     }

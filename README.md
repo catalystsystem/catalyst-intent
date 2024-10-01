@@ -53,17 +53,17 @@ The repository contains several helpers which can found in either `src/libs` or 
 ### Build
 
 ```shell
-forge build (--sizes)
+forge build [--sizes]
 ```
 
 ### Test
 
 ```shell
-forge test (--fuzz-runs 10000) (--gas-report --fuzz-seed 10)
+forge test [--fuzz-runs 10000] [--gas-report --fuzz-seed 10]
 ```
 
 ### Coverage
 
 ```shell
-forge coverage --ir-minimum (--report lcov)
+forge coverage --ir-minimum [--report lcov]
 ```

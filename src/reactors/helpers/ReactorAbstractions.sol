@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { CrossChainOrder, ISettlementContract, Output, Input } from "../../interfaces/ISettlementContract.sol";
+import { CrossChainOrder, ISettlementContract, Input, Output } from "../../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../../interfaces/Structs.sol";
 
+/**
+ * @dev Override for implementation
+ */
 abstract contract ReactorAbstractions is ISettlementContract {
-    //--- Override for implementation ---//
-
     /**
      * @notice Reactor Order implementations needs to implement this function to initiate their orders.
      * Return an orderKey with the relevant information to solve for.
@@ -16,7 +17,15 @@ abstract contract ReactorAbstractions is ISettlementContract {
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata fillerData
-    ) internal virtual returns (OrderKey memory orderKey, uint256[] memory permittedAmounts, bytes32 witness, string memory witnessTypeString);
+    )
+        internal
+        virtual
+        returns (
+            OrderKey memory orderKey,
+            uint256[] memory permittedAmounts,
+            bytes32 witness,
+            string memory witnessTypeString
+        );
 
     /**
      * @notice Logic function for resolveKey(...).

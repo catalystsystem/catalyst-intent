@@ -18,7 +18,9 @@ contract ExclusiveOrder is IPreValidation, Ownable {
 
     mapping(bytes32 => mapping(address => bool)) _allowList;
 
-    constructor(address owner) {
+    constructor(
+        address owner
+    ) {
         _initializeOwner(owner);
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { BitcoinOracle } from "../../src/oracles/BitcoinOracle.sol";
+import { GARPBitcoinOracle } from "../../src/oracles/GARP/GARPBitcoinOracle.sol";
 
 import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
@@ -21,64 +21,37 @@ contract DeployBitcoinOracle is Script {
     }
 
     function deployBitcoinPrism(
-        uint120 prismDeploymentBlockHeight,
-        bytes32 prismDeploymentBlockHash,
-        uint120 prismDeploymentBlockTime,
-        bytes32 prismDeploymentExpectedTarget,
+        uint120 blockHeight,
+        bytes32 blockHash,
+        uint120 blockTime,
+        bytes32 expectedTarget,
         bool isTestnet
     ) internal returns (BtcPrism btcPrism) {
         vm.startBroadcast();
 
-        // TODO: set correct header & block height.
-        btcPrism = new BtcPrism{ salt: 0 }(
-            prismDeploymentBlockHeight,
-            prismDeploymentBlockHash,
-            prismDeploymentBlockTime,
-            uint256(prismDeploymentExpectedTarget),
-            isTestnet
-        );
+        btcPrism = new BtcPrism{ salt: 0 }(blockHeight, blockHash, blockTime, uint256(expectedTarget), isTestnet);
         vm.stopBroadcast();
     }
 
-    function iterBlock(uint256 height, bytes calldata header) external {
-        vm.startBroadcast();
-
-        BtcPrism(0xf0bdB16eEa70C049399993E6285E20E212010568).submit(height, header);
-
-        vm.stopBroadcast();
+    function deploy(address escrow, address bitcoinPrism) public returns (GARPBitcoinOracle) {
+        return deploy(escrow, bitcoinPrism, address(0));
     }
 
-    function deploy(address escrow, address bitcoinPrimsm) public returns (BitcoinOracle) {
+    function deploy(address escrow, address bitcoinPrism, address owner) public returns (GARPBitcoinOracle) {
         vm.startBroadcast();
-        BitcoinOracle bitcoinOracle = new BitcoinOracle{ salt: bytes32(0) }(escrow, bitcoinPrimsm);
+        GARPBitcoinOracle bitcoinOracle = new GARPBitcoinOracle{ salt: bytes32(0) }(owner, escrow, bitcoinPrism);
         vm.stopBroadcast();
 
         return bitcoinOracle;
     }
 
-    function deploy(string memory chainName) public returns (BitcoinOracle) {
-        string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/script/oracle/bitcoin-info.json");
-        string memory json = vm.readFile(path);
-        bytes memory chainDataParsed = stdJson.parseRaw(json, string.concat(".", chainName));
-        BitcoinChain memory bitcoinChain = abi.decode(chainDataParsed, (BitcoinChain));
-        address escrowAddress = bitcoinChain.escrow;
+    //--- Prism helpers ---//
 
-        //TODO: change config with escrows addresses
-        if (escrowAddress == address(0)) {
-            IIncentivizedMessageEscrow escrow =
-                new IncentivizedMockEscrow(address(uint160(0xdead)), bytes32(block.chainid), address(5), 0, 0);
-            escrowAddress = address(escrow);
-        }
-        bitcoinChain.escrow = escrowAddress;
-        BtcPrism btcPrism = deployBitcoinPrism(
-            bitcoinChain.prismDeploymentBlockHeight,
-            bitcoinChain.prismDeploymentBlockHash,
-            bitcoinChain.prismDeploymentBlockTime,
-            bitcoinChain.prismDeploymentExpectedTarget,
-            bitcoinChain.isTestnet
-        );
+    function iterBlock(address prism, uint256 height, bytes calldata header) external {
+        vm.startBroadcast();
 
-        return deploy(escrowAddress, address(btcPrism));
+        BtcPrism(prism).submit(height, header);
+
+        vm.stopBroadcast();
     }
 }

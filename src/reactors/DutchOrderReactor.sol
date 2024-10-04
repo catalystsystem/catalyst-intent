@@ -12,7 +12,7 @@ import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol"
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract DutchOrderReactor is BaseReactor {
-    constructor(address permit2, address owner) BaseReactor(permit2, owner) { }
+    constructor(address permit2, address owner) payable BaseReactor(permit2, owner) { }
 
     function _initiate(
         CrossChainOrder calldata order,
@@ -28,33 +28,37 @@ contract DutchOrderReactor is BaseReactor {
             string memory witnessTypeString
         )
     {
-        // Permit2 context
         CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
-
-        uint256 lockTime = dutchOrderData.slopeStartingTime;
 
         // Check if the number of inputs matches the number of slopes.
         uint256 numInputs = dutchOrderData.inputs.length;
-        if (numInputs != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
+        if (numInputs != dutchOrderData.inputSlopes.length) {
+            revert LengthsDoesNotMatch(numInputs, dutchOrderData.inputSlopes.length);
+        }
+
+        uint256 slopeStartingTime = dutchOrderData.slopeStartingTime;
+        uint256 initiateDeadline = order.initiateDeadline;
+        uint256 maxTimePass;
+        unchecked {
+            // unchecked: order.initiateDeadline > dutchOrderData.slopeStartingTime
+            // If initiateDeadline >= slopeStartingTime then the maximum difference is their difference.
+            // If initiateDeadline < slopeStartingTime then the slope can never start.
+            maxTimePass = initiateDeadline >= slopeStartingTime ? initiateDeadline - slopeStartingTime : 0;
+        }
+
         // Set permitted inputs
         permittedAmounts = new uint256[](numInputs);
         for (uint256 i = 0; i < numInputs; ++i) {
             // The permitted amount is the max of slope.
             int256 slope = dutchOrderData.inputSlopes[i];
-            if (slope <= 0) {
-                permittedAmounts[i] = dutchOrderData.inputs[i].amount;
-            } else {
-                uint256 maxTimePass;
-                unchecked {
-                    // unchecked: order.initiateDeadline > dutchOrderData.slopeStartingTime
-                    maxTimePass = (order.initiateDeadline - lockTime);
-                }
-                permittedAmounts[i] = dutchOrderData.inputs[i].amount + uint256(slope) * maxTimePass;
-            }
+            permittedAmounts[i] = slope <= 0
+                ? dutchOrderData.inputs[i].amount // If slope is negative, then the max is the start.
+                : dutchOrderData.inputs[i].amount + uint256(slope) * maxTimePass; // If slope is positive, then the max is
+                // the end.
         }
 
         // If the dutch auction is initiated before the slope starts, the order may be exclusive.
-        if (lockTime > block.timestamp) {
+        if (slopeStartingTime > block.timestamp) {
             address verificationContract = dutchOrderData.verificationContract;
             if (verificationContract != address(0)) {
                 if (!IPreValidation(verificationContract).validate(dutchOrderData.verificationContext, msg.sender)) {
@@ -76,7 +80,9 @@ contract DutchOrderReactor is BaseReactor {
     ) internal view override returns (OrderKey memory orderKey) {
         CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
 
-        if (dutchOrderData.inputs.length != dutchOrderData.inputSlopes.length) revert LengthsDoesNotMatch(dutchOrderData.inputs.length, dutchOrderData.inputSlopes.length);
+        if (dutchOrderData.inputs.length != dutchOrderData.inputSlopes.length) {
+            revert LengthsDoesNotMatch(dutchOrderData.inputs.length, dutchOrderData.inputSlopes.length);
+        }
 
         return _resolveKey(order, dutchOrderData);
     }
@@ -85,9 +91,10 @@ contract DutchOrderReactor is BaseReactor {
         CrossChainOrder calldata order,
         CatalystDutchOrderData memory dutchData
     ) internal view returns (OrderKey memory orderKey) {
-        // Get the current Input(amount and token) structure based on the decay function and the time passed.
+        // Get the current Input (amount and token) structure based on the decay function and the time passed.
         Input[] memory inputs = CrossChainDutchOrderType.getInputsAfterDecay(dutchData);
-        // Get the current Output(amount,token and destination) structure based on the decay function and the time passed.
+        // Get the current Output (amount, token, and destination) structure based on the decay function and the time
+        // passed.
         OutputDescription[] memory outputs = CrossChainDutchOrderType.getOutputsAfterDecay(dutchData);
 
         // Set orderKey:

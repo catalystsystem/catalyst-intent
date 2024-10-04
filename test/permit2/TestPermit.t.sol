@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { BaseReactor } from "../../src/reactors/BaseReactor.sol";
 
 import { CrossChainOrder } from "../../src/interfaces/ISettlementContract.sol";
@@ -12,7 +11,6 @@ import { SigTransfer } from "../utils/SigTransfer.t.sol";
 
 abstract contract TestPermit is TestConfig {
     BaseReactor reactor;
-    ReactorHelperConfig reactorHelperConfig;
 
     bytes fillerData;
     address fillerAddress;

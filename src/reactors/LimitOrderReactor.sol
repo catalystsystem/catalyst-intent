@@ -1,22 +1,32 @@
-// SPDX-License-Identifier: UNLICENSED
+    // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
 import { CrossChainOrder, Input, ResolvedCrossChainOrder } from "../interfaces/ISettlementContract.sol";
 import { Collateral, OrderKey, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
-import { CrossChainLimitOrderType, CatalystLimitOrderData } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
+import { CatalystLimitOrderData, CrossChainLimitOrderType } from "../libs/ordertypes/CrossChainLimitOrderType.sol";
 import { CrossChainOrderType } from "../libs/ordertypes/CrossChainOrderType.sol";
 
 import { BaseReactor } from "./BaseReactor.sol";
 
 contract LimitOrderReactor is BaseReactor {
-    constructor(address permit2, address owner) BaseReactor(permit2, owner) { }
+    constructor(address permit2, address owner) payable BaseReactor(permit2, owner) { }
 
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */
-    ) internal pure override returns (OrderKey memory orderKey, uint256[] memory permittedAmounts, bytes32 witness, string memory witnessTypeString) {
-        // Permit2 context
+    )
+        internal
+        pure
+        override
+        returns (
+            OrderKey memory orderKey,
+            uint256[] memory permittedAmounts,
+            bytes32 witness,
+            string memory witnessTypeString
+        )
+    {
         CatalystLimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
+
         // Set permitted inputs
         uint256 numInputs = limitOrderData.inputs.length;
         permittedAmounts = new uint256[](numInputs);

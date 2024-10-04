@@ -44,50 +44,79 @@ struct OrderContext {
 }
 
 struct OutputDescription {
-    /// @dev Contract on the destination that tells whether an order was filled.
-    /// Format is bytes32() slice of the encoded bytearray from the messaging protocol (or bytes32(0) if local)
+    /**
+     * @dev Contract on the destination that tells whether an order was filled.
+     * Format is bytes32() slice of the encoded bytearray from the messaging protocol.
+     * If local: bytes32(uint256(uint160(address(localOracle)))).
+     */
     bytes32 remoteOracle;
-    /// @dev The address of the ERC20 token on the destination chain
-    /// @dev address(0) used as a sentinel for the native token
+    /**
+     * @dev The address of the token on the destination chain.
+     */
     bytes32 token;
-    /// @dev The amount of the token to be sent
+    /**
+     * @dev The amount of the token to be sent.
+     */
     uint256 amount;
-    /// @dev The address to receive the output tokens
+    /**
+     * @dev The address to receive the output tokens.
+     */
     bytes32 recipient;
-    /// @dev The destination chain for this output
+    /**
+     * @dev The destination chain for this output.
+     */
     uint32 chainId;
+    /**
+     * @dev Additional data that is relevant for the caller.
+     */
     bytes remoteCall;
 }
 
 /**
  * @notice This is the simplified order after it has been validated and evaluated.
- * @dev Is used to keep the order context in calldata to save gas. The hash of the orderKey
- * is used to identify orders.
+ * @dev Is used to keep the order context in calldata to save gas.
+ * The hash of the orderKey is used to identify orders.
  * - Validated: We check that the signature of the order matches the relevant order.
  * - Evaluated: The order has been evaluated for its respective inputs and outputs
  */
 struct OrderKey {
-    // The contract that is managing this order.
+    /**
+     * @dev The contract that is managing this order.
+     */
     ReactorInfo reactorContext;
-    // Who this order was claimed by.
+    /**
+     * @dev Who this order was claimed for.
+     */
     address swapper;
-    // Nonce is unused in code but is used to make orderKeyHashes unique
-    // between orders. Since a nonce can only be used once, this makes an effective
-    // order differentiator.
+    /**
+     * @dev Nonce is unused in code but aids to make orderKeyHashes unique between orders.
+     * This is because swapper & nonce makes a unique pair. (via permit2)
+     */
     uint96 nonce;
-    // Collateral
+    /**
+     * @dev Collateral
+     */
     Collateral collateral;
     uint32 originChainId;
-    // Proof Context
-    address localOracle; // The oracle that can satisfy a dispute.
+    /**
+     * @dev The oracle that can satisfy a dispute.
+     */
+    address localOracle;
+    /**
+     * @dev Inputs for order.
+     * Reserved for OrderContext.fillerAddress but still belongs to OrderKey.swapper.
+     */
     Input[] inputs;
-    // Lets say the challenger maps keccak256(abi.encode(outputs)) => keccak256(OrderKey).
-    // Then we can easily check if these outputs have all been matched.
+    /**
+     * @dev Expected outputs in exchange for inputs.
+     */
     OutputDescription[] outputs;
 }
 
 struct ReactorInfo {
-    // The contract that is managing this order.
+    /**
+     * @dev The contract that is managing this order.
+     */
     address reactor;
     // Order resolution times
     uint32 fillDeadline;

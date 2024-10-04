@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import { DeployLimitOrderReactor } from "../../script/Reactor/DeployLimitOrderReactor.s.sol";
-import { ReactorHelperConfig } from "../../script/Reactor/HelperConfig.s.sol";
 import { LimitOrderReactor } from "../../src/reactors/LimitOrderReactor.sol";
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
@@ -35,10 +34,10 @@ import { Permit2DomainSeparator, TestBaseReactor } from "./TestBaseReactor.t.sol
 import "forge-std/Test.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { OutputFilled } from "../../src/interfaces/Events.sol";
-
 contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
+
+    event OutputFilled(bytes32 outputHash, uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
 
     function testA() external pure { }
 
@@ -230,6 +229,19 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         MockOracle localVMOracleContract = _getVMOracle(localVMOracle);
         MockOracle remoteVMOracleContract = _getVMOracle(remoteVMOracle);
 
+        OutputDescription memory output = orderKey.outputs[0];
+
+        bytes32 outputHash = keccak256(
+            bytes.concat(
+                output.remoteOracle,
+                output.token,
+                bytes4(output.chainId),
+                bytes32(output.amount),
+                output.recipient,
+                output.remoteCall
+            )
+        );
+
         uint32[] memory fillDeadlines = _getFillDeadlines(1, DEFAULT_FILL_DEADLINE);
         vm.expectCall(
             address(mockCallbackExecutor),
@@ -241,7 +253,14 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             )
         );
         vm.expectEmit();
-        emit OutputFilled(tokenToSwapOutput, address(mockCallbackExecutor), outputAmount, keccak256(MOCK_CALLBACK_DATA));
+        emit OutputFilled(
+            outputHash,
+            fillDeadlines[0],
+            tokenToSwapOutput,
+            address(mockCallbackExecutor),
+            outputAmount,
+            keccak256(MOCK_CALLBACK_DATA)
+        );
 
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
@@ -328,7 +347,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         reactor.initiate(order, signature, fillDataV1);
     }
 
-    function _initiateOrder(
+    function _prepareInitiateOrder(
         uint256 nonce,
         address swapper,
         uint256 inputAmount,
@@ -339,10 +358,10 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,
-        uint32 proofDeadline,
-        bytes memory fillData
-    ) internal override returns (OrderKey memory) {
-        (CrossChainOrder memory order, bytes32 crossOrderHash) = _getCrossOrderWithWitnessHash(
+        uint32 proofDeadline
+    ) internal view override returns (CrossChainOrder memory order, bytes memory signature) {
+        bytes32 crossOrderHash;
+        (order, crossOrderHash) = _getCrossOrderWithWitnessHash(
             inputAmount,
             outputAmount,
             swapper,
@@ -361,7 +380,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             orderKey, Permit2Lib.inputsToPermittedAmounts(orderKey.inputs), address(reactor), order.initiateDeadline
         );
 
-        bytes memory signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
+        signature = SigTransfer.crossOrdergetPermitBatchWitnessSignature(
             permitBatch,
             SWAPPER_PRIVATE_KEY,
             _getFullPermitTypeHash(),
@@ -369,8 +388,6 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
             DOMAIN_SEPARATOR,
             address(reactor)
         );
-        vm.prank(fillerSender);
-        return reactor.initiate(order, signature, fillData);
     }
 
     function _getFullPermitTypeHash() internal pure override returns (bytes32) {

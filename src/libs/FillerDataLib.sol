@@ -18,7 +18,9 @@ library FillerDataLib {
     /**
      * @notice Decode generic filler data.
      */
-    function decode(bytes calldata fillerData)
+    function decode(
+        bytes calldata fillerData
+    )
         internal
         view
         returns (
@@ -29,7 +31,9 @@ library FillerDataLib {
             uint256 pointer
         )
     {
-        if (fillerData.length == 0) return (msg.sender, 0, 0, bytes32(0), 0);
+        if (fillerData.length == 0) {
+            return (msg.sender, 0, 0, bytes32(0), 0);
+        }
         // fillerData.length >= 1
         bytes1 version = fillerData[0];
         if (version == 0x00) {
@@ -37,7 +41,6 @@ library FillerDataLib {
         }
         if (version == VERSION_1) {
             (fillerAddress, orderPurchaseDeadline, orderPurchaseDiscount) = _decode1(fillerData);
-            // V1_ORDER_DISCOUNT_END is the length of the data.
             return (fillerAddress, orderPurchaseDeadline, orderPurchaseDiscount, bytes32(0), V1_ORDER_DISCOUNT_END);
         }
         if (version == VERSION_2) {
@@ -62,8 +65,7 @@ library FillerDataLib {
         address toCall = address(bytes20(executionData[0:20]));
         bytes calldata dataToCall = executionData[20:];
 
-        // Importantly, notice that an order cannot be purchased
-        // if this call reverts.
+        // Importantly, notice that an order cannot be purchased if this call reverts.
         ICrossCatsCallback(toCall).inputsFilled(orderKeyHash, dataToCall);
     }
 
@@ -76,11 +78,9 @@ library FillerDataLib {
     uint256 private constant V1_ORDER_DISCOUNT_START = V1_ORDER_PURCHASE_DEADLINE_END;
     uint256 private constant V1_ORDER_DISCOUNT_END = 27;
 
-    function _decode1(bytes calldata fillerData)
-        private
-        pure
-        returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderPurchaseDiscount)
-    {
+    function _decode1(
+        bytes calldata fillerData
+    ) private pure returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderPurchaseDiscount) {
         fillerAddress = address(uint160(bytes20(fillerData[V1_ADDRESS_START:V1_ADDRESS_END])));
         orderPurchaseDeadline =
             uint32(bytes4(fillerData[V1_ORDER_PURCHASE_DEADLINE_START:V1_ORDER_PURCHASE_DEADLINE_END]));
@@ -108,7 +108,9 @@ library FillerDataLib {
     uint256 private constant V2_CALLDATA_HASH_START = V2_ORDER_DISCOUNT_END;
     uint256 private constant V2_CALLDATA_HASH_END = 59;
 
-    function _decode2(bytes calldata fillerData)
+    function _decode2(
+        bytes calldata fillerData
+    )
         private
         pure
         returns (address fillerAddress, uint32 orderPurchaseDeadline, uint16 orderPurchaseDiscount, bytes32 identifier)

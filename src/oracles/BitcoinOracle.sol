@@ -14,47 +14,94 @@ import { BaseOracle } from "./BaseOracle.sol";
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
  * 1. Directly Oracle. This requires a local light client along side the relevant reactor.
- * 2. Indirectly oracle through the bridge oracle. This requires a local light client and a bridge connection to the relevant reactor.
+ * 2. Indirectly oracle through the bridge oracle.
+ * This requires a local light client and a bridge connection to the relevant reactor.
  * 0xB17C012
  */
 contract BitcoinOracle is BaseOracle {
+    error BadAmount(); // 0x749b5939
+    error BadDestinationIdentifier(); // 0x111fe358
+    error BadTokenFormat(); // 0x6a6ba82d
+    error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
+
+    event OutputVerified(
+        bytes32 outputHash,
+        uint32 fillDeadline,
+        bytes32 token,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 calldataHash,
+        bytes32 verificationContext
+    );
+
     // The Bitcoin Identifier (0xBC) is set in the 20'th byte (from right). This ensures
     // implementations that are only reading the last 20 bytes, still notice this is a Bitcoin address.
     // It also makes it more difficult for there to be a collision (even though low numeric value
     // addresses are generally pre-compiles and thus would be safe).
-    // This also add standardizes support for other light clients coins (Lightcoin 0x1C?)
+    // This also standardizes support for other light clients coins (Lightcoin 0x1C?)
     bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BC0000000000000000000000000000000000;
+    /**
+     * @notice Used light client. If the contract is not overwritten, it is expected to be BitcoinPrism.
+     */
     address public immutable LIGHT_CLIENT;
 
-    error BadDestinationIdentifier();
-    error BadAmount();
-    error BadTokenFormat();
-    error BlockhashMismatch(bytes32 actual, bytes32 proposed);
-
-    mapping(bytes32 orderKey => uint256 fillDeadline) public filledOrders;
-
-    constructor(address _escrow, address _lightClient) BaseOracle(_escrow) {
+    constructor(
+        address _lightClient
+    ) payable {
         LIGHT_CLIENT = _lightClient;
     }
 
+    //--- Light Client Helpers ---//
+    // Helper functions to aid integration of other light clients.
+    // These functions are the only external calls needed to prove Bitcoin transactions.
+    // If you are adding support for another light client, inherit this contract and
+    // overwrite these functions.
+
+    /**
+     * @notice Helper function to get the latest block height.
+     * Is used to validate confirmations
+     * @dev Is intended to be overwritten if another SPV client than Prism is used.
+     */
+    function _getLatestBlockHeight() internal view virtual returns (uint256 currentHeight) {
+        return currentHeight = IBtcPrism(LIGHT_CLIENT).getLatestBlockHeight();
+    }
+
+    /**
+     * @notice Helper function to get the blockhash at a specific block number.
+     * Is used to check if block headers are valid.
+     * @dev Is intended to be overwritten if another SPV client than Prism is used.
+     */
+    function _getBlockHash(
+        uint256 blockNum
+    ) internal view virtual returns (bytes32 blockHash) {
+        return blockHash = IBtcPrism(LIGHT_CLIENT).getBlockHash(blockNum);
+    }
+
+    //--- Bitcoin Helpers ---//
+
     /**
      * @notice Slices the timestamp from a Bitcoin block header.
+     * @dev Before calling this function, make sure the header is 80 bytes.
      */
-    function _getTimestampOfBlock(bytes calldata blockHeader) internal pure returns (uint256 timestamp) {
+    function _getTimestampOfBlock(
+        bytes calldata blockHeader
+    ) internal pure returns (uint256 timestamp) {
         uint32 time = uint32(bytes4(blockHeader[68:68 + 4]));
         timestamp = Endian.reverse32(time);
     }
 
     /**
      * @notice Returns the associated Bitcoin script given an order token (address type) & destination (script hash).
-     * @param token Bitcoin signifier (checked) and an address version.
-     * @param scriptHash Bitcoin address identifier hash. Public key hash, script hash, or witness hash.
+     * @param token Bitcoin signifier (is checked) and the address version.
+     * @param scriptHash Bitcoin address identifier hash.
+     * Depending on address version is: Public key hash, script hash, or witness hash.
      * @return script Bitcoin output script matching the given parameters.
      */
     function _bitcoinScript(bytes32 token, bytes32 scriptHash) internal pure returns (bytes memory script) {
         // Check for the Bitcoin signifier:
         if (bytes30(token) != BITCOIN_AS_TOKEN) revert BadTokenFormat();
 
+        // Load address version.
         AddressType bitcoinAddressType = AddressType(uint8(uint256(token)));
 
         return BtcScript.getBitcoinScript(bitcoinAddressType, scriptHash);
@@ -74,20 +121,17 @@ contract BitcoinOracle is BaseOracle {
      * You may wonder why the delta decreases as we increase confirmations?
      * That is the law of large numbers in action.
      */
-    function _getNumConfirmations(bytes32 token) internal pure returns (uint8 numConfirmations) {
-        // Shift 8 bits to move the second byte to the right.
+    function _getNumConfirmations(
+        bytes32 token
+    ) internal pure returns (uint8 numConfirmations) {
+        // Shift 8 bits to move the second byte to the right. It is now the first byte.
+        // Then select the first byte. Decode as uint8.
         numConfirmations = uint8(uint256(token) >> 8);
         // If numConfirmations == 0, set it to 1.
         numConfirmations = numConfirmations == 0 ? 1 : numConfirmations;
     }
 
-    function _getLatestBlockHeight() virtual internal view returns(uint256 currentHeight) {
-        return currentHeight = IBtcPrism(LIGHT_CLIENT).getLatestBlockHeight();
-    }
-
-    function _getBlockHash(uint256 blockNum) virtual internal view returns(bytes32 blockHash) {
-        return blockHash = IBtcPrism(LIGHT_CLIENT).getBlockHash(blockNum);
-    }
+    //--- Validation ---//
 
     /**
      * @notice Verifies the existence of a Bitcoin transaction and returns the number of satoshis associated
@@ -96,10 +140,11 @@ contract BitcoinOracle is BaseOracle {
      * @param minConfirmations Number of confirmations before transaction is considered valid.
      * @param blockNum Block number of the transaction.
      * @param inclusionProof Proof for transaction & transaction data.
-     * @param txOutIx Index of the transaction's outputs that is examined against the output script and sats.
+     * @param txOutIx Index of the outputs to be examined against for output script and sats.
      * @param outputScript The expected output script. Compared to the actual, reverts if different.
-     * @param embeddedData If provided, the next input (txOutIx+1) is checked to contain an op_return
-     * with embeddedData as the payload.
+     * @param embeddedData If provided (!= 0x), the next output (txOutIx+1) is checked to contain
+     * the spend script: OP_RETURN | PUSH_(embeddedData.length) | embeddedData
+     * See the Prism library BtcScript for more information.
      * @return sats Value of txOutIx TXO of the transaction.
      */
     function _validateUnderlyingPayment(
@@ -109,8 +154,8 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx,
         bytes memory outputScript,
         bytes calldata embeddedData
-    ) virtual internal view returns (uint256 sats) {
-        // Isolate height check. This decreases gas cost slightly.
+    ) internal view virtual returns (uint256 sats) {
+        // Isolate height check. This slightly decreases gas cost.
         {
             uint256 currentHeight = _getLatestBlockHeight();
 
@@ -134,11 +179,12 @@ contract BitcoinOracle is BaseOracle {
         bytes memory txOutData;
         if (embeddedData.length > 0) {
             // Important, this function validate that blockHash = hash(inclusionProof.blockHeader);
+            // This function fails if txOutIx + 1 does not exist.
             (sats, txOutScript, txOutData) = BtcProof.validateTxData(blockHash, inclusionProof, txOutIx);
 
             if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
 
-            // Get the expected op_return script. This prepend embeddedData with 0x6a + {push_length}.
+            // Get the expected op_return script: OP_RETURN | PUSH_(embeddedData.length) | embeddedData
             bytes memory opReturnData = BtcScript.embedOpReturn(embeddedData);
             if (!BtcProof.compareScripts(opReturnData, txOutData)) revert ScriptMismatch(opReturnData, txOutData);
             return sats;
@@ -167,6 +213,8 @@ contract BitcoinOracle is BaseOracle {
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx
     ) internal {
+        // Validate order context. This lets us ensure that this oracle
+        // is the correct oracle to verify output.
         _validateChain(output.chainId);
         _validateRemoteOracleAddress(output.remoteOracle);
 
@@ -174,16 +222,20 @@ contract BitcoinOracle is BaseOracle {
             // Check the timestamp. This is done before inclusionProof is checked for validity
             // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
             // won't pass.
+            // _validateUnderlyingPayment checks if inclusionProof.blockHeader == 80.
             uint256 timestamp = _getTimestampOfBlock(inclusionProof.blockHeader);
 
-            // Validate that the timestamp gotten from the TX is within bounds.
+            // Validate that the timestamp from the TX is within bounds.
             // This ensures a Bitcoin output cannot be "reused" forever.
             _validateTimestamp(uint32(timestamp), fillDeadline);
         }
 
-        bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
-        uint256 numConfirmations = _getNumConfirmations(output.token);
-        uint256 sats = _validateUnderlyingPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, output.remoteCall);
+        bytes32 token = output.token;
+        bytes memory outputScript = _bitcoinScript(token, output.recipient);
+        uint256 numConfirmations = _getNumConfirmations(token);
+        uint256 sats = _validateUnderlyingPayment(
+            numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, output.remoteCall
+        );
 
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".
@@ -191,6 +243,16 @@ contract BitcoinOracle is BaseOracle {
 
         bytes32 outputHash = _outputHash(output);
         _provenOutput[outputHash][fillDeadline] = true;
+
+        emit OutputVerified(
+            outputHash,
+            fillDeadline,
+            token,
+            output.recipient,
+            output.amount,
+            output.remoteCall.length > 0 ? keccak256(output.remoteCall) : bytes32(0),
+            inclusionProof.txId
+        );
     }
 
     /**
@@ -208,18 +270,26 @@ contract BitcoinOracle is BaseOracle {
         uint256 txOutIx,
         bytes calldata previousBlockHeader
     ) internal {
+        // Validate order context. This lets us ensure that this oracle is the correct oracle to verify output.
         _validateChain(output.chainId);
         _validateRemoteOracleAddress(output.remoteOracle);
 
         {
+            // Check that previousBlockHeader is 80 bytes. While technically not needed
+            // since the hash of previousBlockHeader.length > 80 won't match the correct hash
+            // this is a sanity check that if nothing else ensures that objectively bad
+            // headers are never provided.
+            require(previousBlockHeader.length == 80);
+
             // Check the timestamp. This is done before inclusionProof is checked for validity
             // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
             // won't pass.
-            
+
             // Get block hash of the previousBlockHeader.
             bytes32 proposedPreviousBlockHash = BtcProof.getBlockHash(previousBlockHeader);
             // Load the actual previous block hash from the header of the block we just proved.
-            bytes32 actualPreviousBlockHash = bytes32(Endian.reverse256(uint256(bytes32(inclusionProof.blockHeader[4:36]))));
+            bytes32 actualPreviousBlockHash =
+                bytes32(Endian.reverse256(uint256(bytes32(inclusionProof.blockHeader[4:36]))));
             if (actualPreviousBlockHash != proposedPreviousBlockHash) {
                 revert BlockhashMismatch(actualPreviousBlockHash, proposedPreviousBlockHash);
             }
@@ -232,9 +302,12 @@ contract BitcoinOracle is BaseOracle {
             _validateTimestamp(uint32(timestamp), fillDeadline);
         }
 
-        bytes memory outputScript = _bitcoinScript(output.token, output.recipient);
-        uint256 numConfirmations = _getNumConfirmations(output.token);
-        uint256 sats = _validateUnderlyingPayment(numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, output.remoteCall);
+        bytes32 token = output.token;
+        bytes memory outputScript = _bitcoinScript(token, output.recipient);
+        uint256 numConfirmations = _getNumConfirmations(token);
+        uint256 sats = _validateUnderlyingPayment(
+            numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, output.remoteCall
+        );
 
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".
@@ -242,6 +315,16 @@ contract BitcoinOracle is BaseOracle {
 
         bytes32 outputHash = _outputHash(output);
         _provenOutput[outputHash][fillDeadline] = true;
+
+        emit OutputVerified(
+            outputHash,
+            fillDeadline,
+            token,
+            output.recipient,
+            output.amount,
+            output.remoteCall.length > 0 ? keccak256(output.remoteCall) : bytes32(0),
+            inclusionProof.txId
+        );
     }
 
     /**

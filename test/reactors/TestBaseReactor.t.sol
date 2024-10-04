@@ -32,16 +32,6 @@ import {
     MinOrderPurchaseDiscountTooLow
 } from "../../src/interfaces/Errors.sol";
 
-import {
-    FraudAccepted,
-    GovernanceFeeChanged,
-    OptimisticPayout,
-    OrderChallenged,
-    OrderProven,
-    OrderPurchaseDetailsModified,
-    OrderPurchased
-} from "../../src/interfaces/Events.sol";
-
 import { Permit2Lib } from "../../src/libs/Permit2Lib.sol";
 
 import { TestConfig } from "../TestConfig.t.sol";
@@ -59,6 +49,22 @@ event InputsFilled(bytes32 orderKeyHash, bytes executionData);
 abstract contract TestBaseReactor is TestConfig {
     using SigTransfer for ISignatureTransfer.PermitBatchTransferFrom;
 
+    event OrderInitiated(bytes32 indexed orderHash, address indexed caller, bytes filler, OrderKey orderKey);
+
+    event OrderProven(bytes32 indexed orderHash, address indexed prover);
+
+    event OptimisticPayout(bytes32 indexed orderHash);
+
+    event OrderChallenged(bytes32 indexed orderHash, address indexed disputer);
+
+    event FraudAccepted(bytes32 indexed orderHash);
+
+    event OrderPurchased(bytes32 indexed orderHash, address newFiller);
+
+    event OrderPurchaseDetailsModified(bytes32 indexed orderHash, bytes fillerdata);
+
+    event GovernanceFeeChanged(uint256 oldGovernanceFee, uint256 newGovernanceFee);
+
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
     uint256 DEFAULT_CHALLENGER_COLLATERAL_AMOUNT = 10 ** 19;
 
@@ -69,7 +75,7 @@ abstract contract TestBaseReactor is TestConfig {
 
     uint256 DEFAULT_ORDER_NONCE = 0;
 
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.25;
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1;
     BaseReactor reactor;
     address SWAPPER;
     uint256 SWAPPER_PRIVATE_KEY;
@@ -132,6 +138,30 @@ abstract contract TestBaseReactor is TestConfig {
         );
         assertEq(MockERC20(tokenToSwapInput).balanceOf(SWAPPER), swapperInputBalance - inputAmount);
         assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
+    }
+
+    function bitmapPositions(
+        uint256 nonce
+    ) private pure returns (uint256 wordPos, uint256 bitPos) {
+        wordPos = uint248(nonce >> 8);
+        bitPos = uint8(nonce);
+    }
+
+    function test_revert_cancel_allowance_collect_tokens(
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint64 nonce // For some reason I havn't been able to invalidate higher nonces.
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, 1000) {
+        (uint256 wordPos, uint256 bitPos) = bitmapPositions(nonce);
+        vm.prank(SWAPPER);
+        ISignatureTransfer(permit2).invalidateUnorderedNonces(wordPos, 1 << bitPos);
+
+        (CrossChainOrder memory order, bytes memory signature) =
+            _prepareInitiateOrder(nonce, SWAPPER, inputAmount, outputAmount, 1000, 1000, fillerAddress);
+
+        vm.prank(fillerAddress);
+        vm.expectRevert(abi.encodeWithSignature("InvalidNonce()"));
+        reactor.initiate(order, signature, fillDataV1);
     }
 
     function test_balances_multiple_orders(
@@ -1533,12 +1563,14 @@ abstract contract TestBaseReactor is TestConfig {
     ) internal view {
         vm.assume(
             block.timestamp < initiateDeadline && initiateDeadline < fillDeadline
-                && fillDeadline + block.timestamp < 7 days && fillDeadline < challengeDeadline
+                && fillDeadline + block.timestamp < 3 days && fillDeadline < challengeDeadline
                 && challengeDeadline < proofDeadline
         );
     }
 
-    function _getVMOracle(address oracleAddress) internal returns (MockOracle oracleContract) {
+    function _getVMOracle(
+        address oracleAddress
+    ) internal returns (MockOracle oracleContract) {
         oracleContract = MockOracle(oracleAddress);
         oracleContract.setRemoteImplementation(bytes32(block.chainid), uint32(block.chainid), abi.encode(escrow));
     }
@@ -1587,6 +1619,76 @@ abstract contract TestBaseReactor is TestConfig {
 
     function _getFullPermitTypeHash() internal virtual returns (bytes32);
 
+    function _prepareInitiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
+        address _fillerSender,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline
+    ) internal view virtual returns (CrossChainOrder memory order, bytes memory signature);
+
+    function _prepareInitiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
+        address _fillerSender
+    ) internal view virtual returns (CrossChainOrder memory order, bytes memory signature) {
+        return _prepareInitiateOrder(
+            _nonce,
+            _swapper,
+            _inputAmount,
+            _outputAmount,
+            _fillerCollateralAmount,
+            _challengerCollateralAmount,
+            _fillerSender,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE
+        );
+    }
+
+    function _initiateOrder(
+        uint256 _nonce,
+        address _swapper,
+        uint256 _inputAmount,
+        uint256 _outputAmount,
+        uint256 _fillerCollateralAmount,
+        uint256 _challengerCollateralAmount,
+        address _fillerSender,
+        uint32 initiateDeadline,
+        uint32 fillDeadline,
+        uint32 challengeDeadline,
+        uint32 proofDeadline,
+        bytes memory fillData
+    ) internal virtual returns (OrderKey memory) {
+        (CrossChainOrder memory order, bytes memory signature) = _prepareInitiateOrder(
+            _nonce,
+            _swapper,
+            _inputAmount,
+            _outputAmount,
+            _fillerCollateralAmount,
+            _challengerCollateralAmount,
+            _fillerSender,
+            initiateDeadline,
+            fillDeadline,
+            challengeDeadline,
+            proofDeadline
+        );
+
+        vm.prank(_fillerSender);
+        return reactor.initiate(order, signature, fillData);
+    }
+
     function _initiateOrder(
         uint256 _nonce,
         address _swapper,
@@ -1612,21 +1714,6 @@ abstract contract TestBaseReactor is TestConfig {
             _fillData
         );
     }
-
-    function _initiateOrder(
-        uint256 _nonce,
-        address _swapper,
-        uint256 _inputAmount,
-        uint256 _outputAmount,
-        uint256 _fillerCollateralAmount,
-        uint256 _challengerCollateralAmount,
-        address _fillerSender,
-        uint32 initiateDeadline,
-        uint32 fillDeadline,
-        uint32 challengeDeadline,
-        uint32 proofDeadline,
-        bytes memory fillData
-    ) internal virtual returns (OrderKey memory);
 
     function _getCrossOrderWithWitnessHash(
         uint256 inputAmount,

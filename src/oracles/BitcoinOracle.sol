@@ -25,6 +25,7 @@ contract BitcoinOracle is BaseOracle {
     error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
 
     event OutputVerified(
+        bytes32 outputHash,
         uint32 fillDeadline,
         bytes32 token,
         bytes32 recipient,
@@ -244,6 +245,7 @@ contract BitcoinOracle is BaseOracle {
         _provenOutput[outputHash][fillDeadline] = true;
 
         emit OutputVerified(
+            outputHash,
             fillDeadline,
             token,
             output.recipient,
@@ -315,6 +317,7 @@ contract BitcoinOracle is BaseOracle {
         _provenOutput[outputHash][fillDeadline] = true;
 
         emit OutputVerified(
+            outputHash,
             fillDeadline,
             token,
             output.recipient,

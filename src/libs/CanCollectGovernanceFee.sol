@@ -22,7 +22,6 @@ abstract contract ICanCollectGovernanceFee {
  */
 abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     error GovernanceFeeTooHigh();
-    error CannotCollect0Fees(address token);
 
     /**
      * @notice Governance fees has been distributed.

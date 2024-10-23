@@ -103,6 +103,11 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     event OrderPurchaseDetailsModified(bytes32 indexed orderHash, bytes fillerdata);
 
     /**
+     * @notice New order has been broadcasted.
+     */
+    event OrderBroadcast(bytes32 indexed orderHash, CrossChainOrder order, bytes signature);
+
+    /**
      * @notice Maps an orderkey hash to the relevant orderContext.
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
@@ -133,6 +138,22 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         OrderKey calldata orderKey
     ) external view returns (OrderContext memory orderContext) {
         return orderContext = _orders[_orderKeyHash(orderKey)];
+    }
+
+    //--- On-chain orderbook ---//
+    /**
+     * @notice Allows submitting order without an order server.
+     * This can be used to bypass censorship or to make a on-chain transaction.
+     */
+    function broadcast(
+        CrossChainOrder calldata order,
+        bytes calldata signature
+    ) external {
+        // TODO: Implement check that signature is correct.
+
+        // _resolveKey require calldata fillerData :|
+        bytes32 orderHash = _orderKeyHash(this.resolveKey(order, hex""));
+        emit OrderBroadcast(orderHash, order, signature);
     }
 
     //--- Order Handling ---//

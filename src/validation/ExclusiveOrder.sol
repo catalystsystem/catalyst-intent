@@ -30,7 +30,7 @@ contract ExclusiveOrder is IPreValidation, Ownable {
      * @param key Allowlist Lookup key. If first 12 bytes are empty, this is used as an explicit match.
      * @param initiator Caller of the initiated transaction not
      */
-    function validate(bytes32 key, address initiator) external view returns (bool) {
+    function validate(bytes32 key, address initiator) external view override returns (bool) {
         return (bytes12(key) == bytes12(0))
             ? address(uint160(uint256(key))) == initiator || address(uint160(uint256(key))) == owner()
             : _allowList[key][initiator];

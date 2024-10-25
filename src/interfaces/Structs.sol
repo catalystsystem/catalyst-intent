@@ -120,6 +120,8 @@ struct ReactorInfo {
      */
     address reactor;
     // Order resolution times
+    // If fillDeadline == challengeDeadline && challengerCollateralAmount == 0
+    // Then the order will be pre-challenged.
     uint32 fillDeadline;
     uint32 challengeDeadline;
     uint32 proofDeadline;

@@ -22,6 +22,7 @@ abstract contract ICanCollectGovernanceFee {
  */
 abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     error GovernanceFeeTooHigh();
+    error GovernanceFeeChangeNotReady();
 
     /**
      * @notice Governance fees has been distributed.
@@ -29,11 +30,19 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     event GovernanceFeesDistributed(address indexed to, address[] tokens, uint256[] collectedAmounts);
 
     /**
+     * @notice Governance fee will be changed shortly.
+     */
+    event NextGovernanceFee(uint64 nextGovernanceFee, uint64 nextGovernanceFeeTime);
+
+    /**
      * @notice Governance fee changed. This fee is taken of the inputs.
      */
-    event GovernanceFeeChanged(uint256 oldGovernanceFee, uint256 newGovernanceFee);
+    event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
-    uint256 public governanceFee = 0;
+    uint64 public governanceFee = 0;
+    uint64 public nextGovernanceFee = 0;
+    uint64 public nextGovernanceFeeTime = type(uint64).max;
+    uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
     uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
 
@@ -125,16 +134,27 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
 
     /**
      * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
-     * @param newGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
+     * @param _nextGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
      */
     function setGovernanceFee(
-        uint256 newGovernanceFee
+        uint64 _nextGovernanceFee
     ) external onlyOwner {
-        if (newGovernanceFee > MAX_GOVERNANCE_FEE) revert GovernanceFeeTooHigh();
-        uint256 oldGovernanceFee = governanceFee;
-        governanceFee = newGovernanceFee;
+        if (_nextGovernanceFee > MAX_GOVERNANCE_FEE) revert GovernanceFeeTooHigh();
+        nextGovernanceFee = _nextGovernanceFee;
+        nextGovernanceFeeTime = uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY;
 
-        emit GovernanceFeeChanged(oldGovernanceFee, newGovernanceFee);
+        emit NextGovernanceFee(nextGovernanceFee, nextGovernanceFeeTime);
+    }
+
+    /**
+     * @notice Applies a scheduled governace fee change.
+     */
+    function applyGovernanceFee() external {
+        if (block.timestamp < nextGovernanceFeeTime) revert GovernanceFeeChangeNotReady();
+        uint64 oldGovernanceFee = governanceFee;
+        governanceFee = nextGovernanceFee;
+
+        emit GovernanceFeeChanged(oldGovernanceFee, nextGovernanceFee);
     }
 
     /**

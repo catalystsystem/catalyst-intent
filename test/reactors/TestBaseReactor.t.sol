@@ -63,7 +63,9 @@ abstract contract TestBaseReactor is TestConfig {
 
     event OrderPurchaseDetailsModified(bytes32 indexed orderHash, bytes fillerdata);
 
-    event GovernanceFeeChanged(uint256 oldGovernanceFee, uint256 newGovernanceFee);
+    event NextGovernanceFee(uint64 nextGovernanceFee, uint64 nextGovernanceFeeTime);
+    
+    event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
     uint256 DEFAULT_CHALLENGER_COLLATERAL_AMOUNT = 10 ** 19;
@@ -1095,7 +1097,7 @@ abstract contract TestBaseReactor is TestConfig {
         uint32 challengeDeadline,
         uint32 proofDeadline,
         uint256 nonce,
-        uint256 governanceFee
+        uint64 governanceFee
     ) public {
         vm.assume(governanceFee > 0 && governanceFee < MAX_GOVERNANCE_FEE);
         (CrossChainOrder memory order,) = _getCrossOrderWithWitnessHash(
@@ -1112,9 +1114,16 @@ abstract contract TestBaseReactor is TestConfig {
         );
 
         vm.expectEmit();
-        emit GovernanceFeeChanged(0, governanceFee);
+        emit NextGovernanceFee(governanceFee, uint64(block.timestamp) + 7 days);
         vm.prank(reactor.owner());
         reactor.setGovernanceFee(governanceFee);
+
+        vm.warp(block.timestamp + 7 days);
+
+        vm.expectEmit();
+        emit GovernanceFeeChanged(0, governanceFee);
+        reactor.applyGovernanceFee();
+
         ResolvedCrossChainOrder memory actual = reactor.resolve(order, fillDataV1);
         Input[] memory inputs = OrderDataBuilder.getInputs(tokenToSwapInput, inputAmount, 1);
         Output[] memory outputs = OrderDataBuilder.getSettlementOutputs(

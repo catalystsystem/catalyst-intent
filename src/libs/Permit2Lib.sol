@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
+import { IsContractLib } from "./IsContractLib.sol";
 
 import { Input } from "../interfaces/ISettlementContract.sol";
 import { OrderKey } from "../interfaces/Structs.sol";
@@ -20,7 +21,7 @@ library Permit2Lib {
         uint32 deadline
     )
         internal
-        pure
+        view
         returns (
             ISignatureTransfer.PermitBatchTransferFrom memory permitBatch,
             ISignatureTransfer.SignatureTransferDetails[] memory transferDetails
@@ -34,6 +35,9 @@ library Permit2Lib {
 
         // Iterate through each input.
         for (uint256 i; i < numInputs; ++i) {
+            // Check if input tokens are contracts.
+            IsContractLib.checkCodeSize(order.inputs[i].token);
+
             // Set the allowance. This is the explicit max allowed amount approved by the user.
             permitted[i] =
                 ISignatureTransfer.TokenPermissions({ token: order.inputs[i].token, amount: permittedAmounts[i] });

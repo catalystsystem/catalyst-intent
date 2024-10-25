@@ -149,6 +149,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * is or isn't valid.
      * 4. Verify all inputs & outputs. If they contain a token the filler does not trust, do not claim the order.
      * It may cause a host of problem but most importantly: Inability to payout inputs & Inability to payout collateral.
+     * 5. If fillDeadline == challengeDeadline && challengerCollateralAmount == 0, then the order REQUIRES a proof
+     * and the user will be set as the default challenger.
      * @param order The CrossChainOrder definition
      * @param signature The end user signature for the order
      * @param fillerData Any filler-defined data required by the settler
@@ -208,8 +210,15 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // so other can't claim it. This acts as a local reentry check.
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
+        // If an order has been configured such that it is free to challenge and impossible at the same time
+        // (free === orderKey.collateral.challengerCollateralAmount == 0) && ("impossible" === orderKey.proofDeadline == orderKey.fillDeadline)
+        // then it is assumed that the order should be required to be strictly verified. (default challenged)
+        bool defaultChallenge = (reactorInfo.proofDeadline == reactorInfo.fillDeadline) && orderKey.collateral.challengerCollateralAmount == 0;
+        if (defaultChallenge) orderContext.challenger = orderKey.swapper;
+        // Ideally the above section was moved below the orderContext check but there is a stack too deep issue if done so.
+
         if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext.status);
-        orderContext.status = OrderStatus.Claimed; // Now this order cannot be claimed again.
+        orderContext.status = defaultChallenge ? OrderStatus.Challenged : OrderStatus.Claimed; // Now this order cannot be claimed again.
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderPurchaseDiscount = orderPurchaseDiscount;

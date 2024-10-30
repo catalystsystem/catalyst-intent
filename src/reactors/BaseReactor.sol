@@ -240,6 +240,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * @dev If an order has configured some additional data that should be executed on
      * initiation, then this has to be provided here as executionData. If the executionData
      * is lost, then the filler should call `modifyOrderFillerdata` to set new executionData.
+     * If you are calling this function from an external contract, beaware of re-entry
+     * issues from a later execute. (configured of executionData).
      */
     function proveOrderFulfilment(OrderKey calldata orderKey, bytes calldata executionData) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
@@ -297,6 +299,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * @notice Prove that an order was filled. Requires that the order oracle exposes
      * a function, isProven(...), that returns true when called with the order details.
      * @dev Anyone can call this but the payout goes to the filler of the order.
+     * If you are calling this function from an external contract, beaware of re-entry
+     * issues from a later execute. (configured of executionData).
      */
     function optimisticPayout(OrderKey calldata orderKey, bytes calldata executionData) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
@@ -448,6 +452,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * Set newPurchaseDeadline in the past to disallow future takeovers.
      * When you purchase orders, make sure you take into account that you are paying the
      * entirety while you will get out the entirety MINUS any governance fee.
+     * If you are calling this function from an external contract, beaware of re-entry
+     * issues from a later execute. (configured of fillerData).
      * @param orderKey Claimed order to be purchased from the filler.
      * @param fillerData New filler data + potential execution data post-pended.
      * @param minDiscount The minimum discount the new filler is willing to buy at.

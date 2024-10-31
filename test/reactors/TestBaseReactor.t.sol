@@ -766,7 +766,7 @@ abstract contract TestBaseReactor is TestConfig {
         vm.startPrank(completeDisputer);
         vm.warp(proofDeadline + 1);
 
-        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 1));
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", OrderStatus.Claimed));
         reactor.completeDispute(orderKey);
     }
 
@@ -876,7 +876,7 @@ abstract contract TestBaseReactor is TestConfig {
 
         bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
 
-        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", 0));
+        vm.expectRevert(abi.encodeWithSignature("WrongOrderStatus(uint8)", OrderStatus.Unfilled));
         vm.prank(buyer);
         reactor.purchaseOrder(orderKey, newFillerData, 0);
     }

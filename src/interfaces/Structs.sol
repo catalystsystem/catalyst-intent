@@ -18,6 +18,7 @@ import { Input } from "./ISettlementContract.sol";
  */
 enum OrderStatus {
     Unfilled,
+    Deposited,
     Claimed,
     Challenged,
     Fraud,

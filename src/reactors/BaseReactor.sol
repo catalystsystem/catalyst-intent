@@ -28,6 +28,7 @@ import {
     OnlyFiller,
     OrderAlreadyClaimed,
     OrderNotReadyForOptimisticPayout,
+    OrderFinal,
     ProofPeriodHasNotPassed,
     PurchaseTimePassed,
     WrongChain,
@@ -527,10 +528,19 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     /**
      * @dev If some execution data is set that is invalid, this function needs to be used to modify
      * the execution data (identifier) such that the execution data passes.
+     * The order cannot be modified if it is considered final.
      */
     function modifyOrderFillerdata(OrderKey calldata orderKey, bytes calldata fillerData) external {
         bytes32 orderKeyHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderKeyHash];
+
+        // Check that the status isn't final.
+        OrderStatus status = orderContext.status;
+        if (
+            status == OrderStatus.Proven ||
+            status == OrderStatus.OptimiscallyFilled ||
+            status == OrderStatus.Proven
+        ) revert OrderFinal();
 
         address currentFiller = orderContext.fillerAddress;
 

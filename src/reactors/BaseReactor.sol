@@ -531,7 +531,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Check that the status isn't final.
         OrderStatus status = orderContext.status;
         if (
-            status == OrderStatus.Proven ||
+            status == OrderStatus.Fraud ||
             status == OrderStatus.OptimiscallyFilled ||
             status == OrderStatus.Proven
         ) revert OrderFinal();

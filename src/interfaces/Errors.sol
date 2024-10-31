@@ -18,6 +18,7 @@ error MinOrderPurchaseDiscountTooLow(uint256 minimum, uint256 configured); // 0x
 error OnlyFiller(); // 0x422d60ed
 error OrderAlreadyClaimed(OrderStatus orderStatus); // 0x87d33f7e
 error OrderNotReadyForOptimisticPayout(uint32 time); // 0xe9deeb4d
+error OrderFinal(); // 0xad7bd3e1
 error ProofPeriodHasNotPassed(uint32 time); // 0x39bd19f3
 error PurchaseTimePassed(); // 0xf8e451f1
 error WrongChain(uint32 expected, uint32 actual); // 0x264363e1

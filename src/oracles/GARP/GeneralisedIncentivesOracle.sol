@@ -25,6 +25,7 @@ interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscr
 abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver, IMessageEscrowStructs, Ownable {
     error NotApproved();
     error AlreadySet();
+    error RemoteCallTooLarge();
 
     event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
 
@@ -225,6 +226,8 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
                 OutputDescription calldata output = outputs[i];
                 // if fillDeadlines.length < outputs.length then fillDeadlines[i] will fail with out of index.
                 uint32 fillDeadline = fillDeadlines[i];
+                // Check output remoteCall length.
+                if (output.remoteCall.length > type(uint16).max) revert RemoteCallTooLarge();
                 encodedPayload = bytes.concat(
                     encodedPayload,
                     output.token,
@@ -232,7 +235,7 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
                     output.recipient,
                     bytes4(output.chainId),
                     bytes4(fillDeadline),
-                    bytes2(uint16(output.remoteCall.length)),
+                    bytes2(uint16(output.remoteCall.length)), // this cannot overflow since length is checked to be less than max.
                     output.remoteCall
                 );
             }

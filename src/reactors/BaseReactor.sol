@@ -141,18 +141,29 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     }
 
     //--- On-chain orderbook ---//
+
     /**
      * @notice Allows submitting order without an order server.
      * This can be used to bypass censorship or to make a on-chain transaction.
+     * This contract is not sufficient and will allow invalid orders. It is expected that an off-chain entity will filter orders.
      */
     function broadcast(
         CrossChainOrder calldata order,
         bytes calldata signature
     ) external {
-        // TODO: Implement check that signature is correct.
+        // Check if this is the right contract.
+        if (order.settlementContract != address(this)) revert InvalidSettlementAddress();
+        // Check if the expected chain of the order is the rigtht one.
+        if (order.originChainId != block.chainid) revert WrongChain(uint32(block.chainid), order.originChainId);
 
-        // _resolveKey require calldata fillerData :|
-        bytes32 orderHash = _orderKeyHash(this.resolveKey(order, hex""));
+        // Check if initiate Deadline has passed.
+        if (order.initiateDeadline < block.timestamp) revert InitiateDeadlinePassed();
+
+        // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
+        // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
+        if (order.fillDeadline < order.initiateDeadline) revert InitiateDeadlineAfterFill();
+
+        bytes32 orderHash = _orderKeyHash(_resolveKey(order, signature[0:0]));
         emit OrderBroadcast(orderHash, order, signature);
     }
 

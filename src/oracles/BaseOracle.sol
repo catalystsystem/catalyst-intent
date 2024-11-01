@@ -21,24 +21,7 @@ abstract contract BaseOracle is IOracle {
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
     bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
 
-    /**
-     * @notice Takes a messagingProtocolChainIdentifier and returns the expected (and configured)
-     * block.chainId.
-     * @dev This allows us to translate incoming messages from messaging protocols to easy to
-     * understand chain ids that match the most coming identifier for chains. (their actual
-     * identifier) rather than an arbitrary number that most messaging protocols use.
-     */
-    mapping(bytes32 messagingProtocolChainIdentifier => uint32 blockChainId) _chainIdentifierToBlockChainId;
-
     mapping(bytes32 outputHash => mapping(uint32 fillDeadline => bool proven)) internal _provenOutput;
-
-    //-- View Functions --//
-
-    function getChainIdentifierToBlockChainId(
-        bytes32 messagingProtocolChainIdentifier
-    ) external view returns (uint32) {
-        return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
-    }
 
     //-- Helpers --//
 

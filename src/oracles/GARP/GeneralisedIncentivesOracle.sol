@@ -24,6 +24,7 @@ interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscr
  */
 abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver, IMessageEscrowStructs, Ownable {
     error NotApproved();
+    error AlreadySet();
     error RemoteCallTooLarge();
 
     event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
@@ -38,9 +39,33 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
 
     IIncentivizedMessageEscrowProofValidPeriod public immutable escrow;
 
+    /**
+     * @notice Takes a messagingProtocolChainIdentifier and returns the expected (and configured)
+     * block.chainId.
+     * @dev This allows us to translate incoming messages from messaging protocols to easy to
+     * understand chain ids that match the most coming identifier for chains. (their actual
+     * identifier) rather than an arbitrary number that most messaging protocols use.
+     */
+    mapping(bytes32 messagingProtocolChainIdentifier => uint32 blockChainId) _chainIdentifierToBlockChainId;
+    mapping(uint32 blockChainId => bytes32 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
+
     constructor(address _owner, address _escrow) payable {
         _initializeOwner(_owner);
         escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
+    }
+
+    //-- View Functions --//
+
+    function getChainIdentifierToBlockChainId(
+        bytes32 messagingProtocolChainIdentifier
+    ) external view returns (uint32) {
+        return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
+    }
+
+    function getBlockChainIdtoChainIdentifier(
+        uint32 chainId
+    ) external view returns (bytes32) {
+        return _blockChainIdToChainIdentifier[chainId];
     }
 
     //--- Sending Proofs & Generalised Incentives ---//
@@ -57,6 +82,10 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
         //  escrow.setRemoteImplementation does not allow calling multiple times.
         escrow.setRemoteImplementation(chainIdentifier, implementation);
 
+        // Check that we havn't set blockChainIdOfChainIdentifier yet.
+        if (_blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] != bytes32(0)) revert AlreadySet();
+    
+        _blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] = chainIdentifier;
         _chainIdentifierToBlockChainId[chainIdentifier] = blockChainIdOfChainIdentifier;
         emit MapMessagingProtocolIdentifierToChainId(chainIdentifier, blockChainIdOfChainIdentifier);
     }

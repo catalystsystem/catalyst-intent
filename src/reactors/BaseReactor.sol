@@ -197,12 +197,12 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // The proof deadline should be the last deadline and it must be after the challenge deadline.
         // The challenger should be able to challenge after the order is filled.
         ReactorInfo memory reactorInfo = orderKey.reactorContext;
-        // Check if: order.fillDeadline < rI.challengeDeadline && rI.challengeDeadline < rI.proofDeadline.
-        // That implies if: order.fillDeadline >= rI.challengeDeadline || rI.challengeDeadline >= rI.proofDeadline
+        // Check if: order.fillDeadline <= rI.challengeDeadline && rI.challengeDeadline <= rI.proofDeadline.
+        // That implies if: order.fillDeadline > rI.challengeDeadline || rI.challengeDeadline > rI.proofDeadline
         // then the deadlines are invalid.
         if (
-            order.fillDeadline >= reactorInfo.challengeDeadline
-                || reactorInfo.challengeDeadline >= reactorInfo.proofDeadline
+            order.fillDeadline > reactorInfo.challengeDeadline
+                || reactorInfo.challengeDeadline > reactorInfo.proofDeadline
         ) {
             revert InvalidDeadlineOrder();
         }

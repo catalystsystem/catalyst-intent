@@ -140,6 +140,23 @@ abstract contract TestBaseReactor is TestConfig {
         assertEq(MockERC20(tokenToSwapInput).balanceOf(address(reactor)), reactorInputBalance + inputAmount);
     }
 
+    function test_pre_challenge_order(
+        uint256 inputAmount,
+        uint256 outputAmount
+    ) public approvedAndMinted(SWAPPER, tokenToSwapInput, inputAmount, outputAmount, 1000) {
+        (CrossChainOrder memory order, bytes memory signature) =
+            _prepareInitiateOrder(1, SWAPPER, inputAmount, outputAmount, 1000, 0, fillerAddress, DEFAULT_INITIATE_DEADLINE, DEFAULT_PROOF_DEADLINE, DEFAULT_PROOF_DEADLINE, DEFAULT_PROOF_DEADLINE);
+
+        vm.prank(fillerAddress);
+        bytes32 okh = reactor.getOrderKeyHash(reactor.initiate(order, signature, fillDataV1));
+        // Check that the order status is challenged
+        OrderStatus status = reactor.getOrderContext(okh).status;
+        address challenger = reactor.getOrderContext(okh).challenger;
+        
+        assertEq(uint8(status), uint8(OrderStatus.Challenged), "Order should be challenged by default");
+        assertEq(challenger, SWAPPER, "Swapper should be challenger");
+    }
+
     function bitmapPositions(
         uint256 nonce
     ) private pure returns (uint256 wordPos, uint256 bitPos) {

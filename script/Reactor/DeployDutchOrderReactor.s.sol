@@ -13,7 +13,7 @@ contract DeployDutchOrderReactor is DeployBaseReactor {
         } else {
             vm.startBroadcast();
         }
-        DutchOrderReactor dutchOrderReactor = new DutchOrderReactor{ salt: bytes32(0) }(PERMIT2, owner);
+        DutchOrderReactor dutchOrderReactor = new DutchOrderReactor{ salt: 0x000000000000000000000000000000000000000077900d21a8f41f01b4e89295 }(PERMIT2, owner);
         vm.stopBroadcast();
 
         return dutchOrderReactor;
@@ -22,4 +22,9 @@ contract DeployDutchOrderReactor is DeployBaseReactor {
     function deploy() external returns (DutchOrderReactor) {
         return deploy(CATALYST_ADDRESS);
     }
+
+    function initCodeHash() external view returns(bytes32) {
+        return keccak256(abi.encodePacked(type(DutchOrderReactor).creationCode, abi.encode(PERMIT2, CATALYST_ADDRESS)));
+    }
+        
 }

@@ -212,9 +212,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
         // If an order has been configured such that it is free to challenge and impossible at the same time
-        // (free === orderKey.collateral.challengerCollateralAmount == 0) && ("impossible" === orderKey.proofDeadline == orderKey.fillDeadline)
+        // (free === orderKey.collateral.challengerCollateralAmount == 0) && ("impossible" === orderKey.proofDeadline == orderKey.challengeDeadline)
         // then it is assumed that the order should be required to be strictly verified. (default challenged)
-        bool defaultChallenge = (reactorInfo.proofDeadline == reactorInfo.fillDeadline) && orderKey.collateral.challengerCollateralAmount == 0;
+        bool defaultChallenge = (reactorInfo.proofDeadline == reactorInfo.challengeDeadline) && (orderKey.collateral.challengerCollateralAmount == 0);
         if (defaultChallenge) orderContext.challenger = orderKey.swapper;
         // Ideally the above section was moved below the orderContext check but there is a stack too deep issue if done so.
 

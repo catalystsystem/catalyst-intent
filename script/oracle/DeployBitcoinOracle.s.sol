@@ -2,9 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { GARPBitcoinOracle } from "../../src/oracles/GARP/GARPBitcoinOracle.sol";
-
-import { IncentivizedMockEscrow } from "GeneralisedIncentives/apps/mock/IncentivizedMockEscrow.sol";
-import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
+import { BitcoinOracle } from "../../src/oracles/BitcoinOracle.sol";
 
 import { BtcPrism } from "bitcoinprism-evm/src/BtcPrism.sol";
 import { Script } from "forge-std/Script.sol";
@@ -33,16 +31,28 @@ contract DeployBitcoinOracle is Script {
         vm.stopBroadcast();
     }
 
-    function deploy(address escrow, address bitcoinPrism) public returns (GARPBitcoinOracle) {
-        return deploy(escrow, bitcoinPrism, address(0));
+    function deployGarped(address escrow, address bitcoinPrism) public returns (GARPBitcoinOracle) {
+        return deployGarped(escrow, bitcoinPrism, address(0));
     }
 
-    function deploy(address escrow, address bitcoinPrism, address owner) public returns (GARPBitcoinOracle) {
+    function deployGarped(address escrow, address bitcoinPrism, address owner) public returns (GARPBitcoinOracle) {
         vm.startBroadcast();
         GARPBitcoinOracle bitcoinOracle = new GARPBitcoinOracle{ salt: bytes32(0) }(owner, escrow, bitcoinPrism);
         vm.stopBroadcast();
 
         return bitcoinOracle;
+    }
+
+    function deploy(address bitcoinPrism) public returns (BitcoinOracle) {
+        vm.startBroadcast();
+        BitcoinOracle bitcoinOracle = new BitcoinOracle{ salt: bytes32(0x000000000000000000000000000000000000000076ce77830937ff0e6538f21b) }(bitcoinPrism);
+        vm.stopBroadcast();
+
+        return bitcoinOracle;
+    }
+
+    function initCodeHashBitcoin() external view returns(bytes32) {
+        return keccak256(abi.encodePacked(type(BitcoinOracle).creationCode, abi.encode(address(0x0000003679fAe542877B410965d7bDF215345f33))));
     }
 
     //--- Prism helpers ---//

@@ -35,7 +35,7 @@ contract TestBitcoinOracle is Test, DeployBitcoinOracle {
 
         BtcPrism btcPrism = deployBitcoinPrism(blockHeight, blockHash, blockTime, expectedTarget, isTestnet);
 
-        bitcoinOracle = deploy(escrowAddress, address(btcPrism));
+        bitcoinOracle = deployGarped(escrowAddress, address(btcPrism));
     }
 
     function test_verify(

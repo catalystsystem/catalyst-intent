@@ -1422,7 +1422,7 @@ abstract contract TestBaseReactor is TestConfig {
         emit InputsFilled(orderHash, MOCK_CALLBACK_DATA);
         vm.expectCall(
             address(mockCallbackExecutor),
-            abi.encodeWithSignature("inputsFilled(bytes32,bytes)", orderHash, MOCK_CALLBACK_DATA)
+            abi.encodeWithSignature("inputsFilled(bytes32,(address,uint256)[],bytes)", orderHash, orderKey.inputs, MOCK_CALLBACK_DATA)
         );
         reactor.optimisticPayout(orderKey, MOCK_CALLBACK_DATA_WITH_ADDRESS);
     }
@@ -1491,7 +1491,7 @@ abstract contract TestBaseReactor is TestConfig {
         emit InputsFilled(orderHash, newMockData);
         vm.expectCall(
             address(mockCallbackExecutor),
-            abi.encodeWithSignature("inputsFilled(bytes32,bytes)", orderHash, newMockData)
+            abi.encodeWithSignature("inputsFilled(bytes32,(address,uint256)[],bytes)", orderHash, orderKey.inputs, newMockData)
         );
         reactor.purchaseOrder(orderKey, newFillerDataWithExecutionData, 0);
 

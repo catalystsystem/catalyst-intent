@@ -59,14 +59,14 @@ library FillerDataLib {
      * some information from the storage or related. (we only 0 the fillerAddress).
      * @param executionData Execution data with the destination encoded in the first 20 bytes.
      */
-    function execute(bytes32 identifier, bytes32 orderKeyHash, bytes calldata executionData) internal {
+    function execute(bytes32 identifier, bytes32 orderKeyHash, Input[] memory inputs, bytes calldata executionData) internal {
         if (identifier != keccak256(executionData)) revert IdentifierMismatch();
 
         address toCall = address(bytes20(executionData[0:20]));
         bytes calldata dataToCall = executionData[20:];
 
         // Importantly, notice that an order cannot be purchased if this call reverts.
-        ICrossCatsCallback(toCall).inputsFilled(orderKeyHash, dataToCall);
+        ICrossCatsCallback(toCall).inputsFilled(orderKeyHash, inputs, dataToCall);
     }
 
     //--- Version 1 ---/

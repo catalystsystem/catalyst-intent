@@ -11,6 +11,20 @@ import { BaseReactor } from "./BaseReactor.sol";
 contract LimitOrderReactor is BaseReactor {
     constructor(address permit2, address owner) payable BaseReactor(permit2, owner) { }
 
+    function _getMaxInputs(
+        CrossChainOrder calldata order
+    )
+        internal
+        override
+        pure
+        returns(
+            Input[] memory inputs
+        )
+    {
+        CatalystLimitOrderData memory limitOrderData = CrossChainLimitOrderType.decodeOrderData(order.orderData);
+        return limitOrderData.inputs;
+    }
+
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */

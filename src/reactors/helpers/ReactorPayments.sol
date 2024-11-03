@@ -55,12 +55,12 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
      * @param inputs Tokens to collect from msg.sender.
      * @param to Destination address for the collected tokens. To collect to this contract, set address(this).
      */
-    function _collectTokensFromMsgSender(Input[] calldata inputs, address to, uint16 discount) internal virtual {
+    function _collectTokensFromMsgSender(Input[] memory inputs, address to, uint16 discount) internal virtual {
         address from = msg.sender;
         uint256 numInputs = inputs.length;
         unchecked {
             for (uint256 i = 0; i < numInputs; ++i) {
-                Input calldata input = inputs[i];
+                Input memory input = inputs[i];
                 address token = input.token;
                 uint256 amount = input.amount;
                 // If discount == 0, then set amount to amount.
@@ -80,11 +80,11 @@ abstract contract ReactorPayments is CanCollectGovernanceFee {
      * @param inputs List of inputs that are to be paid.
      * @param to Destination address.
      */
-    function _deliverTokens(Input[] calldata inputs, address to, uint256 fee) internal virtual {
+    function _deliverTokens(Input[] memory inputs, address to, uint256 fee) internal virtual {
         // Read governance fee.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            Input calldata input = inputs[i];
+            Input memory input = inputs[i];
             address token = input.token;
             // Collect governance fee. Importantly, this also sets the value as collected.
             uint256 amount = input.amount;

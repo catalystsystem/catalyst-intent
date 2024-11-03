@@ -51,7 +51,7 @@ contract DeployBitcoinOracle is Script {
         return bitcoinOracle;
     }
 
-    function initCodeHashBitcoin() external view returns(bytes32) {
+    function initCodeHashBitcoin() external pure returns(bytes32) {
         return keccak256(abi.encodePacked(type(BitcoinOracle).creationCode, abi.encode(address(0x0000003679fAe542877B410965d7bDF215345f33))));
     }
 

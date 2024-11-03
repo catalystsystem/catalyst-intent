@@ -108,13 +108,23 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     event OrderBroadcast(bytes32 indexed orderHash, CrossChainOrder order, bytes signature);
 
     /**
+     * @notice OrderHash
+     */
+    event OrderDeposited(CrossChainOrder order);
+
+    //--- Mappings ---//
+
+    /**
      * @notice Maps an orderkey hash to the relevant orderContext.
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
 
+    mapping(bytes32 crossChainOrderHash => bool) internal _deposits;
+
+
     constructor(address permit2, address owner) payable ReactorPayments(permit2, owner) { }
 
-    //--- Expose Storage ---//
+    //--- Hashing Orders ---//
 
     function _orderKeyHash(
         OrderKey memory orderKey
@@ -128,6 +138,20 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         return orderKeyHash = _orderKeyHash(orderKey);
     }
 
+    function _crossChainOrderHash(
+        CrossChainOrder calldata order
+    ) internal pure returns (bytes32 crossChainOrderHash) {
+        return crossChainOrderHash = keccak256(abi.encode(order));
+    }
+
+    function getCrossChainOrderHash(
+        CrossChainOrder calldata order
+    ) external pure returns (bytes32 crossChainOrderHash) {
+        return crossChainOrderHash = _crossChainOrderHash(order);
+    }
+
+    //--- Expose Storage ---//
+
     function getOrderContext(
         bytes32 orderKeyHash
     ) external view returns (OrderContext memory orderContext) {
@@ -140,17 +164,15 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         return orderContext = _orders[_orderKeyHash(orderKey)];
     }
 
+    function getDepositStatus(
+        CrossChainOrder calldata order
+    ) external view returns (bool) {
+        return _deposits[_crossChainOrderHash(order)];
+    }
+
     //--- On-chain orderbook ---//
 
-    /**
-     * @notice Allows submitting order without an order server.
-     * This can be used to bypass censorship or to make a on-chain transaction.
-     * This contract is not sufficient and will allow invalid orders. It is expected that an off-chain entity will filter orders.
-     */
-    function broadcast(
-        CrossChainOrder calldata order,
-        bytes calldata signature
-    ) external {
+    modifier preVerification(CrossChainOrder calldata order) {
         // Check if this is the right contract.
         if (order.settlementContract != address(this)) revert InvalidSettlementAddress();
         // Check if the expected chain of the order is the rigtht one.
@@ -162,9 +184,67 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
         // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
         if (order.fillDeadline < order.initiateDeadline) revert InitiateDeadlineAfterFill();
+        
+        // Notice that the 2 above checks also ensures that order.fillDeadline > block.timestamp since
+        // block.timestamp <= order.initiateDeadline && order.initiateDeadline <= order.fillDeadline
+        // => block.timestamp <= order.fillDeadline
+        _;
+    }
 
+    /**
+     * @notice Allows submitting order without an order server.
+     * This can be used to bypass censorship or to make a on-chain transaction.
+     * This contract is not sufficient and will allow invalid orders. It is expected that an off-chain entity will filter orders.
+     */
+    function broadcast(
+        CrossChainOrder calldata order,
+        bytes calldata signature
+    ) external preVerification(order) {
         bytes32 orderHash = _orderKeyHash(_resolveKey(order, signature[0:0]));
         emit OrderBroadcast(orderHash, order, signature);
+    }
+
+    /**
+     * @notice Pre-order initiation function. Is intended to be used to compose
+     * @dev Is deposited to order.Swapper.
+     * Note! The nonce is ignored for this use case. Each deposit remains valid perpetually.
+     * After expiry, anyone can call the assets back to the swapper be canceling the order.
+     * The swapper can cancel the order early.
+     * 
+     */
+    function deposit(
+        CrossChainOrder calldata order
+    ) external preVerification(order) {
+        // Check that no existing deposit exists.
+        bool deposited = _deposits[_crossChainOrderHash(order)];
+        if (deposited) require(false);
+        // Set the deposit flag early to protect against reentry.
+        _deposits[_crossChainOrderHash(order)] = true;
+        
+        Input[] memory inputs = _getMaxInputs(order);
+        address to = address(this);
+        uint16 discount = uint16(0);
+        _collectTokensFromMsgSender(inputs, to, discount);
+
+        emit OrderDeposited(order);
+    }
+
+    /**
+     * @notice Allows someone to cancel an order early or collect a deposit that was never claimed by a solver.
+     * 
+     */
+    function cancel(
+        CrossChainOrder calldata order
+    ) external {
+        // If the initiate deadline hasn't been passed, the caller needs to be msg.sender.
+        if (order.initiateDeadline < block.timestamp && order.swapper != msg.sender) require(false, "TODO");
+
+        bool deposited = _deposits[_crossChainOrderHash(order)];
+        if (!deposited) require(false);
+        _deposits[_crossChainOrderHash(order)] = false;
+
+        Input[] memory inputs = _getMaxInputs(order);
+        _deliverTokens(inputs, order.swapper, 0);
     }
 
     //--- Order Handling ---//
@@ -186,29 +266,14 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * and the user will be set as the default challenger.
      * @param order The CrossChainOrder definition
      * @param signature The end user signature for the order
+     * If an order has already been deposited, the signature is ignored.
      * @param fillerData Any filler-defined data required by the settler
      */
     function initiate(
         CrossChainOrder calldata order,
         bytes calldata signature,
         bytes calldata fillerData
-    ) external returns (OrderKey memory orderKey) {
-        // Check if this is the right contract.
-        if (order.settlementContract != address(this)) revert InvalidSettlementAddress();
-        // Check if the expected chain of the order is the rigtht one.
-        if (order.originChainId != block.chainid) revert WrongChain(uint32(block.chainid), order.originChainId);
-
-        // Check if initiate Deadline has passed.
-        if (order.initiateDeadline < block.timestamp) revert InitiateDeadlinePassed();
-
-        // The order initiation must be less than the fill deadline. Both of them cannot be the current time as well.
-        // Fill deadline must be after initiate deadline. Otherwise the solver is prone to making a mistake.
-        if (order.fillDeadline < order.initiateDeadline) revert InitiateDeadlineAfterFill();
-
-        // Notice that the 2 above checks also ensures that order.fillDeadline > block.timestamp since
-        // block.timestamp <= order.initiateDeadline && order.initiateDeadline <= order.fillDeadline
-        // => block.timestamp <= order.fillDeadline
-
+    ) external preVerification(order) returns (OrderKey memory orderKey) {
         // Decode filler data.
         (
             address fillerAddress,
@@ -250,13 +315,15 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         if (defaultChallenge) orderContext.challenger = orderKey.swapper;
         // Ideally the above section was moved below the orderContext check but there is a stack too deep issue if done so.
 
-        if (orderContext.status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext.status);
+        OrderStatus status = orderContext.status;
+        if (status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext.status);
         orderContext.status = defaultChallenge ? OrderStatus.Challenged : OrderStatus.Claimed; // Now this order cannot be claimed again.
         orderContext.fillerAddress = fillerAddress;
         orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
         orderContext.orderPurchaseDiscount = orderPurchaseDiscount;
         // Identifier is in its own storage slot.
         if (identifier != bytes32(0)) orderContext.identifier = identifier;
+
 
         // Check if the collateral token is indeed a contract. SafeTransferLib does not revert on no code.
         // This is important, since a later deployed token can screw up the whole pipeline.
@@ -266,10 +333,16 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
             orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
         );
 
-        // Collect input tokens from user.
-        _collectTokensViaPermit2(
-            orderKey, permittedAmounts, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature
-        );
+        // Check if a user has already deposited for this order.
+        bool deposited = _deposits[_crossChainOrderHash(order)];
+        if (deposited) _deposits[_crossChainOrderHash(order)] = false;
+
+        if (!deposited) {
+            // Collect input tokens from user.
+            _collectTokensViaPermit2(
+                orderKey, permittedAmounts, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature
+            );
+        }
 
         emit OrderInitiated(orderHash, msg.sender, fillerData, orderKey);
     }

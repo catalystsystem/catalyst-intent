@@ -45,14 +45,14 @@ contract DeployBitcoinOracle is Script {
 
     function deploy(address bitcoinPrism) public returns (BitcoinOracle) {
         vm.startBroadcast();
-        BitcoinOracle bitcoinOracle = new BitcoinOracle{ salt: bytes32(0x000000000000000000000000000000000000000076ce77830937ff0e6538f21b) }(bitcoinPrism);
+        BitcoinOracle bitcoinOracle = new BitcoinOracle{ salt: bytes32(0x22694c56b29a7d25cbc6dddf3e97a712f46cca66f4d932f2a5afb4c830ac87bd) }(bitcoinPrism);
         vm.stopBroadcast();
 
         return bitcoinOracle;
     }
 
     function initCodeHashBitcoin() external view returns(bytes32) {
-        return keccak256(abi.encodePacked(type(BitcoinOracle).creationCode, abi.encode(address(0x0000003679fAe542877B410965d7bDF215345f33))));
+        return keccak256(abi.encodePacked(type(BitcoinOracle).creationCode, abi.encode(address(0x00000000fA2e1B15E3fa9a8aad01605355d98F0f))));
     }
 
     //--- Prism helpers ---//

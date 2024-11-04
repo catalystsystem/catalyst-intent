@@ -14,6 +14,38 @@ import { BaseReactor } from "./BaseReactor.sol";
 contract DutchOrderReactor is BaseReactor {
     constructor(address permit2, address owner) payable BaseReactor(permit2, owner) { }
 
+    function _getMaxInputs(
+        CrossChainOrder calldata order
+    )
+        internal
+        override
+        pure
+        returns(
+            Input[] memory inputs
+        )
+    {
+        CatalystDutchOrderData memory dutchOrderData = CrossChainDutchOrderType.decodeOrderData(order.orderData);
+        uint256 slopeStartingTime = dutchOrderData.slopeStartingTime;
+        uint256 initiateDeadline = order.initiateDeadline;
+        uint256 maxTimePass;
+        unchecked {
+            // unchecked: order.initiateDeadline > dutchOrderData.slopeStartingTime
+            // If initiateDeadline >= slopeStartingTime then the maximum difference is their difference.
+            // If initiateDeadline < slopeStartingTime then the slope can never start.
+            maxTimePass = initiateDeadline >= slopeStartingTime ? initiateDeadline - slopeStartingTime : 0;
+        }
+        inputs = dutchOrderData.inputs;
+        uint256 numInputs = inputs.length;
+        for (uint256 i = 0; i < numInputs; ++i) {
+            // The permitted amount is the max of slope.
+            int256 slope = dutchOrderData.inputSlopes[i];
+            inputs[i].amount = slope <= 0
+                ? inputs[i].amount // If slope is negative, then the max is the start.
+                : inputs[i].amount + uint256(slope) * maxTimePass; // If slope is positive, then the max is
+                // the end.
+        }
+    }
+
     function _initiate(
         CrossChainOrder calldata order,
         bytes calldata /* fillerData */

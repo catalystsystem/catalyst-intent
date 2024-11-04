@@ -26,6 +26,20 @@ abstract contract ReactorAbstractions is ISettlementContract {
             bytes32 witness,
             string memory witnessTypeString
         );
+    
+    /**
+     * @notice Returns the maximum inputs that a given order requires to be initiated.
+     * Is used for the deposit function for composability.
+     */
+    function _getMaxInputs(
+        CrossChainOrder calldata order
+    )
+        internal
+        virtual
+        pure
+        returns(
+            Input[] memory inputs
+        );
 
     /**
      * @notice Logic function for resolveKey(...).

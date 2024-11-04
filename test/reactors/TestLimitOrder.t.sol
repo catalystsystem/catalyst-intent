@@ -354,7 +354,7 @@ contract TestLimitOrder is TestBaseReactor, DeployLimitOrderReactor {
         uint256 outputAmount,
         uint256 fillerCollateralAmount,
         uint256 challengerCollateralAmount,
-        address fillerSender,
+        address /* fillerSender */,
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,

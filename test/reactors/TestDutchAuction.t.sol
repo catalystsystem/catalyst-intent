@@ -613,7 +613,7 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         uint256 _outputAmount,
         uint256 _fillerCollateralAmount,
         uint256 _challengerCollateralAmount,
-        address _fillerSender,
+        address /* _fillerSender */,
         uint32 initiateDeadline,
         uint32 fillDeadline,
         uint32 challengeDeadline,

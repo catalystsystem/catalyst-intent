@@ -18,8 +18,11 @@ import { FillerDataLib } from "../libs/FillerDataLib.sol";
 import { IsContractLib } from "../libs/IsContractLib.sol";
 
 import {
+    CannotCancelOrder,
     CannotProveOrder,
     ChallengeDeadlinePassed,
+    DepositDoesntExist,
+    DepositExists,
     InitiateDeadlineAfterFill,
     InitiateDeadlinePassed,
     InvalidDeadlineOrder,
@@ -217,7 +220,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     ) external preVerification(order) {
         // Check that no existing deposit exists.
         bool deposited = _deposits[_crossChainOrderHash(order)];
-        if (deposited) require(false);
+        if (deposited) revert DepositExists();
         // Set the deposit flag early to protect against reentry.
         _deposits[_crossChainOrderHash(order)] = true;
         
@@ -237,10 +240,10 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         CrossChainOrder calldata order
     ) external {
         // If the initiate deadline hasn't been passed, the caller needs to be msg.sender.
-        if (order.initiateDeadline < block.timestamp && order.swapper != msg.sender) require(false, "TODO");
+        if (order.initiateDeadline < block.timestamp && order.swapper != msg.sender) revert CannotCancelOrder();
 
         bool deposited = _deposits[_crossChainOrderHash(order)];
-        if (!deposited) require(false);
+        if (!deposited) revert DepositDoesntExist();
         _deposits[_crossChainOrderHash(order)] = false;
 
         Input[] memory inputs = _getMaxInputs(order);

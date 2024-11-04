@@ -3,9 +3,12 @@ pragma solidity >=0.8.0;
 
 import { OrderContext, OrderStatus } from "../interfaces/Structs.sol";
 
+error CannotCancelOrder(); // 0xfed398fc
 error CannotProveOrder(); // 0x5276f999
 error ChallengeDeadlinePassed(); // 0x9b741c77
 error CodeSize0(); // 0xfbc1d8e2
+error DepositDoesntExist(); // 0x04ba96b1
+error DepositExists(); // 0xad2fa98e
 error FailedValidation(); // 0xbba6fbc6
 error FillDeadlineFarInFuture(); // 0x9dcd54b9
 error FillDeadlineInPast(); // 0x8cddc02b

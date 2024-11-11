@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { Ownable } from "solady/src/auth/Ownable.sol";
+import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
 import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
 import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
+
+import { WormholeVerifier } from "./external/callworm/WormholeVerifier.sol";
+import { SmallStructs } from "./external/callworm/SmallStructs.sol";
+
+import { IWormhole } from "./interfaces/IWormhole.sol";
 
 import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
 import { OutputDescription } from "../../interfaces/Structs.sol";
@@ -13,31 +18,15 @@ import { BaseOracle } from "../BaseOracle.sol";
 
 import "../OraclePayload.sol";
 
-interface IIncentivizedMessageEscrowProofValidPeriod is IIncentivizedMessageEscrow {
-    function proofValidPeriod(
-        bytes32 destinationIdentifier
-    ) external view returns (uint64 duration);
-}
-
 /**
  * @dev Oracles are also fillers
  */
-abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver, IMessageEscrowStructs, Ownable {
+abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier {
     error NotApproved();
     error AlreadySet();
     error RemoteCallTooLarge();
 
     event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
-
-    /**
-     * @notice Only allow the message escrow to call these functions
-     */
-    modifier onlyEscrow() {
-        if (msg.sender != address(escrow)) revert NotApproved();
-        _;
-    }
-
-    IIncentivizedMessageEscrowProofValidPeriod public immutable escrow;
 
     /**
      * @notice Takes a messagingProtocolChainIdentifier and returns the expected (and configured)
@@ -46,49 +35,33 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
      * understand chain ids that match the most coming identifier for chains. (their actual
      * identifier) rather than an arbitrary number that most messaging protocols use.
      */
-    mapping(bytes32 messagingProtocolChainIdentifier => uint32 blockChainId) _chainIdentifierToBlockChainId;
-    mapping(uint32 blockChainId => bytes32 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
+    mapping(uint16 messagingProtocolChainIdentifier => uint32 blockChainId) _chainIdentifierToBlockChainId;
+    mapping(uint32 blockChainId => uint16 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
 
-    constructor(address _owner, address _escrow) payable {
-        _initializeOwner(_owner);
-        escrow = IIncentivizedMessageEscrowProofValidPeriod(_escrow);
+    // For EVM it is generally set that 15 => Finality
+    uint8 constant WORMHOLE_CONSISTENCY = 15;
+
+    IWormhole public immutable WORMHOLE;
+
+    constructor(address _wormhole) payable {
+        WORMHOLE = IWormhole(_wormhole);
     }
 
     //-- View Functions --//
 
     function getChainIdentifierToBlockChainId(
-        bytes32 messagingProtocolChainIdentifier
+        uint16 messagingProtocolChainIdentifier
     ) external view returns (uint32) {
         return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
     }
 
     function getBlockChainIdtoChainIdentifier(
         uint32 chainId
-    ) external view returns (bytes32) {
+    ) external view returns (uint16) {
         return _blockChainIdToChainIdentifier[chainId];
     }
 
     //--- Sending Proofs & Generalised Incentives ---//
-
-    /**
-     * @notice Defines the remote messaging protocol.
-     * @dev Can only be called once for each chain.
-     */
-    function setRemoteImplementation(
-        bytes32 chainIdentifier,
-        uint32 blockChainIdOfChainIdentifier,
-        bytes calldata implementation
-    ) external onlyOwner {
-        //  escrow.setRemoteImplementation does not allow calling multiple times.
-        escrow.setRemoteImplementation(chainIdentifier, implementation);
-
-        // Check that we havn't set blockChainIdOfChainIdentifier yet.
-        if (_blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] != bytes32(0)) revert AlreadySet();
-    
-        _blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] = chainIdentifier;
-        _chainIdentifierToBlockChainId[chainIdentifier] = blockChainIdOfChainIdentifier;
-        emit MapMessagingProtocolIdentifierToChainId(chainIdentifier, blockChainIdOfChainIdentifier);
-    }
 
     /**
      * @notice Submits a proof the associated messaging protocol.
@@ -101,30 +74,25 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
      * or has been proven. When using this function, it is important to ensure that these outputs
      * are true AND these proofs were created by this (or the inheriting) contract.
      * @param fillDeadlines The fill times associated with the outputs. Used to match against the order.
-     * @param destinationIdentifier Chain id to send the order to. Is based on the messaging
-     * protocol.
-     * @param destinationAddress Oracle address on the destination.
-     * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
      */
     function _submit(
         OutputDescription[] calldata outputs,
-        uint32[] calldata fillDeadlines,
-        bytes32 destinationIdentifier,
-        bytes calldata destinationAddress,
-        IncentiveDescription calldata incentive
+        uint32[] calldata fillDeadlines
     ) internal {
         // This call fails if fillDeadlines.length < outputs.length
         bytes memory message = _encode(outputs, fillDeadlines);
 
-        // Read proofValidPeriod from the escrow. We will set this optimally for the caller.
-        uint64 proofValidPeriod = escrow.proofValidPeriod(destinationIdentifier);
-        unchecked {
-            // Unchecked: timestamps doesn't overflow in uint64.
-            uint64 deadline = proofValidPeriod == 0 ? 0 : uint64(block.timestamp) + proofValidPeriod;
+        uint256 packageCost = WORMHOLE.messageFee();
+        WORMHOLE.publishMessage{value: packageCost}(
+            0,
+            message,
+            WORMHOLE_CONSISTENCY
+        );
 
-            escrow.submitMessage{ value: msg.value }(
-                destinationIdentifier, destinationAddress, message, incentive, deadline
-            );
+        // Refund excess value if any.
+        if (msg.value > packageCost) {
+            uint256 refund = msg.value - packageCost;
+            SafeTransferLib.safeTransferETH(msg.sender, refund);
         }
     }
 
@@ -137,17 +105,10 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
      * outputs.length.
      * @param outputs Outputs to prove. This function validates that the outputs has been correct set.
      * @param fillDeadlines The fill times associated with the outputs. Used to match against the order.
-     * @param destinationIdentifier Messaging protocol's chain identifier to send the order to. Is not the same as
-     * chainId.
-     * @param destinationAddress Oracle address on the destination.
-     * @param incentive Generalised Incentives messaging incentive. Can be set very low if caller self-relays.
      */
     function submit(
         OutputDescription[] calldata outputs,
-        uint32[] calldata fillDeadlines,
-        bytes32 destinationIdentifier,
-        bytes calldata destinationAddress,
-        IncentiveDescription calldata incentive
+        uint32[] calldata fillDeadlines
     ) external payable {
         // The follow code chunk will fail if fillDeadlines.length > outputs.length.
         uint256 numFillDeadlines = fillDeadlines.length;
@@ -165,24 +126,21 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
             }
         }
         // The submit call will fail if fillDeadlines.length < outputs.length
-        _submit(outputs, fillDeadlines, destinationIdentifier, destinationAddress, incentive);
+        _submit(outputs, fillDeadlines);
     }
 
     function receiveMessage(
-        bytes32 sourceIdentifierbytes,
-        bytes32, /* messageIdentifier */
-        bytes calldata fromApplication,
-        bytes calldata message
-    ) external onlyEscrow returns (bytes memory acknowledgement) {
-        // Length of fromApplication is 65 bytes. We need the last 32 bytes.
-        bytes32 remoteOracle = bytes32(fromApplication[65 - 32:]);
+        bytes calldata rawMessage
+    ) external {
+        (uint16 sourceIdentifier, bytes32 remoteOracle, bytes calldata message) = _verifyPacket(rawMessage);
+
         (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) = _decode(message, remoteOracle);
 
         // set the proof locally.
         uint256 numOutputs = outputs.length;
 
         // Load the expected chainId (not the messaging protocol identifier).
-        uint32 expectedBlockChainId = _chainIdentifierToBlockChainId[sourceIdentifierbytes];
+        uint32 expectedBlockChainId = _chainIdentifierToBlockChainId[sourceIdentifier];
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription memory output = outputs[i];
             // Check if sourceIdentifierbytes matches the output.
@@ -197,15 +155,31 @@ abstract contract GeneralisedIncentivesOracle is BaseOracle, ICrossChainReceiver
         }
 
         // We don't care about the ack.
-        return hex"";
     }
 
-    function receiveAck(
-        bytes32, /* destinationIdentifier */
-        bytes32, /* messageIdentifier */
-        bytes calldata /* acknowledgement */
-    ) external onlyEscrow {
-        // We don't do anything on ack.
+    /** @dev _message is the entire Wormhole VAA. It contains both the proof & the message as a slice. */
+    function _verifyPacket(bytes calldata _message) internal view returns(uint16 sourceIdentifier, bytes32 implementationIdentifier, bytes calldata message_) {
+
+        // Decode & verify the VAA.
+        // This uses the custom verification logic found in ./external/callworm/WormholeVerifier.sol.
+        (
+            SmallStructs.SmallVM memory vm,
+            bytes calldata payload,
+            bool valid,
+            string memory reason
+        ) = parseAndVerifyVM(_message);
+
+        // This is the preferred flow used by Wormhole.
+        require(valid, reason);
+
+        // Get the identifier for the source chain.
+        sourceIdentifier = vm.emitterChainId;
+
+        // Load the identifier for the calling contract.
+        implementationIdentifier = vm.emitterAddress;
+
+        // Get the application message.
+        message_ = payload[32:];
     }
 
     //--- Message Encoding & Decoding ---//

@@ -65,7 +65,8 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
 
     /**
      * @notice Submits a proof the associated messaging protocol.
-     * @dev Does not check implement any check on the outputs.
+     * @dev Refunds excess value ot msg.sender. 
+     * Does not check implement any check on the outputs.
      * It is expected that this proof will arrive at a supported oracle (destinationAddress)
      * and where the proof of fulfillment is needed.
      * fillDeadlines.length < outputs.length is checked but fillDeadlines.length > outputs.length is not.
@@ -83,7 +84,7 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
         bytes memory message = _encode(outputs, fillDeadlines);
 
         uint256 packageCost = WORMHOLE.messageFee();
-        WORMHOLE.publishMessage{value: packageCost}(
+        WORMHOLE.publishMessage{value: packageCost} (
             0,
             message,
             WORMHOLE_CONSISTENCY
@@ -97,7 +98,7 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
     }
 
     /**
-     * @notice Submits a proof the associated messaging protocol.
+     * @notice Release a wormhole VAA.
      * @dev It is expected that this proof will arrive at a supported oracle (destinationAddress)
      * and where the proof of fulfillment is needed.
      * It is required that outputs.length == fillDeadlines.length. This is checked through 2 indirect checks of
@@ -125,7 +126,8 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
                 }
             }
         }
-        // The submit call will fail if fillDeadlines.length < outputs.length
+        // The submit call will fail if fillDeadlines.length < outputs.length.
+        // This call also refunds excess value sent.
         _submit(outputs, fillDeadlines);
     }
 
@@ -136,7 +138,6 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
 
         (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) = _decode(message, remoteOracle);
 
-        // set the proof locally.
         uint256 numOutputs = outputs.length;
 
         // Load the expected chainId (not the messaging protocol identifier).
@@ -153,8 +154,6 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
 
             emit OutputProven(fillDeadline, outputHash);
         }
-
-        // We don't care about the ack.
     }
 
     /** @dev _message is the entire Wormhole VAA. It contains both the proof & the message as a slice. */
@@ -168,6 +167,7 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
             bool valid,
             string memory reason
         ) = parseAndVerifyVM(_message);
+        message_ = payload;
 
         // This is the preferred flow used by Wormhole.
         require(valid, reason);
@@ -178,8 +178,6 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
         // Load the identifier for the calling contract.
         implementationIdentifier = vm.emitterAddress;
 
-        // Get the application message.
-        message_ = payload[32:];
     }
 
     //--- Message Encoding & Decoding ---//

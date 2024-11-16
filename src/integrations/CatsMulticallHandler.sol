@@ -46,6 +46,36 @@ contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         _;
     }
 
+    /**
+     * @notice Main entrypoint for the handler called by the SpokePool contract.
+     * @dev This will execute all calls encoded in the msg. The caller is responsible for making sure all tokens are
+     * drained from this contract by the end of the series of calls. If not, they can be stolen.
+     * A drainLeftoverTokens call can be included as a way to drain any remaining tokens from this contract.
+     * @param message abi encoded array of Call structs, containing a target, callData, and value for each call that
+     * the contract should make.
+     */
+    function handleV3AcrossMessage(
+        address token,
+        uint256,
+        address,
+        bytes memory message
+    ) external nonReentrant {
+        Instructions memory instructions = abi.decode(message, (Instructions));
+
+        // If there is no fallback recipient, call and revert if the inner call fails.
+        if (instructions.fallbackRecipient == address(0)) {
+            this.attemptCalls(instructions.calls);
+            return;
+        }
+
+        // Otherwise, try the call and send to the fallback recipient if any tokens are leftover.
+        (bool success, ) = address(this).call(abi.encodeCall(this.attemptCalls, (instructions.calls)));
+        if (!success) emit CallsFailed(instructions.calls, instructions.fallbackRecipient);
+
+        // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
+        _drainRemainingTokens(token, payable(instructions.fallbackRecipient));
+    }
+
     function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
         // Max 1 input that matches token and amount.

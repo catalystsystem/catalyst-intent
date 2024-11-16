@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { Ownable } from "solady/src/auth/Ownable.sol";
+
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
@@ -18,15 +20,16 @@ import { BaseOracle } from "../BaseOracle.sol";
 
 import "../OraclePayload.sol";
 
+
+import "forge-std/console.sol";
 /**
  * @dev Oracles are also fillers
  */
-abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier {
-    error NotApproved();
+abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, Ownable {
     error AlreadySet();
     error RemoteCallTooLarge();
 
-    event MapMessagingProtocolIdentifierToChainId(bytes32 messagingProtocolIdentifier, uint32 chainId);
+    event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint32 chainId);
 
     /**
      * @notice Takes a messagingProtocolChainIdentifier and returns the expected (and configured)
@@ -43,7 +46,8 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
 
     IWormhole public immutable WORMHOLE;
 
-    constructor(address _wormhole) payable {
+    constructor(address _owner, address _wormhole) payable WormholeVerifier(_wormhole) {
+        _initializeOwner(_owner);
         WORMHOLE = IWormhole(_wormhole);
     }
 
@@ -59,6 +63,24 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
         uint32 chainId
     ) external view returns (uint16) {
         return _blockChainIdToChainIdentifier[chainId];
+    }
+
+    //--- Chain config ---//
+
+    /**
+     * @notice Defines the map between the messaging protocol and chainIds.
+     * @dev Can only be called once for each chain.
+     */
+    function setRemoteImplementation(
+        uint16 chainIdentifier,
+        uint32 blockChainIdOfChainIdentifier
+    ) external onlyOwner {
+        // Check that we havn't set blockChainIdOfChainIdentifier yet.
+        if (_blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] != 0) revert AlreadySet();
+    
+        _blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] = chainIdentifier;
+        _chainIdentifierToBlockChainId[chainIdentifier] = blockChainIdOfChainIdentifier;
+        emit MapMessagingProtocolIdentifierToChainId(chainIdentifier, blockChainIdOfChainIdentifier);
     }
 
     //--- Sending Proofs & Generalised Incentives ---//

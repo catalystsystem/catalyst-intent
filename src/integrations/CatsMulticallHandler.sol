@@ -8,12 +8,14 @@ import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
 import { Input } from "../interfaces/Structs.sol";
 
 /**
- * @title Allows a user to specify a series of calls that should be made
- * by the handler via the message field in the deposit.
+ * @title Allows a user to specify a series of calls that should be made by the handler
+ * via the message field in the deposit.
  * @notice Fork of Across Multicall Contract.
- * @dev This contract makes the calls blindly. The contract will send any remaining tokens The caller should ensure that the tokens received by the handler are completely consumed.
+ * @dev This contract makes the calls blindly.
+ * The caller should ensure that the tokens received by the handler are completely consumed
+ * otherwise they will be left in the contract free to take for next the next caller.
  */
-contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
+contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
 
     struct Call {
         address target;
@@ -22,6 +24,8 @@ contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
     }
 
     struct Instructions {
+        // If set to an address (not address(0)), then the tokens sent to this contract on the call
+        // will be approved for this address.
         address setApprovalsUsingInputsFor;
         //  Calls that will be attempted.
         Call[] calls;
@@ -37,17 +41,19 @@ contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
     event DrainedTokens(address indexed recipient, address indexed token, uint256 indexed amount);
 
     // Errors
-    error CallReverted(uint256 index, Call[] calls);
-    error NotSelf();
-    error InvalidCall(uint256 index, Call[] calls);
+    error CallReverted(uint256 index, Call[] calls); // 0xe462c440
+    error NotSelf(); // 0x29c3b7ee
+    error InvalidCall(uint256 index, Call[] calls); // 0xe237730c
 
     modifier onlySelf() {
         _requireSelf();
         _;
     }
 
+    // --- Entrypoints --- //
+
     /**
-     * @notice Main entrypoint for the handler called by the SpokePool contract.
+     * @notice Entrypoint for the handler called by the SpokePool contract.
      * @dev This will execute all calls encoded in the msg. The caller is responsible for making sure all tokens are
      * drained from this contract by the end of the series of calls. If not, they can be stolen.
      * A drainLeftoverTokens call can be included as a way to drain any remaining tokens from this contract.
@@ -56,49 +62,65 @@ contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
      */
     function handleV3AcrossMessage(
         address token,
-        uint256,
+        uint256 amount,
         address,
         bytes memory message
     ) external nonReentrant {
         Instructions memory instructions = abi.decode(message, (Instructions));
 
-        // If there is no fallback recipient, call and revert if the inner call fails.
-        if (instructions.fallbackRecipient == address(0)) {
-            this.attemptCalls(instructions.calls);
-            return;
-        }
+        // Set approvals base on inputs if requested.
+        if (instructions.setApprovalsUsingInputsFor != address(0)) _setApproval(token, amount, instructions.setApprovalsUsingInputsFor);
 
-        // Otherwise, try the call and send to the fallback recipient if any tokens are leftover.
-        (bool success, ) = address(this).call(abi.encodeCall(this.attemptCalls, (instructions.calls)));
-        if (!success) emit CallsFailed(instructions.calls, instructions.fallbackRecipient);
+        // Execute attached instructions
+        _doInstructions(instructions);
 
+        if (instructions.fallbackRecipient == address(0)) return;
         // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
         _drainRemainingTokens(token, payable(instructions.fallbackRecipient));
     }
 
+    /**
+     * @notice Entrypoint for the crosscats handler if an output has been delivered.
+     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else.
+     */
     function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
-        // Max 1 input that matches token and amount.
-        Input memory input = Input({
-            token: address(uint160(uint256(token))),
-            amount: amount
-        });
-        Input[] memory inputs = new Input[](1);
-        inputs[0] = input;
 
-        _doInstructions(instructions, inputs);
+        // Set approvals base on inputs if requested.
+        if (instructions.setApprovalsUsingInputsFor != address(0)) _setApproval(address(uint160(uint256(token))), amount, instructions.setApprovalsUsingInputsFor);
+
+        // Execute attached instructions
+        _doInstructions(instructions);
+
+        if (instructions.fallbackRecipient == address(0)) return;
+        // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
+        _drainRemainingTokens(address(uint160(uint256(token))), payable(instructions.fallbackRecipient));
     }
 
+    /**
+     * @notice Entrypoint for the crosscats handler if inputs are delivered.
+     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else. 
+     */
     function inputsFilled(bytes32 /* orderKeyHash */, Input[] calldata inputs, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
-
-        _doInstructions(instructions, inputs);
-    }
-
-    function _doInstructions(Instructions memory instructions, Input[] memory inputs) internal {
         // Set approvals base on inputs if requested.
         if (instructions.setApprovalsUsingInputsFor != address(0)) _setApprovals(inputs, instructions.setApprovalsUsingInputsFor);
 
+        // Execute attached instructions
+        _doInstructions(instructions);
+
+        if (instructions.fallbackRecipient == address(0)) return;
+        // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
+        uint256 numInputs = inputs.length;
+        for (uint256 i; i < numInputs; ++i) {
+            _drainRemainingTokens(inputs[i].token, payable(instructions.fallbackRecipient));
+        }
+    }
+
+    // --- Code dedublication --- //
+
+    /** @notice Helper function to execute attached instructions. */
+    function _doInstructions(Instructions memory instructions) internal {
         // If there is no fallback recipient, call and revert if the inner call fails.
         if (instructions.fallbackRecipient == address(0)) {
             this.attemptCalls(instructions.calls);
@@ -108,42 +130,27 @@ contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         // Otherwise, try the call and send to the fallback recipient if any tokens are leftover.
         (bool success, ) = address(this).call(abi.encodeCall(this.attemptCalls, (instructions.calls)));
         if (!success) emit CallsFailed(instructions.calls, instructions.fallbackRecipient);
-
-        uint256 numInputs = inputs.length;
-        for (uint256 i; i < numInputs; ++i) {
-            // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
-            _drainRemainingTokens(inputs[i].token, payable(instructions.fallbackRecipient));
-        }
     }
 
-    function _setApprovals(Input[] memory inputs, address to) internal {
+    /** @notice Sets approval for a token. */
+    function _setApproval(address token, uint256 amount, address to) internal {
+        SafeTransferLib.safeApproveWithRetry(token, to, amount);
+    }
+
+    /** @notice Set approvals for a list of tokens. */
+    function _setApprovals(Input[] calldata inputs, address to) internal {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            Input memory input = inputs[i];
+            Input calldata input = inputs[i];
             SafeTransferLib.safeApproveWithRetry(input.token, to, input.amount);
         }
     }
 
-    function attemptCalls(Call[] memory calls) external onlySelf {
-        uint256 length = calls.length;
-        for (uint256 i = 0; i < length; ++i) {
-            Call memory call = calls[i];
-
-            // If we are calling an EOA with calldata, assume target was incorrectly specified and revert.
-            if (call.callData.length > 0 && call.target.code.length == 0) {
-                revert InvalidCall(i, calls);
-            }
-
-            // wake-disable-next-line reentrancy
-            (bool success, ) = call.target.call{ value: call.value }(call.callData);
-            if (!success) revert CallReverted(i, calls);
-        }
-    }
-
-    function drainLeftoverTokens(address token, address payable destination) external onlySelf {
-        _drainRemainingTokens(token, destination);
-    }
-
+    /**
+     * @notice Drain remaining tokens
+     * @param token Token to drain
+     * @param destination Target for the tokens
+     */
     function _drainRemainingTokens(address token, address payable destination) internal {
         if (token != address(0)) {
             // ERC20 token.
@@ -161,6 +168,29 @@ contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         }
     }
 
+    /** @notice External helper to drain remaining tokens. Can be called as an instruction to empty other tokens. */
+    function drainLeftoverTokens(address token, address payable destination) external onlySelf {
+        _drainRemainingTokens(token, destination);
+    }
+
+    // --- Helpers ---//
+
+    function attemptCalls(Call[] memory calls) external onlySelf {
+        uint256 length = calls.length;
+        for (uint256 i = 0; i < length; ++i) {
+            Call memory call = calls[i];
+
+            // If we are calling an EOA with calldata, assume target was incorrectly specified and revert.
+            if (call.callData.length > 0 && call.target.code.length == 0) {
+                revert InvalidCall(i, calls);
+            }
+
+            // wake-disable-next-line reentrancy
+            (bool success, ) = call.target.call{ value: call.value }(call.callData);
+            if (!success) revert CallReverted(i, calls);
+        }
+    }
+    
     function _requireSelf() internal view {
         // Must be called by this contract to ensure that this cannot be triggered without the explicit consent of the
         // depositor (for a valid relay).

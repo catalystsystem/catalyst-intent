@@ -14,6 +14,7 @@ import { BaseReactor } from "./BaseReactor.sol";
 contract DutchOrderReactor is BaseReactor {
     constructor(address permit2, address owner) payable BaseReactor(permit2, owner) { }
 
+    /** @notice This is a copy of the permittedAmounts loop. */
     function _getMaxInputs(
         CrossChainOrder calldata order
     )

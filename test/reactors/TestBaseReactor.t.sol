@@ -67,6 +67,8 @@ abstract contract TestBaseReactor is TestConfig {
     
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
+    event OrderDeposited(CrossChainOrder order);
+
     uint256 DEFAULT_COLLATERAL_AMOUNT = 10 ** 18;
     uint256 DEFAULT_CHALLENGER_COLLATERAL_AMOUNT = 10 ** 19;
 
@@ -1581,6 +1583,94 @@ abstract contract TestBaseReactor is TestConfig {
         // Tested necessary emits and calls before
         vm.expectRevert(FillerDataLib.IdentifierMismatch.selector);
         reactor.purchaseOrder(orderKey, newFillerDataWithExecutionData, 0);
+    }
+
+    //--- Deposit tests ---//
+
+    function test_deposit(
+        uint256 inputAmount,
+        uint256 outputAmount
+    ) public {
+        vm.prank(SWAPPER);
+        MockERC20(tokenToSwapInput).approve(address(reactor), type(uint256).max);
+        MockERC20(tokenToSwapInput).mint(SWAPPER, inputAmount);
+
+        _approveForFiller(fillerAddress, tokenToSwapOutput, type(uint256).max);
+        _approveForFiller(fillerAddress, collateralToken, type(uint256).max);
+
+        MockERC20(tokenToSwapOutput).mint(fillerAddress, outputAmount);
+        MockERC20(collateralToken).mint(fillerAddress, DEFAULT_COLLATERAL_AMOUNT);
+
+        (CrossChainOrder memory order, ) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
+        );
+
+        bool depositStatus = reactor.getDepositStatus(order);
+        assertFalse(depositStatus, "No deposit has been made");
+
+        vm.expectEmit();
+        emit Transfer(SWAPPER, address(reactor), inputAmount);
+        vm.expectEmit();
+        emit OrderDeposited(order);
+
+        vm.prank(SWAPPER);
+        reactor.deposit(order);
+
+        depositStatus = reactor.getDepositStatus(order);
+        assertTrue(depositStatus, "Deposit has been made");
+
+        vm.prank(fillerAddress);
+        reactor.initiate(order, hex"", hex"");
+
+        depositStatus = reactor.getDepositStatus(order);
+        assertFalse(depositStatus, "Deposit has been made but spent");
+    }
+
+    function test_deposit_is_required(
+        uint256 inputAmount,
+        uint256 outputAmount
+    ) public {
+        vm.prank(SWAPPER);
+        MockERC20(tokenToSwapInput).approve(address(reactor), type(uint256).max);
+        MockERC20(tokenToSwapInput).mint(SWAPPER, inputAmount);
+
+        _approveForFiller(fillerAddress, tokenToSwapOutput, type(uint256).max);
+        _approveForFiller(fillerAddress, collateralToken, type(uint256).max);
+
+        MockERC20(tokenToSwapOutput).mint(fillerAddress, outputAmount);
+        MockERC20(collateralToken).mint(fillerAddress, DEFAULT_COLLATERAL_AMOUNT);
+
+        (CrossChainOrder memory order, ) = _getCrossOrderWithWitnessHash(
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            DEFAULT_INITIATE_DEADLINE,
+            DEFAULT_FILL_DEADLINE,
+            DEFAULT_CHALLENGE_DEADLINE,
+            DEFAULT_PROOF_DEADLINE,
+            DEFAULT_ORDER_NONCE
+        );
+
+        vm.expectRevert();
+        vm.prank(fillerAddress);
+        reactor.initiate(order, hex"", hex"");
+
+        vm.prank(SWAPPER);
+        reactor.deposit(order);
+
+        vm.prank(fillerAddress);
+        reactor.initiate(order, hex"", hex"");
     }
 
     //--- Helpers ---//

@@ -66,7 +66,7 @@ struct OutputDescription {
     /**
      * @dev The destination chain for this output.
      */
-    uint32 chainId;
+    uint256 chainId;
     /**
      * @dev Additional data that is relevant for the caller.
      */
@@ -94,10 +94,6 @@ struct OrderKey {
      * This is because swapper & nonce makes a unique pair. (via permit2)
      */
     uint96 nonce;
-    /**
-     * @dev Collateral
-     */
-    Collateral collateral;
     uint32 originChainId;
     /**
      * @dev The oracle that can satisfy a dispute.
@@ -125,10 +121,4 @@ struct ReactorInfo {
     uint32 fillDeadline;
     uint32 challengeDeadline;
     uint32 proofDeadline;
-}
-
-struct Collateral {
-    address collateralToken;
-    uint256 fillerCollateralAmount;
-    uint256 challengerCollateralAmount;
 }

@@ -12,7 +12,7 @@ import { BaseOracle } from "./BaseOracle.sol";
  * @dev Solvers use Oracles to pay outputs. This allows us to record the payment.
  * Tokens never touch this contract but goes directly from solver to user.
  */
-contract BridgeOracle is BaseOracle {
+contract CoinOracle is BaseOracle {
     error NotEnoughGasExecution(); // 0x6bc33587
 
     event OutputFilled(bytes32 outputHash, uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
@@ -102,7 +102,7 @@ contract BridgeOracle is BaseOracle {
         // Validate order context. This lets us ensure that this oracle
         // is the correct oracle to verify output.
         _validateChain(output.chainId);
-        _validateRemoteOracleAddress(output.remoteOracle);
+        _IAmRemoteOracle(output.remoteOracle);
         // Importantly, the above functions ensures that we cannot forward proofs coming
         // from other chains. Only ones that come from our contract.
 
@@ -165,5 +165,11 @@ contract BridgeOracle is BaseOracle {
      */
     function fill(OutputDescription[] calldata outputs, uint32[] calldata fillDeadlines) external {
         _fill(outputs, fillDeadlines);
+    }
+
+
+
+    function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
+        
     }
 }

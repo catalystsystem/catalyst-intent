@@ -5,17 +5,20 @@ import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.so
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
 import { IOracle } from "../interfaces/IOracle.sol";
-import {
-    CrossChainOrder,
-    ISettlementContract,
-    Input,
-    Output,
-    ResolvedCrossChainOrder
-} from "../interfaces/ISettlementContract.sol";
 import { OrderContext, OrderKey, OrderStatus, OutputDescription, ReactorInfo } from "../interfaces/Structs.sol";
 
 import { FillerDataLib } from "../libs/FillerDataLib.sol";
 import { IsContractLib } from "../libs/IsContractLib.sol";
+
+import {
+    GasslessCrossChainOrder,
+    OnchainCrossChainOrder,
+    IOriginSettler
+} from "../interfaces/IERC7683.sol";
+
+import {
+    ITheCompactClaims
+} from "the-compact/src/interfaces/ITheCompactClaims.sol";
 
 import {
     CannotCancelOrder,
@@ -171,14 +174,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         return orderContext = _orders[_orderKeyHash(orderKey)];
     }
 
-    function getDepositStatus(
-        CrossChainOrder calldata order
-    ) external view returns (bool) {
-        return _deposits[_crossChainOrderHash(order)];
-    }
-
-    //--- On-chain orderbook ---//
-
     modifier preVerification(CrossChainOrder calldata order) {
         // Check if this is the right contract.
         if (order.settlementContract != address(this)) revert InvalidSettlementAddress();
@@ -198,65 +193,26 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         _;
     }
 
-    /**
-     * @notice Allows submitting order without an order server.
-     * This can be used to bypass censorship or to make a on-chain transaction.
-     * This contract is not sufficient and will allow invalid orders. It is expected that an off-chain entity will filter orders.
-     */
-    function broadcast(
-        CrossChainOrder calldata order,
-        bytes calldata signature
-    ) external preVerification(order) {
-        bytes32 orderHash = _orderKeyHash(_resolveKey(order, signature[0:0]));
-        emit OrderBroadcast(orderHash, order, signature);
-    }
-
-    /**
-     * @notice Pre-order initiation function. Is intended to be used to compose
-     * @dev Is deposited to order.Swapper.
-     * Note! The nonce is ignored for this use case. Each deposit remains valid perpetually.
-     * After expiry, anyone can call the assets back to the swapper be canceling the order.
-     * The swapper can cancel the order early.
-     */
-    function deposit(
-        CrossChainOrder calldata order
-    ) external preVerification(order) {
-        // Check that no existing deposit exists.
-        bool deposited = _deposits[_crossChainOrderHash(order)];
-        if (deposited) revert DepositExists();
-        // Set the deposit flag early to protect against reentry.
-        _deposits[_crossChainOrderHash(order)] = true;
-        
-        Input[] memory inputs = _getMaxInputs(order);
-        _collectTokensFromMsgSender(inputs, address(this), uint16(0));
-
-        emit OrderDeposited(order);
-    }
-
-    /**
-     * @notice Allows someone to cancel an order early or collect a deposit that was never claimed by a solver.
-     * 
-     */
-    function cancel(
-        CrossChainOrder calldata order
-    ) external {
-        /*
-         The if statement checks the following, but is optimised:
-            if (msg.sender != order.swapper) {
-                require(order.initiateDeadline < block.timestamp, "initiate not passed");
-            }
-         */
-        if (msg.sender != order.swapper || order.initiateDeadline >= block.timestamp) revert CannotCancelOrder();
-        
-        bool deposited = _deposits[_crossChainOrderHash(order)];
-        if (!deposited) revert DepositDoesntExist();
-        _deposits[_crossChainOrderHash(order)] = false;
-
-        Input[] memory inputs = _getMaxInputs(order);
-        _deliverTokens(inputs, order.swapper, 0);
-    }
 
     //--- Order Handling ---//
+
+    function open(
+        GasslessCrossChainOrder calldata order
+    ) external {
+        // Check that we are the settler for this order:
+        if (address(this) != order.originSettler) revert InvalidSettlementAddress();
+        // Check that this is the right originChain
+        if (block.chainid != order.originChainId) revert WrongChain(block.chainid, order.originChainId);
+        // Check if the open deadline has been passed
+        if (block.timestamp > order.openDeadline) revert InitiateDeadlinePassed();
+
+        // Decode the order data.
+        CatalystOrderData memory orderData = abi.decode(order, (CatalystOrderData));
+
+        // Check if the order has been filled and get the solver.
+        address solver = IOracle(orderKey.localOracle).outputFilled(orderKey.outputs, orderKey.reactorContext.fillDeadline);
+    }
+
 
     /**
      * @notice Initiates a cross-chain order
@@ -278,102 +234,13 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * If an order has already been deposited, the signature is ignored.
      * @param fillerData Any filler-defined data required by the settler
      */
-    function initiate(
-        CrossChainOrder calldata order,
+
+    function openFor(
+        GasslessCrossChainOrder calldata order,
         bytes calldata signature,
-        bytes calldata fillerData
-    ) external preVerification(order) returns (OrderKey memory orderKey) {
-        // Decode filler data.
-        (
-            address fillerAddress,
-            uint32 orderPurchaseDeadline,
-            uint16 orderPurchaseDiscount,
-            bytes32 identifier,
-            uint256 fillerDataPointer
-        ) = FillerDataLib.decode(fillerData);
-
-        // Permit2 & EIP-712 object variables.
-        bytes32 witness; // Hash of our struct to be combined with permit2's struct hash.
-        string memory witnessTypeString; // Type of our order struct (witness).
-        uint256[] memory permittedAmounts; // The amounts the user signed (derived from order).
-
-        // Initiate order.
-        (orderKey, permittedAmounts, witness, witnessTypeString) = _initiate(order, fillerData[fillerDataPointer:]);
-
-        // The proof deadline should be the last deadline and it must be after the challenge deadline.
-        // The challenger should be able to challenge after the order is filled.
-        ReactorInfo memory reactorInfo = orderKey.reactorContext;
-        // Check if: order.fillDeadline <= rI.challengeDeadline && rI.challengeDeadline <= rI.proofDeadline.
-        // That implies if: order.fillDeadline > rI.challengeDeadline || rI.challengeDeadline > rI.proofDeadline
-        // then the deadlines are invalid.
-        if (
-            order.fillDeadline > reactorInfo.challengeDeadline
-                || reactorInfo.challengeDeadline > reactorInfo.proofDeadline
-        ) {
-            revert InvalidDeadlineOrder();
-        }
-
-        // Check that the order hasn't been claimed yet. We will then set the order status
-        // so other can't claim it. This acts as a local reentry check.
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
-        // If an order has been configured such that it is free to challenge and impossible at the same time
-        // (free === orderKey.collateral.challengerCollateralAmount == 0) && ("impossible" === orderKey.proofDeadline == orderKey.challengeDeadline)
-        // then it is assumed that the order should be required to be strictly verified. (default challenged)
-        bool defaultChallenge = (reactorInfo.proofDeadline == reactorInfo.challengeDeadline) && (orderKey.collateral.challengerCollateralAmount == 0);
-        if (defaultChallenge) orderContext.challenger = orderKey.swapper;
-        // Ideally the above section was moved below the orderContext check but there is a stack too deep issue if done so.
-
-        OrderStatus status = orderContext.status;
-        if (status != OrderStatus.Unfilled) revert OrderAlreadyClaimed(orderContext.status);
-        orderContext.status = defaultChallenge ? OrderStatus.Challenged : OrderStatus.Claimed; // Now this order cannot be claimed again.
-        orderContext.fillerAddress = fillerAddress;
-        orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
-        orderContext.orderPurchaseDiscount = orderPurchaseDiscount;
-        // Identifier is in its own storage slot.
-        if (identifier != bytes32(0)) orderContext.identifier = identifier;
-
-
-        // Check if the collateral token is indeed a contract. SafeTransferLib does not revert on no code.
-        // This is important, since a later deployed token can screw up the whole pipeline.
-        IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
-        // Collateral is collected from sender instead of fillerAddress.
-        if (orderKey.collateral.fillerCollateralAmount > 0) SafeTransferLib.safeTransferFrom(
-            orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
-        );
-
-        // Check if a user has already deposited for this order.
-        bool deposited = _deposits[_crossChainOrderHash(order)];
-        if (deposited) _deposits[_crossChainOrderHash(order)] = false;
-
-        if (!deposited) {
-            // Collect input tokens from user.
-            _collectTokensViaPermit2(
-                orderKey, permittedAmounts, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature
-            );
-        } else {
-            // We need to return the difference between the maximum and now.
-            // We collected:
-            Input[] memory depositedInputs = _getMaxInputs(order);
-            // The order uses:
-            Input[] memory orderKeyInputs = orderKey.inputs;
-            address refundTo = order.swapper;
-            uint256 numInputs = depositedInputs.length;
-            for (uint256 i; i < numInputs; ++i) {
-                // We should assume that the inputs are the same. If a reactor makes inputs such
-                // that _getMaxInputs and _initiate returns 2 different arrays, then it can be exploited.
-                Input memory selectOrderKeyInput = orderKeyInputs[i];
-                // The orderKeyInput must be less than depositedInputs.
-                uint256 difference = depositedInputs[i].amount - selectOrderKeyInput.amount;
-
-                if (difference > 0) SafeTransferLib.safeTransfer(selectOrderKeyInput.token, refundTo, difference);
-            }
-        }
-
-        emit OrderInitiated(orderHash, msg.sender, fillerData, orderKey);
+        bytes calldata originFllerData
+    ) external {
     }
-
-    //--- Order Resolution Helpers ---//
 
     /**
      * @notice Prove that an order was filled. Requires that the order oracle exposes
@@ -384,7 +251,12 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * If you are calling this function from an external contract, beaware of re-entry
      * issues from a later execute. (configured of executionData).
      */
-    function proveOrderFulfilment(OrderKey calldata orderKey, bytes calldata executionData) external {
+    /**
+     * @notice This function is step 1 to initate a user's deposit.
+     * It deposits the assets required for ´order´ into The Compact.
+     */
+     // TODO: get rid of btyes here
+    function open(OnchainCrossChainOrder calldata order, bytes calldata asig, bytes calldata ssig, address solvedBy) external {
         bytes32 orderHash = _orderKeyHash(orderKey);
         OrderContext storage orderContext = _orders[orderHash];
 
@@ -407,28 +279,9 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         }
 
         // Payout inputs.
-        _deliverTokens(orderKey.inputs, fillerAddress, governanceFee);
-
-        // Return collateral to the filler. Load the collateral details from the order.
-        // (Filler provided collateral).
-        address collateralToken = orderKey.collateral.collateralToken;
-        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-
-        // If the order was challenged, then the challenger also provided collateral. All of this goes to the filler.
-        // The below logic relies on the implementation constraint of:
-        // orderContext.challenger != address(0) if status == OrderStatus.Challenged
-        // This is valid since when `status = OrderStatus.Challenged` is set, right before the challenger's address is
-        // also set.
-        if (status == OrderStatus.Challenged) {
-            // Add collateral amount. Both collaterals were paid in the same tokens.
-            // This lets us do only a single transfer call.
-            fillerCollateralAmount += orderKey.collateral.challengerCollateralAmount;
-        }
-
-        // Pay collateral tokens
-        // No need to check if collateralToken is a deployed contract.
-        // It has already been entered into our contract & we don't want this call to revert.
-        if (fillerCollateralAmount > 0) SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+        _resolveLock(
+            order, asig, ssig, solvedBy
+        );
 
         bytes32 identifier = orderContext.identifier;
         if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
@@ -436,153 +289,16 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         emit OrderProven(orderHash, msg.sender);
     }
 
-    /**
-     * @notice Prove that an order was filled. Requires that the order oracle exposes
-     * a function, isProven(...), that returns true when called with the order details.
-     * @dev Anyone can call this but the payout goes to the filler of the order.
-     * If you are calling this function from an external contract, beaware of re-entry
-     * issues from a later execute. (configured of executionData).
-     */
-    function optimisticPayout(OrderKey calldata orderKey, bytes calldata executionData) external {
-        bytes32 orderHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderHash];
+    function resolveFor(
+        GasslessCrossChainOrder calldata order,
+        bytes calldata signature,
+        bytes calldata originFllerData
+    ) external view {
 
-        // Check if order is claimed:
-        if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
-        // If OrderStatus != Claimed then it must either be:
-        // 1. One of the proved states => we already paid the inputs.
-        // 2. Has been challenged (or substate of) => use `completeDispute(...)` or `proveOrderFulfilment(...)`
-        // as a result, we shall only continue if orderContext.status == OrderStatus.Claimed.
-        orderContext.status = OrderStatus.OptimiscallyFilled;
-
-        // If time is post challenge deadline, then the order can only progress to optimistic payout.
-        uint256 challengeDeadline = orderKey.reactorContext.challengeDeadline;
-        if (block.timestamp <= challengeDeadline) {
-            revert OrderNotReadyForOptimisticPayout(uint32(challengeDeadline));
-        }
-
-        address fillerAddress = orderContext.fillerAddress;
-
-        // Pay input tokens to filler.
-        _deliverTokens(orderKey.inputs, fillerAddress, governanceFee);
-
-        // Get order collateral.
-        address collateralToken = orderKey.collateral.collateralToken;
-        uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-
-        // Pay collateral tokens
-        // collateralToken has already been entered so no need to check if
-        // it is a valid token.
-        if (fillerCollateralAmount > 0) SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
-
-        bytes32 identifier = orderContext.identifier;
-        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
-
-        emit OptimisticPayout(orderHash);
     }
 
-    //--- Disputes ---//
+    function resolve(OnchainCrossChainOrder calldata order) external view {
 
-    /**
-     * @notice Disputes a claim. If a claimed order hasn't been delivered post the fill deadline
-     * then the order should be challenged. This allows anyone to attempt to claim the collateral
-     * the filler provided (at the risk of losing their own collateral).
-     * @dev For challengers it is important to properly verify transactions:
-     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able
-     * to toggle between is verified and not. This makes it possible for the filler to steal
-     * the challenger's collateral
-     * 2. Remote Oracle. Likewise for the local oracle, remote oracles may be controllable by
-     * the filler.
-     */
-    function dispute(
-        OrderKey calldata orderKey
-    ) external {
-        bytes32 orderKeyHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderKeyHash];
-
-        // Check if order is claimed and hasn't been challenged:
-        if (orderContext.status != OrderStatus.Claimed) revert WrongOrderStatus(orderContext.status);
-        // If `orderContext.status != OrderStatus.Claimed` then there are 2 cases:
-        // 1. The order hasn't been claimed.
-        // 2. We are past the claim state (disputed, proven, etc).
-        // As a result, checking if the order has been claimed is enough.
-
-        // Check if challenge deadline hasn't been passed.
-        if (uint256(orderKey.reactorContext.challengeDeadline) < block.timestamp) revert ChallengeDeadlinePassed();
-
-        // Later logic relies on  orderContext.challenger != address(0) if orderContext.status = OrderStatus.Challenged.
-        // As a result, it is important that this is the only place where these values are set so we can easily audit if
-        // the above assertion is true.
-        orderContext.challenger = msg.sender;
-        orderContext.status = OrderStatus.Challenged;
-
-        // Collect bond collateral.
-        // CollateralToken has already been entered so no need to check if it is a valid token.
-        if (orderKey.collateral.challengerCollateralAmount > 0) SafeTransferLib.safeTransferFrom(
-            orderKey.collateral.collateralToken,
-            msg.sender,
-            address(this),
-            orderKey.collateral.challengerCollateralAmount
-        );
-
-        emit OrderChallenged(orderKeyHash, msg.sender);
-    }
-
-    /**
-     * @notice Finalise the dispute.
-     */
-    function completeDispute(
-        OrderKey calldata orderKey
-    ) external {
-        bytes32 orderKeyHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderKeyHash];
-
-        // Check if proof deadline has passed. If this is the case (& the order hasn't been proven)
-        // it has to be assumed that the order was not filled.
-        uint256 proofDeadline = orderKey.reactorContext.proofDeadline;
-        if (block.timestamp <= proofDeadline) {
-            revert ProofPeriodHasNotPassed(uint32(proofDeadline));
-        }
-
-        // Check that the order is currently challenged. If is it currently challenged,
-        // it implies that the fulfillment was not proven. Additionally, since the Challenge order status
-        // only set together with the challenger address, it must hold that:
-        // orderContext.status == OrderStatus.Challenged => orderContext.challenger != address(0).
-        if (orderContext.status != OrderStatus.Challenged) revert WrongOrderStatus(orderContext.status);
-
-        // Update the status of the order. This disallows local re-entries.
-        // It is important that no external logic is made between the below & above line.
-        orderContext.status = OrderStatus.Fraud;
-
-        // Send the input tokens back to the user.
-        _deliverTokens(orderKey.inputs, orderKey.swapper, 0);
-
-        unchecked {
-            // Divide the collateral between challenger and user. First, get order collateral.
-            address collateralToken = orderKey.collateral.collateralToken;
-            uint256 fillerCollateralAmount = orderKey.collateral.fillerCollateralAmount;
-            uint256 challengerCollateralAmount = orderKey.collateral.challengerCollateralAmount;
-
-            // Send partial collateral back to user
-            uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
-            // We don't check if collateralToken is a token, since we don't
-            // want this call to fail.
-            if (swapperCollateralAmount > 0) SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
-
-            // Send the rest to the wallet that called fraud. Similar to the above this should not fail.
-            // A: We don't want this to fail.
-            // B: If this overflows, it is better than if nothing happened.
-            // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount =
-            // swapperCollateralAmount / 2 <= fillerCollateralAmount, = iff fillerCollateralAmount <= 1.
-            uint256 fraudReward = challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount;
-            if (fraudReward > 0) SafeTransferLib.safeTransfer(
-                collateralToken,
-                orderContext.challenger,
-                fraudReward
-            );
-        }
-
-        emit FraudAccepted(orderKeyHash);
     }
 
     //--- Order Purchase Helpers ---//
@@ -664,44 +380,5 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         }
 
         emit OrderPurchased(orderKeyHash, msg.sender);
-    }
-
-    /**
-     * @dev If some execution data is set that is invalid, this function needs to be used to modify
-     * the execution data (identifier) such that the execution data passes.
-     * The order cannot be modified if it is considered final.
-     */
-    function modifyOrderFillerdata(OrderKey calldata orderKey, bytes calldata fillerData) external {
-        bytes32 orderKeyHash = _orderKeyHash(orderKey);
-        OrderContext storage orderContext = _orders[orderKeyHash];
-
-        // Check that the status isn't final.
-        OrderStatus status = orderContext.status;
-        if (
-            status == OrderStatus.Fraud ||
-            status == OrderStatus.OptimiscallyFilled ||
-            status == OrderStatus.Proven
-        ) revert OrderFinal();
-
-        address currentFiller = orderContext.fillerAddress;
-
-        // This line also disallows modifying non-claimed orders.
-        if (currentFiller == address(0) || currentFiller != msg.sender) revert OnlyFiller();
-
-        // Decode filler data.
-        (
-            address newFillerAddress,
-            uint32 newOrderPurchaseDeadline,
-            uint16 newOrderPurchaseDiscount,
-            bytes32 newIdentifier,
-        ) = FillerDataLib.decode(fillerData);
-
-        // Set new storage.
-        if (newFillerAddress != currentFiller) orderContext.fillerAddress = newFillerAddress;
-        orderContext.orderPurchaseDeadline = newOrderPurchaseDeadline;
-        orderContext.orderPurchaseDiscount = newOrderPurchaseDiscount;
-        orderContext.identifier = newIdentifier;
-
-        emit OrderPurchaseDetailsModified(orderKeyHash, fillerData);
     }
 }

@@ -2,14 +2,14 @@
 pragma solidity ^0.8.26;
 
 import { OutputDescription } from "../../interfaces/Structs.sol";
-import { BridgeOracle } from "../BridgeOracle.sol";
+import { CoinOracle } from "../CoinOracle.sol";
 import { GeneralisedIncentivesOracle } from "./GeneralisedIncentivesOracle.sol";
 
 /**
  * @dev Solvers use Oracles to pay outputs. This allows us to record the payment.
  * Tokens never touch this contract but goes directly from solver to user.
  */
-contract GARPBridgeOracle is BridgeOracle, GeneralisedIncentivesOracle {
+contract GARPCoinOracle is CoinOracle, GeneralisedIncentivesOracle {
     constructor(address _owner, address _escrow) payable GeneralisedIncentivesOracle(_owner, _escrow) { }
 
     /**

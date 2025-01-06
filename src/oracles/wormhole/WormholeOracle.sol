@@ -15,10 +15,10 @@ import { SmallStructs } from "./external/callworm/SmallStructs.sol";
 import { IWormhole } from "./interfaces/IWormhole.sol";
 
 import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
-import { OutputDescription } from "../../interfaces/Structs.sol";
+import { OutputDescription } from "../../libs/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
-import "../OraclePayload.sol";
+import "../OutputEncodingLibrary.sol";
 
 
 import "forge-std/console.sol";
@@ -96,14 +96,15 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
      * @param outputs Outputs to prove. This function does not validate that these outputs are valid
      * or has been proven. When using this function, it is important to ensure that these outputs
      * are true AND these proofs were created by this (or the inheriting) contract.
-     * @param fillDeadlines The fill times associated with the outputs. Used to match against the order.
+     * @param proofs Proof storage state for each output
      */
     function _submit(
+        bytes32[] calldata orderIds,
         OutputDescription[] calldata outputs,
-        uint32[] calldata fillDeadlines
+        ProofStorage[] memory proofs
     ) internal {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = _encode(outputs, fillDeadlines);
+        bytes memory message = OutputEncodingLibrary._encodeMessage(orderIds, outputs, proofs);
 
         uint256 packageCost = WORMHOLE.messageFee();
         WORMHOLE.publishMessage{value: packageCost} (
@@ -127,30 +128,31 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
      * not (fillDeadlines.length > outputs.length & fillDeadlines.length < outputs.length) => fillDeadlines.length ==
      * outputs.length.
      * @param outputs Outputs to prove. This function validates that the outputs has been correct set.
-     * @param fillDeadlines The fill times associated with the outputs. Used to match against the order.
      */
     function submit(
-        OutputDescription[] calldata outputs,
-        uint32[] calldata fillDeadlines
-    ) external payable {
-        // The follow code chunk will fail if fillDeadlines.length > outputs.length.
-        uint256 numFillDeadlines = fillDeadlines.length;
+        bytes32[] calldata orderIds,
+        OutputDescription[] calldata outputs
+    ) public payable {
+        uint256 numOutputs = outputs.length;
+        ProofStorage[] memory proofContexts = new ProofStorage[](numOutputs);
         unchecked {
-            for (uint256 i; i < numFillDeadlines; ++i) {
+            for (uint256 i; i < numOutputs; ++i) {
                 OutputDescription calldata output = outputs[i];
                 // The chainId of the output has to match this chain. This is required to ensure that it originated
                 // here.
-                _validateChain(output.chainId);
-                _validateRemoteOracleAddress(output.remoteOracle);
+                _validateChain(bytes32(output.chainId));
+                // Validate that this contract made the original proof (other oracles can't proxy proofs)
+                _IAmRemoteOracle(output.remoteOracle); 
                 // Validate that we have proofs for each output.
-                if (!_isProven(output, fillDeadlines[i])) {
+                proofContexts[i] = _provenOutput[orderIds[i]][output.remoteOracle][_outputHash(output)];
+                if (proofContexts[i].solver != address(0)) {
                     revert CannotProveOrder();
                 }
             }
         }
         // The submit call will fail if fillDeadlines.length < outputs.length.
         // This call also refunds excess value sent.
-        _submit(outputs, fillDeadlines);
+        _submit(orderIds, outputs, proofContexts);
     }
 
     function receiveMessage(
@@ -158,23 +160,19 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
     ) external {
         (uint16 sourceIdentifier, bytes32 remoteOracle, bytes calldata message) = _verifyPacket(rawMessage);
 
-        (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) = _decode(message, remoteOracle);
+        (bytes32[2][] memory orderIdOutputHashes, ProofStorage[] memory proofContext) = OutputEncodingLibrary._decodeMessage(message);
 
-        uint256 numOutputs = outputs.length;
+        uint256 numOutputs = orderIdOutputHashes.length;
 
         // Load the expected chainId (not the messaging protocol identifier).
         uint32 expectedBlockChainId = _chainIdentifierToBlockChainId[sourceIdentifier];
         for (uint256 i; i < numOutputs; ++i) {
-            OutputDescription memory output = outputs[i];
-            // Check if sourceIdentifierbytes matches the output.
-            if (expectedBlockChainId != output.chainId) {
-                revert WrongChain(expectedBlockChainId, output.chainId);
-            }
-            uint32 fillDeadline = fillDeadlines[i];
-            bytes32 outputHash = _outputHashM(output);
-            _provenOutput[outputHash][fillDeadline] = true;
+            bytes32[2] memory orderIdAndOutputHash = orderIdOutputHashes[i];
+            bytes32 orderId = orderIdAndOutputHash[0];
+            bytes32 outputHash = orderIdAndOutputHash[1];
+            _provenOutput[orderId][remoteOracle][outputHash] = proofContext[i];
 
-            emit OutputProven(fillDeadline, outputHash);
+            // TODO: emit OutputProven(fillDeadline, outputHash);
         }
     }
 
@@ -200,87 +198,5 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
         // Load the identifier for the calling contract.
         implementationIdentifier = vm.emitterAddress;
 
-    }
-
-    //--- Message Encoding & Decoding ---//
-
-    /**
-     * @notice Encodes outputs and fillDeadlines into a bytearray to be sent cross chain.
-     * @dev This function reverts if fillDeadlines.length < outputs but not if fillDeadlines.length > outputs.
-     * Use with care.
-     */
-    function _encode(
-        OutputDescription[] calldata outputs,
-        uint32[] calldata fillDeadlines
-    ) internal pure returns (bytes memory encodedPayload) {
-        uint256 numOutputs = outputs.length;
-        encodedPayload = bytes.concat(bytes1(0x00), bytes2(uint16(numOutputs)));
-        unchecked {
-            for (uint256 i; i < numOutputs; ++i) {
-                OutputDescription calldata output = outputs[i];
-                // if fillDeadlines.length < outputs.length then fillDeadlines[i] will fail with out of index.
-                uint32 fillDeadline = fillDeadlines[i];
-                // Check output remoteCall length.
-                if (output.remoteCall.length > type(uint16).max) revert RemoteCallTooLarge();
-                encodedPayload = bytes.concat(
-                    encodedPayload,
-                    output.token,
-                    bytes32(output.amount),
-                    output.recipient,
-                    bytes4(output.chainId),
-                    bytes4(fillDeadline),
-                    bytes2(uint16(output.remoteCall.length)), // this cannot overflow since length is checked to be less than max.
-                    output.remoteCall
-                );
-            }
-        }
-    }
-
-    /**
-     * @notice Converts an encoded payload into decoded proof descriptions.
-     * @dev Do not use remoteOracle from decoded outputs.
-     * encodedPayload does not contain any "security". The payload will be "decoded by fire" as it is expected
-     * to be encoded by _encode.
-     * If a foreign contract set anything here, it important to only attribute the decoded outputs to that contract
-     * to ensure the outputs does not poison other storage. If someone trusts that oracle, it is their problem.
-     * @param encodedPayload Payload that has been encoded with _encode. Will be decoded into outputs and fillDeadlines.
-     * @return outputs Decoded outputs.
-     * @return fillDeadlines Decoded fill times.
-     */
-    function _decode(
-        bytes calldata encodedPayload,
-        bytes32 remoteOracle
-    ) internal pure returns (OutputDescription[] memory outputs, uint32[] memory fillDeadlines) {
-        unchecked {
-            uint256 numOutputs = uint256(uint16(bytes2(encodedPayload[NUM_OUTPUTS_START:NUM_OUTPUTS_END])));
-
-            outputs = new OutputDescription[](numOutputs);
-            fillDeadlines = new uint32[](numOutputs);
-            uint256 pointer = OUTPUT_TOKEN_START;
-            for (uint256 outputIndex; outputIndex < numOutputs; ++outputIndex) {
-                bytes32 token = bytes32(encodedPayload[pointer:pointer += (OUTPUT_TOKEN_END - OUTPUT_TOKEN_START)]);
-                uint256 amount =
-                    uint256(bytes32(encodedPayload[pointer:pointer += (OUTPUT_AMOUNT_END - OUTPUT_AMOUNT_START)]));
-                bytes32 recipient =
-                    bytes32(encodedPayload[pointer:pointer += (OUTPUT_RECIPIENT_END - OUTPUT_RECIPIENT_START)]);
-                uint32 chainId =
-                    uint32(bytes4(encodedPayload[pointer:pointer += (OUTPUT_CHAIN_ID_END - OUTPUT_CHAIN_ID_START)]));
-                fillDeadlines[outputIndex] = uint32(
-                    bytes4(encodedPayload[pointer:pointer += (OUTPUT_FILL_DEADLINE_END - OUTPUT_FILL_DEADLINE_START)])
-                );
-                uint256 remoteCallLength = uint16(
-                    bytes2(encodedPayload[pointer:pointer += (REMOTE_CALL_LENGTH_END - REMOTE_CALL_LENGTH_START)])
-                );
-
-                outputs[outputIndex] = OutputDescription({
-                    remoteOracle: remoteOracle,
-                    token: token,
-                    amount: amount,
-                    recipient: recipient,
-                    chainId: chainId,
-                    remoteCall: encodedPayload[pointer:pointer += remoteCallLength]
-                });
-            }
-        }
     }
 }

@@ -5,14 +5,13 @@ import { FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOra
 import { IOracle } from "../interfaces/IOracle.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { OutputDescription } from "../libs/CatalystOrderType.sol";
+import { OutputEncodingLibrary } from "./OutputEncodingLibrary.sol";
 
 /**
  * @dev Oracles are also fillers
  */
 abstract contract BaseOracle is IOracle {
     error NotProven(bytes32 orderId, OutputDescription);
-    error RemoteCallOutOfRange();
-    error fulfillmentContextOutOfRange();
 
     event OutputProven(uint32 fillDeadline, bytes32 outputHash);
 
@@ -50,49 +49,9 @@ abstract contract BaseOracle is IOracle {
     ) internal view virtual {
         if (ADDRESS_THIS != remoteOracle) revert WrongRemoteOracle(ADDRESS_THIS, remoteOracle);
     }
-
-    function _encodeOutput(
-        uint8 orderType,
-        bytes32 token,
-        uint256 amount,
-        bytes32 recipient,
-        uint256 chainId,
-        bytes calldata remoteCall,
-        bytes calldata fulfillmentContext
-    ) internal pure returns (bytes memory encodedOutput) {
-        // Check that the remoteCall and fulfillmentContext does not exceed type(uint16).max
-        if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
-        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextOutOfRange();
-
-        return encodedOutput = abi.encodePacked(
-            orderType,
-            token,
-            amount,
-            recipient,
-            chainId,
-            uint16(remoteCall.length),
-            remoteCall,
-            uint16(fulfillmentContext.length),
-            fulfillmentContext
-        );
-    }
-
-    function _encodeOutputDescription(
-        OutputDescription calldata outputDescription
-    ) internal pure returns (bytes memory encodedOutput) {
-        return encodedOutput = _encodeOutput(
-            outputDescription.orderType,
-            outputDescription.token,
-            outputDescription.amount,
-            outputDescription.recipient,
-            outputDescription.chainId,
-            outputDescription.remoteCall,
-            outputDescription.fulfillmentContext
-        );
-    }
     
     function _outputHash(OutputDescription calldata outputDescription) pure internal returns (bytes32 outputHash) {
-        return outputHash = keccak256(_encodeOutputDescription(outputDescription));
+        return outputHash = keccak256(OutputEncodingLibrary._encodeOutputDescription(outputDescription));
     }
 
     /**

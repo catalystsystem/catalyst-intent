@@ -140,10 +140,10 @@ contract CoinOracle is BaseOracle {
     /**
      * @notice function overflow of _fill to allow filling multiple outputs in a single call.
      */
-    function _fill(bytes32 orderId, OutputDescription[] calldata outputs, address filler) internal {
+    function _fill(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, address filler) internal {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
-            _fill(orderId, outputs[i], filler);
+            _fill(orderIds[i], outputs[i], filler);
         }
     }
 
@@ -152,12 +152,12 @@ contract CoinOracle is BaseOracle {
     /**
      * @notice Fills several outputs in one go. Can be used to batch fill orders to save gas.
      */
-    function fill(bytes32 orderId, OutputDescription[] calldata outputs, address filler) external {
-        _fill(orderId, outputs, filler);
+    function fill(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, address filler) external {
+        _fill(orderIds, outputs, filler);
     }
 
     // TODO: Make this the standard interface. Can be done by loading OutputDescription[] via assembly.
-    function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
-        this.fill(orderId, abi.decode(originData, (OutputDescription[])), abi.decode(fillerData, (address)));
+    function fill(bytes32[] calldata orderIds, bytes calldata originData, bytes calldata fillerData) external {
+        this.fill(orderIds, abi.decode(originData, (OutputDescription[])), abi.decode(fillerData, (address)));
     }
 }

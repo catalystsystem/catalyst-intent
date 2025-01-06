@@ -7,9 +7,6 @@ import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
 import { Input } from "../interfaces/Structs.sol";
 
 contract DepositIntermediary is ICrossCatsCallback {
-    error InputDoesntMatch();
-    error AmountDoesntMatch();
-
     constructor() {}
 
     struct ExecutionData {

@@ -18,6 +18,11 @@ abstract contract BaseOracle is IOracle {
 
     uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
 
+    struct ProofStorage {
+        address solver;
+        uint40 timestamp;
+    }
+
     /**
      * @notice 
      */
@@ -31,7 +36,7 @@ abstract contract BaseOracle is IOracle {
      */
     mapping(bytes32 orderId => 
         mapping(bytes32 remoteOracle => 
-        mapping(bytes32 outputHash => address solver))) internal _provenOutput;
+        mapping(bytes32 outputHash => ProofStorage))) internal _provenOutput; // TODO: Add timestamp
 
     //-- Helpers --//
 
@@ -108,9 +113,10 @@ abstract contract BaseOracle is IOracle {
      * @param orderId Order Id for help against output collisions.
      * @param outputDescription Output to examine
      */
-    function _outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) internal view returns (address solver) {
+    function _outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) internal view returns (address solver, uint40 timestamp) {
         bytes32 outputHash = _outputHash(outputDescription);
-        solver = _provenOutput[orderId][outputDescription.remoteOracle][outputHash];
+        ProofStorage storage proofStorage = _provenOutput[orderId][outputDescription.remoteOracle][outputHash];
+        (solver, timestamp) = (proofStorage.solver, proofStorage.timestamp);
         if (solver == address(0)) {
             // TODO: Check if there is an optimistic instance.
         }
@@ -122,8 +128,8 @@ abstract contract BaseOracle is IOracle {
      * @param orderId Id of order containing the output.
      * @param outputDescription Output to search for.
      */
-    function outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) external view returns (address solver) {
-        return solver = _outputFilled(orderId, outputDescription);
+    function outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) external view returns (address solver, uint40 timestamp) {
+        return _outputFilled(orderId, outputDescription);
     }
 
     /**
@@ -133,17 +139,48 @@ abstract contract BaseOracle is IOracle {
      */
     function outputFilled(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver) {
         // Get the first solver. This is the solver we will report as whom that solved the intent.
-        solver = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
+        (solver, ) = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
         if (solver == address(0)) revert NotProven(orderId, outputDescriptions[0]);
 
         uint256 numOutputs = outputDescriptions.length;
         // Check that the rest of the outputs have been filled.
         // Notice that we discard the solver address and only check if it has been set
         for (uint256 i = 1; i < numOutputs; ++i) {
-           address outputSolver = _outputFilled(orderId, outputDescriptions[i]);
+            (address outputSolver, ) = _outputFilled(orderId, outputDescriptions[i]);
             if (outputSolver == address(0)) revert NotProven(orderId, outputDescriptions[i]);
         }
         return solver;
+    }
+
+    // TODO: Try to simplify using function pointer to compare helpers.
+    function outputFilledMaxTimestamp(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver, uint40 timestamp) {
+        // Get the first solver. This is the solver we will report as whom that solved the intent.
+        (solver, timestamp) = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
+        if (solver == address(0)) revert NotProven(orderId, outputDescriptions[0]);
+
+        uint256 numOutputs = outputDescriptions.length;
+        // Check that the rest of the outputs have been filled.
+        // Notice that we discard the solver address and only check if it has been set
+        for (uint256 i = 1; i < numOutputs; ++i) {
+            (address outputSolver, uint40 solvedAt) = _outputFilled(orderId, outputDescriptions[i]);
+            if (solvedAt > timestamp) timestamp = solvedAt;
+            if (outputSolver == address(0)) revert NotProven(orderId, outputDescriptions[i]);
+        }
+    }
+
+    function outputFilledMinTimestamp(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver, uint40 timestamp) {
+        // Get the first solver. This is the solver we will report as whom that solved the intent.
+        (solver, timestamp) = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
+        if (solver == address(0)) revert NotProven(orderId, outputDescriptions[0]);
+
+        uint256 numOutputs = outputDescriptions.length;
+        // Check that the rest of the outputs have been filled.
+        // Notice that we discard the solver address and only check if it has been set
+        for (uint256 i = 1; i < numOutputs; ++i) {
+            (address outputSolver, uint40 solvedAt) = _outputFilled(orderId, outputDescriptions[i]);
+            if (solvedAt < timestamp) timestamp = solvedAt;
+            if (outputSolver == address(0)) revert NotProven(orderId, outputDescriptions[i]);
+        }
     }
 
     // -- Optimistic Proving --//

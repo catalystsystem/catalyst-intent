@@ -7,7 +7,8 @@ import {
     GaslessCrossChainOrder,
     OnchainCrossChainOrder,
     IOriginSettler,
-    ResolvedCrossChainOrder
+    ResolvedCrossChainOrder,
+    Open
 } from "../interfaces/IERC7683.sol";
 
 
@@ -117,7 +118,7 @@ contract CatalystCompactReactor is BaseReactor {
         // bytes32 identifier = orderContext.identifier;
         // if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
 
-        // emit OrderProven(orderHash, msg.sender);
+        emit Open(orderId, _resolve(order, msg.sender));
     }
 
     //--- The Compact & Resource Locks ---//

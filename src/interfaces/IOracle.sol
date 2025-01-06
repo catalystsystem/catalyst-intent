@@ -9,7 +9,7 @@ interface IOracle {
      * @param orderId Id of order containing the output.
      * @param outputDescription Output to search for.
      */
-    function outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) external view returns (address solver);
+    function outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) external view returns (address solver, uint40 timestamp);
 
     /**
      * @notice Check if a series of outputs has been proven.
@@ -17,4 +17,8 @@ interface IOracle {
      * Notice that the solver of the first provided output is reported as the entire intent solver.
      */
     function outputFilled(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver);
+
+    function outputFilledMaxTimestamp(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver, uint40 timestamp);
+    
+    function outputFilledMinTimestamp(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver, uint40 timestamp);
 }

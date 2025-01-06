@@ -110,14 +110,14 @@ contract CoinOracle is BaseOracle {
         bytes32 outputHash = _outputHash(output);
 
         // Get the proof state of the fulfillment.
-        address solver = _provenOutput[orderId][output.remoteOracle][outputHash];
+        address solver = _provenOutput[orderId][output.remoteOracle][outputHash].solver;
         // Early return if we have already seen proof.
         if (solver == filler) return;
         if (solver != address(0)) revert FilledBySomeoneElse(solver);
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _provenOutput[orderId][output.remoteOracle][outputHash] = filler;
+        _provenOutput[orderId][output.remoteOracle][outputHash] = ProofStorage({solver: filler, timestamp: uint40(block.timestamp)});
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));

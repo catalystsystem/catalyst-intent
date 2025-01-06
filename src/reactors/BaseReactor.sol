@@ -70,7 +70,7 @@ contract BaseReactor {
 
     //--- Order Validation ---//
 
-    function _validateOrder(GaslessCrossChainOrder calldata order) internal {
+    function _validateOrder(GaslessCrossChainOrder calldata order) internal view {
         // Check that we are the settler for this order:
         if (address(this) != order.originSettler) revert InvalidSettlementAddress();
         // Check that this is the right originChain
@@ -181,70 +181,33 @@ contract BaseReactor {
      * By default relies on _resolveKey to convert OrderKey into a ResolvedCrossChainOrder
      * @dev Can be overwritten if there isn't a translation of an orderKey into resolvedOrder.
      * @param order CrossChainOrder to resolve.
-     * @param  fillerData Any filler-defined data required by the settler
+     * @param  filler The filler of the order
      * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
      */
     function _resolve(
         GaslessCrossChainOrder calldata order,
-        bytes calldata fillerData
+        address filler
     ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
         CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
-        address fillerAddress = address(0); // TODO: How to provide this at the resolve step?
 
         uint256 numOutputs = orderData.outputs.length;
         Output[] memory maxSpent = new Output[](numOutputs);
         
-        int256 lastChain = -1;
         // If the output list is sorted by chains, this list is unqiue and optimal.
-        OutputDescription[][] memory allChainDeliveries = new OutputDescription[][](numOutputs);
-        uint256[] memory chains = new uint256[](numOutputs);
-        bytes32[] memory destinationSettlers = new bytes32[](numOutputs);
-        OutputDescription[] memory chainDeliveries;
-        uint256 semiUniqueChains = 0;
-        uint256 offset = 0;
+        FillInstruction[] memory fillInstructions = new FillInstruction[](numOutputs);
         for (uint256 i = 0; i < numOutputs; ++i) {
             OutputDescription memory catalystOutput = orderData.outputs[i];
+            uint256 chainId = catalystOutput.chainId;
             maxSpent[i] = Output({
                 token: catalystOutput.token,
                 amount: catalystOutput.amount,
                 recipient: catalystOutput.recipient,
-                chainId: catalystOutput.chainId
+                chainId: chainId
             });
-            if (lastChain != int256(catalystOutput.chainId)) { // TODO: overflow
-                if (lastChain != -1) {
-                    // Resize chainDeliveries
-                    OutputDescription[] memory newChainDeliveries = new OutputDescription[](offset);
-                    for (uint256 j = 0; j < offset; ++j) {
-                        newChainDeliveries[j] = chainDeliveries[j];
-                    }
-                    // Ensure chainDeliveries has correct length.
-                    // Store as next output to execute.
-                    allChainDeliveries[semiUniqueChains] = newChainDeliveries;
-                    chains[semiUniqueChains] = uint256(lastChain);
-                }
-                lastChain = int256(catalystOutput.chainId); // TODO: overflow
-                semiUniqueChains += 1;
-                offset = 0;
-                chainDeliveries = new OutputDescription[](numOutputs);
-            }
-            chainDeliveries[offset] = catalystOutput;
-            offset += 1;
-        }
-        // Resize chainDeliveries
-        OutputDescription[] memory newChainDeliverie = new OutputDescription[](offset);
-        for (uint256 j = 0; j < offset; ++j) {
-            newChainDeliverie[j] = chainDeliveries[j];
-        }
-        allChainDeliveries[semiUniqueChains + 1] = chainDeliveries;
-        chains[semiUniqueChains + 1] = uint256(lastChain);
-
-        // For every semiUniqueChains we need to create fillInstructions
-        FillInstruction[] memory fillInstructions = new FillInstruction[](semiUniqueChains);
-        for (uint256 i = 0; i < semiUniqueChains; ++i) {
             fillInstructions[i] = FillInstruction({
-                destinationChainId: uint64(chains[i]),
-                destinationSettler: destinationSettlers[i],
-                originData: abi.encode(allChainDeliveries[i]) // TODO: universal encoding?
+                destinationChainId: uint64(chainId),
+                destinationSettler: catalystOutput.remoteOracle,
+                originData: abi.encode(catalystOutput)
             });
         }
 
@@ -259,7 +222,7 @@ contract BaseReactor {
                 minReceived[i] = Output({
                     token: bytes32(uint256(uint160(input.tokenId))),
                     amount: input.amount,
-                    recipient: bytes32(uint256(uint160(fillerAddress))),
+                    recipient: bytes32(uint256(uint160(filler))),
                     chainId: uint32(block.chainid)
                 });
             }
@@ -295,9 +258,9 @@ contract BaseReactor {
 
     function resolveFor(
         GaslessCrossChainOrder calldata order,
-        bytes calldata signature,
+        bytes calldata /* signature */,
         bytes calldata originFllerData
     ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        // return _resolve(order, fillerData);
+        return _resolve(order, abi.decode(originFllerData, (address)));
     }
 }

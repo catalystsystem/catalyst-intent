@@ -122,6 +122,10 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      */
     mapping(bytes32 orderKeyHash => OrderContext orderContext) internal _orders;
 
+    /**
+     * @notice Maps a crossChainOrderHash to a deposited statement.
+     * Not to be confused with an orderKeyHash.
+     */
     mapping(bytes32 crossChainOrderHash => bool) internal _deposits;
 
 
@@ -213,7 +217,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
      * Note! The nonce is ignored for this use case. Each deposit remains valid perpetually.
      * After expiry, anyone can call the assets back to the swapper be canceling the order.
      * The swapper can cancel the order early.
-     * 
      */
     function deposit(
         CrossChainOrder calldata order
@@ -225,9 +228,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         _deposits[_crossChainOrderHash(order)] = true;
         
         Input[] memory inputs = _getMaxInputs(order);
-        address to = address(this);
-        uint16 discount = uint16(0);
-        _collectTokensFromMsgSender(inputs, to, discount);
+        _collectTokensFromMsgSender(inputs, address(this), uint16(0));
 
         emit OrderDeposited(order);
     }
@@ -351,7 +352,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
                 orderKey, permittedAmounts, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature
             );
         } else {
-            // We need to return the difference between the maximum and now:
+            // We need to return the difference between the maximum and now.
             // We collected:
             Input[] memory depositedInputs = _getMaxInputs(order);
             // The order uses:
@@ -359,9 +360,8 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
             address refundTo = order.swapper;
             uint256 numInputs = depositedInputs.length;
             for (uint256 i; i < numInputs; ++i) {
-                // We should assume that the inputs are the same. If a reactor
-                // makes inputs such that _getMaxInputs and _initiate returns 2
-                // different arrays, then it can be exploited.
+                // We should assume that the inputs are the same. If a reactor makes inputs such
+                // that _getMaxInputs and _initiate returns 2 different arrays, then it can be exploited.
                 Input memory selectOrderKeyInput = orderKeyInputs[i];
                 // The orderKeyInput must be less than depositedInputs.
                 uint256 difference = depositedInputs[i].amount - selectOrderKeyInput.amount;

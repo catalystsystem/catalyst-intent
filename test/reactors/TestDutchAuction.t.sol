@@ -657,6 +657,70 @@ contract TestDutchAuction is TestBaseReactor, DeployDutchOrderReactor {
         exclusiveOrder.setAllowList(key, initiator, config);
     }
 
+    function test_deposit_with_slope(
+        uint128 inputAmount,
+        int8 slope,
+        uint256 outputAmount
+    ) public {
+        if (slope < 0) vm.assume(uint256(-int256(slope))*100 <= uint256(inputAmount));
+        vm.prank(SWAPPER);
+        MockERC20(tokenToSwapInput).approve(address(reactor), type(uint256).max);
+        MockERC20(tokenToSwapInput).mint(SWAPPER, uint256(inputAmount) + uint256(int256(slope > 0 ? slope : int256(0)))*100);
+
+        _approveForFiller(fillerAddress, tokenToSwapOutput, type(uint256).max);
+        _approveForFiller(fillerAddress, collateralToken, type(uint256).max);
+
+        MockERC20(tokenToSwapOutput).mint(fillerAddress, outputAmount);
+        MockERC20(collateralToken).mint(fillerAddress, DEFAULT_COLLATERAL_AMOUNT);
+
+        CatalystDutchOrderData memory dutchOrderData = OrderDataBuilder.getDutchOrder(
+            tokenToSwapInput,
+            tokenToSwapOutput,
+            inputAmount,
+            outputAmount,
+            SWAPPER,
+            collateralToken,
+            DEFAULT_COLLATERAL_AMOUNT,
+            DEFAULT_CHALLENGER_COLLATERAL_AMOUNT,
+            1000,
+            10000,
+            address(0),
+            address(0)
+        );
+
+        int256[] memory inputSlopes = new int256[](1);
+        inputSlopes[0] = slope;
+
+        dutchOrderData = _withSlopesData(
+            dutchOrderData,
+            uint32(block.timestamp) + uint32(100),
+            inputSlopes,
+            new int256[](1)
+        );
+
+        CrossChainOrder memory order = CrossChainBuilder.getCrossChainOrder(
+            dutchOrderData,
+            address(reactor),
+            SWAPPER,
+            DEFAULT_ORDER_NONCE,
+            uint32(block.chainid),
+            uint32(200),
+            uint32(1000)
+        );
+
+        vm.prank(SWAPPER);
+        reactor.deposit(order);
+
+        if (slope > 0) {
+            vm.expectEmit();
+            emit Transfer(address(reactor), SWAPPER, uint256(int256(slope)) * 100);
+        }
+
+        vm.prank(fillerAddress);
+        reactor.initiate(order, hex"", hex"");
+    }
+
+
     function _withSlopesData(
         CatalystDutchOrderData memory currentCatalystDutchOrderData,
         uint32 slopeStaringTime,

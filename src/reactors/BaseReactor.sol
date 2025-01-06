@@ -247,7 +247,6 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
          */
         if (msg.sender != order.swapper || order.initiateDeadline >= block.timestamp) revert CannotCancelOrder();
         
-
         bool deposited = _deposits[_crossChainOrderHash(order)];
         if (!deposited) revert DepositDoesntExist();
         _deposits[_crossChainOrderHash(order)] = false;
@@ -338,7 +337,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // This is important, since a later deployed token can screw up the whole pipeline.
         IsContractLib.checkCodeSize(orderKey.collateral.collateralToken);
         // Collateral is collected from sender instead of fillerAddress.
-        SafeTransferLib.safeTransferFrom(
+        if (orderKey.collateral.fillerCollateralAmount > 0) SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken, msg.sender, address(this), orderKey.collateral.fillerCollateralAmount
         );
 
@@ -351,6 +350,24 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
             _collectTokensViaPermit2(
                 orderKey, permittedAmounts, order.initiateDeadline, order.swapper, witness, witnessTypeString, signature
             );
+        } else {
+            // We need to return the difference between the maximum and now:
+            // We collected:
+            Input[] memory depositedInputs = _getMaxInputs(order);
+            // The order uses:
+            Input[] memory orderKeyInputs = orderKey.inputs;
+            address refundTo = order.swapper;
+            uint256 numInputs = depositedInputs.length;
+            for (uint256 i; i < numInputs; ++i) {
+                // We should assume that the inputs are the same. If a reactor
+                // makes inputs such that _getMaxInputs and _initiate returns 2
+                // different arrays, then it can be exploited.
+                Input memory selectOrderKeyInput = orderKeyInputs[i];
+                // The orderKeyInput must be less than depositedInputs.
+                uint256 difference = depositedInputs[i].amount - selectOrderKeyInput.amount;
+
+                if (difference > 0) SafeTransferLib.safeTransfer(selectOrderKeyInput.token, refundTo, difference);
+            }
         }
 
         emit OrderInitiated(orderHash, msg.sender, fillerData, orderKey);
@@ -411,7 +428,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Pay collateral tokens
         // No need to check if collateralToken is a deployed contract.
         // It has already been entered into our contract & we don't want this call to revert.
-        SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+        if (fillerCollateralAmount > 0) SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
 
         bytes32 identifier = orderContext.identifier;
         if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
@@ -456,7 +473,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         // Pay collateral tokens
         // collateralToken has already been entered so no need to check if
         // it is a valid token.
-        SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
+        if (fillerCollateralAmount > 0) SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
 
         bytes32 identifier = orderContext.identifier;
         if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
@@ -501,7 +518,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Collect bond collateral.
         // CollateralToken has already been entered so no need to check if it is a valid token.
-        SafeTransferLib.safeTransferFrom(
+        if (orderKey.collateral.challengerCollateralAmount > 0) SafeTransferLib.safeTransferFrom(
             orderKey.collateral.collateralToken,
             msg.sender,
             address(this),
@@ -550,17 +567,18 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
             uint256 swapperCollateralAmount = fillerCollateralAmount / 2;
             // We don't check if collateralToken is a token, since we don't
             // want this call to fail.
-            SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
+            if (swapperCollateralAmount > 0) SafeTransferLib.safeTransfer(collateralToken, orderKey.swapper, swapperCollateralAmount);
 
             // Send the rest to the wallet that called fraud. Similar to the above this should not fail.
             // A: We don't want this to fail.
             // B: If this overflows, it is better than if nothing happened.
             // C: fillerCollateralAmount - swapperCollateralAmount won't overflow as fillerCollateralAmount =
             // swapperCollateralAmount / 2 <= fillerCollateralAmount, = iff fillerCollateralAmount <= 1.
-            SafeTransferLib.safeTransfer(
+            uint256 fraudReward = challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount;
+            if (fraudReward > 0) SafeTransferLib.safeTransfer(
                 collateralToken,
                 orderContext.challenger,
-                challengerCollateralAmount + fillerCollateralAmount - swapperCollateralAmount
+                fraudReward
             );
         }
 
@@ -633,7 +651,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         address collateralToken = orderKey.collateral.collateralToken;
         uint256 collateralAmount = orderKey.collateral.fillerCollateralAmount;
         // No need to check if collateral is valid, since it has already entered the contract.
-        SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
+        if (collateralAmount > 0) SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
 
         // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token.
         // This is not done through permit.

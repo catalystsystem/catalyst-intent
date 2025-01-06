@@ -420,14 +420,16 @@ abstract contract TestBaseReactor is TestConfig {
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
 
-        vm.expectCall(
-            collateralToken,
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)", challenger, address(reactor), challengerCollateralAmount
-            )
-        );
-        vm.expectEmit();
-        emit Transfer(challenger, address(reactor), challengerCollateralAmount);
+        if (challengerCollateralAmount > 0) {
+            vm.expectCall(
+                collateralToken,
+                abi.encodeWithSignature(
+                    "transferFrom(address,address,uint256)", challenger, address(reactor), challengerCollateralAmount
+                )
+            );
+            vm.expectEmit();
+            emit Transfer(challenger, address(reactor), challengerCollateralAmount);
+        }
         vm.expectEmit();
         emit OrderChallenged(orderHash, challenger);
         reactor.dispute(orderKey);
@@ -597,8 +599,10 @@ abstract contract TestBaseReactor is TestConfig {
 
         vm.expectEmit();
         emit Transfer(address(reactor), fillerAddress, inputAmount);
-        vm.expectEmit();
-        emit Transfer(address(reactor), fillerAddress, fillerCollateralAmount);
+        if (fillerCollateralAmount > 0) {
+            vm.expectEmit();
+            emit Transfer(address(reactor), fillerAddress, fillerCollateralAmount);
+        }
         vm.expectEmit();
         emit OptimisticPayout(orderHash);
         // Check that the input are delivered to the filler.
@@ -606,7 +610,7 @@ abstract contract TestBaseReactor is TestConfig {
             tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)
         );
         // Check that the collateral is returned to the filler.
-        vm.expectCall(
+        if (fillerCollateralAmount > 0) vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
         );
         // Check that we emitted the payout status.
@@ -690,18 +694,22 @@ abstract contract TestBaseReactor is TestConfig {
 
         // Check that the input is delivered back.
         vm.expectCall(inputToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, inputAmount));
-        vm.expectCall(
+        if (collateralForSwapper > 0) vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", SWAPPER, collateralForSwapper)
         );
-        vm.expectCall(
+        if (collateralForChallenger > 0) vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", challenger, collateralForChallenger)
         );
         vm.expectEmit();
         emit Transfer(address(reactor), SWAPPER, inputAmount);
-        vm.expectEmit();
-        emit Transfer(address(reactor), SWAPPER, collateralForSwapper);
-        vm.expectEmit();
-        emit Transfer(address(reactor), challenger, collateralForChallenger);
+        if (collateralForSwapper > 0) {
+            vm.expectEmit();
+            emit Transfer(address(reactor), SWAPPER, collateralForSwapper);
+        }
+        if (collateralForChallenger > 0) {
+            vm.expectEmit();
+            emit Transfer(address(reactor), challenger, collateralForChallenger);
+        }
         vm.expectEmit();
         emit FraudAccepted(orderHash);
 
@@ -844,18 +852,22 @@ abstract contract TestBaseReactor is TestConfig {
         bytes memory newFillerData = FillerDataLib._encode1(buyer, newPurchaseDeadline, newOrderPurchaseDiscount);
 
         uint256 amountAfterDiscount = inputAmount - uint256(inputAmount) * discount / uint256(type(uint16).max);
-        vm.expectCall(
-            collateralToken,
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)", buyer, fillerAddress, fillerCollateralAmount
-            )
-        );
+        if (fillerCollateralAmount > 0) {
+            vm.expectCall(
+                collateralToken,
+                abi.encodeWithSignature(
+                    "transferFrom(address,address,uint256)", buyer, fillerAddress, fillerCollateralAmount
+                )
+            );
+        }
         vm.expectCall(
             inputToken,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", buyer, fillerAddress, amountAfterDiscount)
         );
-        vm.expectEmit();
-        emit Transfer(buyer, fillerAddress, fillerCollateralAmount);
+        if (fillerCollateralAmount > 0) {
+            vm.expectEmit();
+            emit Transfer(buyer, fillerAddress, fillerCollateralAmount);
+        }
         vm.expectEmit();
         emit Transfer(buyer, fillerAddress, amountAfterDiscount);
         vm.expectEmit();
@@ -1219,7 +1231,7 @@ abstract contract TestBaseReactor is TestConfig {
         );
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
-        vm.expectCall(
+        if (fillerCollateralAmount > 0) vm.expectCall(
             collateralToken, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, fillerCollateralAmount)
         );
 
@@ -1337,14 +1349,16 @@ abstract contract TestBaseReactor is TestConfig {
         MockERC20(collateralToken).mint(challenger, challengerCollateralAmount);
         vm.startPrank(challenger);
         MockERC20(collateralToken).approve(address(reactor), type(uint256).max);
-        vm.expectCall(
-            collateralToken,
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)", challenger, address(reactor), challengerCollateralAmount
-            )
-        );
-        vm.expectEmit();
-        emit Transfer(challenger, address(reactor), challengerCollateralAmount);
+        if (challengerCollateralAmount > 0) {
+            vm.expectCall(
+                collateralToken,
+                abi.encodeWithSignature(
+                    "transferFrom(address,address,uint256)", challenger, address(reactor), challengerCollateralAmount
+                )
+            );
+            vm.expectEmit();
+            emit Transfer(challenger, address(reactor), challengerCollateralAmount);
+        }
 
         reactor.dispute(orderKey);
         vm.stopPrank();
@@ -1364,14 +1378,16 @@ abstract contract TestBaseReactor is TestConfig {
 
         _fillAndSubmitOracle(remoteVMOracleContract, localVMOracleContract, orderKey, fillDeadlines);
 
-        vm.expectCall(
-            collateralToken,
-            abi.encodeWithSignature(
-                "transfer(address,uint256)",
-                fillerAddress,
-                uint256(fillerCollateralAmount) + uint256(challengerCollateralAmount)
-            )
-        );
+        if (uint256(fillerCollateralAmount) + uint256(challengerCollateralAmount) > 0) {
+            vm.expectCall(
+                collateralToken,
+                abi.encodeWithSignature(
+                    "transfer(address,uint256)",
+                    fillerAddress,
+                    uint256(fillerCollateralAmount) + uint256(challengerCollateralAmount)
+                )
+            );
+        }
 
         vm.expectCall(
             tokenToSwapInput, abi.encodeWithSignature("transfer(address,uint256)", fillerAddress, inputAmount)

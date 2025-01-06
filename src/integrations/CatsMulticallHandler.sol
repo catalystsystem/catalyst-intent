@@ -5,7 +5,8 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 import { ReentrancyGuard } from "solady/src/utils/ReentrancyGuard.sol";
 
 import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
-import { Input } from "../interfaces/Structs.sol";
+import { InputDescription } from "../libs/CatalystOrderType.sol";
+import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 /**
  * @title Allows a user to specify a series of calls that should be made by the handler
@@ -101,7 +102,7 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
      * @notice Entrypoint for the crosscats handler if inputs are delivered.
      * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else. 
      */
-    function inputsFilled(bytes32 /* orderKeyHash */, Input[] calldata inputs, bytes calldata executionData) external nonReentrant {
+    function inputsFilled(bytes32 /* orderKeyHash */, InputDescription[] calldata inputs, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
         // Set approvals base on inputs if requested.
         if (instructions.setApprovalsUsingInputsFor != address(0)) _setApprovals(inputs, instructions.setApprovalsUsingInputsFor);
@@ -113,7 +114,7 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            _drainRemainingTokens(inputs[i].token, payable(instructions.fallbackRecipient));
+            _drainRemainingTokens(EfficiencyLib.asSanitizedAddress(inputs[i].tokenId), payable(instructions.fallbackRecipient));
         }
     }
 
@@ -138,11 +139,11 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
     }
 
     /** @notice Set approvals for a list of tokens. */
-    function _setApprovals(Input[] calldata inputs, address to) internal {
+    function _setApprovals(InputDescription[] calldata inputs, address to) internal {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            Input calldata input = inputs[i];
-            SafeTransferLib.safeApproveWithRetry(input.token, to, input.amount);
+            InputDescription calldata input = inputs[i];
+            SafeTransferLib.safeApproveWithRetry(EfficiencyLib.asSanitizedAddress(inputs[i].tokenId), to, input.amount);
         }
     }
 

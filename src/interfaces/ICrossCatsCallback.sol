@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import { Input } from "./Structs.sol";
+import { InputDescription } from "../libs/CatalystOrderType.sol";
 
 /**
  * @notice Implement callback handling for Cross cats payouts, both outputs and inputs.
@@ -48,5 +48,5 @@ interface ICrossCatsCallback {
      * @param inputs Inputs of the order after paying fees.
      * @param executionData Custom data that the filler asked to be provided with the call.
      */
-    function inputsFilled(bytes32 orderKeyHash, Input[] calldata inputs, bytes calldata executionData) external;
+    function inputsFilled(bytes32 orderKeyHash, InputDescription[] calldata inputs, bytes calldata executionData) external;
 }

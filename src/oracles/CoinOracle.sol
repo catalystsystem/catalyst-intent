@@ -3,8 +3,7 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { Output } from "../interfaces/ISettlementContract.sol";
-import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
+import { OutputDescription } from "../libs/CatalystOrderType.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { BaseOracle } from "./BaseOracle.sol";
 
@@ -14,8 +13,9 @@ import { BaseOracle } from "./BaseOracle.sol";
  */
 contract CoinOracle is BaseOracle {
     error NotEnoughGasExecution(); // 0x6bc33587
+    error FilledBySomeoneElse(address solver);
 
-    event OutputFilled(bytes32 outputHash, uint32 fillDeadline, address token, address recipient, uint256 amount, bytes32 calldataHash);
+    event OutputFilled(OutputDescription output);
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
@@ -83,25 +83,25 @@ contract CoinOracle is BaseOracle {
         _call(output);
     }
 
-    /**
-     * @notice Verifies & Fills an order.
-     * If an order has already been filled given the output & fillDeadline, then this function
-     * doesn't "re"fill the order but returns early. Thus this function can also be used to verify
-     * that an order has been filled.
-     * @dev Does not automatically submit the order (send the proof).
-     * The implementation strategy (verify then fill) means that an order with repeat outputs
-     * (say 1 Ether to Alice & 1 Ether to Alice) can be filled by sending 1 Ether to Alice ONCE.
-     * !Don't make orders with repeat outputs. This is true for any oracles.!
-     * This function implements a protection against sending proofs from third-party oracles.
-     * Only proofs that have this as the correct chain and remoteOracleAddress can be sent
-     * to other oracles.
-     * @param output Output to fill.
-     * @param fillDeadline FillDeadline to match, is proof deadline of order.
-     */
-    function _fill(OutputDescription calldata output, uint32 fillDeadline) internal {
+    // /**
+    //  * @notice Verifies & Fills an order.
+    //  * If an order has already been filled given the output & fillDeadline, then this function
+    //  * doesn't "re"fill the order but returns early. Thus this function can also be used to verify
+    //  * that an order has been filled.
+    //  * @dev Does not automatically submit the order (send the proof).
+    //  * The implementation strategy (verify then fill) means that an order with repeat outputs
+    //  * (say 1 Ether to Alice & 1 Ether to Alice) can be filled by sending 1 Ether to Alice ONCE.
+    //  * !Don't make orders with repeat outputs. This is true for any oracles.!
+    //  * This function implements a protection against sending proofs from third-party oracles.
+    //  * Only proofs that have this as the correct chain and remoteOracleAddress can be sent
+    //  * to other oracles.
+    //  * @param output Output to fill.
+    //  * @param fillDeadline FillDeadline to match, is proof deadline of order.
+    //  */
+    function _fill(bytes32 orderId, OutputDescription calldata output, address filler) internal {
         // Validate order context. This lets us ensure that this oracle
         // is the correct oracle to verify output.
-        _validateChain(output.chainId);
+        _validateChain(bytes32(output.chainId));
         _IAmRemoteOracle(output.remoteOracle);
         // Importantly, the above functions ensures that we cannot forward proofs coming
         // from other chains. Only ones that come from our contract.
@@ -110,18 +110,14 @@ contract CoinOracle is BaseOracle {
         bytes32 outputHash = _outputHash(output);
 
         // Get the proof state of the fulfillment.
-        bool proofState = _provenOutput[outputHash][fillDeadline];
+        address solver = _provenOutput[orderId][output.remoteOracle][outputHash];
         // Early return if we have already seen proof.
-        if (proofState) return;
-
-        // Validate that the timestamp that is to be set, is within bounds.
-        // This ensures that one cannot fill passed orders and that it is not
-        // possible to lay traps (like always transferring through this contract).
-        _validateTimestamp(uint32(block.timestamp), fillDeadline);
+        if (solver == filler) return;
+        if (solver != address(0)) revert FilledBySomeoneElse(solver);
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _provenOutput[outputHash][fillDeadline] = true;
+        _provenOutput[orderId][output.remoteOracle][outputHash] = filler;
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
@@ -130,10 +126,6 @@ contract CoinOracle is BaseOracle {
 
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
-        // The token is not checked for code as this may make a output
-        // unfillable. There are still ways to make an output unfillable
-        // but these can be migrated by whitelists. Regardless, don't
-        // set the output token to an undeployed token / without code.
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, amount);
 
         // If there is an external call associated with the fill, execute it.
@@ -141,20 +133,17 @@ contract CoinOracle is BaseOracle {
         if (remoteCallLength > 0) _call(output);
 
         emit OutputFilled(
-            outputHash,
-            fillDeadline, token, recipient, amount, remoteCallLength > 0 ? keccak256(output.remoteCall) : bytes32(0)
+            output
         );
     }
 
     /**
      * @notice function overflow of _fill to allow filling multiple outputs in a single call.
      */
-    function _fill(OutputDescription[] calldata outputs, uint32[] calldata fillDeadlines) internal {
+    function _fill(bytes32 orderId, OutputDescription[] calldata outputs, address filler) internal {
         uint256 numOutputs = outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
-            OutputDescription calldata output = outputs[i];
-            uint32 fillDeadline = fillDeadlines[i];
-            _fill(output, fillDeadline);
+            _fill(orderId, outputs[i], filler);
         }
     }
 
@@ -163,13 +152,12 @@ contract CoinOracle is BaseOracle {
     /**
      * @notice Fills several outputs in one go. Can be used to batch fill orders to save gas.
      */
-    function fill(OutputDescription[] calldata outputs, uint32[] calldata fillDeadlines) external {
-        _fill(outputs, fillDeadlines);
+    function fill(bytes32 orderId, OutputDescription[] calldata outputs, address filler) external {
+        _fill(orderId, outputs, filler);
     }
 
-
-
+    // TODO: Make this the standard interface. Can be done by loading OutputDescription[] via assembly.
     function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
-        
+        this.fill(orderId, abi.decode(originData, (OutputDescription[])), abi.decode(fillerData, (address)));
     }
 }

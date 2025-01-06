@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { CrossChainOrderType } from "./CrossChainOrderType.sol";
+import { GaslessCrossChainOrder } from "../interfaces/IERC7683.sol";
 
 struct InputDescription {
     /**
@@ -89,13 +89,13 @@ library CrossChainOrderType {
 
     bytes constant OUTPUT_TYPE = abi.encodePacked(
         "OutputDescription(",
+        "uint8 orderType,",
         "bytes32 token,",
         "uint256 amount,",
         "bytes32 recipient,",
         "uint256 chainId,",
         "bytes32 remoteOracle,",
         "bytes remoteCall,",
-        "uint8 orderType,",
         "bytes fulfillmentContext",
         ")"
     );
@@ -103,26 +103,26 @@ library CrossChainOrderType {
     string constant TOKEN_PERMISSIONS_TYPE = "TokenPermissions(address token,uint256 amount)";
 
     function hashInput(InputDescription memory input) internal pure returns (bytes32) {
-        return keccak256(abi.encode(keccak256(INPUT_TYPE), input.token, input.amount));
+        return keccak256(abi.encode(keccak256(INPUT_TYPE), input.tokenId, input.amount));
     }
 
     function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                keccak256(OUTPUT_TYPE_STUB),
+                keccak256(OUTPUT_TYPE),
+                output.orderType,
                 output.token,
                 output.amount,
                 output.recipient,
                 output.chainId,
-                keccak256(output.remoteCall),
                 output.remoteOracle,
-                output.orderType,
+                keccak256(output.remoteCall),
                 keccak256(output.fulfillmentContext)
             )
         );
     }
 
-    function hashInputs(Input[] memory inputs) internal pure returns (bytes32) {
+    function hashInputs(InputDescription[] memory inputs) internal pure returns (bytes32) {
         unchecked {
             bytes memory currentHash = new bytes(32 * inputs.length);
 
@@ -155,7 +155,7 @@ library CrossChainOrderType {
     //--- Order Types ---//
 
     bytes constant CATALYST_ORDER_DATA_TYPE = abi.encodePacked(
-        LIMIT_ORDER_DATA_TYPE_ONLY, INPUT_TYPE, OUTPUT_TYPE
+        CATALYST_ORDER_DATA_TYPE_ONLY, INPUT_TYPE, OUTPUT_TYPE
     );
 
     bytes constant CATALYST_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
@@ -177,11 +177,10 @@ library CrossChainOrderType {
     string constant CATALYST_ORDER_WITNESS_STRING_TYPE = string(
         abi.encodePacked(
             "CrossChainOrder witness)",
-            LIMIT_ORDER_DATA_TYPE_ONLY,
-            LIMIT_CROSS_CHAIN_ORDER_TYPE,
-            INPUT_TYPE_STUB,
-            OUTPUT_TYPE_STUB
-            // TODO:
+            GASSLESS_CROSS_CHAIN_ORDER_TYPE,
+            CATALYST_ORDER_DATA_TYPE_ONLY,
+            INPUT_TYPE,
+            OUTPUT_TYPE
         )
     );
 
@@ -189,45 +188,44 @@ library CrossChainOrderType {
 
     function decodeOrderData(
         bytes calldata orderBytes
-    ) internal pure returns (CatalystLimitOrderData memory limitData) {
-        return limitData = abi.decode(orderBytes, (CatalystLimitOrderData));
+    ) internal pure returns (CatalystOrderData memory orderData) {
+        return orderData = abi.decode(orderBytes, (CatalystOrderData));
     }
 
     function hashOrderDataM(
-        CatalystLimitOrderData memory orderData
+        CatalystOrderData memory orderData
     ) internal pure returns (bytes32) {
         return keccak256(
             bytes.concat(
                 abi.encode(
-                    LIMIT_ORDER_DATA_TYPE_HASH,
+                    CATALYST_ORDER_DATA_TYPE_HASH,
+                    orderData.localOracle,
+                    orderData.collateralToken,
+                    orderData.collateralAmount,
                     orderData.proofDeadline,
                     orderData.challengeDeadline,
-                    orderData.collateralToken,
-                    orderData.fillerCollateralAmount,
-                    orderData.challengerCollateralAmount,
-                    orderData.localOracle
-                ),
-                abi.encode(
-                    CrossChainOrderType.hashInputs(orderData.inputs), CrossChainOrderType.hashOutputs(orderData.outputs)
+                    CrossChainOrderType.hashInputs(orderData.inputs),
+                    CrossChainOrderType.hashOutputs(orderData.outputs)
                 )
             )
         );
     }
 
     function crossOrderHash(
-        CrossChainOrder calldata order,
-        CatalystLimitOrderData memory limitOrderData
+        GaslessCrossChainOrder calldata order,
+        CatalystOrderData memory orderData
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                keccak256(abi.encodePacked(LIMIT_CROSS_CHAIN_ORDER_TYPE, LIMIT_ORDER_DATA_TYPE)),
-                order.settlementContract,
-                order.swapper,
+                keccak256(abi.encodePacked(GASSLESS_CROSS_CHAIN_ORDER_TYPE)),
+                order.originSettler,
+                order.user,
                 order.nonce,
                 order.originChainId,
-                order.initiateDeadline,
+                order.openDeadline,
                 order.fillDeadline,
-                hashOrderDataM(limitOrderData)
+                order.orderDataType,
+                hashOrderDataM(orderData)
             )
         );
     }

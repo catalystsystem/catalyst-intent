@@ -9,7 +9,7 @@ struct GaslessCrossChainOrder {
 	address originSettler;
 	/// @dev The address of the user who is initiating the swap,
 	/// whose input tokens will be taken and escrowed
-	address user;
+	address user; 
 	/// @dev Nonce to be used as replay protection for the order
 	uint256 nonce;
 	/// @dev The chainId of the origin chain

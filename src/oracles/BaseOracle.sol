@@ -3,9 +3,8 @@ pragma solidity ^0.8.26;
 
 import { FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
-import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
-import { OutputDescription } from "../libs/ordertypes/CatalystOrderType.sol";
+import { OutputDescription } from "../libs/CatalystOrderType.sol";
 
 /**
  * @dev Oracles are also fillers
@@ -47,7 +46,7 @@ abstract contract BaseOracle is IOracle {
         if (ADDRESS_THIS != remoteOracle) revert WrongRemoteOracle(ADDRESS_THIS, remoteOracle);
     }
 
-    function _encodePartialOutput(
+    function _encodeOutput(
         uint8 orderType,
         bytes32 token,
         uint256 amount,
@@ -57,8 +56,8 @@ abstract contract BaseOracle is IOracle {
         bytes calldata fulfillmentContext
     ) internal pure returns (bytes memory encodedOutput) {
         // Check that the remoteCall and fulfillmentContext does not exceed type(uint16).max
-        if (remoteCall.lenth > type(uint16).max) revert RemoteCallOutOfRange();
-        if (fulfillmentContext.lenth > type(uint16).max) revert fulfillmentContextOutOfRange();
+        if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             orderType,
@@ -76,7 +75,7 @@ abstract contract BaseOracle is IOracle {
     function _encodeOutputDescription(
         OutputDescription calldata outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
-        return encodedOutput = _encodePartialOutput(
+        return encodedOutput = _encodeOutput(
             outputDescription.orderType,
             outputDescription.token,
             outputDescription.amount,
@@ -85,6 +84,10 @@ abstract contract BaseOracle is IOracle {
             outputDescription.remoteCall,
             outputDescription.fulfillmentContext
         );
+    }
+    
+    function _outputHash(OutputDescription calldata outputDescription) pure internal returns (bytes32 outputHash) {
+        return outputHash = keccak256(_encodeOutputDescription(outputDescription));
     }
 
     /**
@@ -97,18 +100,16 @@ abstract contract BaseOracle is IOracle {
         if (block.chainid != uint256(chainId)) revert WrongChain(block.chainid, uint256(chainId));
     }
 
-    //--- Output Proofs ---/
+    //--- Output Proofs ---//
 
     /**
      * @notice Check if an output has been proven.
      * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
      * @param orderId Order Id for help against output collisions.
-     * @param remoteOracle The remote oracle.
-     * @param orderType Output to check for.
-     * @param outputHash Output to check for.
+     * @param outputDescription Output to examine
      */
     function _outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) internal view returns (address solver) {
-        bytes32 outputHash = keccak256(_encodeOutputDescription(outputDescription));
+        bytes32 outputHash = _outputHash(outputDescription);
         solver = _provenOutput[orderId][outputDescription.remoteOracle][outputHash];
         if (solver == address(0)) {
             // TODO: Check if there is an optimistic instance.
@@ -118,8 +119,8 @@ abstract contract BaseOracle is IOracle {
     /**
      * @notice Check if an output has been proven.
      * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
-     * @param output Output to check for.
-     * @param fillDeadline The expected fill time. Is used as a time & collision check.
+     * @param orderId Id of order containing the output.
+     * @param outputDescription Output to search for.
      */
     function outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) external view returns (address solver) {
         return solver = _outputFilled(orderId, outputDescription);
@@ -127,16 +128,17 @@ abstract contract BaseOracle is IOracle {
 
     /**
      * @notice Check if a series of outputs has been proven.
-     * @dev Function overload for isProven to allow proving multiple outputs in a single call.
+     * @dev Function overload for outputFilled to allow proving multiple outputs in a single call.
      * Notice that the solver of the first provided output is reported as the entire intent solver.
      */
-    function outputFilled(bytes32 orderId, OutputDescription[] calldata outputDescriptions) public view returns (address solver) {
+    function outputFilled(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver) {
         // Get the first solver. This is the solver we will report as whom that solved the intent.
         solver = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
-        if (solver == address(0)) revert NotProven(orderId, OutputDescription[0]);
+        if (solver == address(0)) revert NotProven(orderId, outputDescriptions[0]);
 
         uint256 numOutputs = outputDescriptions.length;
         // Check that the rest of the outputs have been filled.
+        // Notice that we discard the solver address and only check if it has been set
         for (uint256 i = 1; i < numOutputs; ++i) {
            address outputSolver = _outputFilled(orderId, outputDescriptions[i]);
             if (outputSolver == address(0)) revert NotProven(orderId, outputDescriptions[i]);

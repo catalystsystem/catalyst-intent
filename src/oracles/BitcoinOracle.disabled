@@ -7,7 +7,7 @@ import { NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IB
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
-import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
+import { OutputDescription } from "../libs/CatalystOrderType.sol";
 import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { BaseOracle } from "./BaseOracle.sol";
 

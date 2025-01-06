@@ -56,26 +56,16 @@ contract MulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         Input[] memory inputs = new Input[](1);
         inputs[0] = input;
 
-        // Set approvals base on inputs if requested.
-        if (instructions.setApprovalsUsingInputsFor != address(0)) _setApprovals(inputs, instructions.setApprovalsUsingInputsFor);
-
-        // If there is no fallback recipient, call and revert if the inner call fails.
-        if (instructions.fallbackRecipient == address(0)) {
-            this.attemptCalls(instructions.calls);
-            return;
-        }
-
-        // Otherwise, try the call and send to the fallback recipient if any tokens are leftover.
-        (bool success, ) = address(this).call(abi.encodeCall(this.attemptCalls, (instructions.calls)));
-        if (!success) emit CallsFailed(instructions.calls, instructions.fallbackRecipient);
-
-        // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
-        _drainRemainingTokens(address(uint160(uint256(token))), payable(instructions.fallbackRecipient));
+        _doInstructions(instructions, inputs);
     }
 
     function inputsFilled(bytes32 /* orderKeyHash */, Input[] calldata inputs, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
 
+        _doInstructions(instructions, inputs);
+    }
+
+    function _doInstructions(Instructions memory instructions, Input[] memory inputs) internal {
         // Set approvals base on inputs if requested.
         if (instructions.setApprovalsUsingInputsFor != address(0)) _setApprovals(inputs, instructions.setApprovalsUsingInputsFor);
 

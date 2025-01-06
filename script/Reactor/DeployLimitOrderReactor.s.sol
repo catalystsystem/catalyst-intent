@@ -23,7 +23,7 @@ contract DeployLimitOrderReactor is DeployBaseReactor {
         return deploy(CATALYST_ADDRESS);
     }
 
-    function initCodeHash() external view returns(bytes32) {
+    function initCodeHash() external pure returns(bytes32) {
         return keccak256(abi.encodePacked(type(LimitOrderReactor).creationCode, abi.encode(PERMIT2, CATALYST_ADDRESS)));
     }
 }

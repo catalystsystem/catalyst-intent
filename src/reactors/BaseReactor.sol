@@ -405,7 +405,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
 
         bytes32 identifier = orderContext.identifier;
-        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
 
         emit OrderProven(orderHash, msg.sender);
     }
@@ -450,7 +450,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
         SafeTransferLib.safeTransfer(collateralToken, fillerAddress, fillerCollateralAmount);
 
         bytes32 identifier = orderContext.identifier;
-        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, executionData);
+        if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
 
         emit OptimisticPayout(orderHash);
     }
@@ -633,7 +633,7 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
 
         // Check if there is an identifier, if there is execute data.
         if (oldIdentifier != bytes32(0)) {
-            FillerDataLib.execute(identifier, orderKeyHash, fillerData[fillerDataPointer:]);
+            FillerDataLib.execute(identifier, orderKeyHash, orderKey.inputs, fillerData[fillerDataPointer:]);
         }
 
         emit OrderPurchased(orderKeyHash, msg.sender);

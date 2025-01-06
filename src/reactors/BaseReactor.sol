@@ -239,8 +239,14 @@ abstract contract BaseReactor is ReactorPayments, ResolverERC7683 {
     function cancel(
         CrossChainOrder calldata order
     ) external {
-        // If the initiate deadline hasn't been passed, the caller needs to be msg.sender.
-        if (order.initiateDeadline < block.timestamp && order.swapper != msg.sender) revert CannotCancelOrder();
+        /*
+         The if statement checks the following, but is optimised:
+            if (msg.sender != order.swapper) {
+                require(order.initiateDeadline < block.timestamp, "initiate not passed");
+            }
+         */
+        if (msg.sender != order.swapper || order.initiateDeadline >= block.timestamp) revert CannotCancelOrder();
+        
 
         bool deposited = _deposits[_crossChainOrderHash(order)];
         if (!deposited) revert DepositDoesntExist();

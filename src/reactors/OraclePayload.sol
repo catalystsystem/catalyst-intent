@@ -8,12 +8,11 @@ pragma solidity ^0.8.26;
 //      + NUM_OUTPUTS           1       (2 bytes)
 //    OUTPUTS
 //      DECODE_ABLE_SECTION
-//      + ORDER_ID                      M_i+2                           (32 bytes)
-//      + SOLVER                        M_i+34                          (32 bytes)
-//      + TIMESTAMP                     M_i+66                          (5 bytes)
-//      + OUTPUT_SIZE                   M_i+71                          (2 bytes) // TODO: 3 bytes?
+//      + OUTPUT_SIZE                   M_i+71                          (2 bytes)
 //      NON_DECODE_ABLE_SECTION
-//      + ORDER_TYPE                    M_i+73                          (1 bytes)
+//      + SOLVER                        M_i+34                          (32 bytes)
+//      + ORDER_ID                      M_i+2                           (32 bytes)
+//      + TIMESTAMP                     M_i+66                          (5 bytes)
 //      + TOKEN                         M_i+74                          (32 bytes)
 //      + AMOUNT                        M_i+106                          (32 bytes)
 //      + RECIPIENT                     M_i+138                         (32 bytes)

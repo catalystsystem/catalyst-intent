@@ -18,16 +18,14 @@ import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
 import { OutputDescription } from "../../libs/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
-import "../OutputEncodingLibrary.sol";
+import { PayloadEncodingLibrary } from "../PayloadEncodingLibrary.sol";
 
+import { IExtendedSimpleOracle } from "../../interfaces/IExtendedSimpleOracle.sol";
 
-import "forge-std/console.sol";
-/**
- * @dev Oracles are also fillers
- */
-abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, Ownable {
+contract WormholeOracle is BaseOracle, IExtendedSimpleOracle, IMessageEscrowStructs, WormholeVerifier, Ownable {
     error AlreadySet();
     error RemoteCallTooLarge();
+    error NotStored(uint256 index);
 
     event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint32 chainId);
 
@@ -51,6 +49,10 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
         WORMHOLE = IWormhole(_wormhole);
     }
 
+    receive() external payable {
+        // Lets us gets refunds from Wormhole.
+    }
+
     //-- View Functions --//
 
     function getChainIdentifierToBlockChainId(
@@ -65,46 +67,18 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
         return _blockChainIdToChainIdentifier[chainId];
     }
 
-    //--- Chain config ---//
-
-    /**
-     * @notice Defines the map between the messaging protocol and chainIds.
-     * @dev Can only be called once for each chain.
-     */
-    function setRemoteImplementation(
-        uint16 chainIdentifier,
-        uint32 blockChainIdOfChainIdentifier
-    ) external onlyOwner {
-        // Check that we havn't set blockChainIdOfChainIdentifier yet.
-        if (_blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] != 0) revert AlreadySet();
-    
-        _blockChainIdToChainIdentifier[blockChainIdOfChainIdentifier] = chainIdentifier;
-        _chainIdentifierToBlockChainId[chainIdentifier] = blockChainIdOfChainIdentifier;
-        emit MapMessagingProtocolIdentifierToChainId(chainIdentifier, blockChainIdOfChainIdentifier);
-    }
-
     //--- Sending Proofs & Generalised Incentives ---//
 
     /**
      * @notice Submits a proof the associated messaging protocol.
      * @dev Refunds excess value ot msg.sender. 
-     * Does not check implement any check on the outputs.
-     * It is expected that this proof will arrive at a supported oracle (destinationAddress)
-     * and where the proof of fulfillment is needed.
-     * fillDeadlines.length < outputs.length is checked but fillDeadlines.length > outputs.length is not.
-     * Before calling this function ensure !(fillDeadlines.length > outputs.length).
-     * @param outputs Outputs to prove. This function does not validate that these outputs are valid
-     * or has been proven. When using this function, it is important to ensure that these outputs
-     * are true AND these proofs were created by this (or the inheriting) contract.
-     * @param proofs Proof storage state for each output
      */
     function _submit(
-        bytes32[] calldata orderIds,
-        OutputDescription[] calldata outputs,
-        ProofStorage[] memory proofs
-    ) internal {
+        address caller,
+        bytes[] calldata payloads
+    ) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = OutputEncodingLibrary._encodeMessage(orderIds, outputs, proofs);
+        bytes memory message = PayloadEncodingLibrary.encodeMessage(_getIdentifier(caller), payloads);
 
         uint256 packageCost = WORMHOLE.messageFee();
         WORMHOLE.publishMessage{value: packageCost} (
@@ -115,62 +89,57 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
 
         // Refund excess value if any.
         if (msg.value > packageCost) {
-            uint256 refund = msg.value - packageCost;
+            refund = msg.value - packageCost;
             SafeTransferLib.safeTransferETH(msg.sender, refund);
         }
     }
 
-    /**
-     * @notice Release a wormhole VAA.
-     * @dev It is expected that this proof will arrive at a supported oracle (destinationAddress)
-     * and where the proof of fulfillment is needed.
-     * It is required that outputs.length == fillDeadlines.length. This is checked through 2 indirect checks of
-     * not (fillDeadlines.length > outputs.length & fillDeadlines.length < outputs.length) => fillDeadlines.length ==
-     * outputs.length.
-     * @param outputs Outputs to prove. This function validates that the outputs has been correct set.
-     */
+    /** @notice Submits proofs directly to Wormhole. This does not store proofs in any way. */
     function submit(
-        bytes32[] calldata orderIds,
-        OutputDescription[] calldata outputs
-    ) public payable {
-        uint256 numOutputs = outputs.length;
-        ProofStorage[] memory proofContexts = new ProofStorage[](numOutputs);
-        unchecked {
-            for (uint256 i; i < numOutputs; ++i) {
-                OutputDescription calldata output = outputs[i];
-                // The chainId of the output has to match this chain. This is required to ensure that it originated
-                // here.
-                _validateChain(bytes32(output.chainId));
-                // Validate that this contract made the original proof (other oracles can't proxy proofs)
-                _IAmRemoteOracle(output.remoteOracle); 
-                // Validate that we have proofs for each output.
-                proofContexts[i] = _provenOutput[orderIds[i]][output.remoteOracle][_outputHash(output)];
-                if (proofContexts[i].solver != address(0)) {
-                    revert CannotProveOrder();
-                }
-            }
+        bytes[] calldata payloads
+    ) public payable returns (uint256 refund) {
+        return _submit(msg.sender, payloads);
+    }
+
+    /** @notice Submits proofs that have been stored in this oracle directly to Wormhole. */
+    function submit(
+        address proofSource,
+        bytes[] calldata payloads
+    ) public payable returns (uint256 refund) {
+        // Check if each payload has been stored here.
+        uint256 numPayloads = payloads.length;
+        for (uint256 i; i < numPayloads; ++i) {
+            if (!_attestations[bytes32(0)][bytes32(uint256(uint160(proofSource)))][keccak256(payloads[i])]) revert NotStored(i);
         }
-        // The submit call will fail if fillDeadlines.length < outputs.length.
-        // This call also refunds excess value sent.
-        _submit(orderIds, outputs, proofContexts);
+        // Payloads are good. We can submit them onbehalf of proofSource.
+        return _submit(proofSource, payloads);
+    }
+
+    function submitAndStore(
+        bytes[] calldata payloads
+    ) public payable returns (uint256 refund) {
+        uint256 numPayloads = payloads.length;
+        for (uint256 i; i < numPayloads; ++i) {
+            storeProof(keccak256(payloads[i]));
+        }
+        return _submit(msg.sender, payloads);
     }
 
     function receiveMessage(
         bytes calldata rawMessage
     ) external {
-        (uint16 sourceIdentifier, bytes32 remoteOracle, bytes calldata message) = _verifyPacket(rawMessage);
+        (uint16 remoteChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
+        (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = PayloadEncodingLibrary.decodeMessage(message);
 
-        (bytes32[2][] memory orderIdOutputHashes, ProofStorage[] memory proofContext) = OutputEncodingLibrary._decodeMessage(message);
+        // Construct the identifier
+        bytes32 senderIdentifier = _enhanceIdentifier(remoteSenderIdentifier, identifierFromMessage);
 
-        uint256 numOutputs = orderIdOutputHashes.length;
+        // TODO: map remoteChainIdentifier to canonical chain id instead of messaging protocol specific.
 
-        // Load the expected chainId (not the messaging protocol identifier).
-        uint32 expectedBlockChainId = _chainIdentifierToBlockChainId[sourceIdentifier];
-        for (uint256 i; i < numOutputs; ++i) {
-            bytes32[2] memory orderIdAndOutputHash = orderIdOutputHashes[i];
-            bytes32 orderId = orderIdAndOutputHash[0];
-            bytes32 outputHash = orderIdAndOutputHash[1];
-            _provenOutput[orderId][remoteOracle][outputHash] = proofContext[i];
+        // Store payload attestations;
+        uint256 numPayloads = payloadHashes.length;
+        for (uint256 i; i < numPayloads; ++i) {
+            _attestations[bytes32(uint256(remoteChainIdentifier))][senderIdentifier][payloadHashes[i]] = true;
 
             // TODO: emit OutputProven(fillDeadline, outputHash);
         }
@@ -197,6 +166,5 @@ abstract contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeV
 
         // Load the identifier for the calling contract.
         implementationIdentifier = vm.emitterAddress;
-
     }
 }

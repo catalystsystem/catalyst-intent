@@ -3,174 +3,145 @@ pragma solidity ^0.8.26;
 
 import { FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
-import { BaseReactor } from "../reactors/BaseReactor.sol";
 import { OutputDescription } from "../libs/CatalystOrderType.sol";
-import { OutputEncodingLibrary } from "./OutputEncodingLibrary.sol";
 
-/**
- * @dev Oracles are also fillers
- */
 abstract contract BaseOracle is IOracle {
-    error NotProven(bytes32 orderId, OutputDescription);
-
-    event OutputProven(uint32 fillDeadline, bytes32 outputHash);
-
-    uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
-
-    struct ProofStorage {
-        address solver;
-        uint40 timestamp;
-    }
+    error NotProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash);
+    error NotDivisible(uint256 value, uint256 divisor);
+    error BadDeploymentAddress(address);
 
     /**
-     * @notice 
-     */
-    uint32 public immutable CHAIN_ID = uint32(block.chainid);
-    bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
-
-    /** 
      * @notice Maps filled outputs to solvers.
      * @dev Outputs aren't parsed and it is the consumer that is responsible the hash is of data that makes sense.
-     * 
+     * If remoteChainId == 0, then it belongs to a sender from this chain.
      */
-    mapping(bytes32 orderId => 
-        mapping(bytes32 remoteOracle => 
-        mapping(bytes32 outputHash => ProofStorage))) internal _provenOutput; // TODO: Add timestamp
+    mapping(bytes32 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 dataHash => bool))) internal _attestations;
 
-    //-- Helpers --//
-
-    /**
-     * @notice Validate that the remote oracle address is this oracle.
-     * @dev For some oracles, it might be required that you "cheat" and change the encoding here.
-     * Don't worry (or do worry) because the other side loads the payload as bytes32(bytes).
-     */
-    function _IAmRemoteOracle(
-        bytes32 remoteOracle
-    ) internal view virtual {
-        if (ADDRESS_THIS != remoteOracle) revert WrongRemoteOracle(ADDRESS_THIS, remoteOracle);
-    }
-    
-    function _outputHash(OutputDescription calldata outputDescription) pure internal returns (bytes32 outputHash) {
-        return outputHash = keccak256(OutputEncodingLibrary._encodeOutputDescription(outputDescription));
+    constructor() {
+        // It is important that this contract's address is 16 bytes.
+        if (uint256(uint128(uint160(address(this)))) != uint256(uint160(address(this)))) revert BadDeploymentAddress(address(this));
     }
 
     /**
-     * @notice Validate that expected chain (@param chainId) matches this chain's chainId (block.chainId)
-     * @dev We use the chain's canonical id rather than the messaging protocol id for clarity.
+     * @notice Computes a identifier for the route.
+     * The first 16 bytes is of the original origin.
+     * The last 16 bytes is of this contract.
+     * @dev This identifier requries that both this contract
+     * and the app has been mined for 16 bytes addresses. Otherwise there may be collisions.
      */
-    function _validateChain(
-        bytes32 chainId
-    ) internal view {
-        if (block.chainid != uint256(chainId)) revert WrongChain(block.chainid, uint256(chainId));
+    function _getIdentifier(address app) internal view returns (bytes32) {
+        // Because of the deployment constraint we do not need to cleanup address(this)
+        return bytes32(uint256(uint128(uint160(app))) >> 128 + uint256(uint160(address(this))));
     }
 
-    //--- Output Proofs ---//
+    function getIdentifier(address app) external view returns (bytes32) {
+        return _getIdentifier(app);
+    }
 
-    /**
-     * @notice Check if an output has been proven.
-     * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
-     * @param orderId Order Id for help against output collisions.
-     * @param outputDescription Output to examine
-     */
-    function _outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) internal view returns (address solver, uint40 timestamp) {
-        bytes32 outputHash = _outputHash(outputDescription);
-        ProofStorage storage proofStorage = _provenOutput[orderId][outputDescription.remoteOracle][outputHash];
-        (solver, timestamp) = (proofStorage.solver, proofStorage.timestamp);
-        if (solver == address(0)) {
-            // TODO: Check if there is an optimistic instance.
+    function _enhanceIdentifier(bytes32 identifierFromCourier, bytes32 identifierFromMessage) internal pure returns (bytes32) {
+        if (identifierFromCourier == identifierFromMessage) return identifierFromMessage;
+
+        // Check if the identifierFromCourier is parital:
+        if (uint256(identifierFromCourier) < uint256(type(uint128).max)) {
+            // If the last 16 bytes match, then identifierFromMessage must be the valid one.
+            if (uint256(identifierFromCourier) == uint128(uint256(identifierFromMessage))) return identifierFromMessage;
         }
+        return identifierFromCourier;
+    }
+
+    //--- Data Attestation Validation ---//
+
+    /**
+     * @notice Check if a remote oracle has attested to some data
+     * @dev Helper function for accessing _attestations.
+     * @param remoteChainId Chain the data supposedly originated from.
+     * @param remoteOracle Identifier for the remote attestation.
+     * @param dataHash Hash of data.
+     */
+    function _isProven(bytes32 remoteChainId, bytes32 remoteOracle, bytes32 dataHash) internal view returns (bool state) {
+        state = _attestations[remoteChainId][remoteOracle][dataHash];
     }
 
     /**
-     * @notice Check if an output has been proven.
-     * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
-     * @param orderId Id of order containing the output.
-     * @param outputDescription Output to search for.
+     * @notice Check if some data has been attested to.
+     * @param remoteChainId Chain the data supposedly originated from.
+     * @param remoteOracle Identifier for the remote attestation.
+     * @param dataHash Hash of data.
      */
-    function outputFilled(bytes32 orderId, OutputDescription calldata outputDescription) external view returns (address solver, uint40 timestamp) {
-        return _outputFilled(orderId, outputDescription);
+    function isProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash) external view returns (bool) {
+        return _isProven(remoteOracle, remoteChainId, dataHash);
     }
 
     /**
-     * @notice Check if a series of outputs has been proven.
-     * @dev Function overload for outputFilled to allow proving multiple outputs in a single call.
-     * Notice that the solver of the first provided output is reported as the entire intent solver.
+     * @notice Reverts if some data has not been attested to.
+     * @param remoteChainId Chain the data supposedly originated from.
+     * @param remoteOracle Identifier for the remote attestation.
+     * @param dataHash Hash of data.
      */
-    function outputFilled(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver) {
-        // Get the first solver. This is the solver we will report as whom that solved the intent.
-        (solver, ) = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
-        if (solver == address(0)) revert NotProven(orderId, outputDescriptions[0]);
+    function requireProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash) external view {
+        if (!_isProven(remoteOracle, remoteChainId, dataHash)) revert NotProven(remoteOracle, remoteChainId, dataHash);
+    }
 
-        uint256 numOutputs = outputDescriptions.length;
+    /**
+     * @notice Check if a series of data has been attested to.
+     * @dev Lengths of arrays aren't checked. Ensure they are sane before calling.
+     * @param remoteChainIds Chain the data supposedly originated from.
+     * @param remoteOracles Identifier for the remote attestation.
+     * @param dataHashs Hash of data.
+     */
+    function isProven(bytes32[] calldata remoteOracles, bytes32[] calldata remoteChainIds, bytes32[] calldata dataHashs) external view returns (bool) {
+        uint256 series = remoteOracles.length;
         // Check that the rest of the outputs have been filled.
         // Notice that we discard the solver address and only check if it has been set
-        for (uint256 i = 1; i < numOutputs; ++i) {
-            (address outputSolver, ) = _outputFilled(orderId, outputDescriptions[i]);
-            if (outputSolver == address(0)) revert NotProven(orderId, outputDescriptions[i]);
+        for (uint256 i = 1; i < series; ++i) {
+            bool state = _isProven(remoteOracles[i], remoteChainIds[i], dataHashs[i]);
+            if (!state) return false;
         }
-        return solver;
-    }
-
-    // TODO: Try to simplify using function pointer to compare helpers.
-    function outputFilledMaxTimestamp(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver, uint40 timestamp) {
-        // Get the first solver. This is the solver we will report as whom that solved the intent.
-        (solver, timestamp) = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
-        if (solver == address(0)) revert NotProven(orderId, outputDescriptions[0]);
-
-        uint256 numOutputs = outputDescriptions.length;
-        // Check that the rest of the outputs have been filled.
-        // Notice that we discard the solver address and only check if it has been set
-        for (uint256 i = 1; i < numOutputs; ++i) {
-            (address outputSolver, uint40 solvedAt) = _outputFilled(orderId, outputDescriptions[i]);
-            if (solvedAt > timestamp) timestamp = solvedAt;
-            if (outputSolver == address(0)) revert NotProven(orderId, outputDescriptions[i]);
-        }
-    }
-
-    function outputFilledMinTimestamp(bytes32 orderId, OutputDescription[] calldata outputDescriptions) external view returns (address solver, uint40 timestamp) {
-        // Get the first solver. This is the solver we will report as whom that solved the intent.
-        (solver, timestamp) = _outputFilled(orderId, outputDescriptions[0]); // If outputDescriptions.length == 0 then this reverts.
-        if (solver == address(0)) revert NotProven(orderId, outputDescriptions[0]);
-
-        uint256 numOutputs = outputDescriptions.length;
-        // Check that the rest of the outputs have been filled.
-        // Notice that we discard the solver address and only check if it has been set
-        for (uint256 i = 1; i < numOutputs; ++i) {
-            (address outputSolver, uint40 solvedAt) = _outputFilled(orderId, outputDescriptions[i]);
-            if (solvedAt < timestamp) timestamp = solvedAt;
-            if (outputSolver == address(0)) revert NotProven(orderId, outputDescriptions[i]);
-        }
-    }
-
-    // -- Optimistic Proving --//
-
-    function optimistic(
-        bytes32 orderId, bytes32 remoteOracle, uint8 orderType, bytes32 outputHash
-    ) external {
-
+        return true;
     }
 
     /**
-     * @notice Disputes a claim. If a claimed order hasn't been delivered post the fill deadline
-     * then the order should be challenged. This allows anyone to attempt to claim the collateral
-     * the filler provided (at the risk of losing their own collateral).
-     * @dev For challengers it is important to properly verify transactions:
-     * 1. Local oracle. If the local oracle isn't trusted, the filler may be able
-     * to toggle between is verified and not. This makes it possible for the filler to steal
-     * the challenger's collateral
-     * 2. Remote Oracle. Likewise for the local oracle, remote oracles may be controllable by
-     * the filler.
+     * @notice Check if a series of data has been attested to.
+     * @dev Lengths of arrays aren't checked. Ensure they are sane before calling.
+     * @param remoteChainIds Chain the data supposedly originated from.
+     * @param remoteOracles Identifier for the remote attestation.
+     * @param dataHashs Hash of data.
      */
-    function dispute(
-        bytes32 orderId, bytes32 remoteOracle, uint8 orderType, bytes32 outputHash
-    ) external {
+    function requireProven(bytes32[] calldata remoteOracles, bytes32[] calldata remoteChainIds, bytes32[] calldata dataHashs) external view {
+        uint256 series = remoteOracles.length;
+        // Check that the rest of the outputs have been filled.
+        // Notice that we discard the solver address and only check if it has been set
+        for (uint256 i = 1; i < series; ++i) {
+            bool state = _isProven(remoteOracles[i], remoteChainIds[i], dataHashs[i]);
+            if (!state) revert NotProven(remoteOracles[i], remoteChainIds[i], dataHashs[i]);
+        }
     }
 
     /**
-     * @notice Finalise the dispute.
+     * @notice Check if a series of data has been attested to.
+     * @dev More efficient implementation of requireProven.
+     * @param proofSeries remoteOracle, remoteChainId, and dataHash encoded in chucks of 32*3=96 chunks.
      */
-    function completeDispute(
-        bytes32 orderId, bytes32 remoteOracle, uint8 orderType, bytes32 outputHash
-    ) external {
+    function efficientRequireProven(bytes calldata proofSeries) external view {
+        // Get the number of proof series.
+        uint256 proofBytes = proofSeries.length;
+        uint256 series = proofBytes / (32*3);
+        if (series * (32*3) != proofBytes) revert NotDivisible(proofBytes, 32*3);
+
+        // Go over the data. We will use an for loop iterating over the offset.
+        for (uint256 offset; offset < proofBytes;) {
+            unchecked {
+                bytes32 remoteOracle = bytes32(proofSeries[offset: offset += 32]);
+                bytes32 remoteChainId = bytes32(proofSeries[offset: offset += 32]);
+                bytes32 dataHash = bytes32(proofSeries[offset: offset += 32]);
+                bool state = _isProven(remoteOracle, remoteChainId, dataHash);
+                if (!state) revert NotProven(remoteOracle, remoteChainId, dataHash);
+            }
+        }
+    }
+
+    function storeProof(bytes32 dataHash) public returns (bool beforeState) {
+        beforeState = _attestations[bytes32(0)][bytes32(uint256(uint160(msg.sender)))][dataHash];
+        if (!beforeState) _attestations[bytes32(0)][bytes32(uint256(uint160(msg.sender)))][dataHash] = true;
     }
 }

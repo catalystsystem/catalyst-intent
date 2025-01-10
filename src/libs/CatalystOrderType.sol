@@ -16,9 +16,15 @@ struct InputDescription {
 
 struct OutputDescription {
     /**
-     * @dev Sets the order type. Is needed to decode fulfillmentContext and identify the order type
+     * @dev Contract on the destination that tells whether an order was filled.
+     * Format is bytes32() slice of the encoded bytearray from the messaging protocol.
+     * If local: bytes32(uint256(uint160(address(localOracle)))).
      */
-    uint8 orderType;
+    bytes32 remoteOracle;
+    /**
+     * @dev The destination chain for this output.
+     */
+    uint256 chainId;
     /**
      * @dev The address of the token on the destination chain.
      */
@@ -32,24 +38,10 @@ struct OutputDescription {
      */
     bytes32 recipient;
     /**
-     * @dev The destination chain for this output.
-     */
-    uint256 chainId;
-    /**
-     * @dev Contract on the destination that tells whether an order was filled.
-     * Format is bytes32() slice of the encoded bytearray from the messaging protocol.
-     * If local: bytes32(uint256(uint160(address(localOracle)))).
-     */
-    bytes32 remoteOracle;
-    /**
      * @dev Additonal data that will be used to execute a call on the remote chain.
      * Is called on recipient.
      */
     bytes remoteCall;
-    /**
-     * @dev Additional data for the order that impacts order data availability. 
-     */
-    bytes fulfillmentContext;
 }
 
 struct CatalystOrderData {
@@ -65,59 +57,196 @@ struct CatalystOrderData {
 
 /**
  * @notice Helper library for the Catalyst order type.
+ * TYPE_PARTIAL: An incomplete type. Is missing a field.
+ * TYPE_STUB: Type has no subtypes. 
+ * TYPE: Is complete including sub-types.
  */
-library CrossChainOrderType {
-    bytes constant GASSLESS_CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB = abi.encodePacked(
-        "CrossChainOrder(",
-        "address originSettler,",
-        "address user,",
-        "uint256 nonce,",
-        "uint256 originChainId,",
-        "uint32 openDeadline,",
-        "uint32 fillDeadline,", // TODO: What to do about the fillDeadline
-	    "bytes32 orderDataType"
+library CatalystOrderType {
+    bytes constant CATALYST_ORDER_DATA_TYPE_STUB = abi.encodePacked(
+        "CatalystOrderData("
+        "address localOracle,"
+        "address collateralToken,"
+        "uint256 collateralAmount,"
+        "uint32 proofDeadline,"
+        "uint32 challengeDeadline,"
+        "InputDescription[] inputs,"
+        "OutputDescription[] outputs"
+        ")"
     );
 
-    //--- Token Types ---//
+    bytes constant CATALYST_ORDER_DATA_TYPE = abi.encodePacked(
+        CATALYST_ORDER_DATA_TYPE_STUB,
+        INPUT_DESCRIPTION_TYPE_STUB,
+        OUTPUT_DESCRIPTION_TYPE_STUB
+    );
 
-    bytes constant INPUT_TYPE = abi.encodePacked(
-        "Input(",
+    bytes32 constant CATALYST_ORDER_DATA_TYPE_HASH = keccak256(CATALYST_ORDER_DATA_TYPE);
+
+    bytes constant GASSLESS_CROSS_CHAIN_ORDER_TYPE_PARTIAL = abi.encodePacked(
+        "CrossChainOrder("
+        "address originSettler,"
+        "address user,"
+        "uint256 nonce,"
+        "uint256 originChainId,"
+        "uint32 openDeadline,"
+        "uint32 fillDeadline," // TODO: What to do about the fillDeadline
+	    "bytes32 orderDataType"  // TODO: Should this be here?
+    );
+
+    bytes constant GASSLESS_CROSS_CHAIN_ORDER_TYPE_STUB = abi.encodePacked(
+        GASSLESS_CROSS_CHAIN_ORDER_TYPE_PARTIAL, "CatalystOrderData orderData)"
+    );
+
+    bytes constant GASSLESS_CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
+        GASSLESS_CROSS_CHAIN_ORDER_TYPE_STUB,
+        CATALYST_ORDER_DATA_TYPE_STUB,
+        INPUT_DESCRIPTION_TYPE_STUB,
+        OUTPUT_DESCRIPTION_TYPE_STUB
+    );
+
+    bytes32 constant GASSLESS_CROSS_CHAIN_ORDER_TYPE_HASH = keccak256(GASSLESS_CROSS_CHAIN_ORDER_TYPE);
+
+    bytes constant BATCH_COMPACT_TYPE_PARTIAL = abi.encodePacked(
+        "BatchCompact("
+        "address arbiter"
+        "address sponsor"
+        "uint256 nonce"
+        "uint256 expires"
+        "uint256[2][] idsAndAmounts"
+    );
+
+    bytes constant BATCH_COMPACT_TYPE_STUB = abi.encodePacked(
+        BATCH_COMPACT_TYPE_PARTIAL,
+        "CrossChainOrder witness)"
+    );
+
+    bytes constant BATCH_COMPACT_TYPE = abi.encodePacked(
+        BATCH_COMPACT_TYPE_STUB,
+        CATALYST_ORDER_DATA_TYPE_STUB,
+        GASSLESS_CROSS_CHAIN_ORDER_TYPE_STUB,
+        INPUT_DESCRIPTION_TYPE_STUB,
+        OUTPUT_DESCRIPTION_TYPE_STUB
+    );
+
+    bytes32 constant BATCH_COMPACT_TYPE_HASH = keccak256(BATCH_COMPACT_TYPE);
+
+    function hashOrderDataM(
+        CatalystOrderData memory orderData
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            bytes.concat(
+                abi.encode(
+                    CATALYST_ORDER_DATA_TYPE_HASH,
+                    orderData.localOracle,
+                    orderData.collateralToken,
+                    orderData.collateralAmount,
+                    orderData.proofDeadline,
+                    orderData.challengeDeadline,
+                    hashInputs(orderData.inputs),
+                    hashOutputs(orderData.outputs)
+                )
+            )
+        );
+    }
+
+    function orderHash(
+        GaslessCrossChainOrder calldata order,
+        CatalystOrderData memory orderData
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                GASSLESS_CROSS_CHAIN_ORDER_TYPE_HASH,
+                order.originSettler,
+                order.user,
+                order.nonce,
+                order.originChainId,
+                order.openDeadline,
+                order.fillDeadline,
+                order.orderDataType,
+                hashOrderDataM(orderData)
+            )
+        );
+    }
+
+    function compactHash(
+        address arbiter,
+        uint256 sponsor,
+        uint256 nonce,
+        uint256 expires,
+        GaslessCrossChainOrder calldata order,
+        CatalystOrderData memory orderData
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                BATCH_COMPACT_TYPE_HASH,
+                arbiter,
+                sponsor,
+                nonce,
+                expires,
+                hashIdsAndAmounts(orderData.inputs),
+                orderHash(order, orderData)
+            )
+        );
+    }
+
+    function hashIdsAndAmounts(
+        InputDescription[] memory inputs
+    ) internal pure returns (bytes32) {
+        uint256 numInputs = inputs.length;
+
+        bytes memory encodedIdsAndAmounts;
+        for (uint256 i; i < numInputs; ++i) {
+            InputDescription memory input = inputs[i];
+            encodedIdsAndAmounts = abi.encodePacked(encodedIdsAndAmounts, input.tokenId, input.amount);
+        }
+
+        return keccak256(encodedIdsAndAmounts);
+    }
+
+    //--- Inputs & Outputs Types ---//
+
+    bytes constant INPUT_DESCRIPTION_TYPE_STUB = abi.encodePacked(
+        "InputDescription(",
         "uint256 tokenId,",
         "uint256 amount",
         ")"
     );
 
-    bytes constant OUTPUT_TYPE = abi.encodePacked(
-        "OutputDescription(",
-        "uint8 orderType,",
-        "bytes32 token,",
-        "uint256 amount,",
-        "bytes32 recipient,",
-        "uint256 chainId,",
-        "bytes32 remoteOracle,",
-        "bytes remoteCall,",
-        "bytes fulfillmentContext",
+    bytes32 constant INPUT_DESCRIPTION_TYPE_HASH = keccak256(INPUT_DESCRIPTION_TYPE_STUB);
+
+    bytes constant OUTPUT_DESCRIPTION_TYPE_STUB = abi.encodePacked(
+        "OutputDescription("
+        "bytes32 remoteOracle,"
+        "uint256 chainId,"
+        "bytes32 token,"
+        "uint256 amount,"
+        "bytes32 recipient,"
+        "bytes remoteCall,"
         ")"
     );
 
-    string constant TOKEN_PERMISSIONS_TYPE = "TokenPermissions(address token,uint256 amount)";
+    bytes32 constant OUTPUT_DESCRIPTION_TYPE_HASH = keccak256(INPUT_DESCRIPTION_TYPE_STUB);
 
     function hashInput(InputDescription memory input) internal pure returns (bytes32) {
-        return keccak256(abi.encode(keccak256(INPUT_TYPE), input.tokenId, input.amount));
+        return keccak256(
+            abi.encode(
+                INPUT_DESCRIPTION_TYPE_HASH,
+                input.tokenId,
+                input.amount
+            )
+        );
     }
 
     function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                keccak256(OUTPUT_TYPE),
-                output.orderType,
+                OUTPUT_DESCRIPTION_TYPE_HASH,
+                output.remoteOracle,
+                output.chainId,
                 output.token,
                 output.amount,
                 output.recipient,
-                output.chainId,
-                output.remoteOracle,
-                keccak256(output.remoteCall),
-                keccak256(output.fulfillmentContext)
+                keccak256(output.remoteCall)
             )
         );
     }
@@ -152,81 +281,4 @@ library CrossChainOrderType {
         }
     }
 
-    //--- Order Types ---//
-
-    bytes constant CATALYST_ORDER_DATA_TYPE = abi.encodePacked(
-        CATALYST_ORDER_DATA_TYPE_ONLY, INPUT_TYPE, OUTPUT_TYPE
-    );
-
-    bytes constant CATALYST_ORDER_DATA_TYPE_ONLY = abi.encodePacked(
-        "CatalystOrderData(",
-        "address localOracle,",
-        "address collateralToken,",
-        "uint256 collateralAmount,",
-        "uint32 proofDeadline,",
-        "uint32 challengeDeadline,",
-        "InputDescription[] inputs,",
-        "OutputDescription[] outputs",
-        ")"
-    );
-
-    bytes constant GASSLESS_CROSS_CHAIN_ORDER_TYPE = abi.encodePacked(
-        GASSLESS_CROSS_CHAIN_ORDER_TYPE_NO_DATA_STUB, "CatalystOrderData orderData", ")"
-    );
-
-    string constant CATALYST_ORDER_WITNESS_STRING_TYPE = string(
-        abi.encodePacked(
-            "CrossChainOrder witness)",
-            GASSLESS_CROSS_CHAIN_ORDER_TYPE,
-            CATALYST_ORDER_DATA_TYPE_ONLY,
-            INPUT_TYPE,
-            OUTPUT_TYPE
-        )
-    );
-
-    bytes32 constant CATALYST_ORDER_DATA_TYPE_HASH = keccak256(CATALYST_ORDER_DATA_TYPE);
-
-    function decodeOrderData(
-        bytes calldata orderBytes
-    ) internal pure returns (CatalystOrderData memory orderData) {
-        return orderData = abi.decode(orderBytes, (CatalystOrderData));
-    }
-
-    function hashOrderDataM(
-        CatalystOrderData memory orderData
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            bytes.concat(
-                abi.encode(
-                    CATALYST_ORDER_DATA_TYPE_HASH,
-                    orderData.localOracle,
-                    orderData.collateralToken,
-                    orderData.collateralAmount,
-                    orderData.proofDeadline,
-                    orderData.challengeDeadline,
-                    CrossChainOrderType.hashInputs(orderData.inputs),
-                    CrossChainOrderType.hashOutputs(orderData.outputs)
-                )
-            )
-        );
-    }
-
-    function crossOrderHash(
-        GaslessCrossChainOrder calldata order,
-        CatalystOrderData memory orderData
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                keccak256(abi.encodePacked(GASSLESS_CROSS_CHAIN_ORDER_TYPE)),
-                order.originSettler,
-                order.user,
-                order.nonce,
-                order.originChainId,
-                order.openDeadline,
-                order.fillDeadline,
-                order.orderDataType,
-                hashOrderDataM(orderData)
-            )
-        );
-    }
 }

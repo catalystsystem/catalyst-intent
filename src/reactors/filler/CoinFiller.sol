@@ -6,8 +6,7 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 import { OutputDescription } from "../../libs/CatalystOrderType.sol";
 import { BaseFiller } from "./BaseFiller.sol";
 import { OutputEncodingLibrary } from  "../OutputEncodingLibrary.sol";
-import { IOracle } from "../../interfaces/IOracle.sol";
-import { IExtendedSimpleOracle } from "../../interfaces/IExtendedSimpleOracle.sol";
+import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 /**
  * @dev Solvers use Oracles to pay outputs. This allows us to record the payment.
@@ -35,10 +34,6 @@ contract CoinFiller is BaseFiller {
         // Lets us gets refunds from Oracles.
     }
 
-    function _outputHash(OutputDescription calldata output) pure internal returns(bytes32) {
-        return keccak256(abi.encode(output));
-    }
-
     // /**
     //  * @notice Verifies & Fills an order.
     //  * If an order has already been filled given the output & fillDeadline, then this function
@@ -63,7 +58,7 @@ contract CoinFiller is BaseFiller {
         // from other chains. Only ones that come from our contract.
 
         // Get hash of output.
-        bytes32 outputHash = _outputHash(output);
+        bytes32 outputHash = OutputEncodingLibrary.outputHash(output);
 
         // Get the proof state of the fulfillment.
         bytes32 existingSolver = _filledOutput[orderId][outputHash].solver;
@@ -131,6 +126,11 @@ contract CoinFiller is BaseFiller {
         _fillSkip(orderIds, outputs, filler);
     }
 
+
+	function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
+        // TODO: Make this compatible
+    }
+
     // TODO: Make this the standard interface. Can be done by loading OutputDescription[] via assembly.
     // TODO: This function doesn't work. We use msg.sender in the fill function.
     function fill(bytes32[] calldata orderIds, bytes calldata originData, bytes calldata fillerData) external {
@@ -143,48 +143,37 @@ contract CoinFiller is BaseFiller {
 
     // --- Oracles --- //
 
-    function storeFillOnOracle(bytes32 orderId, OutputDescription calldata output) external {
-        FilledOutput storage filledOutput = _filledOutput[orderId][_outputHash(output)];
-        bytes32 solver = filledOutput.solver;
-        uint40 timestamp = filledOutput.timestamp;
-        bytes32 outputHash = keccak256(OutputEncodingLibrary._encodeOutputDescription(
-            orderId,
-            solver,
-            timestamp,
-            output
-        ));
+    function _isValidPayload(bytes calldata payload) view internal returns(bool) {
+        bytes32 orderId = OutputEncodingLibrary.decodePayloadOrderId(payload);
 
-        IOracle(_getOracleAddress(output.remoteOracle)).storeProof(outputHash);
+        // The security is on the sender's side. That means they need to check whether their address
+        // Is 16 bytes.
+        bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), msg.sender);
+        uint256 chainId = block.chainid;
+
+        bytes32 outputHash = OutputEncodingLibrary.payloadToOutputHash(remoteOracleIdentifier, chainId, payload);
+
+        FilledOutput storage filledOutput = _filledOutput[orderId][outputHash];
+
+        bytes32 filledSolver = filledOutput.solver;
+        uint40 filledTimestamp = filledOutput.timestamp;
+        if (filledSolver == bytes32(0)) return false;
+
+        bytes32 payloadSolver = OutputEncodingLibrary.decodePayloadSolver(payload);
+        uint40 payloadTimestamp = OutputEncodingLibrary.decodePayloadTimestamp(payload);
+
+        if (filledSolver != payloadSolver) return false;
+        if (filledTimestamp != payloadTimestamp) return false;
+
+        return true;
     }
 
-    function submitFillsOnOracle(bytes32[] calldata orderIds, OutputDescription[] calldata outputs) external payable {
-        uint256 numOutputs = outputs.length;
-        bytes[] memory payloads = new bytes[](numOutputs);
-
-        // Check that all outputs have the same remote oracle.
-        bytes32 remoteOracle = outputs[0].remoteOracle;
-        for (uint256 i; i < numOutputs; ++i) {
-            bytes32 orderId = orderIds[i];
-            OutputDescription calldata output = outputs[i];
-            if (output.remoteOracle != remoteOracle) revert DifferentRemoteOracles();
-            
-            FilledOutput storage filledOutput = _filledOutput[orderId][_outputHash(output)];
-            bytes32 solver = filledOutput.solver;
-            uint40 timestamp = filledOutput.timestamp;
-            payloads[i] = OutputEncodingLibrary._encodeOutputDescription(
-                orderId,
-                solver,
-                timestamp,
-                output
-            );
+    function areValidPayloads(bytes[] calldata payloads) view external returns(bool) {
+        uint256 numPayloads = payloads.length;
+        for (uint256 i; i < numPayloads; ++i) {
+            if (!_isValidPayload(payloads[i])) return false;
         }
-
-
-        // TODO: reentry.
-        uint256 refund = IExtendedSimpleOracle(_getOracleAddress(remoteOracle)).submit{value: msg.value}(payloads);
-        if (refund > 0) {
-            SafeTransferLib.safeTransferETH(msg.sender, refund);
-        }
+        return true;
     }
 
     // --- External Calls --- ///

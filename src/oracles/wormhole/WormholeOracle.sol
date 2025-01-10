@@ -19,13 +19,15 @@ import { OutputDescription } from "../../libs/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
 import { PayloadEncodingLibrary } from "../PayloadEncodingLibrary.sol";
+import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
-import { IExtendedSimpleOracle } from "../../interfaces/IExtendedSimpleOracle.sol";
+import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 
-contract WormholeOracle is BaseOracle, IExtendedSimpleOracle, IMessageEscrowStructs, WormholeVerifier, Ownable {
+contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, Ownable {
     error AlreadySet();
     error RemoteCallTooLarge();
     error NotStored(uint256 index);
+    error NotAllPayloadsValid();
 
     event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint32 chainId);
 
@@ -74,11 +76,11 @@ contract WormholeOracle is BaseOracle, IExtendedSimpleOracle, IMessageEscrowStru
      * @dev Refunds excess value ot msg.sender. 
      */
     function _submit(
-        address caller,
+        address source,
         bytes[] calldata payloads
     ) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = PayloadEncodingLibrary.encodeMessage(_getIdentifier(caller), payloads);
+        bytes memory message = PayloadEncodingLibrary.encodeMessage(IdentifierLib.getIdentifier(source, address(this)), payloads);
 
         uint256 packageCost = WORMHOLE.messageFee();
         WORMHOLE.publishMessage{value: packageCost} (
@@ -94,35 +96,16 @@ contract WormholeOracle is BaseOracle, IExtendedSimpleOracle, IMessageEscrowStru
         }
     }
 
-    /** @notice Submits proofs directly to Wormhole. This does not store proofs in any way. */
-    function submit(
-        bytes[] calldata payloads
-    ) public payable returns (uint256 refund) {
-        return _submit(msg.sender, payloads);
-    }
-
     /** @notice Submits proofs that have been stored in this oracle directly to Wormhole. */
     function submit(
         address proofSource,
         bytes[] calldata payloads
     ) public payable returns (uint256 refund) {
-        // Check if each payload has been stored here.
-        uint256 numPayloads = payloads.length;
-        for (uint256 i; i < numPayloads; ++i) {
-            if (!_attestations[bytes32(0)][bytes32(uint256(uint160(proofSource)))][keccak256(payloads[i])]) revert NotStored(i);
-        }
-        // Payloads are good. We can submit them onbehalf of proofSource.
-        return _submit(proofSource, payloads);
-    }
+        // Check if the payload are valid.
+        if (!IPayloadCreator(proofSource).areValidPayloads(payloads)) revert NotAllPayloadsValid(); 
 
-    function submitAndStore(
-        bytes[] calldata payloads
-    ) public payable returns (uint256 refund) {
-        uint256 numPayloads = payloads.length;
-        for (uint256 i; i < numPayloads; ++i) {
-            storeProof(keccak256(payloads[i]));
-        }
-        return _submit(msg.sender, payloads);
+        // Payloads are good. We can submit them on behalf of proofSource.
+        return _submit(proofSource, payloads);
     }
 
     function receiveMessage(
@@ -132,7 +115,7 @@ contract WormholeOracle is BaseOracle, IExtendedSimpleOracle, IMessageEscrowStru
         (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = PayloadEncodingLibrary.decodeMessage(message);
 
         // Construct the identifier
-        bytes32 senderIdentifier = _enhanceIdentifier(remoteSenderIdentifier, identifierFromMessage);
+        bytes32 senderIdentifier = IdentifierLib.enhanceIdentifier(remoteSenderIdentifier, identifierFromMessage);
 
         // TODO: map remoteChainIdentifier to canonical chain id instead of messaging protocol specific.
 

@@ -2,8 +2,6 @@
 pragma solidity >=0.8.0;
 
 interface IOracle {
-
-    function storeProof(bytes32 dataHash) external returns (bool beforeState);
     
     /**
      * @notice Check if some data has been attested to.

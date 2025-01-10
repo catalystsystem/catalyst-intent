@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import { FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
 import { OutputDescription } from "../libs/CatalystOrderType.sol";
+import { IdentifierLib } from "../libs/IdentifierLib.sol";
 
 abstract contract BaseOracle is IOracle {
     error NotProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash);
@@ -22,32 +23,11 @@ abstract contract BaseOracle is IOracle {
         if (uint256(uint128(uint160(address(this)))) != uint256(uint160(address(this)))) revert BadDeploymentAddress(address(this));
     }
 
-    /**
-     * @notice Computes a identifier for the route.
-     * The first 16 bytes is of the original origin.
-     * The last 16 bytes is of this contract.
-     * @dev This identifier requries that both this contract
-     * and the app has been mined for 16 bytes addresses. Otherwise there may be collisions.
-     */
-    function _getIdentifier(address app) internal view returns (bytes32) {
-        // Because of the deployment constraint we do not need to cleanup address(this)
-        return bytes32(uint256(uint128(uint160(app))) >> 128 + uint256(uint160(address(this))));
-    }
 
     function getIdentifier(address app) external view returns (bytes32) {
-        return _getIdentifier(app);
+        return IdentifierLib.getIdentifier(app, address(this));
     }
 
-    function _enhanceIdentifier(bytes32 identifierFromCourier, bytes32 identifierFromMessage) internal pure returns (bytes32) {
-        if (identifierFromCourier == identifierFromMessage) return identifierFromMessage;
-
-        // Check if the identifierFromCourier is parital:
-        if (uint256(identifierFromCourier) < uint256(type(uint128).max)) {
-            // If the last 16 bytes match, then identifierFromMessage must be the valid one.
-            if (uint256(identifierFromCourier) == uint128(uint256(identifierFromMessage))) return identifierFromMessage;
-        }
-        return identifierFromCourier;
-    }
 
     //--- Data Attestation Validation ---//
 
@@ -138,10 +118,5 @@ abstract contract BaseOracle is IOracle {
                 if (!state) revert NotProven(remoteOracle, remoteChainId, dataHash);
             }
         }
-    }
-
-    function storeProof(bytes32 dataHash) public returns (bool beforeState) {
-        beforeState = _attestations[bytes32(0)][bytes32(uint256(uint160(msg.sender)))][dataHash];
-        if (!beforeState) _attestations[bytes32(0)][bytes32(uint256(uint160(msg.sender)))][dataHash] = true;
     }
 }

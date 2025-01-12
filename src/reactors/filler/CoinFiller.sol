@@ -3,8 +3,8 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
-import { BaseFiller } from "./BaseFiller.sol";
+import { OutputDescription } from "../CatalystOrderType.sol";
+import { SolverTimestampBaseFiller } from "./SolverTimestampBaseFiller.sol";
 import { OutputEncodingLibrary } from  "../OutputEncodingLibrary.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
@@ -12,7 +12,7 @@ import { IdentifierLib } from "../../libs/IdentifierLib.sol";
  * @dev Solvers use Oracles to pay outputs. This allows us to record the payment.
  * Tokens never touch this contract but goes directly from solver to user.
  */
-contract CoinFiller is BaseFiller {
+contract CoinFiller is SolverTimestampBaseFiller {
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
     error DifferentRemoteOracles();
@@ -21,14 +21,6 @@ contract CoinFiller is BaseFiller {
     error SlopeStopped();
 
     event OutputFilled(OutputDescription output);
-
-    struct FilledOutput {
-        bytes32 solver;
-        uint40 timestamp;
-    }
-
-    // TODO: Optimise the mapping to not also dublicate this on the oracle.
-    mapping(bytes32 orderId => mapping(bytes32 outputHash => FilledOutput)) _filledOutput;
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
@@ -75,7 +67,7 @@ contract CoinFiller is BaseFiller {
      */
     function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) internal returns (bytes32) {
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
-        _validateChain(bytes32(output.chainId));
+        _validateChain(output.chainId);
         _IAmRemoteOracle(output.remoteOracle);
 
         // Get hash of output.
@@ -164,39 +156,6 @@ contract CoinFiller is BaseFiller {
         if (throwIfSomeoneElseFilled) return this.fillThrow(orderIds, abi.decode(originData, (OutputDescription[])), filler);
         
         this.fillSkip(orderIds, abi.decode(originData, (OutputDescription[])), filler);
-    }
-
-    // --- Oracles --- //
-
-    function _isValidPayload(address oracle, bytes calldata payload) view internal returns(bool) {
-        bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
-        uint256 chainId = block.chainid;
-
-        bytes32 outputHash = OutputEncodingLibrary.payloadToOutputHash(remoteOracleIdentifier, chainId, payload);
-
-        bytes32 orderId = OutputEncodingLibrary.decodePayloadOrderId(payload);
-        FilledOutput storage filledOutput = _filledOutput[orderId][outputHash];
-
-        bytes32 filledSolver = filledOutput.solver;
-        uint40 filledTimestamp = filledOutput.timestamp;
-        if (filledSolver == bytes32(0)) return false;
-
-        bytes32 payloadSolver = OutputEncodingLibrary.decodePayloadSolver(payload);
-        uint40 payloadTimestamp = OutputEncodingLibrary.decodePayloadTimestamp(payload);
-
-        if (filledSolver != payloadSolver) return false;
-        if (filledTimestamp != payloadTimestamp) return false;
-
-        return true;
-    }
-
-    function areValidPayloads(bytes[] calldata payloads) view external returns(bool) {
-        address bytes16MsgSender = address(uint160(uint128(uint160(msg.sender))));
-        uint256 numPayloads = payloads.length;
-        for (uint256 i; i < numPayloads; ++i) {
-            if (!_isValidPayload(bytes16MsgSender, payloads[i])) return false;
-        }
-        return true;
     }
 
     // --- External Calls --- ///

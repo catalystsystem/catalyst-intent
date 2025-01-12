@@ -7,9 +7,9 @@ import { NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IB
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
-import { OutputDescription } from "../reactors/CatalystOrderType.sol";
-import { BaseReactor } from "../reactors/BaseReactor.sol";
-import { BaseOracle } from "./BaseOracle.sol";
+import { OutputDescription } from "../../CatalystOrderType.sol";
+import { SolverTimestampBaseFiller } from "../SolverTimestampBaseFiller.sol";
+import { OutputEncodingLibrary } from "../../OutputEncodingLibrary.sol";
 
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
@@ -18,7 +18,7 @@ import { BaseOracle } from "./BaseOracle.sol";
  * This requires a local light client and a bridge connection to the relevant reactor.
  * 0xB17C012
  */
-contract BitcoinOracle is BaseOracle {
+contract BitcoinFiller is SolverTimestampBaseFiller {
     error BadAmount(); // 0x749b5939
     error BadDestinationIdentifier(); // 0x111fe358
     error BadTokenFormat(); // 0x6a6ba82d
@@ -87,7 +87,35 @@ contract BitcoinOracle is BaseOracle {
         bytes calldata blockHeader
     ) internal pure returns (uint256 timestamp) {
         uint32 time = uint32(bytes4(blockHeader[68:68 + 4]));
-        timestamp = Endian.reverse32(time);
+        return timestamp = Endian.reverse32(time);
+    }
+
+    function _getTimestampOfPreviousBlock(
+        bytes calldata previousBlockHeader,
+        BtcTxProof calldata inclusionProof
+    ) internal pure returns (uint256 timestamp) {
+
+        // Check that previousBlockHeader is 80 bytes. While technically not needed
+        // since the hash of previousBlockHeader.length > 80 won't match the correct hash
+        // this is a sanity check that if nothing else ensures that objectively bad
+        // headers are never provided.
+        require(previousBlockHeader.length == 80);
+
+        // Check the timestamp. This is done before inclusionProof is checked for validity
+        // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
+        // won't pass.
+
+        // Get block hash of the previousBlockHeader.
+        bytes32 proposedPreviousBlockHash = BtcProof.getBlockHash(previousBlockHeader);
+        // Load the actual previous block hash from the header of the block we just proved.
+        bytes32 actualPreviousBlockHash =
+            bytes32(Endian.reverse256(uint256(bytes32(inclusionProof.blockHeader[4:36]))));
+        if (actualPreviousBlockHash != proposedPreviousBlockHash) {
+            revert BlockhashMismatch(actualPreviousBlockHash, proposedPreviousBlockHash);
+        }
+
+        uint32 time = uint32(bytes4(previousBlockHeader[68:68 + 4]));
+        return timestamp = Endian.reverse32(time);
     }
 
     /**
@@ -196,39 +224,18 @@ contract BitcoinOracle is BaseOracle {
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
     }
 
-    /**
-     * @notice Validate an output is correct.
-     * @dev Specifically, this function uses the other validation functions and adds some
-     * Bitcoin context surrounding it.
-     * @param output Output to prove.
-     * @param fillDeadline Proof Deadline of order
-     * @param blockNum Bitcoin block number of the transaction that the output is included in.
-     * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
-     * @param txOutIx Index of the output in the transaction being proved.
-     */
     function _verify(
+        bytes32 orderId,
         OutputDescription calldata output,
-        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
-        uint256 txOutIx
+        uint256 txOutIx,
+        bytes32 solver,
+        uint256 timestamp
     ) internal {
-        // Validate order context. This lets us ensure that this oracle
-        // is the correct oracle to verify output.
+        // Validate order context. This lets us ensure that this filler is the correct filler for the output.
         _validateChain(output.chainId);
-        _validateRemoteOracleAddress(output.remoteOracle);
-
-        {
-            // Check the timestamp. This is done before inclusionProof is checked for validity
-            // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
-            // won't pass.
-            // _validateUnderlyingPayment checks if inclusionProof.blockHeader == 80.
-            uint256 timestamp = _getTimestampOfBlock(inclusionProof.blockHeader);
-
-            // Validate that the timestamp from the TX is within bounds.
-            // This ensures a Bitcoin output cannot be "reused" forever.
-            _validateTimestamp(uint32(timestamp), fillDeadline);
-        }
+        _IAmRemoteOracle(output.remoteOracle);
 
         bytes32 token = output.token;
         bytes memory outputScript = _bitcoinScript(token, output.recipient);
@@ -241,17 +248,52 @@ contract BitcoinOracle is BaseOracle {
         // was looser it will be much harder to protect against "double spends".
         if (sats != output.amount) revert BadAmount();
 
-        bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillDeadline] = true;
+        bytes32 outputHash = OutputEncodingLibrary.outputHash(output);
+        _filledOutput[orderId][outputHash] = FilledOutput({solver: solver, timestamp: uint40(timestamp)});
 
-        emit OutputVerified(
-            outputHash,
-            fillDeadline,
-            token,
-            output.recipient,
-            output.amount,
-            output.remoteCall.length > 0 ? keccak256(output.remoteCall) : bytes32(0),
-            inclusionProof.txId
+        // emit OutputVerified(
+        //     outputHash,
+        //     fillDeadline,
+        //     token,
+        //     output.recipient,
+        //     output.amount,
+        //     output.remoteCall.length > 0 ? keccak256(output.remoteCall) : bytes32(0),
+        //     inclusionProof.txId
+        // );
+    }
+
+    /**
+     * @notice Validate an output is correct.
+     * @dev Specifically, this function uses the other validation functions and adds some
+     * Bitcoin context surrounding it.
+     * @param output Output to prove.
+     * @param blockNum Bitcoin block number of the transaction that the output is included in.
+     * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
+     * @param txOutIx Index of the output in the transaction being proved.
+     */
+    function _verifyAttachTimestamp(
+        bytes32 orderId,
+        OutputDescription calldata output,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx,
+        bytes32 solver
+    ) internal {
+
+        // Check the timestamp. This is done before inclusionProof is checked for validity
+        // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
+        // won't pass.
+        // _validateUnderlyingPayment checks if inclusionProof.blockHeader == 80.
+        uint256 timestamp = _getTimestampOfBlock(inclusionProof.blockHeader);
+
+        _verify(
+            orderId,
+            output,
+            blockNum,
+            inclusionProof,
+            txOutIx,
+            solver,
+            timestamp
         );
     }
 
@@ -262,68 +304,27 @@ contract BitcoinOracle is BaseOracle {
      * The purpose is to protect against slow block mining. Even if it took days to get confirmation on a transaction,
      * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
      */
-    function _verify(
+    function _verifyAttachTimestamp(
+        bytes32 orderId,
         OutputDescription calldata output,
-        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
-        bytes calldata previousBlockHeader
+        bytes calldata previousBlockHeader,
+        bytes32 solver
     ) internal {
-        // Validate order context. This lets us ensure that this oracle is the correct oracle to verify output.
-        _validateChain(output.chainId);
-        _validateRemoteOracleAddress(output.remoteOracle);
 
-        {
-            // Check that previousBlockHeader is 80 bytes. While technically not needed
-            // since the hash of previousBlockHeader.length > 80 won't match the correct hash
-            // this is a sanity check that if nothing else ensures that objectively bad
-            // headers are never provided.
-            require(previousBlockHeader.length == 80);
-
-            // Check the timestamp. This is done before inclusionProof is checked for validity
-            // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
-            // won't pass.
-
-            // Get block hash of the previousBlockHeader.
-            bytes32 proposedPreviousBlockHash = BtcProof.getBlockHash(previousBlockHeader);
-            // Load the actual previous block hash from the header of the block we just proved.
-            bytes32 actualPreviousBlockHash =
-                bytes32(Endian.reverse256(uint256(bytes32(inclusionProof.blockHeader[4:36]))));
-            if (actualPreviousBlockHash != proposedPreviousBlockHash) {
-                revert BlockhashMismatch(actualPreviousBlockHash, proposedPreviousBlockHash);
-            }
-
-            // Get the timestamp of the block we validated it for.
-            uint256 timestamp = _getTimestampOfBlock(previousBlockHeader);
-
-            // Validate that the timestamp gotten from the TX is within bounds.
-            // This ensures a Bitcoin output cannot be "reused" forever.
-            _validateTimestamp(uint32(timestamp), fillDeadline);
-        }
-
-        bytes32 token = output.token;
-        bytes memory outputScript = _bitcoinScript(token, output.recipient);
-        uint256 numConfirmations = _getNumConfirmations(token);
-        uint256 sats = _validateUnderlyingPayment(
-            numConfirmations, blockNum, inclusionProof, txOutIx, outputScript, output.remoteCall
-        );
-
-        // Check that the amount matches exactly. This is important since if the assertion
-        // was looser it will be much harder to protect against "double spends".
-        if (sats != output.amount) revert BadAmount();
-
-        bytes32 outputHash = _outputHash(output);
-        _provenOutput[outputHash][fillDeadline] = true;
-
-        emit OutputVerified(
-            outputHash,
-            fillDeadline,
-            token,
-            output.recipient,
-            output.amount,
-            output.remoteCall.length > 0 ? keccak256(output.remoteCall) : bytes32(0),
-            inclusionProof.txId
+        // Get the timestamp of block before the one we validated.
+        uint256 timestamp = _getTimestampOfPreviousBlock(previousBlockHeader, inclusionProof);
+        
+        _verify(
+            orderId,
+            output,
+            blockNum,
+            inclusionProof,
+            txOutIx,
+            solver,
+            timestamp
         );
     }
 
@@ -332,19 +333,19 @@ contract BitcoinOracle is BaseOracle {
      * @dev Specifically, this function uses the other validation functions and adds some
      * Bitcoin context surrounding it.
      * @param output Output to prove.
-     * @param fillDeadline Proof Deadline of order
      * @param blockNum Bitcoin block number of the transaction that the output is included in.
      * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
      * @param txOutIx Index of the output in the transaction being proved.
      */
     function verify(
+        bytes32 orderId,
         OutputDescription calldata output,
-        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
-        uint256 txOutIx
+        uint256 txOutIx,
+        bytes32 solver // TODO: insecure. Need a commitment scheme.
     ) external {
-        _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx);
+        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx, solver);
     }
 
     /**
@@ -355,13 +356,14 @@ contract BitcoinOracle is BaseOracle {
      * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
      */
     function verify(
+        bytes32 orderId,
         OutputDescription calldata output,
-        uint32 fillDeadline,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
-        bytes calldata previousBlockHeader
+        bytes calldata previousBlockHeader,
+        bytes32 solver // TODO: insecure. Need a commitment scheme.
     ) external {
-        _verify(output, fillDeadline, blockNum, inclusionProof, txOutIx, previousBlockHeader);
+        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx, previousBlockHeader, solver);
     }
 }

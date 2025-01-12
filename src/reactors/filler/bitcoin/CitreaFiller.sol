@@ -1,7 +1,8 @@
+
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { BitcoinOracle } from "./BitcoinOracle.sol";
+import { BitcoinFiller } from "./BitcoinFiller.sol";
 
 interface ICitrea {
     function blockNumber() external view returns (uint256);
@@ -13,10 +14,10 @@ interface ICitrea {
 /**
  * @dev Bitcoin oracle using the Citrea ABI.
  */
-contract CitreaOracle is BitcoinOracle {
+contract CitreaFiller is BitcoinFiller {
     constructor(
         address _citrea
-    ) payable BitcoinOracle(_citrea) { }
+    ) payable BitcoinFiller(_citrea) { }
 
     function _getLatestBlockHeight() internal view override returns (uint256 currentHeight) {
         return currentHeight = ICitrea(LIGHT_CLIENT).blockNumber();

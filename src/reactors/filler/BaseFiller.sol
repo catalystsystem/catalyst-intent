@@ -7,8 +7,8 @@ import { IOracle } from "../../interfaces/IOracle.sol";
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 
-
-abstract contract BaseFiller is IDestinationSettler, IPayloadCreator {
+// TODO: is  IDestinationSettler
+abstract contract BaseFiller is IPayloadCreator {
 
     event OutputProven(uint32 fillDeadline, bytes32 outputHash);
 
@@ -22,9 +22,9 @@ abstract contract BaseFiller is IDestinationSettler, IPayloadCreator {
      * @dev We use the chain's canonical id rather than the messaging protocol id for clarity.
      */
     function _validateChain(
-        bytes32 chainId
+        uint256 chainId
     ) internal view {
-        if (block.chainid != uint256(chainId)) revert WrongChain(block.chainid, uint256(chainId));
+        if (block.chainid != chainId) revert WrongChain(block.chainid, uint256(chainId));
     }
 
     /**

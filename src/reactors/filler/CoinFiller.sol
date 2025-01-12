@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 
-import { OutputDescription } from "../../libs/CatalystOrderType.sol";
+import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
 import { BaseFiller } from "./BaseFiller.sol";
 import { OutputEncodingLibrary } from  "../OutputEncodingLibrary.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
@@ -16,6 +16,9 @@ contract CoinFiller is BaseFiller {
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
     error DifferentRemoteOracles();
+    error ZeroValue();
+    error NotImplemented();
+    error SlopeStopped();
 
     event OutputFilled(OutputDescription output);
 
@@ -34,28 +37,46 @@ contract CoinFiller is BaseFiller {
         // Lets us gets refunds from Oracles.
     }
 
-    // /**
-    //  * @notice Verifies & Fills an order.
-    //  * If an order has already been filled given the output & fillDeadline, then this function
-    //  * doesn't "re"fill the order but returns early. Thus this function can also be used to verify
-    //  * that an order has been filled.
-    //  * @dev Does not automatically submit the order (send the proof).
-    //  * The implementation strategy (verify then fill) means that an order with repeat outputs
-    //  * (say 1 Ether to Alice & 1 Ether to Alice) can be filled by sending 1 Ether to Alice ONCE.
-    //  * !Don't make orders with repeat outputs. This is true for any oracles.!
-    //  * This function implements a protection against sending proofs from third-party oracles.
-    //  * Only proofs that have this as the correct chain and remoteOracleAddress can be sent
-    //  * to other oracles.
-    //  * @param output Output to fill.
-    //  * @param fillDeadline FillDeadline to match, is proof deadline of order.
-    //  */
+    function _dutchAuctionSlope(uint256 amount, uint256 slope, uint256 stopTime) internal view returns(uint256 currentAmount) {
+        uint256 currentTime = block.timestamp;
+        if (stopTime < currentTime) revert SlopeStopped();
+        uint256 timeDiff = stopTime - currentTime; // unchecked: stopTime > currentTime
+        return amount + slope * timeDiff;
+    }
+
+    function _getAmount(OutputDescription calldata output) internal view returns (uint256 amount) {
+        uint256 fulfillmentLength = output.fulfillmentContext.length;
+        if (fulfillmentLength == 0) return amount;
+        bytes1 orderType = bytes1(output.fulfillmentContext);
+        if (orderType == 0x00 && fulfillmentLength == 1) return output.amount;
+        if (orderType == 0x01 && fulfillmentLength == 65) {
+            uint256 slope = uint256(bytes32(output.fulfillmentContext[1:33]));
+            uint256 stopTime = uint256(bytes32(output.fulfillmentContext[33:65]));
+            return _dutchAuctionSlope(output.amount, slope, stopTime);
+        }
+        revert NotImplemented();
+    }
+
+    /**
+     * @notice Verifies & Fills an order.
+     * If an order has already been filled given the output & fillDeadline, then this function
+     * doesn't "re"fill the order but returns early. Thus this function can also be used to verify
+     * that an order has been filled.
+     * @dev Does not automatically submit the order (send the proof).
+     * The implementation strategy (verify then fill) means that an order with repeat outputs
+     * (say 1 Ether to Alice & 1 Ether to Alice) can be filled by sending 1 Ether to Alice ONCE.
+     * !Don't make orders with repeat outputs. This is true for any oracles.!
+     * This function implements a protection against sending proofs from third-party oracles.
+     * Only proofs that have this as the correct chain and remoteOracleAddress can be sent
+     * to other oracles.
+     * @param orderId Identifier of order on origin chain.
+     * @param output Output to fill
+     * @param proposedSolver Identifier of solver on origin chain that will get inputs.
+     */
     function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) internal returns (bytes32) {
-        // Validate order context. This lets us ensure that this oracle
-        // is the correct oracle to verify output.
+        // Validate order context. This lets us ensure that this filler is the correct filler for the output.
         _validateChain(bytes32(output.chainId));
         _IAmRemoteOracle(output.remoteOracle);
-        // Importantly, the above functions ensures that we cannot forward proofs coming
-        // from other chains. Only ones that come from our contract.
 
         // Get hash of output.
         bytes32 outputHash = OutputEncodingLibrary.outputHash(output);
@@ -73,7 +94,7 @@ contract CoinFiller is BaseFiller {
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
         address token = address(uint160(uint256(output.token)));
-        uint256 amount = output.amount;
+        uint256 amount = _getAmount(output);
 
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
@@ -115,6 +136,7 @@ contract CoinFiller is BaseFiller {
      * @dev If an output has been filled by someone else, this function will revert.
      */
     function fillThrow(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
+        if (filler == bytes32(0)) revert ZeroValue();
         _fillThrow(orderIds, outputs, filler);
     }
 
@@ -123,18 +145,21 @@ contract CoinFiller is BaseFiller {
      * @dev If an output has been filled by someone else, this function will skip that output and fill the remaining..
      */
     function fillSkip(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
+        if (filler == bytes32(0)) revert ZeroValue();
         _fillSkip(orderIds, outputs, filler);
     }
 
-
-	function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
-        // TODO: Make this compatible
+	function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external pure {
+        // (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
+        // if (filler == bytes32(0)) revert ZeroValue();
+        // // TODO: Make this compatible
     }
 
     // TODO: Make this the standard interface. Can be done by loading OutputDescription[] via assembly.
     // TODO: This function doesn't work. We use msg.sender in the fill function.
     function fill(bytes32[] calldata orderIds, bytes calldata originData, bytes calldata fillerData) external {
         (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
+        if (filler == bytes32(0)) revert ZeroValue();
 
         if (throwIfSomeoneElseFilled) return this.fillThrow(orderIds, abi.decode(originData, (OutputDescription[])), filler);
         
@@ -143,16 +168,13 @@ contract CoinFiller is BaseFiller {
 
     // --- Oracles --- //
 
-    function _isValidPayload(bytes calldata payload) view internal returns(bool) {
-        bytes32 orderId = OutputEncodingLibrary.decodePayloadOrderId(payload);
-
-        // The security is on the sender's side. That means they need to check whether their address
-        // Is 16 bytes.
-        bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), msg.sender);
+    function _isValidPayload(address oracle, bytes calldata payload) view internal returns(bool) {
+        bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
 
         bytes32 outputHash = OutputEncodingLibrary.payloadToOutputHash(remoteOracleIdentifier, chainId, payload);
 
+        bytes32 orderId = OutputEncodingLibrary.decodePayloadOrderId(payload);
         FilledOutput storage filledOutput = _filledOutput[orderId][outputHash];
 
         bytes32 filledSolver = filledOutput.solver;
@@ -169,9 +191,10 @@ contract CoinFiller is BaseFiller {
     }
 
     function areValidPayloads(bytes[] calldata payloads) view external returns(bool) {
+        address bytes16MsgSender = address(uint160(uint128(uint160(msg.sender))));
         uint256 numPayloads = payloads.length;
         for (uint256 i; i < numPayloads; ++i) {
-            if (!_isValidPayload(payloads[i])) return false;
+            if (!_isValidPayload(bytes16MsgSender, payloads[i])) return false;
         }
         return true;
     }

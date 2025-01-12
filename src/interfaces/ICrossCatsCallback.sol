@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import { InputDescription } from "../libs/CatalystOrderType.sol";
+import { InputDescription } from "../reactors/CatalystOrderType.sol";
 
 /**
  * @notice Implement callback handling for Cross cats payouts, both outputs and inputs.

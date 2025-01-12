@@ -17,7 +17,7 @@ import {
     FillInstruction
 } from "../../interfaces/IERC7683.sol";
 
-import { CatalystOrderData, InputDescription, OutputDescription } from "../../libs/CatalystOrderType.sol";
+import { CatalystOrderData, InputDescription, OutputDescription } from "../CatalystOrderType.sol";
 
 import {
     InvalidSettlementAddress,
@@ -53,21 +53,26 @@ import {
  * annoy users.
  */
 contract BaseSettler {
+    error AlreadyPurchased();
     bytes32 public constant VERSION_FLAGS = bytes32(uint256(2));
 
+    uint256 DISCOUNT_DENOM = 10**18;
+
     struct PurchaseConfig {
-        uint32 timeToBuy;
+        uint40 timeToBuy;
+        uint48 discount;
     }
 
     // TODO: This needs to be 1 slot.
     struct Purchased {
-        uint32 timeToBuy;
-        address expectedSolver;
+        // TODO: Merge the 2 variables.
+        uint40 purchasedAt;
+        uint40 timeToBuy;
         address purchaser;
     }
 
     mapping(bytes32 solver => PurchaseConfig) public purchaseConfig;
-    mapping(bytes32 orderId => Purchased) public purchasedOrders;
+    mapping(bytes32 solver => mapping(bytes32 orderId => Purchased)) public purchasedOrders;
 
     //--- Hashing Orders ---//
 
@@ -107,84 +112,52 @@ contract BaseSettler {
         // TODO: event
     }
 
-    // /**
-    //  * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
-    //  * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
-    //  * your funds may be at risk.
-    //  * Set newPurchaseDeadline in the past to disallow future takeovers.
-    //  * When you purchase orders, make sure you take into account that you are paying the
-    //  * entirety while you will get out the entirety MINUS any governance fee.
-    //  * If you are calling this function from an external contract, beaware of re-entry
-    //  * issues from a later execute. (configured of fillerData).
-    //  * @param orderKey Claimed order to be purchased from the filler.
-    //  * @param fillerData New filler data + potential execution data post-pended.
-    //  * @param minDiscount The minimum discount the new filler is willing to buy at.
-    //  * Should be set to disallow someone frontrunning this call and decreasing the discount.
-    //  */
-    // function purchaseOrder(OrderKey calldata orderKey, bytes calldata fillerData, uint256 minDiscount) external {
-    //     bytes32 orderKeyHash = _orderKeyHash(orderKey);
-    //     OrderContext storage orderContext = _orders[orderKeyHash];
+    /**
+     * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
+     * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
+     * your funds may be at risk.
+     * Set newPurchaseDeadline in the past to disallow future takeovers.
+     * When you purchase orders, make sure you take into account that you are paying the
+     * entirety while you will get out the entirety MINUS any governance fee.
+     * If you are calling this function from an external contract, beaware of re-entry
+     * issues from a later execute. (configured of fillerData).
+     */
+    function purchaseOrder(bytes32 orderSolvedByIdentifier, GaslessCrossChainOrder calldata order, address purchaser, uint256 expiryTimestamp, uint256 minDiscount) external {
+        require(purchaser != address(0));
+        require(expiryTimestamp > block.timestamp);
 
-    //     {
-    //         OrderStatus status = orderContext.status;
+        bytes32 orderId = _orderIdentifier(order);
+        // Check if the order has been purchased already.
+        Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderId];
+        if (purchased.purchaser != address(0)) revert AlreadyPurchased();
 
-    //         // The order should have been claimed and not paid / proven / fraud proven (inputs should be intact)
-    //         // for it to be purchased.
-    //         if (status != OrderStatus.Claimed && status != OrderStatus.Challenged) {
-    //             revert WrongOrderStatus(orderContext.status);
-    //         }
-    //     }
+        // Load the config of the last purchaser.
+        PurchaseConfig storage solverConfig = purchaseConfig[orderSolvedByIdentifier];
+        uint256 discount = solverConfig.discount;
+        uint40 timeToBuy = solverConfig.timeToBuy;
+        require(discount != 0);
+        require(timeToBuy != 0);
+        // The discount needs to be smaller than the one called by. (Large discount => you pay more.) This is to protect against a bait and switch by the solver.
+        if (discount < minDiscount) require(false); // TODO: revert with DiscountTooLow.
 
-    //     // The order cannot be purchased after the max time specified to be sold at has passed
-    //     if (orderContext.orderPurchaseDeadline < block.timestamp) {
-    //         revert PurchaseTimePassed();
-    //     }
+        // Reentry protection. Ensure that you can't reenter this contract.
+        purchased.purchasedAt = uint40(block.timestamp);
+        purchased.timeToBuy = timeToBuy;
+        purchased.purchaser = purchaser;
+        // We can now make external calls without allowing local reentries into this call.
 
-    //     // Decode filler data.
-    //     // (
-    //     //     address fillerAddress,
-    //     //     uint32 orderPurchaseDeadline,
-    //     //     uint16 orderPurchaseDiscount,
-    //     //     bytes32 identifier,
-    //     //     uint256 fillerDataPointer
-    //     // ) = FillerDataLib.decode(fillerData);
+        // Pay out the input tokens to the solver.
+        CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
+        uint256 numInputs = orderData.inputs.length;
+        address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
+        for (uint256 i; i < numInputs; ++i) {
+            InputDescription memory inputDescription = orderData.inputs[i];
+            uint256 amountAfterDiscount = inputDescription.amount * discount / DISCOUNT_DENOM;
+            SafeTransferLib.safeTransferFrom(address(uint160(inputDescription.tokenId)), msg.sender, orderSolvedByAddress, amountAfterDiscount);
+        }
 
-    //     // Load old storage variables.
-    //     address oldFillerAddress = orderContext.fillerAddress;
-    //     uint16 oldOrderPurchaseDiscount = orderContext.orderPurchaseDiscount;
-    //     bytes32 oldIdentifier = orderContext.identifier;
-    //     // Check if the discount is good. Remember that a larger number is a better discount.
-    //     if (minDiscount > oldOrderPurchaseDiscount) {
-    //         revert MinOrderPurchaseDiscountTooLow(minDiscount, oldOrderPurchaseDiscount);
-    //     }
-
-    //     // We can now update the storage with the new filler data.
-    //     // This allows us to avoid reentry protecting this function.
-    //     orderContext.fillerAddress = fillerAddress;
-    //     orderContext.orderPurchaseDeadline = orderPurchaseDeadline;
-    //     orderContext.orderPurchaseDiscount = orderPurchaseDiscount;
-    //     orderContext.identifier = identifier;
-
-    //     // We can now make external calls without allowing local reentries into this call.
-
-    //     // Collateral is paid for in full.
-    //     address collateralToken = orderKey.collateral.collateralToken;
-    //     uint256 collateralAmount = orderKey.collateral.fillerCollateralAmount;
-    //     // No need to check if collateral is valid, since it has already entered the contract.
-    //     if (collateralAmount > 0) SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, oldFillerAddress, collateralAmount);
-
-    //     // Transfer the ERC20 tokens. This requires explicit approval for this contract for each token.
-    //     // This is not done through permit.
-    //     // This function assumes the collection is from msg.sender, as a result we don't need to specify that.
-    //     _collectTokensFromMsgSender(orderKey.inputs, oldFillerAddress, oldOrderPurchaseDiscount);
-
-    //     // Check if there is an identifier, if there is execute data.
-    //     if (oldIdentifier != bytes32(0)) {
-    //         // FillerDataLib.execute(identifier, orderKeyHash, orderKey.inputs, fillerData[fillerDataPointer:]);
-    //     }
-
-    //     emit OrderPurchased(orderKeyHash, msg.sender);
-    // }
+        // emit OrderPurchased(orderId, purchaser);
+    }
 
     //--- ERC7683 Resolvers ---//
 

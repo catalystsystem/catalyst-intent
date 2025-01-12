@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { OutputDescription } from "../libs/CatalystOrderType.sol";
+import { OutputDescription } from "./CatalystOrderType.sol";
 
 library OutputEncodingLibrary {
     error RemoteCallOutOfRange();
+    error fulfillmentContextCallOutOfRange();
 
     // --- Hashing Encoding --- //
 
@@ -15,10 +16,12 @@ library OutputEncodingLibrary {
         bytes32 token,
         uint256 amount,
         bytes32 recipient,
-        bytes memory remoteCall
+        bytes memory remoteCall,
+        bytes memory fulfillmentContext
     ) internal pure returns (bytes memory encodedOutput) {
-        // Check that the remoteCall does not exceed type(uint16).max
+        // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextCallOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             solver,
@@ -28,7 +31,9 @@ library OutputEncodingLibrary {
             amount,
             recipient,
             uint16(remoteCall.length), // To protect against data collisions
-            remoteCall
+            remoteCall,
+            uint16(fulfillmentContext.length), // To protect against data collisions
+            fulfillmentContext
         );
     }
 
@@ -37,8 +42,10 @@ library OutputEncodingLibrary {
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
         bytes memory remoteCall = outputDescription.remoteCall;
-        // Check that the remoteCall does not exceed type(uint16).max
+        bytes memory fulfillmentContext = outputDescription.fulfillmentContext;
+        // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextCallOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             outputDescription.remoteOracle,
@@ -47,7 +54,9 @@ library OutputEncodingLibrary {
             outputDescription.amount,
             outputDescription.recipient,
             uint16(remoteCall.length), // To protect against data collisions
-            remoteCall
+            remoteCall,
+            uint16(fulfillmentContext.length), // To protect against data collisions
+            fulfillmentContext
         );
     }
 
@@ -81,7 +90,8 @@ library OutputEncodingLibrary {
             outputDescription.token,
             outputDescription.amount,
             outputDescription.recipient,
-            outputDescription.remoteCall
+            outputDescription.remoteCall,
+            outputDescription.fulfillmentContext
         );
     }
 

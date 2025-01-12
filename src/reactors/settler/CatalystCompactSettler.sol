@@ -11,7 +11,7 @@ import {
     Open
 } from "../../interfaces/IERC7683.sol";
 
-import { CatalystOrderType, CatalystOrderData, OutputDescription, InputDescription } from "../../libs/CatalystOrderType.sol";
+import { CatalystOrderType, CatalystOrderData, OutputDescription, InputDescription } from "../../reactors/CatalystOrderType.sol";
 
 import {
     ITheCompactClaims,

@@ -12,14 +12,6 @@ interface IOracle {
     function isProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash) external view returns (bool);
 
     /**
-     * @notice Reverts if some data has not been attested to.
-     * @param remoteChainId Chain the data supposedly originated from.
-     * @param remoteOracle Identifier for the remote attestation.
-     * @param dataHash Hash of data.
-     */
-    function requireProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash) external view;
-
-    /**
      * @notice Check if a series of data has been attested to.
      * @dev Lengths of arrays aren't checked. Ensure they are sane before calling.
      * @param remoteChainIds Chain the data supposedly originated from.
@@ -28,14 +20,6 @@ interface IOracle {
      */
     function isProven(bytes32[] calldata remoteOracles, bytes32[] calldata remoteChainIds, bytes32[] calldata dataHashes) external view returns (bool);
 
-    /**
-     * @notice Reverts if a series of data has not been attested to.
-     * @dev Lengths of arrays aren't checked. Ensure they are sane before calling.
-     * @param remoteChainIds Chain the data supposedly originated from.
-     * @param remoteOracles Identifier for the remote attestation.
-     * @param dataHashes Hash of data.
-     */
-    function requireProven(bytes32[] calldata remoteOracles, bytes32[] calldata remoteChainIds, bytes32[] calldata dataHashes) external view;
 
     /**
      * @notice Reverts if a series of data has not been attested to.

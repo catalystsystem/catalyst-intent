@@ -15,7 +15,7 @@ import { SmallStructs } from "./external/callworm/SmallStructs.sol";
 import { IWormhole } from "./interfaces/IWormhole.sol";
 
 import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
-import { OutputDescription } from "../../libs/CatalystOrderType.sol";
+import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
 import { PayloadEncodingLibrary } from "../PayloadEncodingLibrary.sol";
@@ -28,8 +28,10 @@ contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, 
     error RemoteCallTooLarge();
     error NotStored(uint256 index);
     error NotAllPayloadsValid();
+    error ZeroValue();
+    error NonZeroValue();
 
-    event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint32 chainId);
+    event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint256 chainId);
 
     /**
      * @notice Takes a messagingProtocolChainIdentifier and returns the expected (and configured)
@@ -38,8 +40,8 @@ contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, 
      * understand chain ids that match the most coming identifier for chains. (their actual
      * identifier) rather than an arbitrary number that most messaging protocols use.
      */
-    mapping(uint16 messagingProtocolChainIdentifier => uint32 blockChainId) _chainIdentifierToBlockChainId;
-    mapping(uint32 blockChainId => uint16 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
+    mapping(uint16 messagingProtocolChainIdentifier => uint256 blockChainId) _chainIdentifierToBlockChainId;
+    mapping(uint256 blockChainId => uint16 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
 
     // For EVM it is generally set that 15 => Finality
     uint8 constant WORMHOLE_CONSISTENCY = 15;
@@ -55,21 +57,55 @@ contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, 
         // Lets us gets refunds from Wormhole.
     }
 
-    //-- View Functions --//
+    // --- Chain ID Functions --- //
+
+    /** @dev Can only be called once for every chain. */
+    function setChainMap(
+        uint16 messagingProtocolChainIdentifier,
+        uint256 chainId
+    ) onlyOwner external {
+        // Check that the inputs havn't been mistakenly called with 0 values.
+        if (messagingProtocolChainIdentifier == 0) revert ZeroValue();
+        if (chainId == 0) revert ZeroValue();
+
+        // This call only allows setting either value once, then they are done for.
+        // We need to check if they are currently unset.
+        if (_chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] != 0) revert NonZeroValue();
+        if (_blockChainIdToChainIdentifier[chainId] != 0) revert NonZeroValue();
+
+        _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] = chainId;
+        _blockChainIdToChainIdentifier[chainId] = messagingProtocolChainIdentifier;
+
+        emit MapMessagingProtocolIdentifierToChainId(messagingProtocolChainIdentifier, chainId);
+    }
 
     function getChainIdentifierToBlockChainId(
         uint16 messagingProtocolChainIdentifier
-    ) external view returns (uint32) {
+    ) external view returns (uint256) {
         return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
     }
 
     function getBlockChainIdtoChainIdentifier(
-        uint32 chainId
+        uint256 chainId
     ) external view returns (uint16) {
         return _blockChainIdToChainIdentifier[chainId];
     }
 
-    //--- Sending Proofs & Generalised Incentives ---//
+    // --- Sending Proofs & Generalised Incentives --- //
+
+    /** @notice Submits proofs that have been stored in this oracle directly to Wormhole. */
+    function submit(
+        address proofSource,
+        bytes[] calldata payloads
+    ) public payable returns (uint256 refund) {
+        // Check if the payloads are valid.
+        if (!IPayloadCreator(proofSource).areValidPayloads(payloads)) revert NotAllPayloadsValid(); 
+
+        // Payloads are good. We can submit them on behalf of proofSource.
+        return _submit(proofSource, payloads);
+    }
+
+    // --- Wormhole Logic --- //
 
     /**
      * @notice Submits a proof the associated messaging protocol.
@@ -96,33 +132,21 @@ contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, 
         }
     }
 
-    /** @notice Submits proofs that have been stored in this oracle directly to Wormhole. */
-    function submit(
-        address proofSource,
-        bytes[] calldata payloads
-    ) public payable returns (uint256 refund) {
-        // Check if the payload are valid.
-        if (!IPayloadCreator(proofSource).areValidPayloads(payloads)) revert NotAllPayloadsValid(); 
-
-        // Payloads are good. We can submit them on behalf of proofSource.
-        return _submit(proofSource, payloads);
-    }
-
     function receiveMessage(
         bytes calldata rawMessage
     ) external {
-        (uint16 remoteChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
+        (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
         (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = PayloadEncodingLibrary.decodeMessage(message);
 
         // Construct the identifier
         bytes32 senderIdentifier = IdentifierLib.enhanceIdentifier(remoteSenderIdentifier, identifierFromMessage);
 
-        // TODO: map remoteChainIdentifier to canonical chain id instead of messaging protocol specific.
-
+        // Map remoteMessagingProtocolChainIdentifier to canonical chain id. This ensures we use canonical ids.
+        uint256 remoteChainId = _chainIdentifierToBlockChainId[remoteMessagingProtocolChainIdentifier];
         // Store payload attestations;
         uint256 numPayloads = payloadHashes.length;
         for (uint256 i; i < numPayloads; ++i) {
-            _attestations[bytes32(uint256(remoteChainIdentifier))][senderIdentifier][payloadHashes[i]] = true;
+            _attestations[bytes32(remoteChainId)][senderIdentifier][payloadHashes[i]] = true;
 
             // TODO: emit OutputProven(fillDeadline, outputHash);
         }

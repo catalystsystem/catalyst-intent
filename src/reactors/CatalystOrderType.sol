@@ -17,8 +17,6 @@ struct InputDescription {
 struct OutputDescription {
     /**
      * @dev Contract on the destination that tells whether an order was filled.
-     * Format is bytes32() slice of the encoded bytearray from the messaging protocol.
-     * If local: bytes32(uint256(uint160(address(localOracle)))).
      */
     bytes32 remoteOracle;
     /**
@@ -42,6 +40,8 @@ struct OutputDescription {
      * Is called on recipient.
      */
     bytes remoteCall;
+
+    bytes fulfillmentContext;
 }
 
 struct CatalystOrderData {
@@ -222,10 +222,11 @@ library CatalystOrderType {
         "uint256 amount,"
         "bytes32 recipient,"
         "bytes remoteCall,"
+        "bytes fulfillmentContext"
         ")"
     );
 
-    bytes32 constant OUTPUT_DESCRIPTION_TYPE_HASH = keccak256(INPUT_DESCRIPTION_TYPE_STUB);
+    bytes32 constant OUTPUT_DESCRIPTION_TYPE_HASH = keccak256(OUTPUT_DESCRIPTION_TYPE_STUB);
 
     function hashInput(InputDescription memory input) internal pure returns (bytes32) {
         return keccak256(
@@ -246,7 +247,8 @@ library CatalystOrderType {
                 output.token,
                 output.amount,
                 output.recipient,
-                keccak256(output.remoteCall)
+                keccak256(output.remoteCall),
+                keccak256(output.fulfillmentContext)
             )
         );
     }

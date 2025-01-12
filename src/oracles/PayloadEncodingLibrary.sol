@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 library PayloadEncodingLibrary {
+    error TooManyPayloads(uint256 size);
     error PayloadTooLarge(uint256 size);
 
     function encodeMessage(
@@ -9,20 +10,20 @@ library PayloadEncodingLibrary {
         bytes[] calldata payloads
     ) internal pure returns (bytes memory encodedPayload) {
         uint256 numPayloads = payloads.length;
-        // Set the number of outputs as first 2 bytes. This aids implementations which may not have easy access to data size
+        if (numPayloads > type(uint16).max) revert TooManyPayloads(numPayloads);
+
+        // Set the number of outputs as first 2 bytes. This aids implementations which may not have easy access to data size.
         encodedPayload = bytes.concat(identifier, bytes2(uint16(numPayloads)));
-        unchecked {
-            for (uint256 i; i < numPayloads; ++i) {
-                bytes memory payload = payloads[i];
-                // Check if length of payload is within message constraints.
-                uint256 payloadLength = payload.length;
-                if (payloadLength > type(uint16).max) revert PayloadTooLarge(payloadLength);
-                encodedPayload = abi.encodePacked(
-                    encodedPayload,
-                    uint16(payloadLength),
-                    payload
-                );
-            }
+        for (uint256 i; i < numPayloads; ++i) {
+            bytes memory payload = payloads[i];
+            // Check if length of payload is within message constraints.
+            uint256 payloadLength = payload.length;
+            if (payloadLength > type(uint16).max) revert PayloadTooLarge(payloadLength);
+            encodedPayload = abi.encodePacked(
+                encodedPayload,
+                uint16(payloadLength),
+                payload
+            );
         }
     }
 

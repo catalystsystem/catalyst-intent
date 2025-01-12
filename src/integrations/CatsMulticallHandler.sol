@@ -5,7 +5,7 @@ import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
 import { ReentrancyGuard } from "solady/src/utils/ReentrancyGuard.sol";
 
 import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
-import { InputDescription } from "../libs/CatalystOrderType.sol";
+import { InputDescription } from "../reactors/CatalystOrderType.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 /**

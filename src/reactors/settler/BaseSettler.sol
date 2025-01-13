@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
-import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IOracle } from "../../interfaces/IOracle.sol";
 
@@ -25,6 +25,8 @@ import {
     InitiateDeadlinePassed,
     CannotProveOrder
 } from "../../interfaces/Errors.sol";
+
+import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 /**
  * @title Base Cross-chain intent Reactor
@@ -153,7 +155,7 @@ contract BaseSettler {
         for (uint256 i; i < numInputs; ++i) {
             InputDescription memory inputDescription = orderData.inputs[i];
             uint256 amountAfterDiscount = inputDescription.amount * discount / DISCOUNT_DENOM;
-            SafeTransferLib.safeTransferFrom(address(uint160(inputDescription.tokenId)), msg.sender, orderSolvedByAddress, amountAfterDiscount);
+            SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(inputDescription.tokenId), msg.sender, orderSolvedByAddress, amountAfterDiscount);
         }
 
         // emit OrderPurchased(orderId, purchaser);

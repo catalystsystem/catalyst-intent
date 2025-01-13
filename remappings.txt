@@ -1,4 +1,3 @@
-GeneralisedIncentives/=lib/GeneralisedIncentives/src/
 ds-test/=lib/forge-std/lib/ds-test/src/
 erc4626-tests/=lib/GeneralisedIncentives/lib/openzeppelin-contracts/lib/erc4626-tests/
 forge-std/=lib/forge-std/src/
@@ -7,4 +6,4 @@ openzeppelin/=lib/GeneralisedIncentives/lib/openzeppelin-contracts/contracts/
 bitcoinprism-evm/=lib/bitcoinprism-evm/
 permit2/=lib/permit2/
 the-compact/=lib/the-compact/
-solady/=lib/solady/
+solady/=lib/solady/src/

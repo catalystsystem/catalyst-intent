@@ -1,9 +1,6 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "lib/GeneralisedIncentives"]
-	path = lib/GeneralisedIncentives
-	url = https://github.com/catalystdao/GeneralisedIncentives
 [submodule "lib/permit2"]
 	path = lib/permit2
 	url = https://github.com/Uniswap/permit2

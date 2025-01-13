@@ -171,7 +171,7 @@ contract CatalystCompactSettler is BaseSettler {
             nonce: order.nonce,
             expires: order.openDeadline,
             witness: CatalystOrderType.orderHash(order, orderData),
-            witnessTypestring: string(CatalystOrderType.GASSLESS_CROSS_CHAIN_ORDER_TYPE),
+            witnessTypestring: string(CatalystOrderType.BATCH_SUB_TYPES),
             claims: claims,
             claimant: solvedBy
         }));

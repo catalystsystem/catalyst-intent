@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { Ownable } from "solady/src/auth/Ownable.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
-import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
-
-import { ICrossChainReceiver } from "GeneralisedIncentives/interfaces/ICrossChainReceiver.sol";
-import { IIncentivizedMessageEscrow } from "GeneralisedIncentives/interfaces/IIncentivizedMessageEscrow.sol";
-import { IMessageEscrowStructs } from "GeneralisedIncentives/interfaces/IMessageEscrowStructs.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { WormholeVerifier } from "./external/callworm/WormholeVerifier.sol";
 import { SmallStructs } from "./external/callworm/SmallStructs.sol";
@@ -23,7 +19,7 @@ import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 
-contract WormholeOracle is BaseOracle, IMessageEscrowStructs, WormholeVerifier, Ownable {
+contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
     error AlreadySet();
     error RemoteCallTooLarge();
     error NotStored(uint256 index);

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { Ownable } from "solady/src/auth/Ownable.sol";
-import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IsContractLib } from "./IsContractLib.sol";
 

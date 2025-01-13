@@ -108,24 +108,24 @@ library CatalystOrderType {
 
     bytes constant BATCH_COMPACT_TYPE_PARTIAL = abi.encodePacked(
         "BatchCompact("
-        "address arbiter"
-        "address sponsor"
-        "uint256 nonce"
-        "uint256 expires"
-        "uint256[2][] idsAndAmounts"
+        "address arbiter,"
+        "address sponsor,"
+        "uint256 nonce,"
+        "uint256 expires,"
+        "uint256[2][] idsAndAmounts,"
     );
 
-    bytes constant BATCH_COMPACT_TYPE_STUB = abi.encodePacked(
-        BATCH_COMPACT_TYPE_PARTIAL,
-        "CrossChainOrder witness)"
-    );
-
-    bytes constant BATCH_COMPACT_TYPE = abi.encodePacked(
-        BATCH_COMPACT_TYPE_STUB,
+    bytes constant BATCH_SUB_TYPES = abi.encodePacked(
+        "CrossChainOrder witness)",
         CATALYST_ORDER_DATA_TYPE_STUB,
         GASSLESS_CROSS_CHAIN_ORDER_TYPE_STUB,
         INPUT_DESCRIPTION_TYPE_STUB,
         OUTPUT_DESCRIPTION_TYPE_STUB
+    );
+
+    bytes constant BATCH_COMPACT_TYPE = abi.encodePacked(
+        BATCH_COMPACT_TYPE_PARTIAL,
+        BATCH_SUB_TYPES
     );
 
     bytes32 constant BATCH_COMPACT_TYPE_HASH = keccak256(BATCH_COMPACT_TYPE);

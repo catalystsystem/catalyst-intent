@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.0;
 
-import { SafeTransferLib } from "solady/src/utils/SafeTransferLib.sol";
-import { ReentrancyGuard } from "solady/src/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 
 import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
 import { InputDescription } from "../reactors/CatalystOrderType.sol";

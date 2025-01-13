@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
-
 library PayloadEncodingLibrary {
     error TooManyPayloads(uint256 size);
     error PayloadTooLarge(uint256 size);

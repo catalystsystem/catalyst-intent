@@ -68,12 +68,12 @@ library OutputEncodingLibrary {
     function payloadToOutputHash(
         bytes32 remoteOracle,
         uint256 chainId,
-        bytes calldata payload
+        bytes calldata remainingPayload
     ) pure internal returns (bytes32) {
         return keccak256(abi.encodePacked(
             remoteOracle,
             chainId,
-            payload
+            remainingPayload
         ));
     }
 
@@ -111,5 +111,11 @@ library OutputEncodingLibrary {
         bytes calldata payload
     ) internal pure returns (bytes32 orderId) {
         return orderId = bytes32(payload[37:69]);
+    }
+
+    function selectRemainingPayload(
+        bytes calldata payload
+    ) internal pure returns (bytes calldata remainingPayload) {
+        return remainingPayload = payload[69:];
     }
 }

@@ -19,8 +19,7 @@ abstract contract SolverTimestampBaseFiller is BaseFiller {
     function _isValidPayload(address oracle, bytes calldata payload) view internal returns(bool) {
         bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
-
-        bytes32 outputHash = OutputEncodingLibrary.payloadToOutputHash(remoteOracleIdentifier, chainId, payload);
+        bytes32 outputHash = OutputEncodingLibrary.payloadToOutputHash(remoteOracleIdentifier, chainId, OutputEncodingLibrary.selectRemainingPayload(payload));
 
         bytes32 orderId = OutputEncodingLibrary.decodePayloadOrderId(payload);
         FilledOutput storage filledOutput = _filledOutput[orderId][outputHash];

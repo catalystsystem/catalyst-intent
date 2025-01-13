@@ -7,7 +7,7 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 import { IdentifierLib } from "../libs/IdentifierLib.sol";
 
 abstract contract BaseOracle is IOracle {
-    error NotProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash);
+    error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash);
     error NotDivisible(uint256 value, uint256 divisor);
     error BadDeploymentAddress(address);
 
@@ -15,15 +15,18 @@ abstract contract BaseOracle is IOracle {
      * @notice Maps filled outputs to solvers.
      * @dev Outputs aren't parsed and it is the consumer's responsibility the hash is of data that makes sense.
      */
-    mapping(bytes32 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 dataHash => bool))) internal _attestations;
+    mapping(uint256 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 dataHash => bool))) internal _attestations;
 
     constructor() {
         // It is important that this contract's address is 16 bytes.
-        if (uint256(uint128(uint160(address(this)))) != uint256(uint160(address(this)))) revert BadDeploymentAddress(address(this));
+
+        // TODO: This check needs to be reinforced.
+        // if (uint256(uint128(uint160(address(this)))) != uint256(uint160(address(this)))) revert BadDeploymentAddress(address(this));
     }
 
     function getIdentifier(address app) external view returns (bytes32) {
-        return IdentifierLib.getIdentifier(app, address(this));
+        // TODO: no need to concat.
+        return IdentifierLib.getIdentifier(app, address(uint160(uint128(uint160(address(this))))));
     }
 
     //--- Data Attestation Validation ---//
@@ -35,7 +38,7 @@ abstract contract BaseOracle is IOracle {
      * @param remoteOracle Identifier for the remote attestation.
      * @param dataHash Hash of data.
      */
-    function _isProven(bytes32 remoteChainId, bytes32 remoteOracle, bytes32 dataHash) internal view returns (bool) {
+    function _isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash) internal view returns (bool) {
         return _attestations[remoteChainId][remoteOracle][dataHash];
     }
 
@@ -45,8 +48,8 @@ abstract contract BaseOracle is IOracle {
      * @param remoteOracle Identifier for the remote attestation.
      * @param dataHash Hash of data.
      */
-    function isProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash) external view returns (bool) {
-        return _isProven(remoteOracle, remoteChainId, dataHash);
+    function isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash) external view returns (bool) {
+        return _isProven(remoteChainId, remoteOracle, dataHash);
     }
 
     /**
@@ -56,12 +59,12 @@ abstract contract BaseOracle is IOracle {
      * @param remoteOracles Identifier for the remote attestation.
      * @param dataHashs Hash of data.
      */
-    function isProven(bytes32[] calldata remoteOracles, bytes32[] calldata remoteChainIds, bytes32[] calldata dataHashs) external view returns (bool) {
+    function isProven(uint256[] calldata remoteChainIds, bytes32[] calldata remoteOracles, bytes32[] calldata dataHashs) external view returns (bool) {
         uint256 series = remoteOracles.length;
         // Check that the rest of the outputs have been filled.
         // Notice that we discard the solver address and only check if it has been set
         for (uint256 i = 1; i < series; ++i) {
-            bool state = _isProven(remoteOracles[i], remoteChainIds[i], dataHashs[i]);
+            bool state = _isProven(remoteChainIds[i], remoteOracles[i], dataHashs[i]);
             if (!state) return false;
         }
         return true;
@@ -81,11 +84,11 @@ abstract contract BaseOracle is IOracle {
 
             // Go over the data. We will use an for loop iterating over the offset.
             for (uint256 offset; offset < proofBytes;) {
+                uint256 remoteChainId = uint256(bytes32(proofSeries[offset: offset += 32]));
                 bytes32 remoteOracle = bytes32(proofSeries[offset: offset += 32]);
-                bytes32 remoteChainId = bytes32(proofSeries[offset: offset += 32]);
                 bytes32 dataHash = bytes32(proofSeries[offset: offset += 32]);
-                bool state = _isProven(remoteOracle, remoteChainId, dataHash);
-                if (!state) revert NotProven(remoteOracle, remoteChainId, dataHash);
+                bool state = _isProven(remoteChainId, remoteOracle, dataHash);
+                if (!state) revert NotProven(remoteChainId, remoteOracle, dataHash);
             }
         }
     }

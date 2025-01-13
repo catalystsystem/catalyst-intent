@@ -27,6 +27,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
     error ZeroValue();
     error NonZeroValue();
 
+    event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 payloadHash);
     event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint256 chainId);
 
     /**
@@ -112,7 +113,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         bytes[] calldata payloads
     ) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = PayloadEncodingLibrary.encodeMessage(IdentifierLib.getIdentifier(source, address(this)), payloads);
+        bytes memory message = PayloadEncodingLibrary.encodeMessage(IdentifierLib.getIdentifier(source, address(uint160(uint128(uint160(address(this)))))), payloads);
 
         uint256 packageCost = WORMHOLE.messageFee();
         WORMHOLE.publishMessage{value: packageCost} (
@@ -142,9 +143,9 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         // Store payload attestations;
         uint256 numPayloads = payloadHashes.length;
         for (uint256 i; i < numPayloads; ++i) {
-            _attestations[bytes32(remoteChainId)][senderIdentifier][payloadHashes[i]] = true;
+            _attestations[remoteChainId][senderIdentifier][payloadHashes[i]] = true;
 
-            // TODO: emit OutputProven(fillDeadline, outputHash);
+            emit OutputProven(remoteChainId, senderIdentifier, payloadHashes[i]);
         }
     }
 

@@ -9,7 +9,7 @@ interface IOracle {
      * @param remoteOracle Identifier for the remote attestation.
      * @param dataHash Hash of data.
      */
-    function isProven(bytes32 remoteOracle, bytes32 remoteChainId, bytes32 dataHash) external view returns (bool);
+    function isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash) external view returns (bool);
 
     /**
      * @notice Check if a series of data has been attested to.
@@ -18,13 +18,13 @@ interface IOracle {
      * @param remoteOracles Identifier for the remote attestation.
      * @param dataHashes Hash of data.
      */
-    function isProven(bytes32[] calldata remoteOracles, bytes32[] calldata remoteChainIds, bytes32[] calldata dataHashes) external view returns (bool);
+    function isProven(uint256[] calldata remoteChainIds, bytes32[] calldata remoteOracles, bytes32[] calldata dataHashes) external view returns (bool);
 
 
     /**
      * @notice Reverts if a series of data has not been attested to.
      * @dev More efficient implementation of requireProven.
-     * @param proofSeries remoteOracle, remoteChainId, and dataHash encoded in chucks of 32*3=96 chunks.
+     * @param proofSeries remoteChainId, remoteOracle,and dataHash encoded in chucks of 32*3=96 chunks.
      */
     function efficientRequireProven(bytes calldata proofSeries) external view;
 }

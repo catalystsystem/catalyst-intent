@@ -70,8 +70,8 @@ contract CatalystCompactSettler is BaseSettler {
             OutputDescription memory output = outputDescriptions[i];
             proofSeries = abi.encodePacked(
                 proofSeries,
-                output.remoteOracle,
                 output.chainId,
+                output.remoteOracle,
                 _proofPayloadHash(orderId, bytes32(uint256(uint160(solver))), timestamps[i], output)
             );
         }
@@ -164,7 +164,7 @@ contract CatalystCompactSettler is BaseSettler {
             });
         }
 
-        bool success = COMPACT.claim(BatchClaimWithWitness({
+        bool success = COMPACT.claimAndWithdraw(BatchClaimWithWitness({
             allocatorSignature: allocatorSignature,
             sponsorSignature: sponsorSignature,
             sponsor: order.user,

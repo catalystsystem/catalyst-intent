@@ -100,7 +100,7 @@ contract CoinFiller is SolverTimestampBaseFiller {
             output
         );
 
-        return existingSolver;
+        return proposedSolver;
     }
 
     /**

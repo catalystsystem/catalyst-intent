@@ -168,6 +168,7 @@ contract CatalystCompactSettler is BaseSettler {
 
         if (destination != solver) destination.call(BytesLib.toBytes(originFllerData, 4));
 
+        // TODO: remove this event. It is soooo expensive.
         emit Open(orderId, _resolve(order, msg.sender));
     }
 

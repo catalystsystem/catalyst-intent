@@ -168,9 +168,10 @@ abstract contract BaseSettler is EIP712 {
         maxSpent = new Output[](numOutputs);
         
         // If the output list is sorted by chains, this list is unqiue and optimal.
+        OutputDescription[] memory outputs = orderData.outputs;
         fillInstructions = new FillInstruction[](numOutputs);
         for (uint256 i = 0; i < numOutputs; ++i) {
-            OutputDescription memory catalystOutput = orderData.outputs[i];
+            OutputDescription memory catalystOutput = outputs[i];
             uint256 chainId = catalystOutput.chainId;
             maxSpent[i] = Output({
                 token: catalystOutput.token,
@@ -188,11 +189,12 @@ abstract contract BaseSettler is EIP712 {
         // fillerOutputs are of the Output type and as a result, we can't just
         // load swapperInputs into fillerOutputs. As a result, we need to parse
         // the individual inputs and make a new struct.
-        uint256 numInputs = orderData.inputs.length;
+        InputDescription[] memory inputs = orderData.inputs;
+        uint256 numInputs = inputs.length;
         minReceived = new Output[](numInputs);
         unchecked {
             for (uint256 i; i < numInputs; ++i) {
-                InputDescription memory input = orderData.inputs[i];
+                InputDescription memory input = inputs[i];
                 minReceived[i] = Output({
                     token: bytes32(uint256(uint160(input.tokenId))),
                     amount: input.amount,

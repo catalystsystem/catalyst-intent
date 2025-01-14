@@ -4,8 +4,6 @@ pragma solidity ^0.8.26;
 import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { IsContractLib } from "./IsContractLib.sol";
-
 /**
  * @dev Required for inheritance linearization
  */

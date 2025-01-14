@@ -39,11 +39,4 @@ abstract contract BaseFiller is IPayloadCreator {
         bytes16 fillerIdentifier = bytes16(remoteOracleIdentifier);
         if (ADDRESS_THIS != fillerIdentifier) revert WrongRemoteOracle(ADDRESS_THIS, fillerIdentifier);
     }
-
-    function _getOracleAddress(
-        bytes32 remoteOracleIdentifier
-    ) internal view virtual returns (address) {
-        // Load the last 16 bytes.
-        return address(uint160(uint128(uint256(remoteOracleIdentifier))));
-    }
 }

@@ -5,8 +5,6 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IOracle } from "../../interfaces/IOracle.sol";
 
-import { IsContractLib } from "../../libs/IsContractLib.sol";
-
 import {
     GaslessCrossChainOrder,
     OnchainCrossChainOrder,
@@ -25,7 +23,12 @@ import {
     CannotProveOrder
 } from "../../interfaces/Errors.sol";
 
+import { OrderPurchaseType } from "../OrderPurchaseType.sol";
+
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
+import { EIP712 } from "solady/utils/EIP712.sol";
 
 /**
  * @title Base Cross-chain intent Reactor
@@ -53,16 +56,13 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
  * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could
  * annoy users.
  */
-contract BaseSettler {
+abstract contract BaseSettler is EIP712 {
     error AlreadyPurchased();
+    error InvalidSigner();
+
     bytes32 public constant VERSION_FLAGS = bytes32(uint256(2));
 
     uint256 DISCOUNT_DENOM = 10**18;
-
-    struct PurchaseConfig {
-        uint40 timeToBuy;
-        uint48 discount;
-    }
 
     // TODO: This needs to be 1 slot.
     struct Purchased {
@@ -72,7 +72,6 @@ contract BaseSettler {
         address purchaser;
     }
 
-    mapping(bytes32 solver => PurchaseConfig) public purchaseConfig;
     mapping(bytes32 solver => mapping(bytes32 orderId => Purchased)) public purchasedOrders;
 
     //--- Hashing Orders ---//
@@ -107,12 +106,6 @@ contract BaseSettler {
 
     //--- Order Purchase Helpers ---//
 
-    function configurePurchaseOrder() external {
-
-
-        // TODO: event
-    }
-
     /**
      * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
      * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
@@ -123,7 +116,15 @@ contract BaseSettler {
      * If you are calling this function from an external contract, beaware of re-entry
      * issues from a later execute. (configured of fillerData).
      */
-    function purchaseOrder(bytes32 orderSolvedByIdentifier, GaslessCrossChainOrder calldata order, address purchaser, uint256 expiryTimestamp, uint256 minDiscount) external {
+    function purchaseOrder(
+        bytes32 orderSolvedByIdentifier,
+        GaslessCrossChainOrder calldata order,
+        address purchaser,
+        uint256 expiryTimestamp,
+        uint48 discount,
+        uint40 timeToBuy,
+        bytes calldata solverSignature
+    ) external {
         require(purchaser != address(0));
         require(expiryTimestamp > block.timestamp);
 
@@ -132,25 +133,22 @@ contract BaseSettler {
         Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderId];
         if (purchased.purchaser != address(0)) revert AlreadyPurchased();
 
-        // Load the config of the last purchaser.
-        PurchaseConfig storage solverConfig = purchaseConfig[orderSolvedByIdentifier];
-        uint256 discount = solverConfig.discount;
-        uint40 timeToBuy = solverConfig.timeToBuy;
-        require(discount != 0);
-        require(timeToBuy != 0);
-        // The discount needs to be smaller than the one called by. (Large discount => you pay more.) This is to protect against a bait and switch by the solver.
-        if (discount < minDiscount) require(false); // TODO: revert with DiscountTooLow.
-
         // Reentry protection. Ensure that you can't reenter this contract.
         purchased.purchasedAt = uint40(block.timestamp);
         purchased.timeToBuy = timeToBuy;
         purchased.purchaser = purchaser;
         // We can now make external calls without allowing local reentries into this call.
 
+        // We need to validate that the solver has approved someone else to purchase their order.
+        address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
+
+        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderId, address(this), discount, timeToBuy));
+        bool isValid = SignatureCheckerLib.isValidSignatureNow(orderSolvedByAddress, digest, solverSignature);
+        if (!isValid) revert InvalidSigner();
+
         // Pay out the input tokens to the solver.
         CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
         uint256 numInputs = orderData.inputs.length;
-        address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
         for (uint256 i; i < numInputs; ++i) {
             InputDescription memory inputDescription = orderData.inputs[i];
             uint256 amountAfterDiscount = inputDescription.amount * discount / DISCOUNT_DENOM;

@@ -79,7 +79,7 @@ contract TestCatalyst is DeployCompact {
         );
     }
 
-    function encodeMessage(bytes32 remoteIdentifier, bytes[] calldata payloads) external returns (bytes memory) {
+    function encodeMessage(bytes32 remoteIdentifier, bytes[] calldata payloads) external pure returns (bytes memory) {
         return PayloadEncodingLibrary.encodeMessage(remoteIdentifier, payloads);
     }
 
@@ -190,6 +190,7 @@ contract TestCatalyst is DeployCompact {
         uint40[] memory timestamps = new uint40[](1);
         bytes memory originFllerData = abi.encode(solverIdentifier, timestamps);
 
+        vm.prank(solver);
         catalystCompactSettler.openFor(order, signature, originFllerData);
     }
 
@@ -285,6 +286,7 @@ contract TestCatalyst is DeployCompact {
         bytes32 orderId = catalystCompactSettler.orderIdentifier(order);
         orderIds[0] = orderId;
 
+        vm.startPrank(solver);
         coinFiller.fillThrow(orderIds, outputs, solverIdentifier);
 
         bytes[] memory payloads = new bytes[](1);

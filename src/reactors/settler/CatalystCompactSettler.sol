@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
+
 import { BaseSettler } from "./BaseSettler.sol";
 
 import {
@@ -30,6 +32,8 @@ import {
     IOracle
 } from "../../interfaces/IOracle.sol";
 
+import { AllowOpenType } from "../AllowOpenType.sol";
+
 /**
  * @title Catalyst Reactor supporting The Compact
  * @notice The Catalyst Reactor implementation with The Compact as the deposit scheme.
@@ -44,6 +48,11 @@ contract CatalystCompactSettler is BaseSettler {
 
     constructor(address compact) {
         COMPACT = ITheCompactClaims(compact);
+    }
+
+    function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
+        name = "CatalystSettler";
+        version = "Compact1";
     }
 
     //--- Output Proofs ---//
@@ -123,15 +132,30 @@ contract CatalystCompactSettler is BaseSettler {
      * @param signature Encoded lock signatures.
      */
     function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata originFllerData) external {
+        bytes32 orderId = _orderIdentifier(order);
+        // Only the solver is allowed to unconditionally call open. If the caller is not the solver, the parameters needs to be signed.
+        address solver = address(bytes20(originFllerData[12:32]));
+        uint40[] memory timestamps;
+        // TODO: Move to baseSettler or move out of this function call.
+        if (solver != msg.sender) {
+            // We know know that originFillerData must contain a signature, and redirections.
+            address destination;
+            bytes memory call;
+            bytes memory solverSignature;
+            (, timestamps, solverSignature, destination, call) = abi.decode(originFllerData, (address, uint40[], bytes, address, bytes)); // TODO: better data structure.
+            bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), destination, call));
+            bool isValid = SignatureCheckerLib.isValidSignatureNow(solver, digest, solverSignature);
+            if (!isValid) revert InvalidSigner();
+        } else {
+            (, timestamps) = abi.decode(originFllerData, (address, uint40[])); // TODO: better data structure.
+        }
+
         (bytes memory sponsorSignature, bytes memory allocatorSignature) = abi.decode(signature, (bytes, bytes)); // TODO: load as calldata.
-        (address solver, uint40[] memory timestamps) = abi.decode(originFllerData, (address, uint40[])); // TODO: better data structure.
         
         _validateOrder(order);
 
         // Decode the order data.
         (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-
-        bytes32 orderId = _orderIdentifier(order);
 
         // TODO: validate length of timestamps.
         // Check if the outputs have been proven according to the oracles.

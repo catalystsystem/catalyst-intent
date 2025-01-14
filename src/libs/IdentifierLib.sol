@@ -15,7 +15,7 @@ library IdentifierLib {
         return bytes32((uint256(uint128(uint160(app))) << 128) + uint256(uint160(oracle)));
     }
 
-    function enhanceIdentifier(bytes32 identifierFromCourier, bytes32 identifierFromMessage) internal view returns (bytes32) {
+    function enhanceIdentifier(bytes32 identifierFromCourier, bytes32 identifierFromMessage) internal pure returns (bytes32) {
         if (identifierFromCourier == identifierFromMessage) return identifierFromMessage;
 
         // Check if the identifierFromCourier is parital:

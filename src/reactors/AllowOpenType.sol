@@ -31,7 +31,7 @@ library AllowOpenType {
         bytes32 orderId,
         address originSettler,
         address destination,
-        bytes memory call
+        bytes calldata call
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(

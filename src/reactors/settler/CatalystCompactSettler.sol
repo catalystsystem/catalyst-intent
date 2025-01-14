@@ -33,6 +33,7 @@ import {
 } from "../../interfaces/IOracle.sol";
 
 import { AllowOpenType } from "../AllowOpenType.sol";
+import { BytesLib } from "../../libs/BytesLib.sol";
 
 /**
  * @title Catalyst Reactor supporting The Compact
@@ -71,7 +72,7 @@ contract CatalystCompactSettler is BaseSettler {
      * @dev Function overload for outputFilled to allow proving multiple outputs in a single call.
      * Notice that the solver of the first provided output is reported as the entire intent solver.
      */
-    function _outputsFilled(address localOracle, bytes32 orderId, address solver, uint40[] memory timestamps, OutputDescription[] memory outputDescriptions) internal view {
+    function _outputsFilled(address localOracle, bytes32 orderId, address solver, uint40[] calldata timestamps, OutputDescription[] memory outputDescriptions) internal view {
         bytes memory proofSeries;
         
         uint256 numOutputs = outputDescriptions.length;
@@ -135,47 +136,44 @@ contract CatalystCompactSettler is BaseSettler {
         bytes32 orderId = _orderIdentifier(order);
         // Only the solver is allowed to unconditionally call open. If the caller is not the solver, the parameters needs to be signed.
         address solver = address(bytes20(originFllerData[12:32]));
-        uint40[] memory timestamps;
+        address destination = solver;
         // TODO: Move to baseSettler or move out of this function call.
         if (solver != msg.sender) {
-            // We know know that originFillerData must contain a signature, and redirections.
-            address destination;
-            bytes memory call;
-            bytes memory solverSignature;
-            (, timestamps, solverSignature, destination, call) = abi.decode(originFllerData, (address, uint40[], bytes, address, bytes)); // TODO: better data structure.
-            bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), destination, call));
-            bool isValid = SignatureCheckerLib.isValidSignatureNow(solver, digest, solverSignature);
-            if (!isValid) revert InvalidSigner();
-        } else {
-            (, timestamps) = abi.decode(originFllerData, (address, uint40[])); // TODO: better data structure.
-        }
+            // abi.decode(originFllerData, (address, uint40[], bytes, address, bytes))
+            bytes calldata solverSignature = BytesLib.toBytes(originFllerData, 2);
+            destination = BytesLib.toAddress(originFllerData, 3);
+            bytes calldata call = BytesLib.toBytes(originFllerData, 4);
 
-        (bytes memory sponsorSignature, bytes memory allocatorSignature) = abi.decode(signature, (bytes, bytes)); // TODO: load as calldata.
-        
+            bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), destination, call));
+            bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(solver, digest, solverSignature);
+            if (!isValid) revert InvalidSigner();
+        }
         _validateOrder(order);
 
         // Decode the order data.
         (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
 
+        uint40[] calldata timestamps = BytesLib.toUint40Array(originFllerData, 1);
         // TODO: validate length of timestamps.
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _outputsFilled(orderData.localOracle, orderId, solver, timestamps, orderData.outputs);
 
-        // Payout inputs.
+        bytes calldata sponsorSignature = BytesLib.toBytes(signature, 0);
+        bytes calldata allocatorSignature = BytesLib.toBytes(signature, 1);
+        // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(
-            order, orderData, sponsorSignature, allocatorSignature, solver
+            order, orderData, sponsorSignature, allocatorSignature, destination
         );
 
-        // bytes32 identifier = orderContext.identifier;
-        // if (identifier != bytes32(0)) FillerDataLib.execute(identifier, orderHash, orderKey.inputs, executionData);
+        if (destination != solver) destination.call(BytesLib.toBytes(originFllerData, 4));
 
         emit Open(orderId, _resolve(order, msg.sender));
     }
 
     //--- The Compact & Resource Locks ---//
 
-    function _resolveLock(GaslessCrossChainOrder calldata order, CatalystOrderData memory orderData, bytes memory sponsorSignature, bytes memory allocatorSignature, address solvedBy) internal virtual {
+    function _resolveLock(GaslessCrossChainOrder calldata order, CatalystOrderData memory orderData, bytes calldata sponsorSignature, bytes calldata allocatorSignature, address solvedBy) internal virtual {
         uint256 numInputs = orderData.inputs.length;
         BatchClaimComponent[] memory claims = new BatchClaimComponent[](numInputs);
         InputDescription[] memory maxInputs = orderData.inputs;

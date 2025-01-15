@@ -88,7 +88,7 @@ contract CatalystCompactSettler is BaseSettler {
         IOracle(localOracle).efficientRequireProven(proofSeries);
     }
 
-    function maxTimestamp(uint40[] memory timestamps) external pure returns (uint256 timestamp) {
+    function _maxTimestamp(uint40[] calldata timestamps) internal pure returns (uint256 timestamp) {
         timestamp = timestamps[0]; 
 
         uint256 numTimestamps = timestamps.length;
@@ -98,7 +98,7 @@ contract CatalystCompactSettler is BaseSettler {
         }
     }
 
-    function minTimestamp(uint40[] memory timestamps) external pure returns (uint40 timestamp) {
+    function _minTimestamp(uint40[] calldata timestamps) internal pure returns (uint40 timestamp) {
         timestamp = timestamps[0]; 
 
         uint256 numTimestamps = timestamps.length;
@@ -133,27 +133,46 @@ contract CatalystCompactSettler is BaseSettler {
      * @param signature Encoded lock signatures.
      */
     function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata originFllerData) external {
+        _validateOrder(order);
         bytes32 orderId = _orderIdentifier(order);
         // Only the solver is allowed to unconditionally call open. If the caller is not the solver, the parameters needs to be signed.
-        address solver = address(bytes20(originFllerData[12:32]));
-        address destination = solver;
+        address solver;
+        assembly {
+            solver := calldataload(originFllerData.offset)
+        }
+        
+        // Check if the order has been purchased.
+        Purchased storage purchaseDetails = purchasedOrders[bytes32(uint256(uint160(solver)))][orderId];
+        uint40 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
+        address purchaser = purchaseDetails.purchaser;
+
+        uint40[] calldata timestamps = BytesLib.toUint40Array(originFllerData, 1);
+        address orderOwner = solver;
         // TODO: Move to baseSettler or move out of this function call.
-        if (solver != msg.sender) {
+        if (lastOrderTimestamp > 0) {
+            // Check if the order has been correctly purchased.
+            uint256 orderTimestamp = _minTimestamp(timestamps);
+            // If the timestamp of the order is less than lastOrderTimestamp, the order was purchased in time.
+            if (lastOrderTimestamp > orderTimestamp) {
+                orderOwner = purchaser;
+            }
+        }
+        // TODO: Move to baseSettler or move out of this function call.
+        if (orderOwner != msg.sender) {
             // abi.decode(originFllerData, (address, uint40[], bytes, address, bytes))
             bytes calldata solverSignature = BytesLib.toBytes(originFllerData, 2);
-            destination = BytesLib.toAddress(originFllerData, 3);
+            address nextDestination = BytesLib.toAddress(originFllerData, 3);
             bytes calldata call = BytesLib.toBytes(originFllerData, 4);
 
-            bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), destination, call));
-            bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(solver, digest, solverSignature);
+            bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));
+            bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, solverSignature);
             if (!isValid) revert InvalidSigner();
+            orderOwner = nextDestination;
         }
-        _validateOrder(order);
 
         // Decode the order data.
         (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
 
-        uint40[] calldata timestamps = BytesLib.toUint40Array(originFllerData, 1);
         // TODO: validate length of timestamps.
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
@@ -163,13 +182,15 @@ contract CatalystCompactSettler is BaseSettler {
         bytes calldata allocatorSignature = BytesLib.toBytes(signature, 1);
         // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(
-            order, orderData, sponsorSignature, allocatorSignature, destination
+            order, orderData, sponsorSignature, allocatorSignature, orderOwner
         );
 
-        if (destination != solver) destination.call(BytesLib.toBytes(originFllerData, 4));
+        if (orderOwner != solver && purchaser != orderOwner) {
+            bytes calldata call = BytesLib.toBytes(originFllerData, 4);
+            if (call.length > 0) orderOwner.call(call);
+        }
 
-        // TODO: remove this event. It is soooo expensive.
-        emit Open(orderId, _resolve(order, msg.sender));
+        emit Open(orderId);
     }
 
     //--- The Compact & Resource Locks ---//

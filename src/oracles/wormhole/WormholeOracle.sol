@@ -19,28 +19,32 @@ import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 
+/**
+ * @notice Wormhole Oracle. 
+ * Implements a transparent oracle that allows both sending and receiving messages along with
+ * exposing the hash of received messages.
+ * @dev The contract is mostly trustless but requires someone to translate Wormhole chainIds into
+ * proper chainIds. These maps once set are immutable and trustless.
+ */
 contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
     error AlreadySet();
-    error RemoteCallTooLarge();
-    error NotStored(uint256 index);
     error NotAllPayloadsValid();
     error ZeroValue();
-    error NonZeroValue();
 
     event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 payloadHash);
     event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint256 chainId);
 
     /**
-     * @notice Takes a messagingProtocolChainIdentifier and returns the expected (and configured)
-     * block.chainId.
+     * @notice Takes a chain identifer from Wormhole and translates it to "ordinary" chain ids.
      * @dev This allows us to translate incoming messages from messaging protocols to easy to
-     * understand chain ids that match the most coming identifier for chains. (their actual
-     * identifier) rather than an arbitrary number that most messaging protocols use.
+     * understand chain ids that match the most common and available identifier for chains. (their actual
+     * identifier) rather than an arbitrary index which is what most messaging protocols use.
      */
     mapping(uint16 messagingProtocolChainIdentifier => uint256 blockChainId) _chainIdentifierToBlockChainId;
+    /** @dev The map is bi-directional. */
     mapping(uint256 blockChainId => uint16 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
 
-    // For EVM it is generally set that 15 => Finality
+    /** @dev Wormhole generally defines 15 to be equal to Finality */
     uint8 constant WORMHOLE_CONSISTENCY = 15;
 
     IWormhole public immutable WORMHOLE;
@@ -50,13 +54,17 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         WORMHOLE = IWormhole(_wormhole);
     }
 
-    receive() external payable {
-        // Lets us gets refunds from Wormhole.
-    }
+    /** @notice Lets us gets refunds from Wormhole. */
+    receive() external payable { }
 
     // --- Chain ID Functions --- //
 
-    /** @dev Can only be called once for every chain. */
+    /** @notice Sets an immutable map of the identifier messaging protocols use
+     * to chain ids.
+     * @dev Can only be called once for every chain.
+     * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
+     * @param chainId Most commen identifier for a chain. For EVM, it can often be accessed through block.chainid.
+     */
     function setChainMap(
         uint16 messagingProtocolChainIdentifier,
         uint256 chainId
@@ -67,8 +75,8 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
         // This call only allows setting either value once, then they are done for.
         // We need to check if they are currently unset.
-        if (_chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] != 0) revert NonZeroValue();
-        if (_blockChainIdToChainIdentifier[chainId] != 0) revert NonZeroValue();
+        if (_chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] != 0) revert AlreadySet();
+        if (_blockChainIdToChainIdentifier[chainId] != 0) revert AlreadySet();
 
         _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] = chainId;
         _blockChainIdToChainIdentifier[chainId] = messagingProtocolChainIdentifier;
@@ -76,21 +84,33 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         emit MapMessagingProtocolIdentifierToChainId(messagingProtocolChainIdentifier, chainId);
     }
 
+    /**
+     * @param messagingProtocolChainIdentifier Messaging protocol chain identifier
+     * @return chainId Common chain identifier
+     */
     function getChainIdentifierToBlockChainId(
         uint16 messagingProtocolChainIdentifier
-    ) external view returns (uint256) {
+    ) external view returns (uint256 chainId) {
         return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
     }
 
+    /**
+     * @param chainId Common chain identifier
+     * @return messagingProtocolChainIdentifier Messaging protocol chain identifier.
+     */
     function getBlockChainIdtoChainIdentifier(
         uint256 chainId
-    ) external view returns (uint16) {
+    ) external view returns (uint16 messagingProtocolChainIdentifier) {
         return _blockChainIdToChainIdentifier[chainId];
     }
 
     // --- Sending Proofs & Generalised Incentives --- //
 
-    /** @notice Submits proofs that have been stored in this oracle directly to Wormhole. */
+    /** 
+     * @notice Takes proofs that have been marked as valid by a source and submits them to Wormhole for broadcast.
+     * @param proofSource Application that has potential payloads that are marked as valid.
+     * @param payloads List of payloads that are checked for validity against the application and broadcasted.
+     */
     function submit(
         address proofSource,
         bytes[] calldata payloads

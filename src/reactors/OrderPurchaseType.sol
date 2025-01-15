@@ -4,6 +4,8 @@ pragma solidity ^0.8.26;
 struct OrderPurchase {
     bytes32 orderId;
     address originSettler;
+    address destination;
+    bytes call;
     uint48 discount;
     uint40 timeToBuy;
 }
@@ -20,6 +22,8 @@ library OrderPurchaseType {
         "OrderPurchase("
         "bytes32 orderId,"
         "address originSettler,"
+        "address destination,"
+        "bytes call,"
         "uint48 discount,"
         "uint40 timeToBuy"
         ")"
@@ -30,6 +34,8 @@ library OrderPurchaseType {
     function hashOrderPurchase(
         bytes32 orderId,
         address originSettler,
+        address destination,
+        bytes calldata call,
         uint48 discount,
         uint40 timeToBuy
     ) internal pure returns (bytes32) {
@@ -38,6 +44,8 @@ library OrderPurchaseType {
                 ORDER_PURCHASE_TYPE_HASH,
                 orderId,
                 originSettler,
+                destination,
+                keccak256(call),
                 discount,
                 timeToBuy
             )

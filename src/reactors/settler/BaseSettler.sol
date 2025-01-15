@@ -60,6 +60,9 @@ abstract contract BaseSettler is EIP712 {
     error AlreadyPurchased();
     error InvalidSigner();
 
+    /// @notice Catalyst specific open event that replaces the ERC7683 one for cost purposes.
+    event Open(bytes32 indexed orderId);
+
     bytes32 public constant VERSION_FLAGS = bytes32(uint256(2));
 
     uint256 DISCOUNT_DENOM = 10**18;
@@ -67,8 +70,7 @@ abstract contract BaseSettler is EIP712 {
     // TODO: This needs to be 1 slot.
     struct Purchased {
         // TODO: Merge the 2 variables.
-        uint40 purchasedAt;
-        uint40 timeToBuy;
+        uint40 lastOrderTimestamp;
         address purchaser;
     }
 
@@ -121,6 +123,8 @@ abstract contract BaseSettler is EIP712 {
         GaslessCrossChainOrder calldata order,
         address purchaser,
         uint256 expiryTimestamp,
+        address newDestination,
+        bytes calldata call,
         uint48 discount,
         uint40 timeToBuy,
         bytes calldata solverSignature
@@ -134,15 +138,16 @@ abstract contract BaseSettler is EIP712 {
         if (purchased.purchaser != address(0)) revert AlreadyPurchased();
 
         // Reentry protection. Ensure that you can't reenter this contract.
-        purchased.purchasedAt = uint40(block.timestamp);
-        purchased.timeToBuy = timeToBuy;
-        purchased.purchaser = purchaser;
+        unchecked {
+            purchased.lastOrderTimestamp = timeToBuy < uint40(block.timestamp) ? uint40(block.timestamp) - timeToBuy : 0;
+            purchased.purchaser = purchaser;
+        }
         // We can now make external calls without allowing local reentries into this call.
 
         // We need to validate that the solver has approved someone else to purchase their order.
         address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
 
-        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderId, address(this), discount, timeToBuy));
+        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderId, address(this), newDestination, call, discount, timeToBuy));
         bool isValid = SignatureCheckerLib.isValidSignatureNow(orderSolvedByAddress, digest, solverSignature);
         if (!isValid) revert InvalidSigner();
 
@@ -152,8 +157,10 @@ abstract contract BaseSettler is EIP712 {
         for (uint256 i; i < numInputs; ++i) {
             InputDescription memory inputDescription = orderData.inputs[i];
             uint256 amountAfterDiscount = inputDescription.amount * discount / DISCOUNT_DENOM;
-            SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(inputDescription.tokenId), msg.sender, orderSolvedByAddress, amountAfterDiscount);
+            SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(inputDescription.tokenId), msg.sender, newDestination, amountAfterDiscount);
         }
+
+        if (call.length > 0) newDestination.call(call);
 
         // emit OrderPurchased(orderId, purchaser);
     }

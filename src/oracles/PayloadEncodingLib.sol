@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
-library PayloadEncodingLibrary {
-    error TooManyPayloads(uint256 size);
-    error PayloadTooLarge(uint256 size);
 
+/**
+ * @notice Library to aid in encoding a series of payloads and decoding a series of payloads.
+ * @dev The library does not understand the payloads. Likewise, when parsed the payloads are never used but their hashes are.
+ * The library works with uint16 sizes, as a result the maximum number of payloads in a single message is 65'535 
+ * and the maximum number of bytes in a payload is 65'535.
+ */
+library PayloadEncodingLib {
+    error TooLargePayload(uint256 size);
+    error TooManyPayloads(uint256 size);
+
+    /** @notice Encodes a number of payloads into a single message prepended with an identifier. */
     function encodeMessage(
         bytes32 identifier,
         bytes[] calldata payloads
@@ -17,7 +25,7 @@ library PayloadEncodingLibrary {
             bytes memory payload = payloads[i];
             // Check if length of payload is within message constraints.
             uint256 payloadLength = payload.length;
-            if (payloadLength > type(uint16).max) revert PayloadTooLarge(payloadLength);
+            if (payloadLength > type(uint16).max) revert TooLargePayload(payloadLength);
             encodedPayload = abi.encodePacked(
                 encodedPayload,
                 uint16(payloadLength),
@@ -31,7 +39,12 @@ library PayloadEncodingLibrary {
         bytes calldata encodedPayload
     ) internal pure returns (bytes32 identifier, bytes32[] memory payloadHashes) {
         unchecked {
-            identifier = bytes32(encodedPayload[0:32]);
+            /// @solidity memory-safe-assembly
+            assembly {
+                // Load the identifier as the first 32 bytes of the payload. This is equivalent to 
+                // identifier = bytes32(encodedPayload[0:32]);
+                identifier := calldataload(encodedPayload.offset)
+            }
             uint256 numPayloads = uint256(uint16(bytes2(encodedPayload[32:34])));
 
             payloadHashes = new bytes32[](numPayloads);

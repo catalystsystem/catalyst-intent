@@ -17,13 +17,12 @@ import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
 import { OutputEncodingLibrary } from "../src/reactors/OutputEncodingLibrary.sol";
-import { PayloadEncodingLibrary } from "../src/oracles/PayloadEncodingLibrary.sol";
+import { PayloadEncodingLib } from "../src/oracles/PayloadEncodingLib.sol";
 
 import { Messages } from "../src/oracles/wormhole/external/wormhole/Messages.sol";
 import { Setters } from "../src/oracles/wormhole/external/wormhole/Setters.sol";
 import { WormholeOracle } from "../src/oracles/wormhole/WormholeOracle.sol";
 import { Structs } from "../src/oracles/wormhole/external/wormhole/Structs.sol";
-import { SmallStructs } from "../src/oracles/wormhole/external/callworm/SmallStructs.sol";
 
 event PackagePublished(uint32 nonce, bytes payload, uint8 consistencyLevel);
 contract ExportedMessages is Messages, Setters {
@@ -80,7 +79,7 @@ contract TestCatalyst is DeployCompact {
     }
 
     function encodeMessage(bytes32 remoteIdentifier, bytes[] calldata payloads) external pure returns (bytes memory) {
-        return PayloadEncodingLibrary.encodeMessage(remoteIdentifier, payloads);
+        return PayloadEncodingLib.encodeMessage(remoteIdentifier, payloads);
     }
 
     function setUp() public override virtual {

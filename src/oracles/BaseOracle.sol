@@ -82,6 +82,7 @@ abstract contract BaseOracle is IOracle {
                 bytes32 remoteOracle;
                 bytes32 dataHash;
                 // Load variables from calldata to save gas compared to slices.
+                /// @solidity memory-safe-assembly
                 assembly {
                     remoteChainId := calldataload(add(proofSeries.offset, offset))
                     offset := add(offset, 0x20)

@@ -4,9 +4,7 @@ pragma solidity ^0.8.0;
 
 import "./GettersGetter.sol";
 import "../wormhole/Structs.sol";
-import "./SmallStructs.sol";
 import "../wormhole/libraries/external/BytesLib.sol";
-
 
 /**
  * @notice Optimised message verifier for Wormhole
@@ -20,21 +18,25 @@ contract WormholeVerifier is GettersGetter {
     error GuardianIndexOutOfBounds();
     error VMVersionIncompatible();
     error TooManyGuardians();
+    error VMSignatureInvalid();
+    error InvalidGuardianSet();
+    error GuardianSetExpired();
+    error NoQuorum();
 
     constructor(address wormholeState) payable GettersGetter(wormholeState) {}
 
     /// @dev parseAndVerifyVM serves to parse an encodedVM and wholly validate it for consumption
     function parseAndVerifyVM(bytes calldata encodedVM) public view returns (
-        SmallStructs.SmallVM memory vm,
-        bytes calldata payload,
-        bool valid,
-        string memory reason
+		uint16 emitterChainId,
+		bytes32 emitterAddress,
+        bytes calldata payload
     ) {
         bytes calldata signatures;
         bytes32 bodyHash;
-        (vm, signatures, bodyHash, payload) = parseVM(encodedVM);
+        uint32 guardianSetIndex;
+        (emitterChainId, emitterAddress, guardianSetIndex, signatures, bodyHash, payload) = parseVM(encodedVM);
         /// setting checkHash to false as we can trust the hash field in this case given that parseVM computes and then sets the hash field above
-        (valid, reason) = verifyVMInternal(vm, signatures, bodyHash);
+        verifyVMInternal(guardianSetIndex, signatures, bodyHash);
     }
 
     /**
@@ -44,49 +46,39 @@ contract WormholeVerifier is GettersGetter {
     * as the check would be redundant
     */
     function verifyVMInternal(
-        SmallStructs.SmallVM memory vm,
+        uint32 guardianSetIndex,
         bytes calldata signatures,
         bytes32 bodyHash
-    ) internal view returns (bool valid, string memory reason) {
+    ) internal view {
         /// @dev Obtain the current guardianSet for the guardianSetIndex provided
-        Structs.GuardianSet memory guardianSet = getGuardianSet(vm.guardianSetIndex);
+        Structs.GuardianSet memory guardianSet = getGuardianSet(guardianSetIndex);
         
-       /**
-        * @dev Checks whether the guardianSet has zero keys
-        * WARNING: This keys check is critical to ensure the guardianSet has keys present AND to ensure
-        * that guardianSet key size doesn't fall to zero and negatively impact quorum assessment.  If guardianSet
-        * key length is 0 and vm.signatures length is 0, this could compromise the integrity of both vm and
-        * signature verification.
-        */
-        if(guardianSet.keys.length == 0){
-            return (false, "invalid guardian set");
-        }
+        /**
+         * @dev Checks whether the guardianSet has zero keys
+         * WARNING: This keys check is critical to ensure the guardianSet has keys present AND to ensure
+         * that guardianSet key size doesn't fall to zero and negatively impact quorum assessment.  If guardianSet
+         * key length is 0 and vm.signatures length is 0, this could compromise the integrity of both vm and
+         * signature verification.
+         */
+        if(guardianSet.keys.length == 0) revert InvalidGuardianSet();
 
         /// @dev Checks if VM guardian set index matches the current index (unless the current set is expired).
         if (guardianSet.expirationTime < block.timestamp) {
-            if (vm.guardianSetIndex != getCurrentGuardianSetIndex()) {
-                return (false, "guardian set has expired");
-            }
+            if (guardianSetIndex != getCurrentGuardianSetIndex()) revert GuardianSetExpired(); 
         }
 
-       /**
-        * @dev We're using a fixed point number transformation with 1 decimal to deal with rounding.
-        *   WARNING: This quorum check is critical to assessing whether we have enough Guardian signatures to validate a VM
-        *   if making any changes to this, obtain additional peer review. If guardianSet key length is 0 and
-        *   vm.signatures length is 0, this could compromise the integrity of both vm and signature verification.
-        */
-        if (signatures.length < quorum(guardianSet.keys.length)){
-            return (false, "no quorum");
-        }
+        /**
+         * @dev We're using a fixed point number transformation with 1 decimal to deal with rounding.
+         *   WARNING: This quorum check is critical to assessing whether we have enough Guardian signatures to validate a VM
+         *   if making any changes to this, obtain additional peer review. If guardianSet key length is 0 and
+         *   vm.signatures length is 0, this could compromise the integrity of both vm and signature verification.
+         */
+        if (signatures.length < quorum(guardianSet.keys.length)) revert NoQuorum();
 
         /// @dev Verify the proposed vm.signatures against the guardianSet
-        (bool signaturesValid, string memory invalidReason) = verifySignatures(bodyHash, signatures, guardianSet);
-        if(!signaturesValid){
-            return (false, invalidReason);
-        }
+        verifySignatures(bodyHash, signatures, guardianSet);
 
         /// If we are here, we've validated the VM is a valid multi-sig that matches the guardianSet.
-        return (true, "");
     }
 
 
@@ -96,7 +88,7 @@ contract WormholeVerifier is GettersGetter {
      *  - it intentioanlly does not solve for quorum (you should use verifyVM if you need these protections)
      *  - it intentionally returns true when signatures is an empty set (you should use verifyVM if you need these protections)
      */
-    function verifySignatures(bytes32 hash, bytes calldata signatures, Structs.GuardianSet memory guardianSet) public pure returns (bool valid, string memory reason) {
+    function verifySignatures(bytes32 hash, bytes calldata signatures, Structs.GuardianSet memory guardianSet) public pure {
         uint8 lastIndex = 0;
         uint256 guardianCount = guardianSet.keys.length;
         uint256 signersLen = uint8(bytes1(signatures[0]));
@@ -105,10 +97,16 @@ contract WormholeVerifier is GettersGetter {
         for (uint i = 0; i < signersLen; ++i) {
             uint8 guardianIndex = uint8(bytes1(signatures[index]));
             index += 1;
-            bytes32 r = bytes32(signatures[index: index + 32]);
-            index += 32;
-            bytes32 s = bytes32(signatures[index: index + 32]);
-            index += 32;
+
+            bytes32 r;
+            bytes32 s;
+            assembly {
+                // Load r, s via assembly to save gas. This is equivalent to:
+                r := calldataload(add(signatures.offset, index)) // bytes32 r = bytes32(signatures[index: index + 32]);
+                index := add(index, 0x20) // index += 32;
+                s := calldataload(add(signatures.offset, index)) // bytes32 s = bytes32(signatures[index: index + 32]);
+                index := add(index, 0x20) // index += 32;
+            }
             uint8 v = uint8(bytes1(signatures[index: index + 1])) + 27;
             index += 1;
             address signatory = ecrecover(hash, v, r, s);
@@ -129,13 +127,10 @@ contract WormholeVerifier is GettersGetter {
             if (guardianIndex >= guardianCount) revert GuardianIndexOutOfBounds();
 
             /// Check to see if the signer of the signature does not match a specific Guardian key at the provided index
-            if(signatory != guardianSet.keys[guardianIndex]){
-                return (false, "VM signature invalid");
-            }
+            if (signatory != guardianSet.keys[guardianIndex]) revert VMSignatureInvalid();
         }
 
         /// If we are here, we've validated that the provided signatures are valid for the provided guardianSet
-        return (true, "");
         }
     }
 
@@ -143,7 +138,14 @@ contract WormholeVerifier is GettersGetter {
      * @dev parseVM serves to parse an encodedVM into a vm struct
      *  - it intentionally performs no validation functions, it simply parses raw into a struct
      */
-    function parseVM(bytes calldata encodedVM) public view virtual returns (SmallStructs.SmallVM memory vm, bytes calldata signatures, bytes32 bodyHash, bytes calldata payload) {
+    function parseVM(bytes calldata encodedVM) public view virtual returns (
+        uint16 emitterChainId,
+        bytes32 emitterAddress,
+        uint32 guardianSetIndex,
+        bytes calldata signatures,
+        bytes32 bodyHash,
+        bytes calldata payload
+    ) {
         unchecked {
             
         
@@ -160,7 +162,7 @@ contract WormholeVerifier is GettersGetter {
         // could be a problem if we wanted to allow other versions in the future. 
         if(version != 1) revert VMVersionIncompatible();
 
-        vm.guardianSetIndex = uint32(bytes4(encodedVM[1:4+1]));
+        guardianSetIndex = uint32(bytes4(encodedVM[1:4+1]));
         index += 4;
         
 
@@ -198,10 +200,10 @@ contract WormholeVerifier is GettersGetter {
         // vm.nonce = uint32(bytes4(encodedVM[index:index+4]));
         index += 4;
 
-        vm.emitterChainId = uint16(bytes2(encodedVM[index:index+2]));
+        emitterChainId = uint16(bytes2(encodedVM[index:index+2]));
         index += 2;
 
-        vm.emitterAddress = bytes32(encodedVM[index:index+32]);
+        emitterAddress = bytes32(encodedVM[index:index+32]);
         index += 32;
 
         // vm.sequence = uint64(bytes8(encodedVM[index:index+8]));

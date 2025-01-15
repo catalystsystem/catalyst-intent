@@ -6,7 +6,6 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { WormholeVerifier } from "./external/callworm/WormholeVerifier.sol";
-import { SmallStructs } from "./external/callworm/SmallStructs.sol";
 
 import { IWormhole } from "./interfaces/IWormhole.sol";
 
@@ -14,7 +13,7 @@ import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
 import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
-import { PayloadEncodingLibrary } from "../PayloadEncodingLibrary.sol";
+import { PayloadEncodingLib } from "../PayloadEncodingLib.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
@@ -54,13 +53,9 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         WORMHOLE = IWormhole(_wormhole);
     }
 
-    /** @notice Lets us gets refunds from Wormhole. */
-    receive() external payable { }
-
     // --- Chain ID Functions --- //
 
-    /** @notice Sets an immutable map of the identifier messaging protocols use
-     * to chain ids.
+    /** @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
      * @dev Can only be called once for every chain.
      * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
      * @param chainId Most commen identifier for a chain. For EVM, it can often be accessed through block.chainid.
@@ -126,14 +121,14 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
     /**
      * @notice Submits a proof the associated messaging protocol.
-     * @dev Refunds excess value ot msg.sender. 
+     * @dev Refunds excess value to msg.sender. 
      */
     function _submit(
         address source,
         bytes[] calldata payloads
     ) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = PayloadEncodingLibrary.encodeMessage(IdentifierLib.getIdentifier(source, address(uint160(uint128(uint160(address(this)))))), payloads);
+        bytes memory message = PayloadEncodingLib.encodeMessage(IdentifierLib.getIdentifier(source, address(uint160(uint128(uint160(address(this)))))), payloads);
 
         uint256 packageCost = WORMHOLE.messageFee();
         WORMHOLE.publishMessage{value: packageCost} (
@@ -149,46 +144,38 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         }
     }
 
+    /** 
+     * @notice Takes a wormhole VAA, which is expected to be from another WormholeOracle implementation
+     * and stores attestations of the hash of the payloads contained within the VAA message.
+     */
     function receiveMessage(
         bytes calldata rawMessage
     ) external {
+        // Verify Packet and return message identifiers that Wormhole attatched.
         (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
-        (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = PayloadEncodingLibrary.decodeMessage(message);
+        // Decode message.
+        (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = PayloadEncodingLib.decodeMessage(message);
 
-        // Construct the identifier
+        // Construct the proper identifier.
         bytes32 senderIdentifier = IdentifierLib.enhanceIdentifier(remoteSenderIdentifier, identifierFromMessage);
 
         // Map remoteMessagingProtocolChainIdentifier to canonical chain id. This ensures we use canonical ids.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[remoteMessagingProtocolChainIdentifier];
-        // Store payload attestations;
         uint256 numPayloads = payloadHashes.length;
-        for (uint256 i; i < numPayloads; ++i) {
-            _attestations[remoteChainId][senderIdentifier][payloadHashes[i]] = true;
 
-            emit OutputProven(remoteChainId, senderIdentifier, payloadHashes[i]);
+        for (uint256 i; i < numPayloads; ++i) {
+            // Store payload attestations;
+            bytes32 payloadHash = payloadHashes[i];
+            _attestations[remoteChainId][senderIdentifier][payloadHash] = true;
+
+            emit OutputProven(remoteChainId, senderIdentifier, payloadHash);
         }
     }
 
     /** @dev _message is the entire Wormhole VAA. It contains both the proof & the message as a slice. */
     function _verifyPacket(bytes calldata _message) internal view returns(uint16 sourceIdentifier, bytes32 implementationIdentifier, bytes calldata message_) {
-
         // Decode & verify the VAA.
         // This uses the custom verification logic found in ./external/callworm/WormholeVerifier.sol.
-        (
-            SmallStructs.SmallVM memory vm,
-            bytes calldata payload,
-            bool valid,
-            string memory reason
-        ) = parseAndVerifyVM(_message);
-        message_ = payload;
-
-        // This is the preferred flow used by Wormhole.
-        require(valid, reason);
-
-        // Get the identifier for the source chain.
-        sourceIdentifier = vm.emitterChainId;
-
-        // Load the identifier for the calling contract.
-        implementationIdentifier = vm.emitterAddress;
+        (sourceIdentifier, implementationIdentifier, message_) = parseAndVerifyVM(_message);
     }
 }

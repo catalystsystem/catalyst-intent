@@ -137,6 +137,7 @@ contract CatalystCompactSettler is BaseSettler {
         bytes32 orderId = _orderIdentifier(order);
         // Only the solver is allowed to unconditionally call open. If the caller is not the solver, the parameters needs to be signed.
         address solver;
+        /// @solidity memory-safe-assembly
         assembly {
             solver := calldataload(originFllerData.offset)
         }

@@ -103,7 +103,49 @@ abstract contract BaseSettler is EIP712 {
         if (block.timestamp > order.openDeadline) revert InitiateDeadlinePassed();
     }
 
+    function _maxTimestamp(uint40[] calldata timestamps) internal pure returns (uint256 timestamp) {
+        timestamp = timestamps[0]; 
+
+        uint256 numTimestamps = timestamps.length;
+        for (uint256 i = 1; i < numTimestamps; ++i) {
+            uint40 nextTimestamp = timestamps[i];
+            if (timestamp < nextTimestamp) timestamp = nextTimestamp;
+        }
+    }
+
+    function _minTimestamp(uint40[] calldata timestamps) internal pure returns (uint40 timestamp) {
+        timestamp = timestamps[0]; 
+
+        uint256 numTimestamps = timestamps.length;
+        for (uint256 i = 1; i < numTimestamps; ++i) {
+            uint40 nextTimestamp = timestamps[i];
+            if (timestamp > nextTimestamp) timestamp = nextTimestamp;
+        }
+    }
+
     //--- Order Purchase Helpers ---//
+
+    function _purchaseGetOrderOwner(
+        bytes32 orderId,
+        address solver,
+        uint40[] calldata timestamps
+    ) internal view returns (address orderOwner) {
+        // Check if the order has been purchased.
+        Purchased storage purchaseDetails = purchasedOrders[bytes32(uint256(uint160(solver)))][orderId];
+        uint40 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
+        address purchaser = purchaseDetails.purchaser;
+
+        if (lastOrderTimestamp > 0) {
+            // Check if the order has been correctly purchased. We use the fill of the first timestamp
+            // to gauge the result towards the purchaser
+            uint256 orderTimestamp = _minTimestamp(timestamps);
+            // If the timestamp of the order is less than lastOrderTimestamp, the order was purchased in time.
+            if (lastOrderTimestamp > orderTimestamp) {
+                return purchaser;
+            }
+        }
+        return solver;
+    }
 
     /**
      * @notice This function is called from whoever wants to buy an order from a filler and gain a reward

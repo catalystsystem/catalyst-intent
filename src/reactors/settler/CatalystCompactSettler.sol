@@ -81,24 +81,16 @@ contract CatalystCompactSettler is BaseSettler {
         IOracle(localOracle).efficientRequireProven(proofSeries);
     }
 
-    function _maxTimestamp(uint40[] calldata timestamps) internal pure returns (uint256 timestamp) {
-        timestamp = timestamps[0]; 
-
-        uint256 numTimestamps = timestamps.length;
-        for (uint256 i = 1; i < numTimestamps; ++i) {
-            uint40 nextTimestamp = timestamps[i];
-            if (timestamp < nextTimestamp) timestamp = nextTimestamp;
-        }
-    }
-
-    function _minTimestamp(uint40[] calldata timestamps) internal pure returns (uint40 timestamp) {
-        timestamp = timestamps[0]; 
-
-        uint256 numTimestamps = timestamps.length;
-        for (uint256 i = 1; i < numTimestamps; ++i) {
-            uint40 nextTimestamp = timestamps[i];
-            if (timestamp > nextTimestamp) timestamp = nextTimestamp;
-        }
+    function _allowExternalClaimant(
+        bytes32 orderId,
+        address orderOwner,
+        address nextDestination,
+        bytes calldata call,
+        bytes calldata orderOwnerSignature
+    ) internal view {
+        bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));
+        bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, orderOwnerSignature);
+        if (!isValid) revert InvalidSigner();
     }
 
     function open(
@@ -106,22 +98,24 @@ contract CatalystCompactSettler is BaseSettler {
     ) external pure {
         revert NotSupported();
     }
+
     
     /**
-     * @notice Initiates a cross-chain order
-     * @dev Called by the filler. Before calling, please check if someone else has already initiated.
-     * The check if an order has already been initiated is late and may use a lot of gas.
-     * When a filler initiates a transaction it is important that they do the following:
-     * 1. Trust the reactor. Technically, anyone can deploy a reactor that takes these interfaces.
-     * As the filler has to provide collateral, this collateral could be at risk.
-     * 2. Verify that the deadlines provided in the order are sane. If proof - challenge is small
-     * then it may impossible to prove thus free to challenge.
-     * 3. Trust the oracles. Any oracles can be provided but they may not signal that the proof
-     * is or isn't valid.
-     * 4. Verify all inputs & outputs. If they contain a token the filler does not trust, do not claim the order.
-     * It may cause a host of problem but most importantly: Inability to payout inputs & Inability to payout collateral.
-     * 5. If fillDeadline == challengeDeadline && challengerCollateralAmount == 0, then the order REQUIRES a proof
-     * and the user will be set as the default challenger.
+     * @notice Finalises a cross-chain order
+     * @dev This function serves to finalise intents on the origin chain. It has been assumed that assets have been locked
+     * inside The Compact and will be available to collect.
+     * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of the fills.
+     * These are expected to have been provided as abi.encoded through originFllerData.
+     * Notice, originFllerData can be encoded in 1 of 4 ways:
+     * abi.encode(address(solver), uint40[](timestamps))
+     *      if the caller is the solver.
+     * abi.encode(address(solver), uint40[](timestamps), address(newDestination))
+     *      if the caller is the solver and the assets should be delivered to another contract 
+     * abi.encode(address(solver), uint40[](timestamps), address(newDestination), bytes(call))
+     *      if the caller is the solver and the assets should be delivered to another contract and a call should be made to newDestination
+     * abi.encode(address(solver), uint40[](timestamps), address(newDestination), bytes(call), bytes(orderOwnerSignature))
+     *      if the caller isn't the solver (if they are, orderOwnerSignature will be ignored). Assets will be delivered to newDestination
+     *      and if call.length > 0, a call to newDestination will be made.
      * @param order The CrossChainOrder definition
      * @param signature Encoded lock signatures.
      */
@@ -134,37 +128,30 @@ contract CatalystCompactSettler is BaseSettler {
             solver := calldataload(originFllerData.offset)
         }
         
-        // Check if the order has been purchased.
-        Purchased storage purchaseDetails = purchasedOrders[bytes32(uint256(uint160(solver)))][orderId];
-        uint40 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
-        address purchaser = purchaseDetails.purchaser;
-
         uint40[] calldata timestamps = BytesLib.toUint40Array(originFllerData, 1);
-        address orderOwner = solver;
-        // TODO: Move to baseSettler or move out of this function call.
-        if (lastOrderTimestamp > 0) {
-            // Check if the order has been correctly purchased. We use the fill of the first timestamp
-            // to gauge the result towards the purchaser
-            uint256 orderTimestamp = _minTimestamp(timestamps);
-            // If the timestamp of the order is less than lastOrderTimestamp, the order was purchased in time.
-            if (lastOrderTimestamp > orderTimestamp) {
-                orderOwner = purchaser;
-            }
-        }
-        // TODO: Move to baseSettler or move out of this function call.
-        if (orderOwner != msg.sender) {
-            // abi.decode(originFllerData, (address, uint40[], bytes, address, bytes))
-            bytes calldata solverSignature = BytesLib.toBytes(originFllerData, 2);
-            address nextDestination;
-            assembly ("memory-safe") {
-                nextDestination := calldataload(add(originFllerData.offset, 0x60))
-            }
-            bytes calldata call = BytesLib.toBytes(originFllerData, 4);
+        address assetDestination = _purchaseGetOrderOwner(orderId, solver, timestamps);
 
-            bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));
-            bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, solverSignature);
-            if (!isValid) revert InvalidSigner();
-            orderOwner = nextDestination;
+        bool hasNewDestination;
+        uint256 val;
+        assembly ("memory-safe") {
+            // Check if the pointer for the timestamps is after the third item. If it is
+            // then there isn't more data to be decoded. If there is, then there is more data.
+            val := calldataload(add(originFllerData.offset, 0x20))
+            hasNewDestination := gt(calldataload(add(originFllerData.offset, 0x20)), 64)
+        }
+        if (hasNewDestination) {
+            // abi.decode(originFllerData, (address, uint40[], address, bytes, bytes))
+            address newDestination;
+            assembly ("memory-safe") {
+                newDestination := calldataload(add(originFllerData.offset, 0x40))
+            }
+
+            if (msg.sender != assetDestination) {
+                bytes calldata call = BytesLib.toBytes(originFllerData, 3);
+                bytes calldata orderOwnerSignature = BytesLib.toBytes(originFllerData, 4);
+                _allowExternalClaimant(orderId, assetDestination, newDestination, call, orderOwnerSignature);
+            }
+            assetDestination = newDestination;
         }
 
         // Decode the order data.
@@ -179,12 +166,18 @@ contract CatalystCompactSettler is BaseSettler {
         bytes calldata allocatorSignature = BytesLib.toBytes(signature, 1);
         // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(
-            order, orderData, sponsorSignature, allocatorSignature, orderOwner
+            order, orderData, sponsorSignature, allocatorSignature, assetDestination
         );
 
-        if (orderOwner != solver && purchaser != orderOwner) {
+        bool hasExternalCall;
+        assembly ("memory-safe") {
+            // Check if the pointer for the timestamps is after the fourth item. If it is
+            // then there is calldata. to be executed.
+            hasExternalCall := gt(calldataload(add(originFllerData.offset, 0x20)), 96)
+        }
+        if (hasExternalCall) {
             bytes calldata call = BytesLib.toBytes(originFllerData, 4);
-            if (call.length > 0) orderOwner.call(call);
+            if (call.length > 0) assetDestination.call(call);
         }
 
         emit Open(orderId);

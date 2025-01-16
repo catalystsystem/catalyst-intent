@@ -20,7 +20,7 @@ contract CoinFiller is SolverTimestampBaseFiller {
     error NotImplemented();
     error SlopeStopped();
 
-    event OutputFilled(OutputDescription output);
+    event OutputFilled(OutputDescription output, uint256 timestamp);
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
@@ -97,7 +97,7 @@ contract CoinFiller is SolverTimestampBaseFiller {
         if (remoteCallLength > 0) _call(output);
 
         emit OutputFilled(
-            output
+            output, block.timestamp
         );
 
         return proposedSolver;

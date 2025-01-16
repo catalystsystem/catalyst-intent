@@ -132,11 +132,9 @@ contract CatalystCompactSettler is BaseSettler {
         address assetDestination = _purchaseGetOrderOwner(orderId, solver, timestamps);
 
         bool hasNewDestination;
-        uint256 val;
-        assembly ("memory-safe") {
+        assembly ("memory-safe") { 
             // Check if the pointer for the timestamps is after the third item. If it is
             // then there isn't more data to be decoded. If there is, then there is more data.
-            val := calldataload(add(originFllerData.offset, 0x20))
             hasNewDestination := gt(calldataload(add(originFllerData.offset, 0x20)), 64)
         }
         if (hasNewDestination) {

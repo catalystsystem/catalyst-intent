@@ -10,6 +10,8 @@ import { OutputEncodingLibrary } from  "../../reactors/OutputEncodingLibrary.sol
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.
  */
 contract PolymerOracle is BaseOracle {
+    error InequalLength();
+
     ICrossL2Prover CROSS_L2_PROVER;
 
     constructor(address crossL2Prover) {
@@ -25,9 +27,7 @@ contract PolymerOracle is BaseOracle {
         return outputHash = keccak256(OutputEncodingLibrary.encodeOutputDescriptionIntoPayload(solver, timestamp, orderId, outputDescription));
     }
 
-    function _processMessage(
-        uint256 logIndex, bytes calldata proof
-    ) external {
+    function _processMessage(uint256 logIndex, bytes calldata proof) internal {
 
         (string memory chainId, address emittingContract, bytes[] memory topics, bytes memory unindexedData) = CROSS_L2_PROVER.validateEvent(logIndex, proof);
 
@@ -42,5 +42,18 @@ contract PolymerOracle is BaseOracle {
         _attestations[remoteChainId][senderIdentifier][payloadHash] = true;
 
         emit OutputProven(remoteChainId, senderIdentifier, payloadHash);
+    }
+
+    function receiveMessage(uint256 logIndex, bytes calldata proof) external {
+        _processMessage(logIndex, proof);
+    }
+
+    function receiveMessage(uint256[] calldata logIndex, bytes[] calldata proof) external {
+        if (logIndex.length != proof.length) revert InequalLength();
+
+        uint256 numProofs = logIndex.length;
+        for (uint256 i; i < numProofs; ++i) {
+            _processMessage(logIndex[i], proof[i]);
+        }
     }
 }

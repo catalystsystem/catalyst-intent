@@ -13,6 +13,7 @@ import { IdentifierLib } from "../libs/IdentifierLib.sol";
 abstract contract BaseOracle is IOracle {
     error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash);
     error NotDivisible(uint256 value, uint256 divisor);
+    error BadDeploymentAddress(address);
 
     /** @notice Stores payload attestations. Payloads are not stored, instead their hashes are. */
     mapping(uint256 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 dataHash => bool))) internal _attestations;
@@ -20,6 +21,11 @@ abstract contract BaseOracle is IOracle {
     /** @notice Given an app, returns the combined identifier of both protocols. */
     function getIdentifier(address app) external view returns (bytes32) {
         return IdentifierLib.getIdentifier(app, address(this));
+    }
+
+    constructor() {
+        // It is important that this contract's address is 16 bytes.
+        if (uint256(uint128(uint160(address(this)))) != uint256(uint160(address(this)))) revert BadDeploymentAddress(address(this));
     }
 
     //--- Data Attestation Validation ---//
@@ -82,8 +88,7 @@ abstract contract BaseOracle is IOracle {
                 bytes32 remoteOracle;
                 bytes32 dataHash;
                 // Load variables from calldata to save gas compared to slices.
-                /// @solidity memory-safe-assembly
-                assembly {
+                assembly ("memory-safe") {
                     remoteChainId := calldataload(add(proofSeries.offset, offset))
                     offset := add(offset, 0x20)
                     remoteOracle := calldataload(add(proofSeries.offset, offset))

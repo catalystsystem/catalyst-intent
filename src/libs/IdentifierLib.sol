@@ -33,7 +33,7 @@ library IdentifierLib {
 
         // Check if the last 16 bytes matches. If they do, then assume that assume that the entire identifier is valid.
         // Also check if this is a pesudo-evm address (bytes20)
-        if (uint256(trueIdentifier) < uint256(type(uint160).max) && uint128(uint256(trueIdentifier)) == uint128(uint256(selfReportedIdentifier))) return selfReportedIdentifier;
+        if (uint256(trueIdentifier) < uint256(type(uint128).max) && uint128(uint256(trueIdentifier)) == uint128(uint256(selfReportedIdentifier))) return selfReportedIdentifier;
         return trueIdentifier;
     }
 }

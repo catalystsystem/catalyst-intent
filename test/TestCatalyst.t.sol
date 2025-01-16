@@ -107,7 +107,9 @@ contract TestCatalyst is DeployCompact {
         // Oracles
 
         messages = new ExportedMessages();
-        wormholeOracle = new WormholeOracle(address(this), address(messages));
+        address wormholeDeployment = address(uint160(uint128(uint160(makeAddr("wormholeOracle")))));
+        deployCodeTo("WormholeOracle.sol", abi.encode(address(this), address(messages)), wormholeDeployment);
+        wormholeOracle = WormholeOracle(wormholeDeployment);
 
         wormholeOracle.setChainMap(uint16(block.chainid), block.chainid);
 

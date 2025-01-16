@@ -63,13 +63,10 @@ abstract contract BaseSettler is EIP712 {
     /// @notice Catalyst specific open event that replaces the ERC7683 one for cost purposes.
     event Open(bytes32 indexed orderId);
 
-    bytes32 public constant VERSION_FLAGS = bytes32(uint256(2));
-
     uint256 DISCOUNT_DENOM = 10**18;
 
     // TODO: This needs to be 1 slot.
     struct Purchased {
-        // TODO: Merge the 2 variables.
         uint40 lastOrderTimestamp;
         address purchaser;
     }

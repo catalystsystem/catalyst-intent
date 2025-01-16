@@ -39,8 +39,7 @@ library PayloadEncodingLib {
         bytes calldata encodedPayload
     ) internal pure returns (bytes32 identifier, bytes32[] memory payloadHashes) {
         unchecked {
-            /// @solidity memory-safe-assembly
-            assembly {
+            assembly ("memory-safe") {
                 // Load the identifier as the first 32 bytes of the payload. This is equivalent to 
                 // identifier = bytes32(encodedPayload[0:32]);
                 identifier := calldataload(encodedPayload.offset)

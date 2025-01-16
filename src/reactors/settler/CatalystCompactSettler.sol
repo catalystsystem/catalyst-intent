@@ -15,22 +15,15 @@ import {
 
 import { CatalystOrderType, CatalystOrderData, OutputDescription, InputDescription } from "../../reactors/CatalystOrderType.sol";
 
-import {
-    ITheCompactClaims,
-    BatchClaimWithWitness
-} from "the-compact/src/interfaces/ITheCompactClaims.sol";
+import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactClaims.sol";
 
-import {
-    OutputEncodingLibrary
-} from "../OutputEncodingLibrary.sol";
+import { TheCompact } from "the-compact/src/TheCompact.sol";
 
-import {
-    BatchClaimComponent
-} from "the-compact/src/types/Components.sol";
+import { OutputEncodingLibrary } from "../OutputEncodingLibrary.sol";
 
-import {
-    IOracle
-} from "../../interfaces/IOracle.sol";
+import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
+
+import { IOracle } from "../../interfaces/IOracle.sol";
 
 import { AllowOpenType } from "../AllowOpenType.sol";
 import { BytesLib } from "../../libs/BytesLib.sol";
@@ -45,10 +38,10 @@ import { BytesLib } from "../../libs/BytesLib.sol";
 contract CatalystCompactSettler is BaseSettler {
     error NotSupported();
 
-    ITheCompactClaims public immutable COMPACT;
+    TheCompact public immutable COMPACT;
 
     constructor(address compact) {
-        COMPACT = ITheCompactClaims(compact);
+        COMPACT = TheCompact(compact);
     }
 
     function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
@@ -137,8 +130,7 @@ contract CatalystCompactSettler is BaseSettler {
         bytes32 orderId = _orderIdentifier(order);
         // Only the solver is allowed to unconditionally call open. If the caller is not the solver, the parameters needs to be signed.
         address solver;
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             solver := calldataload(originFllerData.offset)
         }
         
@@ -151,7 +143,8 @@ contract CatalystCompactSettler is BaseSettler {
         address orderOwner = solver;
         // TODO: Move to baseSettler or move out of this function call.
         if (lastOrderTimestamp > 0) {
-            // Check if the order has been correctly purchased.
+            // Check if the order has been correctly purchased. We use the fill of the first timestamp
+            // to gauge the result towards the purchaser
             uint256 orderTimestamp = _minTimestamp(timestamps);
             // If the timestamp of the order is less than lastOrderTimestamp, the order was purchased in time.
             if (lastOrderTimestamp > orderTimestamp) {
@@ -162,7 +155,10 @@ contract CatalystCompactSettler is BaseSettler {
         if (orderOwner != msg.sender) {
             // abi.decode(originFllerData, (address, uint40[], bytes, address, bytes))
             bytes calldata solverSignature = BytesLib.toBytes(originFllerData, 2);
-            address nextDestination = BytesLib.toAddress(originFllerData, 3);
+            address nextDestination;
+            assembly ("memory-safe") {
+                nextDestination := calldataload(add(originFllerData.offset, 0x60))
+            }
             bytes calldata call = BytesLib.toBytes(originFllerData, 4);
 
             bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));

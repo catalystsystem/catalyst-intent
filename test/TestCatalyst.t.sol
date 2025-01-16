@@ -113,7 +113,7 @@ contract TestCatalyst is DeployCompact {
 
         wormholeOracle.setChainMap(uint16(block.chainid), block.chainid);
 
-        (testGuardian, testGuardianPrivateKey) = makeAddrAndKey("signer");
+        (testGuardian, testGuardianPrivateKey) = makeAddrAndKey("testGuardian");
         // initialize guardian set with one guardian
         address[] memory keys = new address[](1);
         keys[0] = testGuardian;

@@ -14,6 +14,8 @@ abstract contract BaseOracle is IOracle {
     error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash);
     error NotDivisible(uint256 value, uint256 divisor);
     error BadDeploymentAddress(address);
+    
+    event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 payloadHash);
 
     /** @notice Stores payload attestations. Payloads are not stored, instead their hashes are. */
     mapping(uint256 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 dataHash => bool))) internal _attestations;

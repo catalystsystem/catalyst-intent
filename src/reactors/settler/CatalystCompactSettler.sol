@@ -116,8 +116,10 @@ contract CatalystCompactSettler is BaseSettler {
      * abi.encode(address(solver), uint40[](timestamps), address(newDestination), bytes(call), bytes(orderOwnerSignature))
      *      if the caller isn't the solver (if they are, orderOwnerSignature will be ignored). Assets will be delivered to newDestination
      *      and if call.length > 0, a call to newDestination will be made.
-     * @param order The CrossChainOrder definition
-     * @param signature Encoded lock signatures.
+     * @param order GaslessCrossChainOrder signed in conjunction with a Compact to form an order. 
+     * @param signature A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature), bytes(allocatorSignature))
+     * @param originFllerData Custom filler data that is needed to correctly identify outputs but also allow for more flexible
+     * execution. See @ dev for a description of how to encode it.
      */
     function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata originFllerData) external {
         _validateOrder(order);

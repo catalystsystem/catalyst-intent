@@ -7,8 +7,8 @@ import { IOracle } from "../../interfaces/IOracle.sol";
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 
-// TODO: is  IDestinationSettler
-abstract contract BaseFiller is IPayloadCreator {
+/** @notice Base  */
+abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
     event OutputProven(uint32 fillDeadline, bytes32 outputHash);
 

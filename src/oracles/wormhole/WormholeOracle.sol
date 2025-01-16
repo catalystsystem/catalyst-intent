@@ -30,7 +30,6 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
     error NotAllPayloadsValid();
     error ZeroValue();
 
-    event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 payloadHash);
     event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint256 chainId);
 
     /**

@@ -20,7 +20,7 @@ contract CoinFiller is SolverTimestampBaseFiller {
     error NotImplemented();
     error SlopeStopped();
 
-    event OutputFilled(OutputDescription output, uint256 timestamp);
+    event OutputFilled(bytes32 orderId, bytes32 solver, uint40 timestamp, OutputDescription output);
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
@@ -97,10 +97,14 @@ contract CoinFiller is SolverTimestampBaseFiller {
         if (remoteCallLength > 0) _call(output);
 
         emit OutputFilled(
-            output, block.timestamp
+            orderId, proposedSolver, uint40(block.timestamp), output
         );
 
         return proposedSolver;
+    }
+
+    function fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) external returns(bytes32) {
+        return _fill(orderId, output, proposedSolver);
     }
 
     /**
@@ -122,6 +126,7 @@ contract CoinFiller is SolverTimestampBaseFiller {
     }
 
     // --- Solver Interface --- //
+    // TODO: fix this mess of fill functions.
 
     /**
      * @notice Fills several outputs in one go. Can be used to batch fill orders to save gas.
@@ -141,10 +146,17 @@ contract CoinFiller is SolverTimestampBaseFiller {
         _fillSkip(orderIds, outputs, filler);
     }
 
-	function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external pure {
-        // (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
-        // if (filler == bytes32(0)) revert ZeroValue();
-        // // TODO: Make this compatible
+	function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
+        (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
+        if (filler == bytes32(0)) revert ZeroValue();
+
+        OutputDescription[] memory outputs = abi.decode(originData, (OutputDescription[]));
+
+        uint256 numOutputs = outputs.length;
+        for (uint256 i; i < numOutputs; ++i) {
+            bytes32 existingSolver = this.fill(orderId, outputs[i], filler);
+            if (throwIfSomeoneElseFilled && existingSolver != filler) revert FilledBySomeoneElse(existingSolver);
+        }
     }
 
     // TODO: Make this the standard interface. Can be done by loading OutputDescription[] via assembly.

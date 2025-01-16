@@ -5,10 +5,9 @@ import { WrongChain, WrongRemoteOracle } from "../../interfaces/Errors.sol";
 import { OutputEncodingLibrary } from "../OutputEncodingLibrary.sol";
 import { IOracle } from "../../interfaces/IOracle.sol";
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
-import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 
 /** @notice Base  */
-abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
+abstract contract BaseFiller is IPayloadCreator {
 
     event OutputProven(uint32 fillDeadline, bytes32 outputHash);
 

@@ -9,7 +9,7 @@ import { OutputEncodingLibrary } from  "../../reactors/OutputEncodingLibrary.sol
 /**
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.
  */
-abstract contract PolymerOracle is BaseOracle {
+contract PolymerOracle is BaseOracle {
     ICrossL2Prover CROSS_L2_PROVER;
 
     constructor(address crossL2Prover) {

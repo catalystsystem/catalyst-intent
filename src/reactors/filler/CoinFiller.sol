@@ -7,12 +7,13 @@ import { OutputDescription } from "../CatalystOrderType.sol";
 import { SolverTimestampBaseFiller } from "./SolverTimestampBaseFiller.sol";
 import { OutputEncodingLibrary } from  "../OutputEncodingLibrary.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
+import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 
 /**
  * @dev Solvers use Oracles to pay outputs. This allows us to record the payment.
  * Tokens never touch this contract but goes directly from solver to user.
  */
-contract CoinFiller is SolverTimestampBaseFiller {
+contract CoinFiller is SolverTimestampBaseFiller, IDestinationSettler {
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
     error DifferentRemoteOracles();

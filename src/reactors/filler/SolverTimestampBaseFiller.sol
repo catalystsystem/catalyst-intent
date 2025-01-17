@@ -38,10 +38,10 @@ abstract contract SolverTimestampBaseFiller is BaseFiller {
     }
 
     function areValidPayloads(bytes[] calldata payloads) view external returns(bool) {
-        address bytes16MsgSender = address(uint160(uint128(uint160(msg.sender))));
+        address sender = msg.sender;
         uint256 numPayloads = payloads.length;
         for (uint256 i; i < numPayloads; ++i) {
-            if (!_isValidPayload(bytes16MsgSender, payloads[i])) return false;
+            if (!_isValidPayload(sender, payloads[i])) return false;
         }
         return true;
     }

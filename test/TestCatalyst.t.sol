@@ -107,7 +107,7 @@ contract TestCatalyst is DeployCompact {
         // Oracles
 
         messages = new ExportedMessages();
-        address wormholeDeployment = address(uint160(uint128(uint160(makeAddr("wormholeOracle")))));
+        address wormholeDeployment = makeAddr("wormholeOracle");
         deployCodeTo("WormholeOracle.sol", abi.encode(address(this), address(messages)), wormholeDeployment);
         wormholeOracle = WormholeOracle(wormholeDeployment);
 
@@ -223,7 +223,7 @@ contract TestCatalyst is DeployCompact {
         uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
 
         address localOracle = address(wormholeOracle);
-        bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), address(uint160(uint128(uint160(address(wormholeOracle))))));
+        bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), address(wormholeOracle));
 
         InputDescription[] memory inputs = new InputDescription[](1);
         inputs[0] = InputDescription({

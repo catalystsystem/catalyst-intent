@@ -25,11 +25,6 @@ abstract contract BaseOracle is IOracle {
         return IdentifierLib.getIdentifier(app, address(this));
     }
 
-    constructor() {
-        // It is important that this contract's address is 16 bytes.
-        if (uint256(uint128(uint160(address(this)))) != uint256(uint160(address(this)))) revert BadDeploymentAddress(address(this));
-    }
-
     //--- Data Attestation Validation ---//
 
     /**

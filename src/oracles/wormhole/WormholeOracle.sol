@@ -127,7 +127,12 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         bytes[] calldata payloads
     ) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = PayloadEncodingLib.encodeMessage(IdentifierLib.getIdentifier(source, address(uint160(uint128(uint160(address(this)))))), payloads);
+        bytes memory message = PayloadEncodingLib.encodeMessage(
+            IdentifierLib.getIdentifier(
+                source, address(this)
+            ),
+            payloads
+        );
 
         uint256 packageCost = WORMHOLE.messageFee();
         WORMHOLE.publishMessage{value: packageCost} (

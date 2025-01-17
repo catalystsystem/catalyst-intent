@@ -12,7 +12,7 @@ abstract contract BaseFiller is IPayloadCreator {
     event OutputProven(uint32 fillDeadline, bytes32 outputHash);
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
-    bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this))));
+    bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this)))) << 8;
 
     //-- Helpers --//
 
@@ -35,7 +35,7 @@ abstract contract BaseFiller is IPayloadCreator {
         bytes32 remoteOracleIdentifier
     ) internal view virtual {
         // Load the first 16 bytes.
-        bytes16 fillerIdentifier = bytes16(remoteOracleIdentifier);
+        bytes16 fillerIdentifier = bytes16(remoteOracleIdentifier) << 8;
         if (ADDRESS_THIS != fillerIdentifier) revert WrongRemoteOracle(ADDRESS_THIS, fillerIdentifier);
     }
 }

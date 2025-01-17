@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-/* 
-
- */
 
 /**
  * @notice Library to aid in encoding a series of payloads and decoding a series of payloads.

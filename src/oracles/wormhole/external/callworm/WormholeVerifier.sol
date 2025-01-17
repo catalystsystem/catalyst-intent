@@ -195,23 +195,28 @@ contract WormholeVerifier is GettersGetter {
 
         // Parse the body
         // vm.timestamp = uint32(bytes4(encodedVM[index:index+4]));
-        index += 4;
+        // index += 4;
 
         // vm.nonce = uint32(bytes4(encodedVM[index:index+4]));
-        index += 4;
+        // index += 4;
+        index += 8;
 
         emitterChainId = uint16(bytes2(encodedVM[index:index+2]));
         index += 2;
 
-        emitterAddress = bytes32(encodedVM[index:index+32]);
-        index += 32;
+        assembly ("memory-safe") {
+            // emitterAddress = bytes32(encodedVM[index:index+32]);
+            emitterAddress := calldataload(add(encodedVM.offset, index))
+        }
+        // index += 32;
 
         // vm.sequence = uint64(bytes8(encodedVM[index:index+8]));
-        index += 8;
+        // index += 8;
 
         // vm.consistencyLevel = uint8(bytes1(encodedVM[index:index+1]));
-        index += 1;
+        // index += 1;
 
+        index += 32 + 8 + 1;
         payload = encodedVM[index:];
         }
     }

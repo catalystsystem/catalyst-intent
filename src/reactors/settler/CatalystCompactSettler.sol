@@ -19,13 +19,13 @@ import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactCla
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 
-import { OutputEncodingLibrary } from "../OutputEncodingLibrary.sol";
+import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
 
 import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
 
 import { IOracle } from "../../interfaces/IOracle.sol";
 
-import { AllowOpenType } from "../AllowOpenType.sol";
+import { AllowOpenType } from "./AllowOpenType.sol";
 import { BytesLib } from "../../libs/BytesLib.sol";
 
 /**
@@ -57,7 +57,7 @@ contract CatalystCompactSettler is BaseSettler {
         uint40 timestamp,
         OutputDescription memory outputDescription
     ) pure internal returns (bytes32 outputHash) {
-        return outputHash = keccak256(OutputEncodingLibrary.encodeOutputDescriptionIntoPayload(solver, timestamp, orderId, outputDescription));
+        return outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(solver, timestamp, orderId, outputDescription));
     }
 
     /**

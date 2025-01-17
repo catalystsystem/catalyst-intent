@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { OutputDescription } from "./CatalystOrderType.sol";
+import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 
-library OutputEncodingLibrary {
+/**
+ * @notice Converts Catalyst OutputDescriptions to and from byte payloads.
+ * @dev The library defines 2 payload structures, one for internal usage and one for cross-chain communication.
+ * - outputHash is a hash of an outputDescription. This uses a compact and unique encoding scheme
+ * 
+ *
+ */
+library OutputEncodingLib {
     error RemoteCallOutOfRange();
     error fulfillmentContextCallOutOfRange();
 

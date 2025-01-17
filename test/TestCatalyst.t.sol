@@ -16,7 +16,7 @@ import { InputDescription, OutputDescription, CatalystOrderData, CatalystOrderTy
 import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
-import { OutputEncodingLibrary } from "../src/reactors/OutputEncodingLibrary.sol";
+import { OutputEncodingLib } from "../src/libs/OutputEncodingLib.sol";
 import { PayloadEncodingLib } from "../src/oracles/PayloadEncodingLib.sol";
 
 import { Messages } from "../src/oracles/wormhole/external/wormhole/Messages.sol";
@@ -291,7 +291,7 @@ contract TestCatalyst is DeployCompact {
         coinFiller.fillThrow(orderIds, outputs, solverIdentifier);
 
         bytes[] memory payloads = new bytes[](1);
-        payloads[0] = OutputEncodingLibrary.encodeOutputDescriptionIntoPayload(solverIdentifier, uint40(block.timestamp), orderId, outputs[0]);
+        payloads[0] = OutputEncodingLib.encodeOutputDescriptionIntoPayload(solverIdentifier, uint40(block.timestamp), orderId, outputs[0]);
 
         bytes memory expectedMessageEmitted = this.encodeMessage(remoteOracle, payloads);
 

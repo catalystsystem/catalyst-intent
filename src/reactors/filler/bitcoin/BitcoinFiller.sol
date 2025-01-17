@@ -9,7 +9,7 @@ import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/lib
 
 import { OutputDescription } from "../../CatalystOrderType.sol";
 import { SolverTimestampBaseFiller } from "../SolverTimestampBaseFiller.sol";
-import { OutputEncodingLibrary } from "../../OutputEncodingLibrary.sol";
+import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
@@ -248,7 +248,7 @@ contract BitcoinFiller is SolverTimestampBaseFiller {
         // was looser it will be much harder to protect against "double spends".
         if (sats != output.amount) revert BadAmount();
 
-        bytes32 outputHash = OutputEncodingLibrary.outputHash(output);
+        bytes32 outputHash = OutputEncodingLib.outputHash(output);
         _filledOutput[orderId][outputHash] = FilledOutput({solver: solver, timestamp: uint40(timestamp)});
 
         // emit OutputVerified(

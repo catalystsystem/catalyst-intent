@@ -23,7 +23,7 @@ import {
     CannotProveOrder
 } from "../../interfaces/Errors.sol";
 
-import { OrderPurchaseType } from "../OrderPurchaseType.sol";
+import { OrderPurchaseType } from "./OrderPurchaseType.sol";
 
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 

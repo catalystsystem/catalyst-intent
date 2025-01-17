@@ -1,11 +1,27 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+/* 
+
+ */
+
 /**
  * @notice Library to aid in encoding a series of payloads and decoding a series of payloads.
  * @dev The library does not understand the payloads. Likewise, when parsed the payloads are never used but their hashes are.
  * The library works with uint16 sizes, as a result the maximum number of payloads in a single message is 65'535 
  * and the maximum number of bytes in a payload is 65'535.
+ *
+ * --- Data Structure ---
+ *
+ *  Common Structure (Repeated 0 times)
+ *      SENDER_IDENTIFIER       0       (32 bytes)
+ *      + NUM_PAYLOADS          32      (2 bytes)
+ *
+ *  Payloads (repeated NUM_PAYLOADS times)
+ *      PAYLOAD_LENGTH          M_i+0   (2 bytes3)
+ *      PAYLOAD                 M_i+2   (PAYLOAD_LENGTH bytes)
+ *
+ * where M_i = sum_0^(i-1) M_i and M_0 = 32
  */
 library PayloadEncodingLib {
     error TooLargePayload(uint256 size);

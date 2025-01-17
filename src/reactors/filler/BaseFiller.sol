@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { WrongChain, WrongRemoteOracle } from "../../interfaces/Errors.sol";
-import { OutputEncodingLibrary } from "../OutputEncodingLibrary.sol";
+import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
 import { IOracle } from "../../interfaces/IOracle.sol";
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 

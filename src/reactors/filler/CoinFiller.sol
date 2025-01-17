@@ -5,7 +5,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { OutputDescription } from "../CatalystOrderType.sol";
 import { SolverTimestampBaseFiller } from "./SolverTimestampBaseFiller.sol";
-import { OutputEncodingLibrary } from  "../OutputEncodingLibrary.sol";
+import { OutputEncodingLib } from  "../../libs/OutputEncodingLib.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 
@@ -72,7 +72,7 @@ contract CoinFiller is SolverTimestampBaseFiller, IDestinationSettler {
         _IAmRemoteOracle(output.remoteOracle);
 
         // Get hash of output.
-        bytes32 outputHash = OutputEncodingLibrary.outputHash(output);
+        bytes32 outputHash = OutputEncodingLib.outputHash(output);
 
         // Get the proof state of the fulfillment.
         bytes32 existingSolver = _filledOutput[orderId][outputHash].solver;

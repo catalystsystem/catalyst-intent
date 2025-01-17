@@ -8,10 +8,9 @@ pragma solidity ^0.8.26;
  */
 library IdentifierLib {
 
-    /** @notice Count the number leading of 0s in a bytes20 element upto 6 */
-    function countLeadingZeros(
-        uint160 elem
-    ) internal pure returns (uint8 num) {
+    /**
+     * @notice Count the number leading of 0s in a bytes20 element upto 6 */
+    function countLeadingZeros(uint160 elem) internal pure returns (uint8 num) {
         if (elem < type(uint112).max) {
             return 6;
         }
@@ -47,7 +46,7 @@ library IdentifierLib {
         return bytes32(
             (appZeros << 248) // First byte is the app zeros.
             + ((uint256(uint160(app)) << 136) >> 8) // Address in 15 bytes.
-            + (oracleZeros << 120) // First byte is the app zeros.
+            + (oracleZeros << 120) // 16'th byte is the oracle zeros.
             + ((uint256(uint160(oracle)) << 136) >> 136) // Address in 15 bytes.
         );
     }
@@ -63,6 +62,7 @@ library IdentifierLib {
     function enhanceIdentifier(bytes32 trueIdentifier, bytes32 selfReportedIdentifier) internal pure returns (bytes32) {
         if (trueIdentifier == selfReportedIdentifier) return selfReportedIdentifier;
 
+        // TODO: Auditors, should this be uint128?
         if (uint256(trueIdentifier) > type(uint160).max) return trueIdentifier;
         
         uint256 oracleZeros = countLeadingZeros(uint160(uint256(trueIdentifier)));

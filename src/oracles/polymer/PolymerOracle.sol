@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { Ownable } from "solady/auth/Ownable.sol";
+
 import { BaseOracle } from "../BaseOracle.sol";
 import { ICrossL2Prover } from "./ICrossL2Prover.sol";
 import { OutputDescription } from  "../../reactors/CatalystOrderType.sol";
@@ -9,13 +11,68 @@ import { OutputEncodingLib } from  "../../libs/OutputEncodingLib.sol";
 /**
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.
  */
-contract PolymerOracle is BaseOracle {
+contract PolymerOracle is BaseOracle, Ownable {
     error InequalLength();
+    error ZeroValue();
+    error AlreadySet();
+
+    event MapMessagingProtocolIdentifierToChainId(string messagingProtocolIdentifier, uint256 chainId);
+
+    mapping(string messagingProtocolChainIdentifier => uint256 blockChainId) _chainIdentifierToBlockChainId;
+    /** @dev The map is bi-directional. */
+    mapping(uint256 blockChainId => string messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
 
     ICrossL2Prover CROSS_L2_PROVER;
 
-    constructor(address crossL2Prover) {
+    constructor(address _owner, address crossL2Prover) {
+        _initializeOwner(_owner);
         CROSS_L2_PROVER = ICrossL2Prover(crossL2Prover);
+    }
+
+    // --- Chain ID Functions --- //
+
+    /** @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
+     * @dev Can only be called once for every chain.
+     * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
+     * @param chainId Most commen identifier for a chain. For EVM, it can often be accessed through block.chainid.
+     */
+    function setChainMap(
+        string calldata messagingProtocolChainIdentifier,
+        uint256 chainId
+    ) onlyOwner external {
+        // Check that the inputs havn't been mistakenly called with 0 values.
+        if (abi.encodePacked(messagingProtocolChainIdentifier).length == 0) revert ZeroValue();
+        if (chainId == 0) revert ZeroValue();
+
+        // This call only allows setting either value once, then they are done for.
+        // We need to check if they are currently unset.
+        if (_chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] != 0) revert AlreadySet();
+        if (abi.encodePacked(_blockChainIdToChainIdentifier[chainId]).length != 0) revert AlreadySet();
+
+        _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] = chainId;
+        _blockChainIdToChainIdentifier[chainId] = messagingProtocolChainIdentifier;
+
+        emit MapMessagingProtocolIdentifierToChainId(messagingProtocolChainIdentifier, chainId);
+    }
+
+    /**
+     * @param messagingProtocolChainIdentifier Messaging protocol chain identifier
+     * @return chainId Common chain identifier
+     */
+    function getChainIdentifierToBlockChainId(
+        string calldata messagingProtocolChainIdentifier
+    ) external view returns (uint256 chainId) {
+        return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
+    }
+
+    /**
+     * @param chainId Common chain identifier
+     * @return messagingProtocolChainIdentifier Messaging protocol chain identifier.
+     */
+    function getBlockChainIdtoChainIdentifier(
+        uint256 chainId
+    ) external view returns (string memory messagingProtocolChainIdentifier) {
+        return _blockChainIdToChainIdentifier[chainId];
     }
 
     function _proofPayloadHash(
@@ -37,8 +94,9 @@ contract PolymerOracle is BaseOracle {
         (bytes32 solver, uint40 timestamp, OutputDescription memory output) = abi.decode(unindexedData, (bytes32, uint40, OutputDescription));
 
         bytes32 payloadHash = _proofPayloadHash(orderId, solver, timestamp, output);
-        // TODO: Map the chainid
-        uint256 remoteChainId = uint256(bytes32(bytes(chainId)));
+
+        // Convert the Polymer ChainID into the canonical chainId.
+        uint256 remoteChainId = _chainIdentifierToBlockChainId[chainId];
         bytes32 senderIdentifier = bytes32(uint256(uint160(emittingContract)));
         _attestations[remoteChainId][senderIdentifier][payloadHash] = true;
 

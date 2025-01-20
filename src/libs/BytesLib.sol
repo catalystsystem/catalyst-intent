@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+pragma solidity ^0.8.0;
 
 /// @title Library for Bytes Manipulation
 /// Based on Gonçalo Sá's BytesLib - but updated and heavily editted
-pragma solidity ^0.8.0;
-
 library BytesLib {
     function toBytes(bytes calldata _bytes, uint256 arg) internal pure returns (bytes calldata res) {
         assembly {

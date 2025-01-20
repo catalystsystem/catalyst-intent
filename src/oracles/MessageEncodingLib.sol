@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-
 /**
  * @notice Library to aid in encoding a series of payloads and decoding a series of payloads.
  * @dev The library does not understand the payloads. Likewise, when parsed the payloads are never used but their hashes are.
@@ -20,7 +19,7 @@ pragma solidity ^0.8.26;
  *
  * where M_i = sum_0^(i-1) M_i and M_0 = 32
  */
-library PayloadEncodingLib {
+library MessageEncodingLib {
     error TooLargePayload(uint256 size);
     error TooManyPayloads(uint256 size);
 

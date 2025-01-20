@@ -78,7 +78,7 @@ abstract contract BaseOracle is IOracle {
             uint256 series = proofBytes / (32*3);
             if (series * (32*3) != proofBytes) revert NotDivisible(proofBytes, 32*3);
 
-            // Go over the data. We will use an for loop iterating over the offset.
+            // Go over the data. We will use a for loop iterating over the offset.
             for (uint256 offset; offset < proofBytes;) {
                 // Load the proof description.
                 uint256 remoteChainId;

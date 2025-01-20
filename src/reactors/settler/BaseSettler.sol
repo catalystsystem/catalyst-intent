@@ -31,41 +31,23 @@ import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EIP712 } from "solady/utils/EIP712.sol";
 
 /**
- * @title Base Cross-chain intent Reactor
- * @notice Cross-chain intent resolver. Implements core logic that is shared between all
- * reactors like token collection, order interfaces, order resolution:
- * - Optimistic Payout: Orders are assumed to have been filled correctly by the solver if not disputed.
- * - Order Dispute: Orders can be disputed such that proof of fulfillment has to be made.
- * - Oracle Interaction: To provide the relevant proofs against order disputes.
- *
- * It is expected that proper order reactors implement:
- * - `_initiate`. To convert partially structured orders into order keys that describe fulfillment conditions.
- * - `_resolveKey`. Helper function to convert an order into an order key.
- * You can find more information about these in ./helpers/ResolverAbstractions.sol
- * @dev Important implementation quirks:
- * **Token Trust**
- * There is a lot of trust put into the tokens that interact with the contract. Not trust as in the tokens can
- * impact this contract but trust as in a faulty / malicious token may be able to break the order status flow
- * and prevent proper delivery of inputs (to solver) and return of collateral.
- * As a result, it is important that users are aware of the following usage restrictions:
- * 1. Don't use a pausable/blacklist token if there is a risk that one of the actors (user / solver)
- * being paused. This also applies from the user's perspective, if a pausable token is used for
- * collateral their inputs may not be returnable.
- * 2. All inputs have to be trusted by all parties. If one input is unable to be transferred, the whole lot
- * becomes stuck until the issue is resolved.
- * 3. Solvers should validate that they can fill the outputs otherwise their collateral may be at risk and it could
- * annoy users.
+ * @title Base Catalyst Order Intent Settler
+ * @notice Defines common logic that can be reused by other settlers to support a varity
+ * of asset management schemes.
+ * @dev 
  */
 abstract contract BaseSettler is EIP712 {
     error AlreadyPurchased();
     error InvalidSigner();
+    error InvalidPurchaser();
+    error Expired();
 
     /// @notice Catalyst specific open event that replaces the ERC7683 one for cost purposes.
     event Open(bytes32 indexed orderId);
+    event OrderPurchased(bytes32 indexed orderId, bytes32 solver, address purchaser);
 
-    uint256 DISCOUNT_DENOM = 10**18;
+    uint256 constant DISCOUNT_DENOM = 10**18;
 
-    // TODO: This needs to be 1 slot.
     struct Purchased {
         uint40 lastOrderTimestamp;
         address purchaser;
@@ -73,7 +55,7 @@ abstract contract BaseSettler is EIP712 {
 
     mapping(bytes32 solver => mapping(bytes32 orderId => Purchased)) public purchasedOrders;
 
-    //--- Hashing Orders ---//
+    // --- Hashing Orders --- //
 
     // TODO: Make a proper hashing function.
     function _orderIdentifier(GaslessCrossChainOrder calldata order) pure internal returns(bytes32) {
@@ -92,7 +74,7 @@ abstract contract BaseSettler is EIP712 {
         return _orderIdentifier(order);
     }
 
-    //--- Order Validation ---//
+    // --- Order Validation --- //
 
     function _validateOrder(GaslessCrossChainOrder calldata order) internal view {
         // Check that we are the settler for this order:
@@ -103,6 +85,9 @@ abstract contract BaseSettler is EIP712 {
         if (block.timestamp > order.openDeadline) revert InitiateDeadlinePassed();
     }
 
+    // --- Timestamp Helpers --- //
+
+    /** @notice Finds the largest timestamp in an array */
     function _maxTimestamp(uint40[] calldata timestamps) internal pure returns (uint256 timestamp) {
         timestamp = timestamps[0]; 
 
@@ -113,6 +98,7 @@ abstract contract BaseSettler is EIP712 {
         }
     }
 
+    /** @notice Finds the smallest timestamp in an array */
     function _minTimestamp(uint40[] calldata timestamps) internal pure returns (uint40 timestamp) {
         timestamp = timestamps[0]; 
 
@@ -123,8 +109,13 @@ abstract contract BaseSettler is EIP712 {
         }
     }
 
-    //--- Order Purchase Helpers ---//
+    // --- Order Purchase Helpers --- //
 
+    /**
+     * @notice Helper function to get the owner of order incase it may have been bought.
+     * In case an order has been bought, and bought in time, the owner will be set to
+     * the purchaser. Otherwise it will be set to the solver.
+     */
     function _purchaseGetOrderOwner(
         bytes32 orderId,
         address solver,
@@ -148,14 +139,17 @@ abstract contract BaseSettler is EIP712 {
     }
 
     /**
-     * @notice This function is called from whoever wants to buy an order from a filler and gain a reward
+     * @notice This function is called by whoever wants to buy an order from a filler.
+     * If the order was purchased in time, then when the order is settled, the inputs will
+     * go to the purchaser instead of the original solver.
      * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
-     * your funds may be at risk.
-     * Set newPurchaseDeadline in the past to disallow future takeovers.
-     * When you purchase orders, make sure you take into account that you are paying the
-     * entirety while you will get out the entirety MINUS any governance fee.
-     * If you are calling this function from an external contract, beaware of re-entry
-     * issues from a later execute. (configured of fillerData).
+     * your funds may be at risk and that you purchase it within the allocated time.
+     * To purchase an order, it is required that you can produce a proper signature
+     * from the solver that signes the purchase details.
+     * @param orderSolvedByIdentifier Solver of the order. Is not validated, need to be correct otherwise
+     * the purchase will be wasted.
+     * @param expiryTimestamp Set to ensure if your transaction isn't mine quickly, you don't end
+     * up purchasing an order that you cannot prove OR is not within the timeToBuy window.
      */
     function purchaseOrder(
         bytes32 orderSolvedByIdentifier,
@@ -168,40 +162,54 @@ abstract contract BaseSettler is EIP712 {
         uint40 timeToBuy,
         bytes calldata solverSignature
     ) external {
-        require(purchaser != address(0));
-        require(expiryTimestamp > block.timestamp);
+        if (purchaser == address(0)) revert InvalidPurchaser();
+        if (expiryTimestamp < block.timestamp) revert Expired();
 
         bytes32 orderId = _orderIdentifier(order);
-        // Check if the order has been purchased already.
+
+        // Check if the order has already been purchased.
         Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderId];
         if (purchased.purchaser != address(0)) revert AlreadyPurchased();
 
         // Reentry protection. Ensure that you can't reenter this contract.
         unchecked {
+            // unchecked: uint40(block.timestamp) > timeToBuy => uint40(block.timestamp) - timeToBuy > 0.
             purchased.lastOrderTimestamp = timeToBuy < uint40(block.timestamp) ? uint40(block.timestamp) - timeToBuy : 0;
-            purchased.purchaser = purchaser;
+            purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0) 
         }
         // We can now make external calls without allowing local reentries into this call.
 
         // We need to validate that the solver has approved someone else to purchase their order.
         address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
 
-        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderId, address(this), newDestination, call, discount, timeToBuy));
+        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(
+            orderId,
+            address(this),
+            newDestination,
+            call,
+            discount,
+            timeToBuy
+        ));
         bool isValid = SignatureCheckerLib.isValidSignatureNow(orderSolvedByAddress, digest, solverSignature);
         if (!isValid) revert InvalidSigner();
 
-        // Pay out the input tokens to the solver.
+        // Pay the input tokens to the solver.
         CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
         uint256 numInputs = orderData.inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             InputDescription memory inputDescription = orderData.inputs[i];
             uint256 amountAfterDiscount = inputDescription.amount * discount / DISCOUNT_DENOM;
-            SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(inputDescription.tokenId), msg.sender, newDestination, amountAfterDiscount);
+            SafeTransferLib.safeTransferFrom(
+                EfficiencyLib.asSanitizedAddress(inputDescription.tokenId),
+                msg.sender,
+                newDestination,
+                amountAfterDiscount
+            );
         }
 
         if (call.length > 0) newDestination.call(call);
 
-        // emit OrderPurchased(orderId, purchaser);
+        emit OrderPurchased(orderId, orderSolvedByIdentifier, purchaser);
     }
 
     //--- ERC7683 Resolvers ---//

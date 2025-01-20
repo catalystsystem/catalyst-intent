@@ -17,7 +17,7 @@ import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
 import { OutputEncodingLib } from "../src/libs/OutputEncodingLib.sol";
-import { PayloadEncodingLib } from "../src/oracles/PayloadEncodingLib.sol";
+import { MessageEncodingLib } from "../src/oracles/MessageEncodingLib.sol";
 
 import { Messages } from "../src/oracles/wormhole/external/wormhole/Messages.sol";
 import { Setters } from "../src/oracles/wormhole/external/wormhole/Setters.sol";
@@ -79,7 +79,7 @@ contract TestCatalyst is DeployCompact {
     }
 
     function encodeMessage(bytes32 remoteIdentifier, bytes[] calldata payloads) external pure returns (bytes memory) {
-        return PayloadEncodingLib.encodeMessage(remoteIdentifier, payloads);
+        return MessageEncodingLib.encodeMessage(remoteIdentifier, payloads);
     }
 
     function setUp() public override virtual {

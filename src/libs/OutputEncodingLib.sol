@@ -22,7 +22,7 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  *      + TIMESTAMP                     32              (5 bytes)
  *      + ORDERID                       37              (32 bytes)
  *
- * Common Payload. Is identical between the both encoding scheme
+ * Common Payload. Is identical between both encoding scheme
  *      + TOKEN                         Y               (32 bytes)
  *      + AMOUNT                        Y+32            (32 bytes)
  *      + RECIPIENT                     Y+64            (32 bytes)
@@ -40,11 +40,21 @@ library OutputEncodingLib {
 
     // --- OutputDescription Encoding --- //
 
+    /** 
+     * @notice Creates a unique hash of an OutputDescription
+     * @dev This does provide a description of how an output was filled but just
+     * an exact unique identifier for an output description. This identifier is
+     * purely intended for the remote chain.
+     */
     function outputHash(OutputDescription calldata output) pure internal returns(bytes32) {
         return keccak256(encodeEntireOutput(output));
     }
     
-    // Predictable encoding of outputDescription that overlaps with the message encoding
+    /** 
+     * @notice Predictable encoding of outputDescription that deliberately overlaps with the payload encoding.
+     * @dev This function uses length identifiers 2 bytes long. As a result, neither remoteCall nor fulfillmentContext
+     * can be larger than 65535.
+     */
     function encodeEntireOutput(
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
@@ -67,6 +77,11 @@ library OutputEncodingLib {
         );
     }
 
+    /**
+     * @notice Converts a payload slice into an output hash. This is possible because both the
+     * output hash and payload have a shared chunk of data. It only have to be enhanced with
+     * remoteOracle and chain id and then hashed.
+     */
     function payloadToOutputHash(
         bytes32 remoteOracle,
         uint256 chainId,
@@ -81,24 +96,9 @@ library OutputEncodingLib {
 
     // --- Payload Encoding --- //
 
-    function encodeOutputDescriptionIntoPayload(
-        bytes32 solver,
-        uint40 timestamp,
-        bytes32 orderId,
-        OutputDescription memory outputDescription
-    ) internal pure returns (bytes memory encodedOutput) {
-        return encodedOutput = encodeOutput(
-            solver,
-            timestamp,
-            orderId,
-            outputDescription.token,
-            outputDescription.amount,
-            outputDescription.recipient,
-            outputDescription.remoteCall,
-            outputDescription.fulfillmentContext
-        );
-    }
-
+    /**
+     * @notice Payload encoding.
+     */
     function encodeOutput(
         bytes32 solver,
         uint40 timestamp,
@@ -124,6 +124,30 @@ library OutputEncodingLib {
             remoteCall,
             uint16(fulfillmentContext.length), // To protect against data collisions
             fulfillmentContext
+        );
+    }
+
+    /**
+     * @notice Encodes an output description into a payload.
+     * @dev A payload doesn't contain a description of the remote (remoteOracle or chainid)
+     * because these are attached to the package. Instead the payload contains a description of
+     * how the order was filled. These have to be collected externally.
+     */
+    function encodeOutputDescriptionIntoPayload(
+        bytes32 solver,
+        uint40 timestamp,
+        bytes32 orderId,
+        OutputDescription memory outputDescription
+    ) internal pure returns (bytes memory encodedOutput) {
+        return encodedOutput = encodeOutput(
+            solver,
+            timestamp,
+            orderId,
+            outputDescription.token,
+            outputDescription.amount,
+            outputDescription.recipient,
+            outputDescription.remoteCall,
+            outputDescription.fulfillmentContext
         );
     }
 

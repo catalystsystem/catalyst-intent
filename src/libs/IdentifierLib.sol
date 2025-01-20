@@ -34,8 +34,8 @@ library IdentifierLib {
 
     /**
      * @notice Computes a identifier for a route.
-     * The first 16 bytes is of the original origin.
-     * The last 16 bytes is of this contract.
+     * The first 15 bytes is of the original origin.
+     * The last 15 bytes is of this contract.
      * @dev For the identifier to be unique it is required that app and oracle have been mined for 16 bytes addresses. 
      * Otherwise there may be collisions.
      */

@@ -57,7 +57,13 @@ contract CatalystCompactSettler is BaseSettler {
         uint40 timestamp,
         OutputDescription memory outputDescription
     ) pure internal returns (bytes32 outputHash) {
-        return outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(solver, timestamp, orderId, outputDescription));
+        // TODO: Ensure that there is a fallback if someone else filled one of the outputs.
+        return outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
+            solver,
+            timestamp,
+            orderId,
+            outputDescription
+        ));
     }
 
     /**

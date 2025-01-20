@@ -13,7 +13,7 @@ import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
 import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
-import { PayloadEncodingLib } from "../PayloadEncodingLib.sol";
+import { MessageEncodingLib } from "../MessageEncodingLib.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
@@ -127,7 +127,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         bytes[] calldata payloads
     ) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = PayloadEncodingLib.encodeMessage(
+        bytes memory message = MessageEncodingLib.encodeMessage(
             IdentifierLib.getIdentifier(
                 source, address(this)
             ),
@@ -158,7 +158,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         // Verify Packet and return message identifiers that Wormhole attatched.
         (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
         // Decode message.
-        (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = PayloadEncodingLib.decodeMessage(message);
+        (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = MessageEncodingLib.decodeMessage(message);
 
         // Construct the proper identifier.
         bytes32 senderIdentifier = IdentifierLib.enhanceIdentifier(remoteSenderIdentifier, identifierFromMessage);

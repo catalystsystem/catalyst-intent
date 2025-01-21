@@ -36,8 +36,6 @@ import { BytesLib } from "../../libs/BytesLib.sol";
  * The current design iteration of the reactor does not support ERC7683 open / OnchainCrossChainOrder.
  */
 contract CatalystCompactSettler is BaseSettler {
-    error NotSupported();
-
     TheCompact public immutable COMPACT;
 
     constructor(address compact) {

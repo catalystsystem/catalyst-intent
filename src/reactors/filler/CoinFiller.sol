@@ -21,8 +21,6 @@ contract CoinFiller is SolverTimestampBaseFiller, IDestinationSettler {
     error NotImplemented();
     error SlopeStopped();
 
-    event OutputFilled(bytes32 orderId, bytes32 solver, uint40 timestamp, OutputDescription output);
-
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
 

@@ -10,6 +10,8 @@ import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/lib
 import { OutputDescription } from "../../CatalystOrderType.sol";
 import { SolverTimestampBaseFiller } from "../SolverTimestampBaseFiller.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
+import { BaseOracle } from "../../../oracles/BaseOracle.sol";
+import { IdentifierLib } from "../../../libs/IdentifierLib.sol";
 
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
@@ -17,20 +19,16 @@ import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
  * 2. Indirectly oracle through the bridge oracle.
  * This requires a local light client and a bridge connection to the relevant reactor.
  * 0xB17C012
+ *
+ * This filler can work as both an oracle 
  */
-contract BitcoinFiller is SolverTimestampBaseFiller {
+contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
     error BadAmount(); // 0x749b5939
     error BadDestinationIdentifier(); // 0x111fe358
     error BadTokenFormat(); // 0x6a6ba82d
     error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
 
     event OutputVerified(
-        bytes32 outputHash,
-        uint32 fillDeadline,
-        bytes32 token,
-        bytes32 recipient,
-        uint256 amount,
-        bytes32 calldataHash,
         bytes32 verificationContext
     );
 
@@ -159,7 +157,21 @@ contract BitcoinFiller is SolverTimestampBaseFiller {
         numConfirmations = numConfirmations == 0 ? 1 : numConfirmations;
     }
 
-    //--- Validation ---//
+    // --- Data Validation Function --- //
+
+    /**
+     * @notice The Bitcoin Filler should also work as an oracle if it sits locally on a chain.
+     * We don't want to store 2 attests of proofs (filler and oracle uses different schemes) so we instead store the
+     * payload attestation. That allows settlers to easily check if outputs has been filled but also if payloads
+     * have been verified (incase the settler is on another chain than the light client).
+     */
+    function _isValidPayload(address oracle, bytes calldata payload) view override internal returns(bool) {
+        bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
+        uint256 chainId = block.chainid;
+        return _attestations[chainId][remoteOracleIdentifier][keccak256(payload)];
+    }
+
+    // --- Validation --- //
 
     /**
      * @notice Verifies the existence of a Bitcoin transaction and returns the number of satoshis associated
@@ -248,18 +260,16 @@ contract BitcoinFiller is SolverTimestampBaseFiller {
         // was looser it will be much harder to protect against "double spends".
         if (sats != output.amount) revert BadAmount();
 
-        bytes32 outputHash = OutputEncodingLib.outputHash(output);
-        _filledOutput[orderId][outputHash] = FilledOutput({solver: solver, timestamp: uint40(timestamp)});
+        bytes32 outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
+            solver,
+            uint40(timestamp),
+            orderId,
+            output
+        ));  
+        _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
 
-        // emit OutputVerified(
-        //     outputHash,
-        //     fillDeadline,
-        //     token,
-        //     output.recipient,
-        //     output.amount,
-        //     output.remoteCall.length > 0 ? keccak256(output.remoteCall) : bytes32(0),
-        //     inclusionProof.txId
-        // );
+        emit OutputFilled(orderId, solver, uint40(timestamp), output);
+        emit OutputVerified(inclusionProof.txId);
     }
 
     /**

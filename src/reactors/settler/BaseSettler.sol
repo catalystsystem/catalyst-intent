@@ -19,8 +19,7 @@ import { CatalystOrderData, InputDescription, OutputDescription } from "../Catal
 import {
     InvalidSettlementAddress,
     WrongChain,
-    InitiateDeadlinePassed,
-    CannotProveOrder
+    InitiateDeadlinePassed
 } from "../../interfaces/Errors.sol";
 
 import { OrderPurchaseType } from "./OrderPurchaseType.sol";
@@ -34,7 +33,8 @@ import { EIP712 } from "solady/utils/EIP712.sol";
  * @title Base Catalyst Order Intent Settler
  * @notice Defines common logic that can be reused by other settlers to support a varity
  * of asset management schemes.
- * @dev 
+ * @dev Implements the default CatalystOrderType and makes functions that are dedicated to that order type 
+ * available to implementing implementations.
  */
 abstract contract BaseSettler is EIP712 {
     error AlreadyPurchased();

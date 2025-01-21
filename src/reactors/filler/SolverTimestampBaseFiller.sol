@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { OutputDescription } from "../CatalystOrderType.sol";
 import { BaseFiller } from "./BaseFiller.sol";
 import { OutputEncodingLib } from  "../../libs/OutputEncodingLib.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 abstract contract SolverTimestampBaseFiller is BaseFiller {
+    event OutputFilled(bytes32 orderId, bytes32 solver, uint40 timestamp, OutputDescription output);
+
     // TODO: Optimise stack?
     struct FilledOutput {
         bytes32 solver;
@@ -16,7 +19,7 @@ abstract contract SolverTimestampBaseFiller is BaseFiller {
 
     // --- Oracles --- //
 
-    function _isValidPayload(address oracle, bytes calldata payload) view internal returns(bool) {
+    function _isValidPayload(address oracle, bytes calldata payload) view virtual internal returns(bool) {
         bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
         bytes32 outputHash = OutputEncodingLib.payloadToOutputHash(remoteOracleIdentifier, chainId, OutputEncodingLib.selectRemainingPayload(payload));

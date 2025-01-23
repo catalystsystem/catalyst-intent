@@ -12,7 +12,7 @@ import { CoinFiller } from "../src/reactors/filler/CoinFiller.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
 
-import { InputDescription, OutputDescription, CatalystOrderData, CatalystOrderType } from "../src/reactors/CatalystOrderType.sol";
+import { OutputDescription, CatalystOrderData, CatalystOrderType } from "../src/reactors/CatalystOrderType.sol";
 import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
@@ -65,15 +65,14 @@ contract TestCatalyst is DeployCompact {
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                CatalystOrderType.GASSLESS_CROSS_CHAIN_ORDER_TYPE_HASH,
-                order.originSettler,
-                order.user,
-                order.nonce,
-                order.originChainId,
-                order.openDeadline,
+                CatalystOrderType.CATALYST_WITNESS_TYPE_HASH,
                 order.fillDeadline,
-                order.orderDataType,
-                CatalystOrderType.hashOrderDataM(orderData)
+                orderData.localOracle,
+                orderData.collateralToken,
+                orderData.collateralAmount,
+                orderData.proofDeadline,
+                orderData.challengeDeadline,
+                CatalystOrderType.hashOutputs(orderData.outputs)
             )
         );
     }
@@ -133,11 +132,8 @@ contract TestCatalyst is DeployCompact {
         uint256 amount = 1e18/10;
         uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
 
-        InputDescription[] memory inputs = new InputDescription[](1);
-        inputs[0] = InputDescription({
-            tokenId: tokenId,
-            amount: amount
-        });
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, amount];
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
             remoteOracle: bytes32(uint256(uint160(alwaysYesOracle))),
@@ -164,7 +160,7 @@ contract TestCatalyst is DeployCompact {
             originChainId: block.chainid,
             openDeadline: type(uint32).max,
             fillDeadline: type(uint32).max,
-            orderDataType: CatalystOrderType.CATALYST_ORDER_DATA_TYPE_HASH,
+            orderDataType: CatalystOrderType.CATALYST_WITNESS_TYPE_HASH,
             orderData: abi.encode(orderData)
         });
 
@@ -189,10 +185,9 @@ contract TestCatalyst is DeployCompact {
         
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
         uint40[] memory timestamps = new uint40[](1);
-        bytes memory originFllerData = abi.encode(solverIdentifier, timestamps);
 
         vm.prank(solver);
-        catalystCompactSettler.openFor(order, signature, originFllerData);
+        catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
     }
 
     function _buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns(bytes memory preMessage) {
@@ -225,11 +220,8 @@ contract TestCatalyst is DeployCompact {
         address localOracle = address(wormholeOracle);
         bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), address(wormholeOracle));
 
-        InputDescription[] memory inputs = new InputDescription[](1);
-        inputs[0] = InputDescription({
-            tokenId: tokenId,
-            amount: amount
-        });
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, amount];
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
             remoteOracle: remoteOracle,
@@ -256,7 +248,7 @@ contract TestCatalyst is DeployCompact {
             originChainId: block.chainid,
             openDeadline: type(uint32).max,
             fillDeadline: type(uint32).max,
-            orderDataType: CatalystOrderType.CATALYST_ORDER_DATA_TYPE_HASH,
+            orderDataType: CatalystOrderType.CATALYST_WITNESS_TYPE_HASH,
             orderData: abi.encode(orderData)
         });
 
@@ -305,8 +297,7 @@ contract TestCatalyst is DeployCompact {
 
         uint40[] memory timestamps = new uint40[](1);
         timestamps[0] = uint40(block.timestamp);
-        bytes memory originFllerData = abi.encode(solverIdentifier, timestamps);
         
-        catalystCompactSettler.openFor(order, signature, originFllerData);
+        catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
     }
 }

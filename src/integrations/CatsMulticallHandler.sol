@@ -5,7 +5,6 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 
 import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
-import { InputDescription } from "../reactors/CatalystOrderType.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 /**
@@ -102,7 +101,7 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
      * @notice Entrypoint for the crosscats handler if inputs are delivered.
      * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else. 
      */
-    function inputsFilled(bytes32 /* orderKeyHash */, InputDescription[] calldata inputs, bytes calldata executionData) external nonReentrant {
+    function inputsFilled(bytes32 /* orderKeyHash */, uint256[2][] calldata inputs, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
         // Set approvals base on inputs if requested.
         if (instructions.setApprovalsUsingInputsFor != address(0)) _setApprovals(inputs, instructions.setApprovalsUsingInputsFor);
@@ -114,7 +113,7 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            _drainRemainingTokens(EfficiencyLib.asSanitizedAddress(inputs[i].tokenId), payable(instructions.fallbackRecipient));
+            _drainRemainingTokens(EfficiencyLib.asSanitizedAddress(inputs[i][0]), payable(instructions.fallbackRecipient));
         }
     }
 
@@ -139,11 +138,13 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
     }
 
     /** @notice Set approvals for a list of tokens. */
-    function _setApprovals(InputDescription[] calldata inputs, address to) internal {
+    function _setApprovals(uint256[2][] calldata inputs, address to) internal {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            InputDescription calldata input = inputs[i];
-            SafeTransferLib.safeApproveWithRetry(EfficiencyLib.asSanitizedAddress(inputs[i].tokenId), to, input.amount);
+            uint256[2] calldata input = inputs[i];
+            uint256 token = input[0];
+            uint256 amount = input[1];
+            SafeTransferLib.safeApproveWithRetry(EfficiencyLib.asSanitizedAddress(token), to, amount);
         }
     }
 

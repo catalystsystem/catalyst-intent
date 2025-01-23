@@ -7,11 +7,16 @@ import { NoBlock, TooFewConfirmations } from "bitcoinprism-evm/src/interfaces/IB
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
-import { OutputDescription } from "../../CatalystOrderType.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+
+import { OutputDescription, CatalystOrderType } from "../../CatalystOrderType.sol";
 import { SolverTimestampBaseFiller } from "../SolverTimestampBaseFiller.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 import { BaseOracle } from "../../../oracles/BaseOracle.sol";
 import { IdentifierLib } from "../../../libs/IdentifierLib.sol";
+
+import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { CatalystOrderData } from "../../../reactors/CatalystOrderType.sol";
 
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
@@ -27,10 +32,18 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
     error BadDestinationIdentifier(); // 0x111fe358
     error BadTokenFormat(); // 0x6a6ba82d
     error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
+    error OrderIdMismatch(bytes32 provided, bytes32 computed);
+    error AlreadyClaimed(bytes32 claimer);
 
     event OutputVerified(
         bytes32 verificationContext
     );
+
+    struct ClaimedOrder {
+        bytes32 solver;
+    }
+
+    mapping(bytes32 orderId => ClaimedOrder) _claimedOrder;
 
     // The Bitcoin Identifier (0xBC) is set in the 20'th byte (from right). This ensures
     // implementations that are only reading the last 20 bytes, still notice this is a Bitcoin address.
@@ -42,6 +55,9 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
      * @notice Used light client. If the contract is not overwritten, it is expected to be BitcoinPrism.
      */
     address public immutable LIGHT_CLIENT;
+
+    /** @notice Require that the challenger provides X times the collateral of the claimant. */
+    uint256 public constant CHALLENGER_COLLATORAL_FACTOR = 2;
 
     constructor(
         address _lightClient
@@ -375,5 +391,56 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         bytes32 solver // TODO: insecure. Need a commitment scheme.
     ) external {
         _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx, previousBlockHeader, solver);
+    }
+
+    // --- Optimistic Resolution AND Order-Preclaiming --- //
+    // For Bitcoin, it is required that outputs are claimed before they are delivered.
+    // This is because it is impossible to block dublicate deliveries on Bitcoin in the same way
+    // that is possible with EVM. (Actually, not true. It is just much more expensive – any-spend anchors).
+
+    /** @dev This settler and oracle only works with the CatalystOrderType and not with other custom order types. */
+    function _orderIdentifier(GaslessCrossChainOrder calldata order) pure virtual internal returns(bytes32) {
+        return CatalystOrderType.orderIdentifier(order);
+    }
+    
+
+    function claim(
+        bytes32 solver,
+        bytes32 orderId,
+        GaslessCrossChainOrder calldata order
+    ) external {
+        bytes32 computedOrderId = _orderIdentifier(order);
+        if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
+
+        // Check that this order hasn't been claimed before.
+        ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
+        if (claimedOrder.solver != bytes32(0)) revert AlreadyClaimed(claimedOrder.solver);
+        claimedOrder.solver = solver;
+        // The above line acts as a local re-entry guard. External calls are now allowed.
+        
+        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
+
+        address collateralToken = orderData.collateralToken;
+        uint256 collateralAmount = orderData.collateralAmount;
+
+        // TODO: What to do about these deadlines.
+        uint32 proofDeadline = orderData.proofDeadline;
+        uint32 challengeDeadline = orderData.challengeDeadline;
+
+        // Collect collateral from claimant.
+        SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, address(this), collateralAmount);
+    }
+
+
+    function dispute() external {
+
+    }
+
+    function optimisticallyVerify() external {
+
+    }
+
+    function finaliseDispute() external {
+
     }
 }

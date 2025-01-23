@@ -14,7 +14,7 @@ import {
     FillInstruction
 } from "../../interfaces/IERC7683.sol";
 
-import { CatalystOrderData, InputDescription, OutputDescription } from "../CatalystOrderType.sol";
+import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
 
 import {
     InvalidSettlementAddress,
@@ -57,17 +57,12 @@ abstract contract BaseSettler is EIP712 {
 
     // --- Hashing Orders --- //
 
-    // TODO: Make a proper hashing function.
-    function _orderIdentifier(GaslessCrossChainOrder calldata order) pure internal returns(bytes32) {
-        return keccak256(abi.encode(order));
-    }
+    function _orderIdentifier(GaslessCrossChainOrder calldata order) pure virtual internal returns(bytes32);
+    
+    function _orderIdentifier(OnchainCrossChainOrder calldata order) pure virtual internal returns(bytes32);
 
     function orderIdentifier(GaslessCrossChainOrder calldata order) pure external returns(bytes32) {
         return _orderIdentifier(order);
-    }
-
-    function _orderIdentifier(OnchainCrossChainOrder calldata order) pure internal returns(bytes32) {
-        return keccak256(abi.encode(order));
     }
 
     function orderIdentifier(OnchainCrossChainOrder calldata order) pure external returns(bytes32) {
@@ -195,12 +190,15 @@ abstract contract BaseSettler is EIP712 {
 
         // Pay the input tokens to the solver.
         CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
+        uint256[2][] memory inputs = orderData.inputs;
         uint256 numInputs = orderData.inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            InputDescription memory inputDescription = orderData.inputs[i];
-            uint256 amountAfterDiscount = inputDescription.amount * discount / DISCOUNT_DENOM;
+            uint256[2] memory input = inputs[i];
+            uint256 tokenId = input[0];
+            uint256 allocatedAmount = input[1];
+            uint256 amountAfterDiscount = allocatedAmount * discount / DISCOUNT_DENOM;
             SafeTransferLib.safeTransferFrom(
-                EfficiencyLib.asSanitizedAddress(inputDescription.tokenId),
+                EfficiencyLib.asSanitizedAddress(tokenId),
                 msg.sender,
                 newDestination,
                 amountAfterDiscount
@@ -243,15 +241,17 @@ abstract contract BaseSettler is EIP712 {
         // fillerOutputs are of the Output type and as a result, we can't just
         // load swapperInputs into fillerOutputs. As a result, we need to parse
         // the individual inputs and make a new struct.
-        InputDescription[] memory inputs = orderData.inputs;
+        uint256[2][] memory inputs = orderData.inputs;
         uint256 numInputs = inputs.length;
         minReceived = new Output[](numInputs);
         unchecked {
             for (uint256 i; i < numInputs; ++i) {
-                InputDescription memory input = inputs[i];
+                uint256[2] memory input = inputs[i];
+                uint256 tokenId = input[0];
+                uint256 allocatedAmount = input[1];
                 minReceived[i] = Output({
-                    token: bytes32(uint256(uint160(input.tokenId))),
-                    amount: input.amount,
+                    token: bytes32(tokenId),
+                    amount: allocatedAmount,
                     recipient: bytes32(uint256(uint160(filler))),
                     chainId: uint32(block.chainid)
                 });

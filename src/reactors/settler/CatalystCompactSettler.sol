@@ -60,12 +60,13 @@ contract CatalystCompactSettler is BaseSettler {
         // TODO: Ensure that there is a fallback if someone else filled one of the outputs.
         return outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
             solver,
-            timestamp,
             orderId,
+            abi.encodePacked(uint40(timestamp)),
             outputDescription
         ));
     }
 
+    //TODO use more descriptive function names: _outputsFilled => _validateFills
     /**
      * @notice Check if a series of outputs has been proven.
      * @dev Function overload for outputFilled to allow proving multiple outputs in a single call.
@@ -73,7 +74,7 @@ contract CatalystCompactSettler is BaseSettler {
      */
     function _outputsFilled(address localOracle, bytes32 orderId, address solver, uint40[] calldata timestamps, OutputDescription[] memory outputDescriptions) internal view {
         bytes memory proofSeries;
-        
+        //TODO this should depend on the order type/filler used
         uint256 numOutputs = outputDescriptions.length;
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription memory output = outputDescriptions[i];

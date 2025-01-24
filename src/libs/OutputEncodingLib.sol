@@ -19,8 +19,8 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  *
  *  Payload (Used as a portable format that can prove what happened on the remote chain)
  *      SOLVER                          0               (32 bytes)
- *      + TIMESTAMP                     32              (5 bytes)
- *      + ORDERID                       37              (32 bytes)
+ *      + TIMESTAMP                     31              (4 bytes)
+ *      + ORDERID                       36              (32 bytes)
  *
  * Common Payload. Is identical between both encoding scheme
  *      + TOKEN                         Y               (32 bytes)
@@ -31,7 +31,7 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  *      + FULFILLMENT_CONTEXT_LENGTH    Y+98+RC_LENGTH  (2 bytes)
  *      + FULFILLMENT_CONTEXT           Y+100+RC_LENGTH (LENGTH bytes)
  *
- * where Y is the offset from the specific encoding (either 64 or 69)
+ * where Y is the offset from the specific encoding (either 64 or 68)
  *
  */
 library OutputEncodingLib {
@@ -101,7 +101,7 @@ library OutputEncodingLib {
      */
     function encodeOutput(
         bytes32 solver,
-        uint40 timestamp,
+        uint32 timestamp,
         bytes32 orderId,
         bytes32 token,
         uint256 amount,
@@ -135,7 +135,25 @@ library OutputEncodingLib {
      */
     function encodeOutputDescriptionIntoPayload(
         bytes32 solver,
-        uint40 timestamp,
+        uint32 timestamp,
+        bytes32 orderId,
+        OutputDescription calldata outputDescription
+    ) internal pure returns (bytes memory encodedOutput) {
+        return encodedOutput = encodeOutput(
+            solver,
+            timestamp,
+            orderId,
+            outputDescription.token,
+            outputDescription.amount,
+            outputDescription.recipient,
+            outputDescription.remoteCall,
+            outputDescription.fulfillmentContext
+        );
+    }
+
+    function encodeOutputDescriptionIntoPayloadM(
+        bytes32 solver,
+        uint32 timestamp,
         bytes32 orderId,
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
@@ -164,22 +182,22 @@ library OutputEncodingLib {
 
     function decodePayloadTimestamp(
         bytes calldata payload
-    ) internal pure returns (uint40 timestamp) {
-        return timestamp = uint40(bytes5(payload[32:37]));
+    ) internal pure returns (uint32 timestamp) {
+        return timestamp = uint32(bytes4(payload[32:36]));
     }
 
     function decodePayloadOrderId(
         bytes calldata payload
     ) internal pure returns (bytes32 orderId) {
         assembly ("memory-safe") {
-            // orderId = bytes32(payload[37:69]);
-            orderId := calldataload(add(payload.offset, 37))
+            // orderId = bytes32(payload[36:68]);
+            orderId := calldataload(add(payload.offset, 36))
         }
     }
 
     function selectRemainingPayload(
         bytes calldata payload
     ) internal pure returns (bytes calldata remainingPayload) {
-        return remainingPayload = payload[69:];
+        return remainingPayload = payload[68:];
     }
 }

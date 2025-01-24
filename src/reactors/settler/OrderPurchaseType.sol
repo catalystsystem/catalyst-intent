@@ -7,7 +7,7 @@ struct OrderPurchase {
     address destination;
     bytes call;
     uint48 discount;
-    uint40 timeToBuy;
+    uint32 timeToBuy;
 }
 
 /**
@@ -25,7 +25,7 @@ library OrderPurchaseType {
         "address destination,"
         "bytes call,"
         "uint48 discount,"
-        "uint40 timeToBuy"
+        "uint32 timeToBuy"
         ")"
     );
 
@@ -37,7 +37,7 @@ library OrderPurchaseType {
         address destination,
         bytes calldata call,
         uint48 discount,
-        uint40 timeToBuy
+        uint32 timeToBuy
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(

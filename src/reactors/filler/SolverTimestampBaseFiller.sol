@@ -7,12 +7,12 @@ import { OutputEncodingLib } from  "../../libs/OutputEncodingLib.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 abstract contract SolverTimestampBaseFiller is BaseFiller {
-    event OutputFilled(bytes32 orderId, bytes32 solver, uint40 timestamp, OutputDescription output);
+    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
     // TODO: Optimise stack?
     struct FilledOutput {
         bytes32 solver;
-        uint40 timestamp;
+        uint32 timestamp;
     }
 
     mapping(bytes32 orderId => mapping(bytes32 outputHash => FilledOutput)) _filledOutput;
@@ -28,11 +28,11 @@ abstract contract SolverTimestampBaseFiller is BaseFiller {
         FilledOutput storage filledOutput = _filledOutput[orderId][outputHash];
 
         bytes32 filledSolver = filledOutput.solver;
-        uint40 filledTimestamp = filledOutput.timestamp;
+        uint32 filledTimestamp = filledOutput.timestamp;
         if (filledSolver == bytes32(0)) return false;
 
         bytes32 payloadSolver = OutputEncodingLib.decodePayloadSolver(payload);
-        uint40 payloadTimestamp = OutputEncodingLib.decodePayloadTimestamp(payload);
+        uint32 payloadTimestamp = OutputEncodingLib.decodePayloadTimestamp(payload);
 
         if (filledSolver != payloadSolver) return false;
         if (filledTimestamp != payloadTimestamp) return false;

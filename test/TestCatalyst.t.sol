@@ -4,15 +4,14 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { DeployCompact } from "./DeployCompact.t.sol";
-
 import { CatalystCompactSettler } from "../src/reactors/settler/CatalystCompactSettler.sol";
 import { CoinFiller } from "../src/reactors/filler/CoinFiller.sol";
 
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
 
-import { OutputDescription, CatalystOrderData, CatalystOrderType } from "../src/reactors/CatalystOrderType.sol";
+import { OutputDescription, CatalystOrderType } from "../src/reactors/CatalystOrderType.sol";
+import { TheCompactOrderType, CatalystCompactFilledOrder } from "../src/reactors/TheCompactOrderType.sol";
 import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
@@ -23,6 +22,17 @@ import { Messages } from "../src/oracles/wormhole/external/wormhole/Messages.sol
 import { Setters } from "../src/oracles/wormhole/external/wormhole/Setters.sol";
 import { WormholeOracle } from "../src/oracles/wormhole/WormholeOracle.sol";
 import { Structs } from "../src/oracles/wormhole/external/wormhole/Structs.sol";
+
+import { TheCompact } from "the-compact/src/TheCompact.sol";
+import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
+
+interface EIP712 {
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+}
+
+interface ImmutableCreate2Factory {
+    function safeCreate2(bytes32 salt, bytes calldata initializationCode) external payable returns (address deploymentAddress);
+}
 
 event PackagePublished(uint32 nonce, bytes payload, uint8 consistencyLevel);
 contract ExportedMessages is Messages, Setters {
@@ -40,7 +50,7 @@ contract ExportedMessages is Messages, Setters {
     }
 }
 
-contract TestCatalyst is DeployCompact {
+contract TestCatalyst is Test {
     CatalystCompactSettler catalystCompactSettler;
     CoinFiller coinFiller;
 
@@ -59,30 +69,63 @@ contract TestCatalyst is DeployCompact {
     MockERC20 token;
     MockERC20 anotherToken;
 
-    function orderHash(
-        GaslessCrossChainOrder memory order,
-        CatalystOrderData memory orderData
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                CatalystOrderType.CATALYST_WITNESS_TYPE_HASH,
-                order.fillDeadline,
-                orderData.localOracle,
-                orderData.collateralToken,
-                orderData.collateralAmount,
-                orderData.proofDeadline,
-                orderData.challengeDeadline,
-                CatalystOrderType.hashOutputs(orderData.outputs)
+    TheCompact public theCompact;
+    address alwaysOKAllocator;
+    bytes32 DOMAIN_SEPARATOR;
+
+    function test() external pure { }
+
+    function getCompactBatchWitnessSignature(
+        uint256 privateKey,
+        bytes32 typeHash,
+        address arbiter,
+        address sponsor,
+        uint256 nonce,
+        uint256 expires,
+        uint256[2][] memory idsAndAmounts,
+        bytes32 witness
+    ) internal view returns (bytes memory sig) {
+
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                keccak256(
+                    abi.encode(
+                        typeHash,
+                        arbiter,
+                        sponsor,
+                        nonce,
+                        expires,
+                        keccak256(abi.encodePacked(idsAndAmounts)),
+                        witness
+                    )
+                )
             )
         );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
+        return bytes.concat(r, s, bytes1(v));
+    }
+
+    function orderHash(
+        CatalystCompactFilledOrder calldata order
+    ) external pure returns (bytes32) {
+        return TheCompactOrderType.orderHash(order);
     }
 
     function encodeMessage(bytes32 remoteIdentifier, bytes[] calldata payloads) external pure returns (bytes memory) {
         return MessageEncodingLib.encodeMessage(remoteIdentifier, payloads);
     }
 
-    function setUp() public override virtual {
-        super.setUp();
+    function setUp() public virtual {
+        theCompact = new TheCompact();
+
+        alwaysOKAllocator = address(new AlwaysOKAllocator());
+
+        theCompact.__registerAllocator(alwaysOKAllocator, "");
+
+        DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
         catalystCompactSettler = new CatalystCompactSettler(address(theCompact));
         coinFiller = new CoinFiller();
@@ -144,7 +187,11 @@ contract TestCatalyst is DeployCompact {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystOrderData memory orderData = CatalystOrderData({
+        CatalystCompactFilledOrder memory order = CatalystCompactFilledOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
             localOracle: alwaysYesOracle,
             collateralToken: address(0),
             collateralAmount: uint256(0),
@@ -153,19 +200,9 @@ contract TestCatalyst is DeployCompact {
             inputs: inputs,
             outputs: outputs
         });
-        GaslessCrossChainOrder memory order = GaslessCrossChainOrder({
-            originSettler: address(catalystCompactSettler),
-            user: address(swapper),
-            nonce: 0,
-            originChainId: block.chainid,
-            openDeadline: type(uint32).max,
-            fillDeadline: type(uint32).max,
-            orderDataType: CatalystOrderType.CATALYST_WITNESS_TYPE_HASH,
-            orderData: abi.encode(orderData)
-        });
 
         // Make Compact
-        bytes32 typeHash = CatalystOrderType.BATCH_COMPACT_TYPE_HASH;
+        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
@@ -177,14 +214,14 @@ contract TestCatalyst is DeployCompact {
             0,
             type(uint32).max,
             idsAndAmounts,
-            orderHash(order, orderData)
+            this.orderHash(order)
         );
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
         
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
-        uint40[] memory timestamps = new uint40[](1);
+        uint32[] memory timestamps = new uint32[](1);
 
         vm.prank(solver);
         catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
@@ -199,7 +236,7 @@ contract TestCatalyst is DeployCompact {
         );
     } 
 
-    function makeValidVM(uint16 emitterChainId, bytes32 emitterAddress, bytes memory message) internal view returns(bytes memory validVM) {
+    function makeValidVAA(uint16 emitterChainId, bytes32 emitterAddress, bytes memory message) internal view returns(bytes memory validVM) {
         bytes memory postvalidVM = abi.encodePacked(_buildPreMessage(emitterChainId, emitterAddress), message);
         bytes32 vmHash = keccak256(abi.encodePacked(keccak256(postvalidVM)));
         (uint8 v, bytes32 r,  bytes32 s) = vm.sign(testGuardianPrivateKey, vmHash);
@@ -232,8 +269,12 @@ contract TestCatalyst is DeployCompact {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystOrderData memory orderData = CatalystOrderData({
-            localOracle: localOracle,
+        CatalystCompactFilledOrder memory order = CatalystCompactFilledOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            localOracle: address(wormholeOracle),
             collateralToken: address(0),
             collateralAmount: uint256(0),
             proofDeadline: type(uint32).max,
@@ -241,19 +282,9 @@ contract TestCatalyst is DeployCompact {
             inputs: inputs,
             outputs: outputs
         });
-        GaslessCrossChainOrder memory order = GaslessCrossChainOrder({
-            originSettler: address(catalystCompactSettler),
-            user: address(swapper),
-            nonce: 0,
-            originChainId: block.chainid,
-            openDeadline: type(uint32).max,
-            fillDeadline: type(uint32).max,
-            orderDataType: CatalystOrderType.CATALYST_WITNESS_TYPE_HASH,
-            orderData: abi.encode(orderData)
-        });
 
         // Make Compact
-        bytes32 typeHash = CatalystOrderType.BATCH_COMPACT_TYPE_HASH;
+        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
@@ -265,7 +296,7 @@ contract TestCatalyst is DeployCompact {
             0,
             type(uint32).max,
             idsAndAmounts,
-            orderHash(order, orderData)
+            this.orderHash(order)
         );
         bytes memory allocatorSig = hex"";
 
@@ -279,25 +310,30 @@ contract TestCatalyst is DeployCompact {
         bytes32 orderId = catalystCompactSettler.orderIdentifier(order);
         orderIds[0] = orderId;
 
-        vm.startPrank(solver);
+        vm.prank(solver);
         coinFiller.fillThrow(orderIds, outputs, solverIdentifier);
+        vm.snapshotGasLastCall("fillThrow");
 
         bytes[] memory payloads = new bytes[](1);
-        payloads[0] = OutputEncodingLib.encodeOutputDescriptionIntoPayload(solverIdentifier, uint40(block.timestamp), orderId, outputs[0]);
+        payloads[0] = OutputEncodingLib.encodeOutputDescriptionIntoPayloadM(solverIdentifier, uint32(block.timestamp), orderId, outputs[0]);
 
         bytes memory expectedMessageEmitted = this.encodeMessage(remoteOracle, payloads);
 
         vm.expectEmit();
         emit PackagePublished(0, expectedMessageEmitted, 15);
         wormholeOracle.submit(address(coinFiller), payloads);
+        vm.snapshotGasLastCall("submit");
 
-        bytes memory vm = makeValidVM(uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted);
+        bytes memory vaa = makeValidVAA(uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted);
 
-        wormholeOracle.receiveMessage(vm);
+        wormholeOracle.receiveMessage(vaa);
+        vm.snapshotGasLastCall("receiveMessage");
 
-        uint40[] memory timestamps = new uint40[](1);
-        timestamps[0] = uint40(block.timestamp);
+        uint32[] memory timestamps = new uint32[](1);
+        timestamps[0] = uint32(block.timestamp);
         
+        vm.prank(solver);
         catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
+        vm.snapshotGasLastCall("finaliseSelf");
     }
 }

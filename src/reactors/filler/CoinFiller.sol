@@ -80,7 +80,7 @@ contract CoinFiller is SolverTimestampBaseFiller, IDestinationSettler {
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _filledOutput[orderId][outputHash] = FilledOutput({solver: proposedSolver, timestamp: uint40(block.timestamp)});
+        _filledOutput[orderId][outputHash] = FilledOutput({solver: proposedSolver, timestamp: uint32(block.timestamp)});
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
@@ -96,7 +96,7 @@ contract CoinFiller is SolverTimestampBaseFiller, IDestinationSettler {
         if (remoteCallLength > 0) _call(output);
 
         emit OutputFilled(
-            orderId, proposedSolver, uint40(block.timestamp), output
+            orderId, proposedSolver, uint32(block.timestamp), output
         );
 
         return proposedSolver;

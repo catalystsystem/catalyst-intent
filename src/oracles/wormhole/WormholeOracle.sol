@@ -18,6 +18,8 @@ import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 
+import "forge-std/Console.sol";
+
 /**
  * @notice Wormhole Oracle. 
  * Implements a transparent oracle that allows both sending and receiving messages along with

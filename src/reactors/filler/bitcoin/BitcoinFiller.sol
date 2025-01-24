@@ -9,14 +9,15 @@ import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/lib
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { OutputDescription, CatalystOrderType } from "../../CatalystOrderType.sol";
+import { OutputDescription } from "../../CatalystOrderType.sol";
+import { CatalystCompactFilledOrder, TheCompactOrderType } from "../../TheCompactOrderType.sol";
+
 import { SolverTimestampBaseFiller } from "../SolverTimestampBaseFiller.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 import { BaseOracle } from "../../../oracles/BaseOracle.sol";
 import { IdentifierLib } from "../../../libs/IdentifierLib.sol";
 
 import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
-import { CatalystOrderData } from "../../../reactors/CatalystOrderType.sol";
 
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
@@ -278,13 +279,13 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
 
         bytes32 outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
             solver,
-            uint40(timestamp),
+            uint32(timestamp),
             orderId,
             output
         ));  
         _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
 
-        emit OutputFilled(orderId, solver, uint40(timestamp), output);
+        emit OutputFilled(orderId, solver, uint32(timestamp), output);
         emit OutputVerified(inclusionProof.txId);
     }
 
@@ -398,16 +399,15 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
     // This is because it is impossible to block dublicate deliveries on Bitcoin in the same way
     // that is possible with EVM. (Actually, not true. It is just much more expensive – any-spend anchors).
 
-    /** @dev This settler and oracle only works with the CatalystOrderType and not with other custom order types. */
-    function _orderIdentifier(GaslessCrossChainOrder calldata order) pure virtual internal returns(bytes32) {
-        return CatalystOrderType.orderIdentifier(order);
+    /** @dev This settler and oracle only works with the TheCompactOrderType and not with other custom order types. */
+    function _orderIdentifier(CatalystCompactFilledOrder calldata order) view virtual internal returns(bytes32) {
+        return TheCompactOrderType.orderIdentifier(order);
     }
     
-
     function claim(
         bytes32 solver,
         bytes32 orderId,
-        GaslessCrossChainOrder calldata order
+        CatalystCompactFilledOrder calldata order
     ) external {
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
@@ -417,15 +417,13 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         if (claimedOrder.solver != bytes32(0)) revert AlreadyClaimed(claimedOrder.solver);
         claimedOrder.solver = solver;
         // The above line acts as a local re-entry guard. External calls are now allowed.
-        
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
 
-        address collateralToken = orderData.collateralToken;
-        uint256 collateralAmount = orderData.collateralAmount;
+        address collateralToken = order.collateralToken;
+        uint256 collateralAmount = order.collateralAmount;
 
         // TODO: What to do about these deadlines.
-        uint32 proofDeadline = orderData.proofDeadline;
-        uint32 challengeDeadline = orderData.challengeDeadline;
+        uint32 proofDeadline = order.proofDeadline;
+        uint32 challengeDeadline = order.challengeDeadline;
 
         // Collect collateral from claimant.
         SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, address(this), collateralAmount);

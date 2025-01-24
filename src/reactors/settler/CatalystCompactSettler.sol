@@ -14,7 +14,8 @@ import {
     Open
 } from "../../interfaces/IERC7683.sol";
 
-import { CatalystOrderType, CatalystOrderData, OutputDescription } from "../../reactors/CatalystOrderType.sol";
+import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
+import { TheCompactOrderType, CatalystCompactFilledOrder } from "../TheCompactOrderType.sol";
 
 import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactClaims.sol";
 
@@ -40,6 +41,8 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
  */
 contract CatalystCompactSettler is BaseSettler {
     error NotImplemented();
+    error InvalidTimestampLength();
+    error NotOrderOwner();
     TheCompact public immutable COMPACT;
 
     constructor(address compact) {
@@ -51,12 +54,20 @@ contract CatalystCompactSettler is BaseSettler {
         version = "Compact1";
     }
 
-    function _orderIdentifier(OnchainCrossChainOrder calldata order) pure override internal returns(bytes32) {
-        revert NotImplemented();
+    function _orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) view override internal returns(bytes32) {
+        return TheCompactOrderType.orderIdentifier(order, user, nonce);
     }
 
-    function _orderIdentifier(GaslessCrossChainOrder calldata order) pure override internal returns(bytes32) {
-        return CatalystOrderType.orderIdentifier(order);
+    function _orderIdentifier(GaslessCrossChainOrder calldata order) view override internal returns(bytes32) {
+        return TheCompactOrderType.orderIdentifier(order);
+    }
+
+    function _orderIdentifier(CatalystCompactFilledOrder calldata order) view internal returns(bytes32) {
+        return TheCompactOrderType.orderIdentifier(order);
+    }
+
+    function orderIdentifier(CatalystCompactFilledOrder calldata order) view external returns(bytes32) {
+        return _orderIdentifier(order);
     }
     
     //--- Output Proofs ---//
@@ -64,11 +75,11 @@ contract CatalystCompactSettler is BaseSettler {
     function _proofPayloadHash(
         bytes32 orderId,
         bytes32 solver,
-        uint40 timestamp,
-        OutputDescription memory outputDescription
+        uint32 timestamp,
+        OutputDescription calldata outputDescription
     ) pure internal returns (bytes32 outputHash) {
         // TODO: Ensure that there is a fallback if someone else filled one of the outputs.
-        return outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
+        return keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
             solver,
             timestamp,
             orderId,
@@ -78,21 +89,26 @@ contract CatalystCompactSettler is BaseSettler {
 
     /**
      * @notice Check if a series of outputs has been proven.
-     * @dev Function overload for outputFilled to allow proving multiple outputs in a single call.
-     * Notice that the solver of the first provided output is reported as the entire intent solver.
+     * @dev Notice that the solver of the first provided output is reported as the entire intent solver.
      */
-    function _outputsFilled(address localOracle, bytes32 orderId, address solver, uint40[] calldata timestamps, OutputDescription[] memory outputDescriptions) internal view {
-        bytes memory proofSeries;
-        
+    function _outputsFilled(address localOracle, bytes32 orderId, address solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;
+        uint256 numTimestamps = timestamps.length;
+        if (numTimestamps != numOutputs) revert InvalidTimestampLength();
+
+        bytes memory proofSeries = new bytes(32 * 3 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
-            OutputDescription memory output = outputDescriptions[i];
-            proofSeries = abi.encodePacked(
-                proofSeries,
-                output.chainId,
-                output.remoteOracle,
-                _proofPayloadHash(orderId, bytes32(uint256(uint160(solver))), timestamps[i], output)
-            );
+            OutputDescription calldata output = outputDescriptions[i];
+            uint256 chainId = output.chainId; 
+            bytes32 remoteOracle = output.remoteOracle;
+            bytes32 payloadHash = _proofPayloadHash(orderId, bytes32(uint256(uint160(solver))), timestamps[i], output);
+
+            assembly ("memory-safe") {
+                let offset := add(add(proofSeries, 0x20), mul(i, 0x60))
+                mstore(offset, chainId)
+                mstore(add(offset, 0x20), remoteOracle)
+                mstore(add(offset, 0x40), payloadHash)
+            }
         }
         IOracle(localOracle).efficientRequireProven(proofSeries);
     }
@@ -110,7 +126,6 @@ contract CatalystCompactSettler is BaseSettler {
     }
 
     function _open(address user, uint256 nonce, uint256 fillDeadline, CatalystOrderData memory orderData) internal {
-
         uint256[2][] memory idsAndAmounts = orderData.inputs;
         uint256 numInputs = idsAndAmounts.length;
         // We need to collect the tokens from msg.sender.
@@ -119,84 +134,76 @@ contract CatalystCompactSettler is BaseSettler {
             uint256[2] memory idAndAmount = idsAndAmounts[i];
             address token = EfficiencyLib.asSanitizedAddress(idAndAmount[0]);
             uint256 amount = idAndAmount[1];
-            SafeTransferLib.safeApproveWithRetry(token, address(COMPACT), amount);
             SafeTransferLib.safeTransferFrom(token, msg.sender, address(this), amount);
+            SafeTransferLib.safeApproveWithRetry(token, address(COMPACT), amount);
         }
 
-        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, CatalystOrderType.BATCH_COMPACT_TYPE_HASH, CatalystOrderType.orderHash(fillDeadline, orderData));
+        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.orderHash(fillDeadline, orderData));
 
     }
 
     function open(
         OnchainCrossChainOrder calldata order
     ) external {
+        _validateOrder(order);
         // fillDeadline is validated by theCompact
         (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
 
         // We need a nonce that doesn't overlap with an existing nonce. Using the blockhash is the best way to estimate a random nonce.
         uint256 randomNonce = uint256(blockhash(block.number));
         _open(msg.sender, randomNonce, order.fillDeadline, orderData);
-        
-        // TODO: update
+
+        bytes32 orderId = _orderIdentifier(order, msg.sender, randomNonce);
         emit Open(orderId);
     }
 
     function openFor(GaslessCrossChainOrder calldata order, bytes calldata /* signature */, bytes calldata /* originFllerData */) external {
         _validateOrder(order);
-        bytes32 orderId = _orderIdentifier(order);
 
         (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
         _open(order.user, order.nonce, order.fillDeadline, orderData);
 
-        // TODO: update
+        bytes32 orderId = _orderIdentifier(order);
         emit Open(orderId);
     }
 
-    function finaliseSelf(GaslessCrossChainOrder calldata order, bytes calldata signatures, uint40[] calldata timestamps, address solver) external {
-        _validateOrder(order);
+    // --- Finalise Orders --- //
+
+    function finaliseSelf(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address solver) external {
         bytes32 orderId = _orderIdentifier(order);
         
         address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
-        require(orderOwner == msg.sender);
+        if (orderOwner != msg.sender) revert NotOrderOwner();
 
-        // Decode the order data.
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-
-        // TODO: validate length of timestamps.
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _outputsFilled(orderData.localOracle, orderId, solver, timestamps, orderData.outputs);
+        _outputsFilled(order.localOracle, orderId, solver, timestamps, order.outputs);
 
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
         // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(
-            order, orderData, sponsorSignature, allocatorSignature, orderOwner
+            order, sponsorSignature, allocatorSignature, orderOwner
         );
 
         emit Open(orderId);
     }
 
-    function finaliseTo(GaslessCrossChainOrder calldata order, bytes calldata signatures, uint40[] calldata timestamps, address solver, address destination, bytes calldata call) external {
-        _validateOrder(order);
+    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address solver, address destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
         
         address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
-        require(orderOwner == msg.sender);
+        if (orderOwner != msg.sender) revert NotOrderOwner();
 
-        // Decode the order data.
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-
-        // TODO: validate length of timestamps.
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _outputsFilled(orderData.localOracle, orderId, solver, timestamps, orderData.outputs);
+        _outputsFilled(order.localOracle, orderId, solver, timestamps, order.outputs);
 
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
         // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(
-            order, orderData, sponsorSignature, allocatorSignature, destination
+            order, sponsorSignature, allocatorSignature, destination
         );
 
         if (call.length > 0) destination.call(call);
@@ -206,44 +213,28 @@ contract CatalystCompactSettler is BaseSettler {
 
     
     /**
-     * @notice Finalises a cross-chain order
+     * @notice Finalises a cross-chain order on behalf of someone else
      * @dev This function serves to finalise intents on the origin chain. It has been assumed that assets have been locked
      * inside The Compact and will be available to collect.
      * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of the fills.
-     * These are expected to have been provided as abi.encoded through originFllerData.
-     * Notice, originFllerData can be encoded in 1 of 4 ways:
-     * abi.encode(address(solver), uint40[](timestamps))
-     *      if the caller is the solver.
-     * abi.encode(address(solver), uint40[](timestamps), address(newDestination))
-     *      if the caller is the solver and the assets should be delivered to another contract 
-     * abi.encode(address(solver), uint40[](timestamps), address(newDestination), bytes(call))
-     *      if the caller is the solver and the assets should be delivered to another contract and a call should be made to newDestination
-     * abi.encode(address(solver), uint40[](timestamps), address(newDestination), bytes(call), bytes(orderOwnerSignature))
-     *      if the caller isn't the solver (if they are, orderOwnerSignature will be ignored). Assets will be delivered to newDestination
-     *      and if call.length > 0, a call to newDestination will be made.
      * @param order GaslessCrossChainOrder signed in conjunction with a Compact to form an order. 
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature), bytes(allocatorSignature))
      */
-    function finaliseFor(GaslessCrossChainOrder calldata order, bytes calldata signatures, uint40[] calldata timestamps, address solver, address destination, bytes calldata call, bytes calldata orderOwnerSignature) external {
-        _validateOrder(order);
+    function finaliseFor(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address solver, address destination, bytes calldata call, bytes calldata orderOwnerSignature) external {
         bytes32 orderId = _orderIdentifier(order);
         
         address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
         _allowExternalClaimant(orderId, orderOwner, destination, call, orderOwnerSignature);
 
-        // Decode the order data.
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-
-        // TODO: validate length of timestamps.
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _outputsFilled(orderData.localOracle, orderId, solver, timestamps, orderData.outputs);
+        _outputsFilled(order.localOracle, orderId, solver, timestamps, order.outputs);
 
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
         // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(
-            order, orderData, sponsorSignature, allocatorSignature, destination
+            order, sponsorSignature, allocatorSignature, destination
         );
 
         if (call.length > 0) destination.call(call);
@@ -253,12 +244,12 @@ contract CatalystCompactSettler is BaseSettler {
 
     //--- The Compact & Resource Locks ---//
 
-    function _resolveLock(GaslessCrossChainOrder calldata order, CatalystOrderData memory orderData, bytes calldata sponsorSignature, bytes calldata allocatorSignature, address solvedBy) internal virtual {
-        uint256 numInputs = orderData.inputs.length;
+    function _resolveLock(CatalystCompactFilledOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorSignature, address solvedBy) internal virtual {
+        uint256 numInputs = order.inputs.length;
         BatchClaimComponent[] memory claims = new BatchClaimComponent[](numInputs);
-        uint256[2][] memory maxInputs = orderData.inputs;
+        uint256[2][] calldata maxInputs = order.inputs;
         for (uint256 i; i < numInputs; ++i) {
-            uint256[2] memory input = maxInputs[i];
+            uint256[2] calldata input = maxInputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
             claims[i] = BatchClaimComponent({
@@ -273,9 +264,9 @@ contract CatalystCompactSettler is BaseSettler {
             sponsorSignature: sponsorSignature,
             sponsor: order.user,
             nonce: order.nonce,
-            expires: order.openDeadline,
-            witness: CatalystOrderType.orderHash(order.fillDeadline, orderData),
-            witnessTypestring: string(CatalystOrderType.BATCH_SUB_TYPES),
+            expires: order.fillDeadline,
+            witness: TheCompactOrderType.orderHash(order),
+            witnessTypestring: string(TheCompactOrderType.BATCH_SUB_TYPES),
             claims: claims,
             claimant: solvedBy
         }));

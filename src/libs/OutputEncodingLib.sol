@@ -5,11 +5,12 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 
 /**
  * @notice Converts Catalyst OutputDescriptions to and from byte payloads.
- * @dev The library defines 2 payload structures, one for internal usage and one for cross-chain communication.
- * - OutputDescription is a description of a desired fill on a remote chain. This uses a compact and unique encoding scheme.
- * Its purpose is to prove a way to reconstruct payloads AND block dublicate fills.
- * - FillDescription is a description of what was filled on a remote chain. Its purpose is to provide a
- * source of truth.
+ * @dev The library defines 2 payload encodings, one for internal usage and one for cross-chain communication.
+ * - OutputDescription encoding describes a desired fill on a remote chain (encodes the fields of
+ * an OutputDescription struct). This encoding is used to obtain collision free hashes that
+ * uniquely identify OutputDescriptions.
+ * - FillDescription encoding is used to describe what was filled on a remote chain. Its purpose is
+ * to provide a source of truth.
  *
  * The structure of both are 
  *
@@ -21,7 +22,7 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  * Encoded FillDescription
  *      SOLVER                          0               (32 bytes)
  *      + ORDERID                       32              (32 bytes)
-        + TIMESTAMP                     64              (5 bytes)   //TODO why 5 bytes if timestamps generally use u32 (i.e. 4 bytes)?
+ *      + TIMESTAMP                     64              (5 bytes)   //TODO why 5 bytes if timestamps generally use u32 (i.e. 4 bytes)?
  *      + COMMON_PAYLOAD                69
  *
  * Common Payload. Is identical between both encoding scheme
@@ -39,12 +40,12 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 
 library OutputEncodingLib {
     error RemoteCallOutOfRange();
-    error fulfillmentContextCallOutOfRange();   //TODO initial letter case
+    error FulfillmentContextCallOutOfRange();
 
     // --- OutputDescription Encoding --- //
     
     /** 
-     * @notice Predictable encoding of outputDescription that deliberately overlaps with the payload encoding.
+     * @notice Predictable encoding of OutputDescription that deliberately overlaps with the payload encoding.
      * @dev This function uses length identifiers 2 bytes long. As a result, neither remoteCall nor fulfillmentContext
      * can be larger than 65535.
      */
@@ -55,7 +56,7 @@ library OutputEncodingLib {
         bytes memory fulfillmentContext = outputDescription.fulfillmentContext;
         // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
-        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert FulfillmentContextCallOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             outputDescription.remoteOracle,
@@ -114,7 +115,7 @@ library OutputEncodingLib {
     ) internal pure returns (bytes memory encodedOutput) {
         // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
-        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert FulfillmentContextCallOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             solver,

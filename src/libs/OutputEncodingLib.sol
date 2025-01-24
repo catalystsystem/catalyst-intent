@@ -6,9 +6,9 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 /**
  * @notice Converts Catalyst OutputDescriptions to and from byte payloads.
  * @dev The library defines 2 payload structures, one for internal usage and one for cross-chain communication.
- * - getOutputDescriptionHash is a hash of an outputDescription. This uses a compact and unique encoding scheme.
+ * - OutputDescription is a description of a desired fill on a remote chain. This uses a compact and unique encoding scheme.
  * Its purpose is to prove a way to reconstruct payloads AND block dublicate fills.
- * - payload is a description of what was filled on a remote chain. Its purpose is to provide a
+ * - FillDescription is a description of what was filled on a remote chain. Its purpose is to provide a
  * source of truth.
  *
  * The structure of both are 
@@ -21,9 +21,8 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  * Encoded FillDescription
  *      SOLVER                          0               (32 bytes)
  *      + ORDERID                       32              (32 bytes)
- *      + FILL_RECORD_LENGTH            64              (1 bytes)
- *      + FILL_RECORD                   65              (LENGTH bytes)
- *      + COMMON_PAYLOAD                65 + FR_LENGTH
+        + TIMESTAMP                     64              (5 bytes)   //TODO why 5 bytes if timestamps generally use u32 (i.e. 4 bytes)?
+ *      + COMMON_PAYLOAD                69
  *
  * Common Payload. Is identical between both encoding scheme
  *      + TOKEN                         Y               (32 bytes)
@@ -31,10 +30,10 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  *      + RECIPIENT                     Y+64            (32 bytes)
  *      + REMOTE_CALL_LENGTH            Y+96            (2 bytes)
  *      + REMOTE_CALL                   Y+98            (LENGTH bytes)
- *      + FULFILLMENT_CONTEXT_LENGTH    Y+98+RC_LENGTH  (2 bytes)       //TODO is this needed?
- *      + FULFILLMENT_CONTEXT           Y+100+RC_LENGTH (LENGTH bytes)  //TODO is this needed?
+ *      + FULFILLMENT_CONTEXT_LENGTH    Y+98+RC_LENGTH  (2 bytes)
+ *      + FULFILLMENT_CONTEXT           Y+100+RC_LENGTH (LENGTH bytes)
  *
- * where Y is the offset from the specific encoding (either 64 or 65 + FR_LENGTH)
+ * where Y is the offset from the specific encoding (either 64 or 69)
  *
  */
 
@@ -106,7 +105,7 @@ library OutputEncodingLib {
     function encodeFillDescription(
         bytes32 solver,
         bytes32 orderId,
-        bytes memory fillRecord,    //TODO can this be calldata?
+        uint40 timestamp,
         bytes32 token,
         uint256 amount,
         bytes32 recipient,
@@ -114,15 +113,13 @@ library OutputEncodingLib {
         bytes memory fulfillmentContext
     ) internal pure returns (bytes memory encodedOutput) {
         // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
-        if (fillRecord.length > type(uint8).max) revert fulfillmentContextCallOutOfRange();    //TODO use a custom error
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
         if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextCallOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             solver,
             orderId,
-            uint8(fillRecord.length),
-            fillRecord,
+            timestamp,
             token,
             amount,
             recipient,
@@ -142,14 +139,14 @@ library OutputEncodingLib {
     function encodeFillDescription(
         bytes32 solver,
         bytes32 orderId,
-        bytes memory fillRecord,
+        uint40 timestamp,
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
 
         return encodedOutput = encodeFillDescription(
             solver,
             orderId,
-            fillRecord,
+            timestamp,
             outputDescription.token,
             outputDescription.amount,
             outputDescription.recipient,
@@ -178,17 +175,19 @@ library OutputEncodingLib {
         }
     }
 
-    function decodeFillDescriptionFillRecord(
+    function decodeFillDescriptionTimestamp(
         bytes calldata payload
-    ) internal pure returns (bytes calldata fillRecord) {
-        uint8 fillRecordLength = uint8(payload[64]);
-        return payload[65:65 + fillRecordLength];
+    ) internal pure returns (uint40) {
+        bytes5 payloadTimestamp;
+        assembly ("memory-safe") {
+            payloadTimestamp := calldataload(add(payload.offset, 64))
+        }
+        return uint40(payloadTimestamp);
     }
 
     function decodeFillDescriptionCommonPayload(
         bytes calldata payload
     ) internal pure returns (bytes calldata remainingPayload) {
-        uint8 fillRecordLength = uint8(payload[64]);
-        return remainingPayload = payload[65 + fillRecordLength:];
+        return remainingPayload = payload[69:];
     }
 }

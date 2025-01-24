@@ -61,7 +61,7 @@ contract CatalystCompactSettler is BaseSettler {
         return outputHash = keccak256(OutputEncodingLib.encodeFillDescription(
             solver,
             orderId,
-            abi.encodePacked(uint40(timestamp)),
+            timestamp,
             outputDescription
         ));
     }

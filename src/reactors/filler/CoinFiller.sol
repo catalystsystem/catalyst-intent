@@ -54,23 +54,6 @@ contract CoinFiller is BaseFiller {
     function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) override internal returns (bytes32) {
 
         uint256 amount = _getAmount(output);
-        bytes memory fillRecord = abi.encodePacked(uint40(block.timestamp));   //TODO why uint40?
-        return _fill(orderId, output, amount, fillRecord, proposedSolver);
-    }
-
-    function getCompactFillRecord(bytes memory fillRecord) override internal pure returns (bytes32) {
-        assert(fillRecord.length == 5);
-
-        return bytes5(fillRecord);
-    }
-
-    function getCompactFillRecordCalldata(bytes calldata fillRecord) override internal pure returns (bytes32) {
-        bytes5 compactFillRecord;
-
-        assembly ("memory-safe") {
-            compactFillRecord := calldataload(fillRecord.offset)
-        }
-
-        return compactFillRecord;
+        return _fill(orderId, output, amount, proposedSolver);
     }
 }

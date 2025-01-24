@@ -27,12 +27,12 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
     struct FilledOutput {
         bytes32 solver;
-        bytes32 compactFillRecord;
+        uint40 timestamp;
     }
 
     mapping(bytes32 orderId => mapping(bytes32 outputHash => FilledOutput)) _filledOutputs;
 
-    event OutputFilled(bytes32 orderId, bytes32 solver, bytes fillRecord, OutputDescription output);
+    event OutputFilled(bytes32 orderId, bytes32 solver, OutputDescription output);
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
     bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this)))) << 8;
@@ -41,7 +41,6 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         bytes32 orderId,
         OutputDescription calldata output,
         uint256 outputAmount,
-        bytes memory fillRecord,
         bytes32 proposedSolver
     ) internal returns (bytes32) {
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
@@ -59,8 +58,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        bytes32 compactFillRecord = getCompactFillRecord(fillRecord);
-        _filledOutputs[orderId][outputHash] = FilledOutput({solver: proposedSolver, compactFillRecord: compactFillRecord});
+        _filledOutputs[orderId][outputHash] = FilledOutput({solver: proposedSolver, timestamp: uint40(block.timestamp)});
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
@@ -75,7 +73,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         if (remoteCallLength > 0) _call(output);
 
         emit OutputFilled(
-            orderId, proposedSolver, fillRecord, output
+            orderId, proposedSolver, output
         );
 
         return proposedSolver;
@@ -240,9 +238,6 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         if (ADDRESS_THIS != fillerIdentifier) revert WrongRemoteOracle(ADDRESS_THIS, fillerIdentifier);
     }
 
-    function getCompactFillRecord(bytes memory fillRecord) virtual internal view returns (bytes32);
-    function getCompactFillRecordCalldata(bytes calldata fillRecord) virtual internal view returns (bytes32);
-
     //TODO-NOTE renamed
     function _isPayloadValid(
         address oracle,
@@ -256,15 +251,14 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         FilledOutput storage filledOutput = _filledOutputs[orderId][outputHash];
 
         bytes32 filledSolver = filledOutput.solver;
-        bytes32 filledCompactRecord = filledOutput.compactFillRecord;  //TODO naming
+        uint40 filledTimestamp = filledOutput.timestamp;
         if (filledSolver == bytes32(0)) return false;
 
         bytes32 payloadSolver = OutputEncodingLib.decodeFillDescriptionSolver(payload);
-        bytes calldata payloadFillRecord = OutputEncodingLib.decodeFillDescriptionFillRecord(payload);
-        bytes32 payloadCompactFillRecord = getCompactFillRecordCalldata(payloadFillRecord);
+        uint40 payloadTimestamp = OutputEncodingLib.decodeFillDescriptionTimestamp(payload);
 
         if (filledSolver != payloadSolver) return false;
-        if (filledCompactRecord != payloadCompactFillRecord) return false;
+        if (filledTimestamp != payloadTimestamp) return false;
 
         return true;
     }

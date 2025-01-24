@@ -78,10 +78,10 @@ contract PolymerOracle is BaseOracle, Ownable {
     function _proofPayloadHash(
         bytes32 orderId,
         bytes32 solver,
-        uint40 timestamp,
+        bytes memory fillRecord,
         OutputDescription memory outputDescription
     ) pure internal returns (bytes32 outputHash) {
-        return outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(solver, timestamp, orderId, outputDescription));
+        return outputHash = keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, fillRecord, outputDescription));
     }
 
     function _processMessage(uint256 logIndex, bytes calldata proof) internal {
@@ -91,9 +91,9 @@ contract PolymerOracle is BaseOracle, Ownable {
         // Store payload attestations;
         bytes32 orderId = bytes32(topics[0]);
 
-        (bytes32 solver, uint40 timestamp, OutputDescription memory output) = abi.decode(unindexedData, (bytes32, uint40, OutputDescription));
+        (bytes32 solver, bytes memory fillRecord, OutputDescription memory output) = abi.decode(unindexedData, (bytes32, bytes, OutputDescription));
 
-        bytes32 payloadHash = _proofPayloadHash(orderId, solver, timestamp, output);
+        bytes32 payloadHash = _proofPayloadHash(orderId, solver, fillRecord, output);
 
         // Convert the Polymer ChainID into the canonical chainId.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[chainId];

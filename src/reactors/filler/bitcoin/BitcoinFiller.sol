@@ -34,14 +34,26 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
     error BadTokenFormat(); // 0x6a6ba82d
     error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
+    error NotClaimed();
     error AlreadyClaimed(bytes32 claimer);
+    error AlreadyDisputed(address disputer);
+    error NotDisputed();
+    error AmountTooLarge();
 
     event OutputVerified(
         bytes32 verificationContext
     );
 
+    // TODO: figure out a way to make the struct smaller. (Currently 4 slots.)
     struct ClaimedOrder {
         bytes32 solver;
+        address sponsor;
+        // Packed uint256, spread across 3 storage slots. Avoids using a fifth storage slot.
+        uint96 amount1; 
+        uint96 amount2;
+        address disputer;
+        uint64 amount3;
+        address token;
     }
 
     mapping(bytes32 orderId => ClaimedOrder) _claimedOrder;
@@ -56,14 +68,17 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
      * @notice Used light client. If the contract is not overwritten, it is expected to be BitcoinPrism.
      */
     address public immutable LIGHT_CLIENT;
+    address public immutable AUTO_DISPUTED_COLLATERAL;
 
     /** @notice Require that the challenger provides X times the collateral of the claimant. */
     uint256 public constant CHALLENGER_COLLATORAL_FACTOR = 2;
 
     constructor(
-        address _lightClient
+        address _lightClient,
+        address autoDisputedCollateralTo
     ) payable {
         LIGHT_CLIENT = _lightClient;
+        AUTO_DISPUTED_COLLATERAL = autoDisputedCollateralTo;
     }
 
     //--- Light Client Helpers ---//
@@ -259,7 +274,6 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
-        bytes32 solver,
         uint256 timestamp
     ) internal {
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
@@ -276,6 +290,9 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         // Check that the amount matches exactly. This is important since if the assertion
         // was looser it will be much harder to protect against "double spends".
         if (sats != output.amount) revert BadAmount();
+
+        // Get the solver of the order.
+        bytes32 solver = _resolveClaimed(_claimedOrder[orderId]);
 
         bytes32 outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
             solver,
@@ -303,8 +320,7 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         OutputDescription calldata output,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
-        uint256 txOutIx,
-        bytes32 solver
+        uint256 txOutIx
     ) internal {
 
         // Check the timestamp. This is done before inclusionProof is checked for validity
@@ -319,7 +335,6 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
             blockNum,
             inclusionProof,
             txOutIx,
-            solver,
             timestamp
         );
     }
@@ -337,8 +352,7 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
-        bytes calldata previousBlockHeader,
-        bytes32 solver
+        bytes calldata previousBlockHeader
     ) internal {
 
         // Get the timestamp of block before the one we validated.
@@ -350,7 +364,6 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
             blockNum,
             inclusionProof,
             txOutIx,
-            solver,
             timestamp
         );
     }
@@ -369,10 +382,9 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         OutputDescription calldata output,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
-        uint256 txOutIx,
-        bytes32 solver // TODO: insecure. Need a commitment scheme.
+        uint256 txOutIx
     ) external {
-        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx, solver);
+        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx);
     }
 
     /**
@@ -388,10 +400,9 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
         uint256 txOutIx,
-        bytes calldata previousBlockHeader,
-        bytes32 solver // TODO: insecure. Need a commitment scheme.
+        bytes calldata previousBlockHeader
     ) external {
-        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx, previousBlockHeader, solver);
+        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx, previousBlockHeader);
     }
 
     // --- Optimistic Resolution AND Order-Preclaiming --- //
@@ -402,6 +413,53 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
     /** @dev This settler and oracle only works with the TheCompactOrderType and not with other custom order types. */
     function _orderIdentifier(CatalystCompactFilledOrder calldata order) view virtual internal returns(bytes32) {
         return TheCompactOrderType.orderIdentifier(order);
+    }
+
+    // --- Pre-claiming of outputs --- //
+
+    /** @notice Packs a uint192 amount into 3 uint fragments */
+    function _packAmount(uint256 amount) internal pure returns (uint96 amount1, uint96 amount2, uint64 amount3) {
+        if (amount > type(uint192).max) revert AmountTooLarge();
+        amount1 = uint96(amount);
+        amount2 = uint96(amount >> 96);
+        amount3 = uint64(amount >> (96+64));
+    }
+
+    /** @notice Unpacks 3 uint fragments into a uint192. */
+    function _unpackAmount(uint96 amount1, uint96 amount2, uint64 amount3) internal pure returns (uint256 amount) {
+        amount = (amount3 << (96+64)) + (amount2 << 96) + amount1;
+    }
+
+    /**
+     * @notice Returns the solver assocaited with the claim.
+     * @dev Allows reentry calls. Does not honor the check effect pattern globally. 
+     */
+    function _resolveClaimed(
+        ClaimedOrder storage claimedOrder
+    ) internal returns (bytes32 solver) {
+        solver = claimedOrder.solver;
+        if (solver == bytes32(0)) revert NotClaimed();
+
+        // Check if there are outstanding collateral associated with the
+        // registered claim.
+        address sponsor = claimedOrder.sponsor;
+        uint96 amount1 = claimedOrder.amount1;
+        if (sponsor != address(0)) {
+            uint96 amount2 = claimedOrder.amount2;
+            bool disputed = claimedOrder.disputer != address(0);
+            uint64 amount3 = claimedOrder.amount3;
+            address collateralToken = claimedOrder.token;
+            uint256 collateralAmount = _unpackAmount(amount1, amount2, amount3);
+            // Delete storage so no re-entry.
+            delete claimedOrder.sponsor;
+            delete claimedOrder.amount1;
+            delete claimedOrder.amount2;
+            delete claimedOrder.disputer;
+            delete claimedOrder.amount3;
+            delete claimedOrder.token;
+
+            SafeTransferLib.safeTransfer(collateralToken, sponsor, disputed ? collateralAmount * (CHALLENGER_COLLATORAL_FACTOR + 1) : collateralAmount);
+        }
     }
     
     function claim(
@@ -415,11 +473,18 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         // Check that this order hasn't been claimed before.
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
         if (claimedOrder.solver != bytes32(0)) revert AlreadyClaimed(claimedOrder.solver);
-        claimedOrder.solver = solver;
-        // The above line acts as a local re-entry guard. External calls are now allowed.
-
-        address collateralToken = order.collateralToken;
         uint256 collateralAmount = order.collateralAmount;
+        address collateralToken = order.collateralToken;
+        (uint96 amount1, uint96 amount2, uint64 amount3) = _packAmount(collateralAmount);
+
+        claimedOrder.solver = solver;
+        claimedOrder.sponsor = msg.sender;
+        claimedOrder.amount1 = amount1;
+        claimedOrder.amount2 = amount2;
+        claimedOrder.amount3 = amount3;
+        claimedOrder.token = collateralToken;
+        // The above lines acts as a local re-entry guard. External calls are now allowed.
+
 
         // TODO: What to do about these deadlines.
         uint32 proofDeadline = order.proofDeadline;
@@ -430,15 +495,92 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
     }
 
 
-    function dispute() external {
+    function dispute(
+        bytes32 orderId,
+        CatalystCompactFilledOrder calldata order
+    ) external {
+        bytes32 computedOrderId = _orderIdentifier(order);
+        if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
 
+        // Check that this order has been claimed but not disputed..
+        ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
+        if (claimedOrder.solver == bytes32(0)) revert NotClaimed();
+        if (claimedOrder.disputer != address(0)) revert AlreadyDisputed(claimedOrder.disputer);
+        claimedOrder.disputer = msg.sender;
+
+        address collateralToken = order.collateralToken;
+        uint256 collateralAmount = order.collateralAmount * CHALLENGER_COLLATORAL_FACTOR;
+        
+        // Collect collateral from disputer.
+        SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, address(this), collateralAmount);
     }
 
-    function optimisticallyVerify() external {
+    function optimisticallyVerify(
+        CatalystCompactFilledOrder calldata order
+    ) external {
+        // TODO: check deadlines
+        bytes32 orderId = _orderIdentifier(order);
 
+        ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
+        bytes32 solver = claimedOrder.solver;
+        address sponsor = claimedOrder.sponsor;
+        bool disputed = claimedOrder.disputer != address(0);
+        // Delete the dispute details.
+        delete claimedOrder.solver;
+        delete claimedOrder.sponsor;
+        delete claimedOrder.amount1;
+        delete claimedOrder.amount2;
+        delete claimedOrder.disputer;
+        delete claimedOrder.amount3;
+        delete claimedOrder.token;
+
+        uint32 challengeDeadline = order.challengeDeadline;
+
+        // Go through each output and the ones that corrospond to this contract, set them.
+        uint256 numOutputs = order.outputs.length;
+        for (uint256 i; i < numOutputs; ++i) {
+            OutputDescription calldata output = order.outputs[i];
+            // Is this us?
+            // Check if we are the sole oracle OR we are the in the rightmost 16 bytes.
+            bool isUs = output.remoteOracle == bytes32(uint256(uint160(address(this))))
+                || (
+                    bytes16(output.remoteOracle) == bytes16(bytes32((IdentifierLib.countLeadingZeros(uint160(address(this))) << 248) + (uint256(uint160(address(this))) << 136) >> 8))
+                );
+            if (!isUs) continue;
+            bytes32 outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
+                solver,
+                uint32(challengeDeadline),
+                orderId,
+                output
+            ));
+            _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
+        }
+
+        address collateralToken = order.collateralToken;
+        uint256 collateralAmount = disputed ? order.collateralAmount * (CHALLENGER_COLLATORAL_FACTOR + 1) : order.collateralAmount;
+        SafeTransferLib.safeTransfer(collateralToken, sponsor, collateralAmount);
     }
 
-    function finaliseDispute() external {
+    function finaliseDispute(
+        CatalystCompactFilledOrder calldata order
+    ) external {
+        // TODO: check deadlines
+        bytes32 orderId = _orderIdentifier(order);
 
+        ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
+        address disputer = claimedOrder.disputer;
+        if (disputer == address(0)) revert NotDisputed();
+        // Delete the dispute details.
+        delete claimedOrder.solver;
+        delete claimedOrder.sponsor;
+        delete claimedOrder.amount1;
+        delete claimedOrder.amount2;
+        delete claimedOrder.disputer;
+        delete claimedOrder.amount3;
+        delete claimedOrder.token;
+
+        address collateralToken = order.collateralToken;
+        uint256 collateralAmount = order.collateralAmount * (CHALLENGER_COLLATORAL_FACTOR + 1);
+        SafeTransferLib.safeTransfer(collateralToken, disputer, collateralAmount);
     }
 }

@@ -49,7 +49,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         _IAmRemoteOracle(output.remoteOracle);
         
         // Get hash of output.
-        bytes32 outputHash = OutputEncodingLib.outputHash(output);
+        bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(output);
 
         // Get the proof state of the fulfillment.
         bytes32 existingSolver = _filledOutputs[orderId][outputHash].solver;
@@ -250,17 +250,17 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
     ) view public returns (bool) {
         bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
-        bytes32 outputHash = OutputEncodingLib.payloadToOutputHash(remoteOracleIdentifier, chainId, OutputEncodingLib.selectRemainingPayload(payload));
+        bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(remoteOracleIdentifier, chainId, OutputEncodingLib.decodeFillDescriptionCommonPayload(payload));
 
-        bytes32 orderId = OutputEncodingLib.decodePayloadOrderId(payload);
+        bytes32 orderId = OutputEncodingLib.decodeFillDescriptionOrderId(payload);
         FilledOutput storage filledOutput = _filledOutputs[orderId][outputHash];
 
         bytes32 filledSolver = filledOutput.solver;
         bytes32 filledCompactRecord = filledOutput.compactFillRecord;  //TODO naming
         if (filledSolver == bytes32(0)) return false;
 
-        bytes32 payloadSolver = OutputEncodingLib.decodePayloadSolver(payload);
-        bytes calldata payloadFillRecord = OutputEncodingLib.decodePayloadFillRecord(payload);
+        bytes32 payloadSolver = OutputEncodingLib.decodeFillDescriptionSolver(payload);
+        bytes calldata payloadFillRecord = OutputEncodingLib.decodeFillDescriptionFillRecord(payload);
         bytes32 payloadCompactFillRecord = getCompactFillRecordCalldata(payloadFillRecord);
 
         if (filledSolver != payloadSolver) return false;

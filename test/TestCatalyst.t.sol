@@ -291,7 +291,7 @@ contract TestCatalyst is DeployCompact {
         coinFiller.fillThrow(orderIds, outputs, solverIdentifier);
 
         bytes[] memory payloads = new bytes[](1);
-        payloads[0] = OutputEncodingLib.encodeOutputDescriptionIntoPayload(solverIdentifier, orderId, abi.encodePacked(uint40(block.timestamp)), outputs[0]); //TODO why is block.timestamp uint40?
+        payloads[0] = OutputEncodingLib.encodeFillDescription(solverIdentifier, orderId, abi.encodePacked(uint40(block.timestamp)), outputs[0]); //TODO why is block.timestamp uint40?
 
         bytes memory expectedMessageEmitted = this.encodeMessage(remoteOracle, payloads);
 

@@ -6,23 +6,24 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 /**
  * @notice Converts Catalyst OutputDescriptions to and from byte payloads.
  * @dev The library defines 2 payload structures, one for internal usage and one for cross-chain communication.
- * - outputHash is a hash of an outputDescription. This uses a compact and unique encoding scheme.
+ * - getOutputDescriptionHash is a hash of an outputDescription. This uses a compact and unique encoding scheme.
  * Its purpose is to prove a way to reconstruct payloads AND block dublicate fills.
  * - payload is a description of what was filled on a remote chain. Its purpose is to provide a
  * source of truth.
  *
  * The structure of both are 
  *
- *  Output Hash (Used for fill management on remote EVM chains)
+ * Encoded OutputDescription
  *      REMOTE_ORACLE                   0               (32 bytes)
  *      + CHAIN_ID                      32              (32 bytes)
-
- *  //TODO this name is confusing (vs common/remaining payload)
- *  Payload (Used as a portable format that can prove what happened on the remote chain)
+ *      + COMMON_PAYLOAD                64
+ *
+ * Encoded FillDescription
  *      SOLVER                          0               (32 bytes)
  *      + ORDERID                       32              (32 bytes)
  *      + FILL_RECORD_LENGTH            64              (1 bytes)
  *      + FILL_RECORD                   65              (LENGTH bytes)
+ *      + COMMON_PAYLOAD                65 + FR_LENGTH
  *
  * Common Payload. Is identical between both encoding scheme
  *      + TOKEN                         Y               (32 bytes)
@@ -33,37 +34,22 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  *      + FULFILLMENT_CONTEXT_LENGTH    Y+98+RC_LENGTH  (2 bytes)       //TODO is this needed?
  *      + FULFILLMENT_CONTEXT           Y+100+RC_LENGTH (LENGTH bytes)  //TODO is this needed?
  *
- * where Y is the offset from the specific encoding (either 64 or 69)
+ * where Y is the offset from the specific encoding (either 64 or 65 + FR_LENGTH)
  *
  */
 
-//TODO this library does a mixture of different things, it is hard to understand. Can it be split up? (e.g. remove hashing/only encode 1 type of data)
 library OutputEncodingLib {
     error RemoteCallOutOfRange();
     error fulfillmentContextCallOutOfRange();   //TODO initial letter case
 
     // --- OutputDescription Encoding --- //
-
-    /** 
-     * @notice Creates a unique hash of an OutputDescription
-     * @dev This does provide a description of how an output was filled but just
-     * an exact unique identifier for an output description. This identifier is
-     * purely intended for the remote chain.
-     */
-    function outputHash(OutputDescription calldata output) pure internal returns(bytes32) {
-        return keccak256(encodeEntireOutput(output));
-    }
-
-    function outputHashMemory(OutputDescription memory output) pure internal returns(bytes32) {
-        return keccak256(encodeEntireOutput(output));
-    }
     
     /** 
      * @notice Predictable encoding of outputDescription that deliberately overlaps with the payload encoding.
      * @dev This function uses length identifiers 2 bytes long. As a result, neither remoteCall nor fulfillmentContext
      * can be larger than 65535.
      */
-    function encodeEntireOutput(
+    function encodeOutputDescription(
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
         bytes memory remoteCall = outputDescription.remoteCall;
@@ -85,29 +71,39 @@ library OutputEncodingLib {
         );
     }
 
+    /** 
+     * @notice Creates a unique hash of an OutputDescription
+     * @dev This does provide a description of how an output was filled but just
+     * an exact unique identifier for an output description. This identifier is
+     * purely intended for the remote chain.
+     */
+    function getOutputDescriptionHash(OutputDescription calldata output) pure internal returns(bytes32) {
+        return keccak256(encodeOutputDescription(output));
+    }
+
     /**
-     * @notice Converts a payload slice into an output hash. This is possible because both the
-     * output hash and payload have a shared chunk of data. It only have to be enhanced with
+     * @notice Converts a common payload slice into an output hash. This is possible because both the
+     * output hash and the common payload have a shared chunk of data. It only has to be enhanced with
      * remoteOracle and chain id and then hashed.
      */
-    function payloadToOutputHash(
+    function getOutputDescriptionHash(
         bytes32 remoteOracle,
         uint256 chainId,
-        bytes calldata remainingPayload
+        bytes calldata commonPayload
     ) pure internal returns (bytes32) {
         return keccak256(abi.encodePacked(
             remoteOracle,
             chainId,
-            remainingPayload
+            commonPayload
         ));
     }
 
-    // --- Payload Encoding --- //
+    // --- FillDescription Encoding --- //
 
     /**
-     * @notice Payload encoding.
+     * @notice FillDescription encoding.
      */
-    function encodeOutput(
+    function encodeFillDescription(
         bytes32 solver,
         bytes32 orderId,
         bytes memory fillRecord,    //TODO can this be calldata?
@@ -137,21 +133,20 @@ library OutputEncodingLib {
         );
     }
 
-    //TODO If this function is the same as `encodeOutput`, just with different parameters, use function overloading (i.e. give it the same name)
     /**
-     * @notice Encodes an output description into a payload.
-     * @dev A payload doesn't contain a description of the remote (remoteOracle or chainid)
-     * because these are attached to the package. Instead the payload contains a description of
+     * @notice Encodes an output description into a fill description.
+     * @dev A fill description doesn't contain a description of the remote (remoteOracle or chainid)
+     * because these are attached to the package. Instead the fill description describes
      * how the order was filled. These have to be collected externally.
      */
-    function encodeOutputDescriptionIntoPayload(
+    function encodeFillDescription(
         bytes32 solver,
         bytes32 orderId,
-        bytes memory fillRecord,    //TODO can this be calldata?
+        bytes memory fillRecord,
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
 
-        return encodedOutput = encodeOutput(
+        return encodedOutput = encodeFillDescription(
             solver,
             orderId,
             fillRecord,
@@ -163,9 +158,9 @@ library OutputEncodingLib {
         );
     }
 
-    // -- Payload Decoding Helpers -- //
+    // -- FillDescription Decoding Helpers -- //
 
-    function decodePayloadSolver(
+    function decodeFillDescriptionSolver(
         bytes calldata payload
     ) internal pure returns (bytes32 solver) {
         assembly ("memory-safe") {
@@ -174,7 +169,7 @@ library OutputEncodingLib {
         }
     }
 
-    function decodePayloadOrderId(
+    function decodeFillDescriptionOrderId(
         bytes calldata payload
     ) internal pure returns (bytes32 orderId) {
         assembly ("memory-safe") {
@@ -183,14 +178,14 @@ library OutputEncodingLib {
         }
     }
 
-    function decodePayloadFillRecord(
+    function decodeFillDescriptionFillRecord(
         bytes calldata payload
     ) internal pure returns (bytes calldata fillRecord) {
         uint8 fillRecordLength = uint8(payload[64]);
         return payload[65:65 + fillRecordLength];
     }
 
-    function selectRemainingPayload(
+    function decodeFillDescriptionCommonPayload(
         bytes calldata payload
     ) internal pure returns (bytes calldata remainingPayload) {
         uint8 fillRecordLength = uint8(payload[64]);

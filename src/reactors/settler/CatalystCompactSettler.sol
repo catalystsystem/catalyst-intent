@@ -66,13 +66,12 @@ contract CatalystCompactSettler is BaseSettler {
         ));
     }
 
-    //TODO use more descriptive function names: _outputsFilled => _validateFills
     /**
      * @notice Check if a series of outputs has been proven.
      * @dev Function overload for outputFilled to allow proving multiple outputs in a single call.
      * Notice that the solver of the first provided output is reported as the entire intent solver.
      */
-    function _outputsFilled(address localOracle, bytes32 orderId, address solver, uint40[] calldata timestamps, OutputDescription[] memory outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, address solver, uint40[] calldata timestamps, OutputDescription[] memory outputDescriptions) internal view {
         bytes memory proofSeries;
         //TODO this should depend on the order type/filler used
         uint256 numOutputs = outputDescriptions.length;
@@ -167,7 +166,7 @@ contract CatalystCompactSettler is BaseSettler {
         // TODO: validate length of timestamps.
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _outputsFilled(orderData.localOracle, orderId, solver, timestamps, orderData.outputs);
+        _validateFills(orderData.localOracle, orderId, solver, timestamps, orderData.outputs);
 
         bytes calldata sponsorSignature = BytesLib.toBytes(signature, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signature, 1);

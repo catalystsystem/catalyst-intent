@@ -59,6 +59,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         uint256 outputAmount,
         bytes32 proposedSolver
     ) internal returns (bytes32) {
+        //TODO what if proposedSolver is bytes32(0)? Should disallow?
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
         _validateChain(output.chainId);
         _IAmRemoteOracle(output.remoteOracle);
@@ -69,7 +70,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         // Get the proof state of the fulfillment.
         bytes32 existingSolver = _filledOutputs[orderId][outputHash].solver;
         // Early return if we have already seen proof.
-        // if (existingSolver == proposedSolver) return proposedSolver; //TODO-NOTE unnecessary line
+        if (existingSolver == proposedSolver) return proposedSolver; //TODO-NOTE unnecessary line
         if (existingSolver != bytes32(0)) return existingSolver;
 
         // The fill status is set before the transfer.
@@ -254,7 +255,6 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         if (ADDRESS_THIS != fillerIdentifier) revert WrongRemoteOracle(ADDRESS_THIS, fillerIdentifier);
     }
 
-    //TODO-NOTE renamed
     function _isPayloadValid(
         address oracle,
         bytes calldata payload

@@ -37,6 +37,22 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
     bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this)))) << 8;
 
+    /**
+     * @notice Verifies & Fills an order.
+     * If an order has already been filled given the output & fillDeadline, then this function
+     * doesn't "re"fill the order but returns early. Thus this function can also be used to verify
+     * that an order has been filled.
+     * @dev Does not automatically submit the order (send the proof).
+     * The implementation strategy (verify then fill) means that an order with repeat outputs
+     * (say 1 Ether to Alice & 1 Ether to Alice) can be filled by sending 1 Ether to Alice ONCE.
+     * !Don't make orders with repeat outputs. This is true for any oracles.!
+     * This function implements a protection against sending proofs from third-party oracles.
+     * Only proofs that have this as the correct chain and remoteOracleAddress can be sent
+     * to other oracles.
+     * @param orderId Identifier of order on origin chain.
+     * @param output Output to fill
+     * @param proposedSolver Identifier of solver on origin chain that will get inputs.
+     */
     function _fill(
         bytes32 orderId,
         OutputDescription calldata output,

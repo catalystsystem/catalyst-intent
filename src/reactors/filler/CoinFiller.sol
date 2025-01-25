@@ -24,7 +24,7 @@ contract CoinFiller is BaseFiller {
 
     function _getAmount(OutputDescription calldata output) internal view returns (uint256 amount) {
         uint256 fulfillmentLength = output.fulfillmentContext.length;
-        if (fulfillmentLength == 0) return amount;  //TODO what does this return? 0?
+        if (fulfillmentLength == 0) return output.amount;  //TODO should this error instead?
         bytes1 orderType = bytes1(output.fulfillmentContext);
         if (orderType == 0x00 && fulfillmentLength == 1) return output.amount;
         if (orderType == 0x01 && fulfillmentLength == 65) {

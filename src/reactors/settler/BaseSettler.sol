@@ -14,13 +14,12 @@ import {
     FillInstruction
 } from "../../interfaces/IERC7683.sol";
 
-import { CatalystOrderData, InputDescription, OutputDescription } from "../CatalystOrderType.sol";
+import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
 
 import {
     InvalidSettlementAddress,
     WrongChain,
-    InitiateDeadlinePassed,
-    CannotProveOrder
+    InitiateDeadlinePassed
 } from "../../interfaces/Errors.sol";
 
 import { OrderPurchaseType } from "./OrderPurchaseType.sol";
@@ -34,7 +33,8 @@ import { EIP712 } from "solady/utils/EIP712.sol";
  * @title Base Catalyst Order Intent Settler
  * @notice Defines common logic that can be reused by other settlers to support a varity
  * of asset management schemes.
- * @dev 
+ * @dev Implements the default CatalystOrderType and makes functions that are dedicated to that order type 
+ * available to implementing implementations.
  */
 abstract contract BaseSettler is EIP712 {
     error AlreadyPurchased();
@@ -49,7 +49,7 @@ abstract contract BaseSettler is EIP712 {
     uint256 constant DISCOUNT_DENOM = 10**18;
 
     struct Purchased {
-        uint40 lastOrderTimestamp;
+        uint32 lastOrderTimestamp;
         address purchaser;
     }
 
@@ -57,24 +57,24 @@ abstract contract BaseSettler is EIP712 {
 
     // --- Hashing Orders --- //
 
-    // TODO: Make a proper hashing function.
-    function _orderIdentifier(GaslessCrossChainOrder calldata order) pure internal returns(bytes32) {
-        return keccak256(abi.encode(order));
-    }
+    function _orderIdentifier(GaslessCrossChainOrder calldata order) view virtual internal returns(bytes32);
+    
+    function _orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) view virtual internal returns(bytes32);
 
-    function orderIdentifier(GaslessCrossChainOrder calldata order) pure external returns(bytes32) {
+    function orderIdentifier(GaslessCrossChainOrder calldata order) view external returns(bytes32) {
         return _orderIdentifier(order);
     }
 
-    function _orderIdentifier(OnchainCrossChainOrder calldata order) pure internal returns(bytes32) {
-        return keccak256(abi.encode(order));
-    }
-
-    function orderIdentifier(OnchainCrossChainOrder calldata order) pure external returns(bytes32) {
-        return _orderIdentifier(order);
+    function orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) view external returns(bytes32) {
+        return _orderIdentifier(order, user, nonce);
     }
 
     // --- Order Validation --- //
+
+    function _validateOrder(OnchainCrossChainOrder calldata order) internal view {
+        // Check if the open deadline has been passed
+        if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
+    }
 
     function _validateOrder(GaslessCrossChainOrder calldata order) internal view {
         // Check that we are the settler for this order:
@@ -82,29 +82,29 @@ abstract contract BaseSettler is EIP712 {
         // Check that this is the right originChain
         if (block.chainid != order.originChainId) revert WrongChain(block.chainid, order.originChainId);
         // Check if the open deadline has been passed
-        if (block.timestamp > order.openDeadline) revert InitiateDeadlinePassed();
+        if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
     }
 
     // --- Timestamp Helpers --- //
 
     /** @notice Finds the largest timestamp in an array */
-    function _maxTimestamp(uint40[] calldata timestamps) internal pure returns (uint256 timestamp) {
+    function _maxTimestamp(uint32[] calldata timestamps) internal pure returns (uint256 timestamp) {
         timestamp = timestamps[0]; 
 
         uint256 numTimestamps = timestamps.length;
         for (uint256 i = 1; i < numTimestamps; ++i) {
-            uint40 nextTimestamp = timestamps[i];
+            uint32 nextTimestamp = timestamps[i];
             if (timestamp < nextTimestamp) timestamp = nextTimestamp;
         }
     }
 
     /** @notice Finds the smallest timestamp in an array */
-    function _minTimestamp(uint40[] calldata timestamps) internal pure returns (uint40 timestamp) {
+    function _minTimestamp(uint32[] calldata timestamps) internal pure returns (uint32 timestamp) {
         timestamp = timestamps[0]; 
 
         uint256 numTimestamps = timestamps.length;
         for (uint256 i = 1; i < numTimestamps; ++i) {
-            uint40 nextTimestamp = timestamps[i];
+            uint32 nextTimestamp = timestamps[i];
             if (timestamp > nextTimestamp) timestamp = nextTimestamp;
         }
     }
@@ -119,14 +119,14 @@ abstract contract BaseSettler is EIP712 {
     function _purchaseGetOrderOwner(
         bytes32 orderId,
         address solver,
-        uint40[] calldata timestamps
+        uint32[] calldata timestamps
     ) internal view returns (address orderOwner) {
         // Check if the order has been purchased.
         Purchased storage purchaseDetails = purchasedOrders[bytes32(uint256(uint160(solver)))][orderId];
-        uint40 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
+        uint32 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
         address purchaser = purchaseDetails.purchaser;
 
-        if (lastOrderTimestamp > 0) {
+        if (purchaser != address(0)) {
             // Check if the order has been correctly purchased. We use the fill of the first timestamp
             // to gauge the result towards the purchaser
             uint256 orderTimestamp = _minTimestamp(timestamps);
@@ -159,7 +159,7 @@ abstract contract BaseSettler is EIP712 {
         address newDestination,
         bytes calldata call,
         uint48 discount,
-        uint40 timeToBuy,
+        uint32 timeToBuy,
         bytes calldata solverSignature
     ) external {
         if (purchaser == address(0)) revert InvalidPurchaser();
@@ -173,8 +173,8 @@ abstract contract BaseSettler is EIP712 {
 
         // Reentry protection. Ensure that you can't reenter this contract.
         unchecked {
-            // unchecked: uint40(block.timestamp) > timeToBuy => uint40(block.timestamp) - timeToBuy > 0.
-            purchased.lastOrderTimestamp = timeToBuy < uint40(block.timestamp) ? uint40(block.timestamp) - timeToBuy : 0;
+            // unchecked: uint32(block.timestamp) > timeToBuy => uint32(block.timestamp) - timeToBuy > 0.
+            purchased.lastOrderTimestamp = timeToBuy < uint32(block.timestamp) ? uint32(block.timestamp) - timeToBuy : 0;
             purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0) 
         }
         // We can now make external calls without allowing local reentries into this call.
@@ -195,12 +195,15 @@ abstract contract BaseSettler is EIP712 {
 
         // Pay the input tokens to the solver.
         CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
+        uint256[2][] memory inputs = orderData.inputs;
         uint256 numInputs = orderData.inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            InputDescription memory inputDescription = orderData.inputs[i];
-            uint256 amountAfterDiscount = inputDescription.amount * discount / DISCOUNT_DENOM;
+            uint256[2] memory input = inputs[i];
+            uint256 tokenId = input[0];
+            uint256 allocatedAmount = input[1];
+            uint256 amountAfterDiscount = allocatedAmount * discount / DISCOUNT_DENOM;
             SafeTransferLib.safeTransferFrom(
-                EfficiencyLib.asSanitizedAddress(inputDescription.tokenId),
+                EfficiencyLib.asSanitizedAddress(tokenId),
                 msg.sender,
                 newDestination,
                 amountAfterDiscount
@@ -243,15 +246,17 @@ abstract contract BaseSettler is EIP712 {
         // fillerOutputs are of the Output type and as a result, we can't just
         // load swapperInputs into fillerOutputs. As a result, we need to parse
         // the individual inputs and make a new struct.
-        InputDescription[] memory inputs = orderData.inputs;
+        uint256[2][] memory inputs = orderData.inputs;
         uint256 numInputs = inputs.length;
         minReceived = new Output[](numInputs);
         unchecked {
             for (uint256 i; i < numInputs; ++i) {
-                InputDescription memory input = inputs[i];
+                uint256[2] memory input = inputs[i];
+                uint256 tokenId = input[0];
+                uint256 allocatedAmount = input[1];
                 minReceived[i] = Output({
-                    token: bytes32(uint256(uint160(input.tokenId))),
-                    amount: input.amount,
+                    token: bytes32(tokenId),
+                    amount: allocatedAmount,
                     recipient: bytes32(uint256(uint160(filler))),
                     chainId: uint32(block.chainid)
                 });
@@ -301,7 +306,7 @@ abstract contract BaseSettler is EIP712 {
             originChainId: block.chainid,
             openDeadline: 0,
             fillDeadline: order.fillDeadline,
-            orderId: _orderIdentifier(order),
+            orderId: bytes32(0),
             maxSpent: maxSpent,
             minReceived: minReceived,
             fillInstructions: fillInstructions

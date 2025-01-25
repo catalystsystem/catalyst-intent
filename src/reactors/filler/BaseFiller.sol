@@ -27,7 +27,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
     struct FilledOutput {
         bytes32 solver;
-        uint40 timestamp;
+        uint32 timestamp;
     }
 
     mapping(bytes32 orderId => mapping(bytes32 outputHash => FilledOutput)) _filledOutputs;
@@ -75,7 +75,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _filledOutputs[orderId][outputHash] = FilledOutput({solver: proposedSolver, timestamp: uint40(block.timestamp)});
+        _filledOutputs[orderId][outputHash] = FilledOutput({solver: proposedSolver, timestamp: uint32(block.timestamp)});
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
@@ -267,11 +267,11 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         FilledOutput storage filledOutput = _filledOutputs[orderId][outputHash];
 
         bytes32 filledSolver = filledOutput.solver;
-        uint40 filledTimestamp = filledOutput.timestamp;
+        uint32 filledTimestamp = filledOutput.timestamp;
         if (filledSolver == bytes32(0)) return false;
 
         bytes32 payloadSolver = OutputEncodingLib.decodeFillDescriptionSolver(payload);
-        uint40 payloadTimestamp = OutputEncodingLib.decodeFillDescriptionTimestamp(payload);
+        uint32 payloadTimestamp = OutputEncodingLib.decodeFillDescriptionTimestamp(payload);
 
         if (filledSolver != payloadSolver) return false;
         if (filledTimestamp != payloadTimestamp) return false;

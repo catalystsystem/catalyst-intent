@@ -34,7 +34,7 @@ library MessageEncodingLib {
         // Set the number of outputs as first 2 bytes. This aids implementations which may not have easy access to data size.
         encodedPayload = bytes.concat(identifier, bytes2(uint16(numPayloads)));
         for (uint256 i; i < numPayloads; ++i) {
-            bytes memory payload = payloads[i];
+            bytes calldata payload = payloads[i];
             // Check if length of payload is within message constraints.
             uint256 payloadLength = payload.length;
             if (payloadLength > type(uint16).max) revert TooLargePayload(payloadLength);

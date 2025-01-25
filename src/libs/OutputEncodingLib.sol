@@ -22,8 +22,8 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  * Encoded FillDescription
  *      SOLVER                          0               (32 bytes)
  *      + ORDERID                       32              (32 bytes)
- *      + TIMESTAMP                     64              (5 bytes)   //TODO why 5 bytes if timestamps generally use u32 (i.e. 4 bytes)?
- *      + COMMON_PAYLOAD                69
+ *      + TIMESTAMP                     64              (4 bytes)
+ *      + COMMON_PAYLOAD                68
  *
  * Common Payload. Is identical between both encoding scheme
  *      + TOKEN                         Y               (32 bytes)
@@ -34,7 +34,7 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  *      + FULFILLMENT_CONTEXT_LENGTH    Y+98+RC_LENGTH  (2 bytes)
  *      + FULFILLMENT_CONTEXT           Y+100+RC_LENGTH (LENGTH bytes)
  *
- * where Y is the offset from the specific encoding (either 64 or 69)
+ * where Y is the offset from the specific encoding (either 64 or 68)
  *
  */
 
@@ -106,7 +106,7 @@ library OutputEncodingLib {
     function encodeFillDescription(
         bytes32 solver,
         bytes32 orderId,
-        uint40 timestamp,
+        uint32 timestamp,
         bytes32 token,
         uint256 amount,
         bytes32 recipient,
@@ -140,7 +140,26 @@ library OutputEncodingLib {
     function encodeFillDescription(
         bytes32 solver,
         bytes32 orderId,
-        uint40 timestamp,
+        uint32 timestamp,
+        OutputDescription calldata outputDescription
+    ) internal pure returns (bytes memory encodedOutput) {
+
+        return encodedOutput = encodeFillDescription(
+            solver,
+            orderId,
+            timestamp,
+            outputDescription.token,
+            outputDescription.amount,
+            outputDescription.recipient,
+            outputDescription.remoteCall,
+            outputDescription.fulfillmentContext
+        );
+    }
+
+    function encodeFillDescriptionM(
+        bytes32 solver,
+        bytes32 orderId,
+        uint32 timestamp,
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
 
@@ -171,24 +190,25 @@ library OutputEncodingLib {
         bytes calldata payload
     ) internal pure returns (bytes32 orderId) {
         assembly ("memory-safe") {
-            // orderId = bytes32(payload[37:69]);
+            // orderId = bytes32(payload[32:64]);
             orderId := calldataload(add(payload.offset, 32))
         }
     }
 
     function decodeFillDescriptionTimestamp(
         bytes calldata payload
-    ) internal pure returns (uint40) {
-        bytes5 payloadTimestamp;
+    ) internal pure returns (uint32) {
+        bytes4 payloadTimestamp;
         assembly ("memory-safe") {
+            // payloadTimestamp = bytes4(payload[64:68]);
             payloadTimestamp := calldataload(add(payload.offset, 64))
         }
-        return uint40(payloadTimestamp);
+        return uint32(payloadTimestamp);
     }
 
     function decodeFillDescriptionCommonPayload(
         bytes calldata payload
     ) internal pure returns (bytes calldata remainingPayload) {
-        return remainingPayload = payload[69:];
+        return remainingPayload = payload[68:];
     }
 }

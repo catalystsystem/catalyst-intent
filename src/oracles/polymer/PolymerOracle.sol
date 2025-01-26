@@ -81,7 +81,7 @@ contract PolymerOracle is BaseOracle, Ownable {
         uint32 timestamp,
         OutputDescription memory outputDescription
     ) pure internal returns (bytes32 outputHash) {
-        return outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayloadM(solver, timestamp, orderId, outputDescription));
+        return outputHash = keccak256(OutputEncodingLib.encodeFillDescriptionM(solver, orderId, timestamp, outputDescription));
     }
 
     function _processMessage(uint256 logIndex, bytes calldata proof) internal {

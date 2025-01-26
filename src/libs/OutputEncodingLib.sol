@@ -5,22 +5,25 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 
 /**
  * @notice Converts Catalyst OutputDescriptions to and from byte payloads.
- * @dev The library defines 2 payload structures, one for internal usage and one for cross-chain communication.
- * - outputHash is a hash of an outputDescription. This uses a compact and unique encoding scheme.
- * Its purpose is to prove a way to reconstruct payloads AND block dublicate fills.
- * - payload is a description of what was filled on a remote chain. Its purpose is to provide a
- * source of truth.
+ * @dev The library defines 2 payload encodings, one for internal usage and one for cross-chain communication.
+ * - OutputDescription encoding describes a desired fill on a remote chain (encodes the fields of
+ * an OutputDescription struct). This encoding is used to obtain collision free hashes that
+ * uniquely identify OutputDescriptions.
+ * - FillDescription encoding is used to describe what was filled on a remote chain. Its purpose is
+ * to provide a source of truth.
  *
  * The structure of both are 
  *
- *  Output Hash (Used for fill management on remote EVM chains)
+ * Encoded OutputDescription
  *      REMOTE_ORACLE                   0               (32 bytes)
  *      + CHAIN_ID                      32              (32 bytes)
+ *      + COMMON_PAYLOAD                64
  *
- *  Payload (Used as a portable format that can prove what happened on the remote chain)
+ * Encoded FillDescription
  *      SOLVER                          0               (32 bytes)
- *      + TIMESTAMP                     31              (4 bytes)
- *      + ORDERID                       36              (32 bytes)
+ *      + ORDERID                       32              (32 bytes)
+ *      + TIMESTAMP                     64              (4 bytes)
+ *      + COMMON_PAYLOAD                68
  *
  * Common Payload. Is identical between both encoding scheme
  *      + TOKEN                         Y               (32 bytes)
@@ -34,35 +37,26 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  * where Y is the offset from the specific encoding (either 64 or 68)
  *
  */
+
 library OutputEncodingLib {
     error RemoteCallOutOfRange();
-    error fulfillmentContextCallOutOfRange();
+    error FulfillmentContextCallOutOfRange();
 
     // --- OutputDescription Encoding --- //
-
-    /** 
-     * @notice Creates a unique hash of an OutputDescription
-     * @dev This does provide a description of how an output was filled but just
-     * an exact unique identifier for an output description. This identifier is
-     * purely intended for the remote chain.
-     */
-    function outputHash(OutputDescription calldata output) pure internal returns(bytes32) {
-        return keccak256(encodeEntireOutput(output));
-    }
     
     /** 
-     * @notice Predictable encoding of outputDescription that deliberately overlaps with the payload encoding.
+     * @notice Predictable encoding of OutputDescription that deliberately overlaps with the payload encoding.
      * @dev This function uses length identifiers 2 bytes long. As a result, neither remoteCall nor fulfillmentContext
      * can be larger than 65535.
      */
-    function encodeEntireOutput(
+    function encodeOutputDescription(
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
         bytes memory remoteCall = outputDescription.remoteCall;
         bytes memory fulfillmentContext = outputDescription.fulfillmentContext;
         // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
-        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert FulfillmentContextCallOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             outputDescription.remoteOracle,
@@ -77,32 +71,42 @@ library OutputEncodingLib {
         );
     }
 
+    /** 
+     * @notice Creates a unique hash of an OutputDescription
+     * @dev This does provide a description of how an output was filled but just
+     * an exact unique identifier for an output description. This identifier is
+     * purely intended for the remote chain.
+     */
+    function getOutputDescriptionHash(OutputDescription calldata output) pure internal returns(bytes32) {
+        return keccak256(encodeOutputDescription(output));
+    }
+
     /**
-     * @notice Converts a payload slice into an output hash. This is possible because both the
-     * output hash and payload have a shared chunk of data. It only have to be enhanced with
+     * @notice Converts a common payload slice into an output hash. This is possible because both the
+     * output hash and the common payload have a shared chunk of data. It only has to be enhanced with
      * remoteOracle and chain id and then hashed.
      */
-    function payloadToOutputHash(
+    function getOutputDescriptionHash(
         bytes32 remoteOracle,
         uint256 chainId,
-        bytes calldata remainingPayload
+        bytes calldata commonPayload
     ) pure internal returns (bytes32) {
         return keccak256(abi.encodePacked(
             remoteOracle,
             chainId,
-            remainingPayload
+            commonPayload
         ));
     }
 
-    // --- Payload Encoding --- //
+    // --- FillDescription Encoding --- //
 
     /**
-     * @notice Payload encoding.
+     * @notice FillDescription encoding.
      */
-    function encodeOutput(
+    function encodeFillDescription(
         bytes32 solver,
-        uint32 timestamp,
         bytes32 orderId,
+        uint32 timestamp,
         bytes32 token,
         uint256 amount,
         bytes32 recipient,
@@ -111,12 +115,12 @@ library OutputEncodingLib {
     ) internal pure returns (bytes memory encodedOutput) {
         // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
-        if (fulfillmentContext.length > type(uint16).max) revert fulfillmentContextCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert FulfillmentContextCallOutOfRange();
 
         return encodedOutput = abi.encodePacked(
             solver,
-            timestamp,
             orderId,
+            timestamp,
             token,
             amount,
             recipient,
@@ -128,21 +132,22 @@ library OutputEncodingLib {
     }
 
     /**
-     * @notice Encodes an output description into a payload.
-     * @dev A payload doesn't contain a description of the remote (remoteOracle or chainid)
-     * because these are attached to the package. Instead the payload contains a description of
+     * @notice Encodes an output description into a fill description.
+     * @dev A fill description doesn't contain a description of the remote (remoteOracle or chainid)
+     * because these are attached to the package. Instead the fill description describes
      * how the order was filled. These have to be collected externally.
      */
-    function encodeOutputDescriptionIntoPayload(
+    function encodeFillDescription(
         bytes32 solver,
-        uint32 timestamp,
         bytes32 orderId,
+        uint32 timestamp,
         OutputDescription calldata outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
-        return encodedOutput = encodeOutput(
+
+        return encodedOutput = encodeFillDescription(
             solver,
-            timestamp,
             orderId,
+            timestamp,
             outputDescription.token,
             outputDescription.amount,
             outputDescription.recipient,
@@ -151,16 +156,17 @@ library OutputEncodingLib {
         );
     }
 
-    function encodeOutputDescriptionIntoPayloadM(
+    function encodeFillDescriptionM(
         bytes32 solver,
-        uint32 timestamp,
         bytes32 orderId,
+        uint32 timestamp,
         OutputDescription memory outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
-        return encodedOutput = encodeOutput(
+
+        return encodedOutput = encodeFillDescription(
             solver,
-            timestamp,
             orderId,
+            timestamp,
             outputDescription.token,
             outputDescription.amount,
             outputDescription.recipient,
@@ -169,9 +175,9 @@ library OutputEncodingLib {
         );
     }
 
-    // -- Payload Decoding Helpers -- //
+    // -- FillDescription Decoding Helpers -- //
 
-    function decodePayloadSolver(
+    function decodeFillDescriptionSolver(
         bytes calldata payload
     ) internal pure returns (bytes32 solver) {
         assembly ("memory-safe") {
@@ -180,22 +186,27 @@ library OutputEncodingLib {
         }
     }
 
-    function decodePayloadTimestamp(
-        bytes calldata payload
-    ) internal pure returns (uint32 timestamp) {
-        return timestamp = uint32(bytes4(payload[32:36]));
-    }
-
-    function decodePayloadOrderId(
+    function decodeFillDescriptionOrderId(
         bytes calldata payload
     ) internal pure returns (bytes32 orderId) {
         assembly ("memory-safe") {
-            // orderId = bytes32(payload[36:68]);
-            orderId := calldataload(add(payload.offset, 36))
+            // orderId = bytes32(payload[32:64]);
+            orderId := calldataload(add(payload.offset, 32))
         }
     }
 
-    function selectRemainingPayload(
+    function decodeFillDescriptionTimestamp(
+        bytes calldata payload
+    ) internal pure returns (uint32) {
+        bytes4 payloadTimestamp;
+        assembly ("memory-safe") {
+            // payloadTimestamp = bytes4(payload[64:68]);
+            payloadTimestamp := calldataload(add(payload.offset, 64))
+        }
+        return uint32(payloadTimestamp);
+    }
+
+    function decodeFillDescriptionCommonPayload(
         bytes calldata payload
     ) internal pure returns (bytes calldata remainingPayload) {
         return remainingPayload = payload[68:];

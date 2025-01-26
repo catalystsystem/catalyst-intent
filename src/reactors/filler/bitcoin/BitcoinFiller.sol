@@ -12,7 +12,6 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { OutputDescription } from "../../CatalystOrderType.sol";
 import { CatalystCompactFilledOrder, TheCompactOrderType } from "../../TheCompactOrderType.sol";
 
-import { SolverTimestampBaseFiller } from "../SolverTimestampBaseFiller.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 import { BaseOracle } from "../../../oracles/BaseOracle.sol";
 import { IdentifierLib } from "../../../libs/IdentifierLib.sol";
@@ -28,7 +27,7 @@ import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
  *
  * This filler can work as both an oracle 
  */
-contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
+contract BitcoinFiller is BaseOracle {
     error BadAmount(); // 0x749b5939
     error BadDestinationIdentifier(); // 0x111fe358
     error BadTokenFormat(); // 0x6a6ba82d
@@ -197,7 +196,7 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
      * payload attestation. That allows settlers to easily check if outputs has been filled but also if payloads
      * have been verified (incase the settler is on another chain than the light client).
      */
-    function _isValidPayload(address oracle, bytes calldata payload) view override internal returns(bool) {
+    function _isPayloadValid(address oracle, bytes calldata payload) view internal returns(bool) {
         bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
         return _attestations[chainId][remoteOracleIdentifier][keccak256(payload)];
@@ -277,8 +276,8 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         uint256 timestamp
     ) internal {
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
-        _validateChain(output.chainId);
-        _IAmRemoteOracle(output.remoteOracle);
+        // _validateChain(output.chainId);          //TODO
+        // _IAmRemoteOracle(output.remoteOracle);   //TODO
 
         bytes32 token = output.token;
         bytes memory outputScript = _bitcoinScript(token, output.recipient);
@@ -294,15 +293,15 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
         // Get the solver of the order.
         bytes32 solver = _resolveClaimed(_claimedOrder[orderId]);
 
-        bytes32 outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
+        bytes32 outputHash = keccak256(OutputEncodingLib.encodeFillDescription(
             solver,
-            uint32(timestamp),
             orderId,
+            uint32(timestamp),
             output
         ));  
         _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
 
-        emit OutputFilled(orderId, solver, uint32(timestamp), output);
+        // emit OutputFilled(orderId, solver, uint32(timestamp), output);   //TODO
         emit OutputVerified(inclusionProof.txId);
     }
 
@@ -547,10 +546,10 @@ contract BitcoinFiller is SolverTimestampBaseFiller, BaseOracle {
                     bytes16(output.remoteOracle) == bytes16(bytes32((IdentifierLib.countLeadingZeros(uint160(address(this))) << 248) + (uint256(uint160(address(this))) << 136) >> 8))
                 );
             if (!isUs) continue;
-            bytes32 outputHash = keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
+            bytes32 outputHash = keccak256(OutputEncodingLib.encodeFillDescription(
                 solver,
-                uint32(challengeDeadline),
                 orderId,
+                uint32(challengeDeadline),
                 output
             ));
             _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;

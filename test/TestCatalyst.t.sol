@@ -315,7 +315,7 @@ contract TestCatalyst is Test {
         vm.snapshotGasLastCall("fillThrow");
 
         bytes[] memory payloads = new bytes[](1);
-        payloads[0] = OutputEncodingLib.encodeOutputDescriptionIntoPayloadM(solverIdentifier, uint32(block.timestamp), orderId, outputs[0]);
+        payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
 
         bytes memory expectedMessageEmitted = this.encodeMessage(remoteOracle, payloads);
 

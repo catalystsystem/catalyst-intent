@@ -79,10 +79,10 @@ contract CatalystCompactSettler is BaseSettler {
         OutputDescription calldata outputDescription
     ) pure internal returns (bytes32 outputHash) {
         // TODO: Ensure that there is a fallback if someone else filled one of the outputs.
-        return keccak256(OutputEncodingLib.encodeOutputDescriptionIntoPayload(
+        return keccak256(OutputEncodingLib.encodeFillDescription(
             solver,
-            timestamp,
             orderId,
+            timestamp,
             outputDescription
         ));
     }
@@ -91,7 +91,7 @@ contract CatalystCompactSettler is BaseSettler {
      * @notice Check if a series of outputs has been proven.
      * @dev Notice that the solver of the first provided output is reported as the entire intent solver.
      */
-    function _outputsFilled(address localOracle, bytes32 orderId, address solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, address solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {        
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
@@ -177,7 +177,7 @@ contract CatalystCompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _outputsFilled(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
@@ -197,7 +197,7 @@ contract CatalystCompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _outputsFilled(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
@@ -228,7 +228,7 @@ contract CatalystCompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _outputsFilled(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);

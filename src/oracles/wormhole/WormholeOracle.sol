@@ -18,8 +18,6 @@ import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 
-import "forge-std/Console.sol";
-
 /**
  * @notice Wormhole Oracle. 
  * Implements a transparent oracle that allows both sending and receiving messages along with
@@ -112,7 +110,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         bytes[] calldata payloads
     ) public payable returns (uint256 refund) {
         // Check if the payloads are valid.
-        if (!IPayloadCreator(proofSource).areValidPayloads(payloads)) revert NotAllPayloadsValid(); 
+        if (!IPayloadCreator(proofSource).arePayloadsValid(payloads)) revert NotAllPayloadsValid(); 
 
         // Payloads are good. We can submit them on behalf of proofSource.
         return _submit(proofSource, payloads);

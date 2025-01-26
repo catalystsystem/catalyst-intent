@@ -28,6 +28,9 @@ struct OutputDescription {
      */
     bytes remoteCall;
 
+    /**
+     * @dev Non-particular data that is used to encode non-generic behaviour for a filler.
+     */
     bytes fulfillmentContext;
 }
 
@@ -38,7 +41,7 @@ struct CatalystOrderData {
     uint256 collateralAmount;
     uint32 proofDeadline;
     uint32 challengeDeadline;
-    uint256[2][] inputs; // TODO: expose the difference between the signed order and the delivered one.
+    uint256[2][] inputs;
     OutputDescription[] outputs;
 }
 

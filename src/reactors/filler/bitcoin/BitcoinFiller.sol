@@ -70,7 +70,7 @@ contract BitcoinFiller is BaseOracle {
     address public immutable AUTO_DISPUTED_COLLATERAL;
 
     /** @notice Require that the challenger provides X times the collateral of the claimant. */
-    uint256 public constant CHALLENGER_COLLATORAL_FACTOR = 2;
+    uint256 public constant CHALLENGER_COLLATERAL_FACTOR = 2;
 
     constructor(
         address _lightClient,
@@ -406,7 +406,7 @@ contract BitcoinFiller is BaseOracle {
 
     // --- Optimistic Resolution AND Order-Preclaiming --- //
     // For Bitcoin, it is required that outputs are claimed before they are delivered.
-    // This is because it is impossible to block dublicate deliveries on Bitcoin in the same way
+    // This is because it is impossible to block duplicate deliveries on Bitcoin in the same way
     // that is possible with EVM. (Actually, not true. It is just much more expensive – any-spend anchors).
 
     /** @dev This settler and oracle only works with the TheCompactOrderType and not with other custom order types. */
@@ -430,7 +430,7 @@ contract BitcoinFiller is BaseOracle {
     }
 
     /**
-     * @notice Returns the solver assocaited with the claim.
+     * @notice Returns the solver associated with the claim.
      * @dev Allows reentry calls. Does not honor the check effect pattern globally. 
      */
     function _resolveClaimed(
@@ -457,7 +457,7 @@ contract BitcoinFiller is BaseOracle {
             delete claimedOrder.amount3;
             delete claimedOrder.token;
 
-            SafeTransferLib.safeTransfer(collateralToken, sponsor, disputed ? collateralAmount * (CHALLENGER_COLLATORAL_FACTOR + 1) : collateralAmount);
+            SafeTransferLib.safeTransfer(collateralToken, sponsor, disputed ? collateralAmount * (CHALLENGER_COLLATERAL_FACTOR + 1) : collateralAmount);
         }
     }
     
@@ -508,7 +508,7 @@ contract BitcoinFiller is BaseOracle {
         claimedOrder.disputer = msg.sender;
 
         address collateralToken = order.collateralToken;
-        uint256 collateralAmount = order.collateralAmount * CHALLENGER_COLLATORAL_FACTOR;
+        uint256 collateralAmount = order.collateralAmount * CHALLENGER_COLLATERAL_FACTOR;
         
         // Collect collateral from disputer.
         SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, address(this), collateralAmount);
@@ -535,7 +535,7 @@ contract BitcoinFiller is BaseOracle {
 
         uint32 challengeDeadline = order.challengeDeadline;
 
-        // Go through each output and the ones that corrospond to this contract, set them.
+        // Go through each output and the ones that correspond to this contract, set them.
         uint256 numOutputs = order.outputs.length;
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription calldata output = order.outputs[i];
@@ -556,7 +556,7 @@ contract BitcoinFiller is BaseOracle {
         }
 
         address collateralToken = order.collateralToken;
-        uint256 collateralAmount = disputed ? order.collateralAmount * (CHALLENGER_COLLATORAL_FACTOR + 1) : order.collateralAmount;
+        uint256 collateralAmount = disputed ? order.collateralAmount * (CHALLENGER_COLLATERAL_FACTOR + 1) : order.collateralAmount;
         SafeTransferLib.safeTransfer(collateralToken, sponsor, collateralAmount);
     }
 
@@ -579,7 +579,7 @@ contract BitcoinFiller is BaseOracle {
         delete claimedOrder.token;
 
         address collateralToken = order.collateralToken;
-        uint256 collateralAmount = order.collateralAmount * (CHALLENGER_COLLATORAL_FACTOR + 1);
+        uint256 collateralAmount = order.collateralAmount * (CHALLENGER_COLLATERAL_FACTOR + 1);
         SafeTransferLib.safeTransfer(collateralToken, disputer, collateralAmount);
     }
 }

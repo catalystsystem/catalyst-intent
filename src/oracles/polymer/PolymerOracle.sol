@@ -34,7 +34,7 @@ contract PolymerOracle is BaseOracle, Ownable {
     /** @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
      * @dev Can only be called once for every chain.
      * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
-     * @param chainId Most commen identifier for a chain. For EVM, it can often be accessed through block.chainid.
+     * @param chainId Most common identifier for a chain. For EVM, it can often be accessed through block.chainid.
      */
     function setChainMap(
         string calldata messagingProtocolChainIdentifier,

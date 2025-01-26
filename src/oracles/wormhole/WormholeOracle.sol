@@ -33,7 +33,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
     event MapMessagingProtocolIdentifierToChainId(uint16 messagingProtocolIdentifier, uint256 chainId);
 
     /**
-     * @notice Takes a chain identifer from Wormhole and translates it to "ordinary" chain ids.
+     * @notice Takes a chain identifier from Wormhole and translates it to "ordinary" chain ids.
      * @dev This allows us to translate incoming messages from messaging protocols to easy to
      * understand chain ids that match the most common and available identifier for chains. (their actual
      * identifier) rather than an arbitrary index which is what most messaging protocols use.
@@ -57,7 +57,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
     /** @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
      * @dev Can only be called once for every chain.
      * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
-     * @param chainId Most commen identifier for a chain. For EVM, it can often be accessed through block.chainid.
+     * @param chainId Most common identifier for a chain. For EVM, it can often be accessed through block.chainid.
      */
     function setChainMap(
         uint16 messagingProtocolChainIdentifier,
@@ -155,7 +155,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
     function receiveMessage(
         bytes calldata rawMessage
     ) external {
-        // Verify Packet and return message identifiers that Wormhole attatched.
+        // Verify Packet and return message identifiers that Wormhole attached.
         (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
         // Decode message.
         (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = MessageEncodingLib.decodeMessage(message);

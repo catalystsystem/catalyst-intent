@@ -31,7 +31,7 @@ import { EIP712 } from "solady/utils/EIP712.sol";
 
 /**
  * @title Base Catalyst Order Intent Settler
- * @notice Defines common logic that can be reused by other settlers to support a varity
+ * @notice Defines common logic that can be reused by other settlers to support a variety
  * of asset management schemes.
  * @dev Implements the default CatalystOrderType and makes functions that are dedicated to that order type 
  * available to implementing implementations.
@@ -145,7 +145,7 @@ abstract contract BaseSettler is EIP712 {
      * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
      * your funds may be at risk and that you purchase it within the allocated time.
      * To purchase an order, it is required that you can produce a proper signature
-     * from the solver that signes the purchase details.
+     * from the solver that signs the purchase details.
      * @param orderSolvedByIdentifier Solver of the order. Is not validated, need to be correct otherwise
      * the purchase will be wasted.
      * @param expiryTimestamp Set to ensure if your transaction isn't mine quickly, you don't end
@@ -224,7 +224,7 @@ abstract contract BaseSettler is EIP712 {
         uint256 numOutputs = orderData.outputs.length;
         maxSpent = new Output[](numOutputs);
         
-        // If the output list is sorted by chains, this list is unqiue and optimal.
+        // If the output list is sorted by chains, this list is unique and optimal.
         OutputDescription[] memory outputs = orderData.outputs;
         fillInstructions = new FillInstruction[](numOutputs);
         for (uint256 i = 0; i < numOutputs; ++i) {

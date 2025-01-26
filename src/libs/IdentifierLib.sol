@@ -53,11 +53,11 @@ library IdentifierLib {
 
     /**
      * @notice Compares 2 identifiers, to check if a true identifier is a subset of a larger
-     * self reported identifier thus making the larger self reported indentifier valid.
+     * self reported identifier thus making the larger self reported identifier valid.
      * @dev Notice that this function does not generate unique id entifiers like hashing would.
      * The identifier is only unique IFF both trueIdentifier and selfReportedIdentifier are 16 bytes.
      * @param trueIdentifier A non-disputable valid identifier of a mechanism.
-     * @param selfReportedIdentifier Identifier reported by trueIdentifier. May or may not be fradulent.
+     * @param selfReportedIdentifier Identifier reported by trueIdentifier. May or may not be fraudulent.
      */
     function enhanceIdentifier(bytes32 trueIdentifier, bytes32 selfReportedIdentifier) internal pure returns (bytes32) {
         if (trueIdentifier == selfReportedIdentifier) return selfReportedIdentifier;

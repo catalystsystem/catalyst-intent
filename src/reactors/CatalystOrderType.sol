@@ -23,7 +23,7 @@ struct OutputDescription {
      */
     bytes32 recipient;
     /**
-     * @dev Additonal data that will be used to execute a call on the remote chain.
+     * @dev Additional data that will be used to execute a call on the remote chain.
      * Is called on recipient.
      */
     bytes remoteCall;

@@ -78,13 +78,39 @@ contract CatalystCompactSettler is BaseSettler {
         uint32 timestamp,
         OutputDescription calldata outputDescription
     ) pure internal returns (bytes32 outputHash) {
-        // TODO: Ensure that there is a fallback if someone else filled one of the outputs.
         return keccak256(OutputEncodingLib.encodeFillDescription(
             solver,
             orderId,
             timestamp,
             outputDescription
         ));
+    }
+
+    /**
+     * @notice Check if a series of outputs has been proven.
+     * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
+     * if someone filled one of the outputs.
+     */
+    function _validateFills(address localOracle, bytes32 orderId, address[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {        
+        uint256 numOutputs = outputDescriptions.length;
+        uint256 numTimestamps = timestamps.length;
+        if (numTimestamps != numOutputs) revert InvalidTimestampLength();
+
+        bytes memory proofSeries = new bytes(32 * 3 * numOutputs);
+        for (uint256 i; i < numOutputs; ++i) {
+            OutputDescription calldata output = outputDescriptions[i];
+            uint256 chainId = output.chainId; 
+            bytes32 remoteOracle = output.remoteOracle;
+            bytes32 payloadHash = _proofPayloadHash(orderId, bytes32(uint256(uint160(solvers[i]))), timestamps[i], output);
+
+            assembly ("memory-safe") {
+                let offset := add(add(proofSeries, 0x20), mul(i, 0x60))
+                mstore(offset, chainId)
+                mstore(add(offset, 0x20), remoteOracle)
+                mstore(add(offset, 0x40), payloadHash)
+            }
+        }
+        IOracle(localOracle).efficientRequireProven(proofSeries);
     }
 
     /**
@@ -169,6 +195,17 @@ contract CatalystCompactSettler is BaseSettler {
 
     // --- Finalise Orders --- //
 
+    function _finalise(CatalystCompactFilledOrder calldata order, bytes calldata signatures, address destination, bytes32 orderId) internal {
+        bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
+        bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
+        // Payout inputs. (This also protects against re-entry calls.)
+        _resolveLock(
+            order, sponsorSignature, allocatorSignature, destination
+        );
+
+        emit Open(orderId);
+    }
+
     function finaliseSelf(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address solver) external {
         bytes32 orderId = _orderIdentifier(order);
         
@@ -179,14 +216,7 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
-        bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
-        bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
-        // Payout inputs. (This also protects against re-entry calls.)
-        _resolveLock(
-            order, sponsorSignature, allocatorSignature, orderOwner
-        );
-
-        emit Open(orderId);
+        _finalise(order, signatures, orderOwner, orderId);
     }
 
     function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address solver, address destination, bytes calldata call) external {
@@ -199,19 +229,11 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
-        bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
-        bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
-        // Payout inputs. (This also protects against re-entry calls.)
-        _resolveLock(
-            order, sponsorSignature, allocatorSignature, destination
-        );
+        _finalise(order, signatures, destination, orderId);
 
         if (call.length > 0) destination.call(call);
-
-        emit Open(orderId);
     }
 
-    
     /**
      * @notice Finalises a cross-chain order on behalf of someone else
      * @dev This function serves to finalise intents on the origin chain. It has been assumed that assets have been locked
@@ -230,16 +252,54 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
-        bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
-        bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
-        // Payout inputs. (This also protects against re-entry calls.)
-        _resolveLock(
-            order, sponsorSignature, allocatorSignature, destination
-        );
+        _finalise(order, signatures, destination, orderId);
 
         if (call.length > 0) destination.call(call);
+    }
 
-        emit Open(orderId);
+    // -- Fallback Finalise Functions -- //
+    // These functions are supposed to be used whenever someone else has filled 1 of the outputs of the order.
+    // It allows the proper solver to still resolve the outputs correctly.
+    // It does increase the gas cost :(
+    // In all cases, the solvers needs to be provided in order of the outputs in order.
+    // Important, this output generally matters in regards to the orderId. The solver of the first output is determined to be the "orderOwner".
+
+    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address[] calldata solvers, address destination, bytes calldata call) external {
+        bytes32 orderId = _orderIdentifier(order);
+        
+        address orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        if (orderOwner != msg.sender) revert NotOrderOwner();
+
+        // Check if the outputs have been proven according to the oracles.
+        // This call will revert if not.
+        _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
+
+        _finalise(order, signatures, destination, orderId);
+
+        if (call.length > 0) destination.call(call);
+    }
+
+    /**
+     * @notice Finalises a cross-chain order on behalf of someone else
+     * @dev This function serves to finalise intents on the origin chain. It has been assumed that assets have been locked
+     * inside The Compact and will be available to collect.
+     * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of the fills.
+     * @param order GaslessCrossChainOrder signed in conjunction with a Compact to form an order. 
+     * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature), bytes(allocatorSignature))
+     */
+    function finaliseFor(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address[] calldata solvers, address destination, bytes calldata call, bytes calldata orderOwnerSignature) external {
+        bytes32 orderId = _orderIdentifier(order);
+        
+        address orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        _allowExternalClaimant(orderId, orderOwner, destination, call, orderOwnerSignature);
+
+        // Check if the outputs have been proven according to the oracles.
+        // This call will revert if not.
+        _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
+
+        _finalise(order, signatures, destination, orderId);
+
+        if (call.length > 0) destination.call(call);
     }
 
     //--- The Compact & Resource Locks ---//

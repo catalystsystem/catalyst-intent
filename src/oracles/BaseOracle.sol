@@ -53,14 +53,14 @@ abstract contract BaseOracle is IOracle {
      * @dev Lengths of arrays aren't checked. Ensure they are sane before calling.
      * @param remoteChainIds Origin chain of the supposed data.
      * @param remoteOracles Identifier for the remote attestation.
-     * @param dataHashs Hash of data.
+     * @param dataHashes Hash of data.
      */
-    function isProven(uint256[] calldata remoteChainIds, bytes32[] calldata remoteOracles, bytes32[] calldata dataHashs) external view returns (bool) {
+    function isProven(uint256[] calldata remoteChainIds, bytes32[] calldata remoteOracles, bytes32[] calldata dataHashes) external view returns (bool) {
         uint256 series = remoteOracles.length;
         // Check that the rest of the outputs have been filled.
         // Notice that we discard the solver address and only check if it has been set
         for (uint256 i = 0; i < series; ++i) {
-            bool state = _isProven(remoteChainIds[i], remoteOracles[i], dataHashs[i]);
+            bool state = _isProven(remoteChainIds[i], remoteOracles[i], dataHashes[i]);
             if (!state) return false;
         }
         return true;

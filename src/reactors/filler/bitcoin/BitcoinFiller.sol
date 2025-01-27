@@ -10,7 +10,7 @@ import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/lib
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { OutputDescription } from "../../CatalystOrderType.sol";
-import { CatalystCompactFilledOrder, TheCompactOrderType } from "../../TheCompactOrderType.sol";
+import { CatalystCompactFilledOrder, TheCompactOrderType } from "../../settler/compact/TheCompactOrderType.sol";
 
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 import { BaseOracle } from "../../../oracles/BaseOracle.sol";

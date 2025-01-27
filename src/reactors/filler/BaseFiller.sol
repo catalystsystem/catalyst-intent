@@ -71,7 +71,6 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         bytes32 existingSolver = _filledOutputs[orderId][outputHash].solver;
         
         // Early return if we have already seen proof.
-        if (existingSolver == proposedSolver) return proposedSolver; //TODO-NOTE unnecessary line
         if (existingSolver != bytes32(0)) return existingSolver;
 
         // The fill status is set before the transfer.
@@ -122,7 +121,6 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
     }
 
     // --- Solver Interface --- //
-    // TODO: fix this mess of fill functions.
 
     /**
      * @notice Fills several outputs in one go. Can be used to batch fill orders to save gas.
@@ -135,35 +133,23 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
     /**
      * @notice Fills several outputs in one go. Can be used to batch fill orders to save gas.
-     * @dev If an output has been filled by someone else, this function will skip that output and fill the remaining..
+     * @dev If an output has been filled by someone else, this function will skip that output and fill the remaining.
      */
     function fillSkip(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
         if (filler == bytes32(0)) revert ZeroValue();
         _fillSkip(orderIds, outputs, filler);
     }
 
+    /** @notice Fill via ERC7683 interface */
 	function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
         (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
         if (filler == bytes32(0)) revert ZeroValue();
 
-        OutputDescription[] memory outputs = abi.decode(originData, (OutputDescription[]));
+        OutputDescription memory output = abi.decode(originData, (OutputDescription));
 
-        uint256 numOutputs = outputs.length;
-        for (uint256 i; i < numOutputs; ++i) {
-            bytes32 existingSolver = this.fill(orderId, outputs[i], filler);
-            if (throwIfSomeoneElseFilled && existingSolver != filler) revert FilledBySomeoneElse(existingSolver);
-        }
-    }
-
-    // TODO: Make this the standard interface. Can be done by loading OutputDescription[] via assembly.
-    // TODO: This function doesn't work. We use msg.sender in the fill function.
-    function fill(bytes32[] calldata orderIds, bytes calldata originData, bytes calldata fillerData) external {
-        (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
-        if (filler == bytes32(0)) revert ZeroValue();
-
-        if (throwIfSomeoneElseFilled) return this.fillThrow(orderIds, abi.decode(originData, (OutputDescription[])), filler);
-        
-        this.fillSkip(orderIds, abi.decode(originData, (OutputDescription[])), filler);
+        // TODO: Doesn't work because of msg.sender. Delegatecall?
+        bytes32 existingSolver = this.fill(orderId, output, filler);
+        if (throwIfSomeoneElseFilled && existingSolver != filler) revert FilledBySomeoneElse(existingSolver);
     }
 
     // --- External Calls --- ///

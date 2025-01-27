@@ -4,7 +4,16 @@ pragma solidity ^0.8.26;
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
-import { BaseSettler } from "./BaseSettler.sol";
+
+import { TheCompact } from "the-compact/src/TheCompact.sol";
+import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
+import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactClaims.sol";
+
+import { BaseSettler } from "../BaseSettler.sol";
+import { AllowOpenType } from "../AllowOpenType.sol";
+import { CatalystOrderData, OutputDescription } from "../../CatalystOrderType.sol";
+import { TheCompactOrderType, CatalystCompactFilledOrder } from "./TheCompactOrderType.sol";
 
 import {
     GaslessCrossChainOrder,
@@ -12,25 +21,11 @@ import {
     IOriginSettler,
     ResolvedCrossChainOrder,
     Open
-} from "../../interfaces/IERC7683.sol";
+} from "../../../interfaces/IERC7683.sol";
+import { IOracle } from "../../../interfaces/IOracle.sol";
 
-import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
-import { TheCompactOrderType, CatalystCompactFilledOrder } from "../TheCompactOrderType.sol";
-
-import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactClaims.sol";
-
-import { TheCompact } from "the-compact/src/TheCompact.sol";
-
-import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
-
-import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
-
-import { IOracle } from "../../interfaces/IOracle.sol";
-
-import { AllowOpenType } from "./AllowOpenType.sol";
-import { BytesLib } from "../../libs/BytesLib.sol";
-
-import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+import { BytesLib } from "../../../libs/BytesLib.sol";
+import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 
 /**
  * @title Catalyst Reactor supporting The Compact
@@ -44,6 +39,9 @@ contract CatalystCompactSettler is BaseSettler {
     error InvalidTimestampLength();
     error NotOrderOwner();
     TheCompact public immutable COMPACT;
+
+    event Finalised();
+    event Deposited();
 
     constructor(address compact) {
         COMPACT = TheCompact(compact);
@@ -139,6 +137,12 @@ contract CatalystCompactSettler is BaseSettler {
         IOracle(localOracle).efficientRequireProven(proofSeries);
     }
 
+    // --- Finalise Orders --- //
+
+    /**
+     * @notice Check for a signed message by an order owner to allow someone else to redeem an order.
+     * @dev See AllowOpenType.sol
+     */
     function _allowExternalClaimant(
         bytes32 orderId,
         address orderOwner,
@@ -151,49 +155,6 @@ contract CatalystCompactSettler is BaseSettler {
         if (!isValid) revert InvalidSigner();
     }
 
-    function _open(address user, uint256 nonce, uint256 fillDeadline, CatalystOrderData memory orderData) internal {
-        uint256[2][] memory idsAndAmounts = orderData.inputs;
-        uint256 numInputs = idsAndAmounts.length;
-        // We need to collect the tokens from msg.sender.
-        for (uint256 i; i < numInputs; ++i) {
-            // Collect tokens from sender
-            uint256[2] memory idAndAmount = idsAndAmounts[i];
-            address token = EfficiencyLib.asSanitizedAddress(idAndAmount[0]);
-            uint256 amount = idAndAmount[1];
-            SafeTransferLib.safeTransferFrom(token, msg.sender, address(this), amount);
-            SafeTransferLib.safeApproveWithRetry(token, address(COMPACT), amount);
-        }
-
-        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.orderHash(fillDeadline, orderData));
-
-    }
-
-    function open(
-        OnchainCrossChainOrder calldata order
-    ) external {
-        _validateOrder(order);
-        // fillDeadline is validated by theCompact
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-
-        // We need a nonce that doesn't overlap with an existing nonce. Using the blockhash is the best way to estimate a random nonce.
-        uint256 randomNonce = uint256(blockhash(block.number));
-        _open(msg.sender, randomNonce, order.fillDeadline, orderData);
-
-        bytes32 orderId = _orderIdentifier(order, msg.sender, randomNonce);
-        emit Open(orderId);
-    }
-
-    function openFor(GaslessCrossChainOrder calldata order, bytes calldata /* signature */, bytes calldata /* originFllerData */) external {
-        _validateOrder(order);
-
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-        _open(order.user, order.nonce, order.fillDeadline, orderData);
-
-        bytes32 orderId = _orderIdentifier(order);
-        emit Open(orderId);
-    }
-
-    // --- Finalise Orders --- //
 
     function _finalise(CatalystCompactFilledOrder calldata order, bytes calldata signatures, address destination, bytes32 orderId) internal {
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);

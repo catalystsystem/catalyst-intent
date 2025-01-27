@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "../interfaces/IERC7683.sol";
-import { OutputDescription, CatalystOrderType, CatalystOrderData } from  "./CatalystOrderType.sol";
+import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { OutputDescription, CatalystOrderType, CatalystOrderData } from  "../../CatalystOrderType.sol";
 
 struct CatalystCompactFilledOrder {
 	address user; 

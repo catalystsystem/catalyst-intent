@@ -4,14 +4,14 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { CatalystCompactSettler } from "../src/reactors/settler/CatalystCompactSettler.sol";
+import { CatalystCompactSettler } from "../src/reactors/settler/compact/CatalystCompactSettler.sol";
 import { CoinFiller } from "../src/reactors/filler/CoinFiller.sol";
 
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
 
 import { OutputDescription, CatalystOrderType } from "../src/reactors/CatalystOrderType.sol";
-import { TheCompactOrderType, CatalystCompactFilledOrder } from "../src/reactors/TheCompactOrderType.sol";
+import { TheCompactOrderType, CatalystCompactFilledOrder } from "../src/reactors/settler/compact/TheCompactOrderType.sol";
 import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";

@@ -3,21 +3,17 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { TheCompact } from "the-compact/src/TheCompact.sol";
-import { Scope } from "the-compact/src/types/Scope.sol";
-import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
-import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
+import { TheCompact } from "the-compact/src/TheCompact.sol";
+import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
+import { Scope } from "the-compact/src/types/Scope.sol";
 
-import { CatalystCompactSettler } from "./CatalystCompactSettler.sol";
 import { CatalystOrderData } from "../../CatalystOrderType.sol";
+import { CatalystCompactSettler } from "./CatalystCompactSettler.sol";
 import { TheCompactOrderType } from "./TheCompactOrderType.sol";
 
-import {
-    GaslessCrossChainOrder,
-    OnchainCrossChainOrder,
-    ResolvedCrossChainOrder
-} from "../../../interfaces/IERC7683.sol";
+import { GaslessCrossChainOrder, OnchainCrossChainOrder, ResolvedCrossChainOrder } from "../../../interfaces/IERC7683.sol";
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact
@@ -28,11 +24,12 @@ import {
  * can be submitted to this contract and the appropriate claim is set.
  */
 contract CatalystCompactSettlerWithDeposit is CatalystCompactSettler {
-
     event Deposited(bytes32 orderId, OnchainCrossChainOrder order);
     event Deposited(bytes32 orderId, GaslessCrossChainOrder order);
 
-    constructor(address compact) CatalystCompactSettler(compact) { }
+    constructor(
+        address compact
+    ) CatalystCompactSettler(compact) { }
 
     function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystOrderData memory orderData, ResetPeriod resetPeriod) internal {
         uint256[2][] memory idsAndAmounts = orderData.inputs;

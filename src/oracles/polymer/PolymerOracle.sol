@@ -3,10 +3,10 @@ pragma solidity ^0.8.26;
 
 import { Ownable } from "solady/auth/Ownable.sol";
 
+import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
+import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 import { ICrossL2Prover } from "./ICrossL2Prover.sol";
-import { OutputDescription } from  "../../reactors/CatalystOrderType.sol";
-import { OutputEncodingLib } from  "../../libs/OutputEncodingLib.sol";
 
 /**
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.
@@ -19,7 +19,9 @@ contract PolymerOracle is BaseOracle, Ownable {
     event MapMessagingProtocolIdentifierToChainId(string messagingProtocolIdentifier, uint256 chainId);
 
     mapping(string messagingProtocolChainIdentifier => uint256 blockChainId) _chainIdentifierToBlockChainId;
-    /** @dev The map is bi-directional. */
+    /**
+     * @dev The map is bi-directional.
+     */
     mapping(uint256 blockChainId => string messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
 
     ICrossL2Prover CROSS_L2_PROVER;
@@ -31,15 +33,13 @@ contract PolymerOracle is BaseOracle, Ownable {
 
     // --- Chain ID Functions --- //
 
-    /** @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
+    /**
+     * @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
      * @dev Can only be called once for every chain.
      * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
      * @param chainId Most common identifier for a chain. For EVM, it can often be accessed through block.chainid.
      */
-    function setChainMap(
-        string calldata messagingProtocolChainIdentifier,
-        uint256 chainId
-    ) onlyOwner external {
+    function setChainMap(string calldata messagingProtocolChainIdentifier, uint256 chainId) external onlyOwner {
         // Check that the inputs havn't been mistakenly called with 0 values.
         if (abi.encodePacked(messagingProtocolChainIdentifier).length == 0) revert ZeroValue();
         if (chainId == 0) revert ZeroValue();
@@ -75,17 +75,11 @@ contract PolymerOracle is BaseOracle, Ownable {
         return _blockChainIdToChainIdentifier[chainId];
     }
 
-    function _proofPayloadHash(
-        bytes32 orderId,
-        bytes32 solver,
-        uint32 timestamp,
-        OutputDescription memory outputDescription
-    ) pure internal returns (bytes32 outputHash) {
+    function _proofPayloadHash(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription memory outputDescription) internal pure returns (bytes32 outputHash) {
         return outputHash = keccak256(OutputEncodingLib.encodeFillDescriptionM(solver, orderId, timestamp, outputDescription));
     }
 
     function _processMessage(uint256 logIndex, bytes calldata proof) internal {
-
         (string memory chainId, address emittingContract, bytes[] memory topics, bytes memory unindexedData) = CROSS_L2_PROVER.validateEvent(logIndex, proof);
 
         // Store payload attestations;

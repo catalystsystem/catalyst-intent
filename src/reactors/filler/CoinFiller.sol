@@ -3,8 +3,9 @@ pragma solidity ^0.8.26;
 
 import { OutputDescription } from "../CatalystOrderType.sol";
 // import { SolverTimestampBaseFiller } from "./SolverTimestampBaseFiller.sol";
-import { OutputEncodingLib } from  "../../libs/OutputEncodingLib.sol";
+
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
+import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
 import { BaseFiller } from "./BaseFiller.sol";
 
 /**
@@ -15,7 +16,7 @@ contract CoinFiller is BaseFiller {
     error NotImplemented();
     error SlopeStopped();
 
-    function _dutchAuctionSlope(uint256 amount, uint256 slope, uint256 stopTime) internal view returns(uint256 currentAmount) {
+    function _dutchAuctionSlope(uint256 amount, uint256 slope, uint256 stopTime) internal view returns (uint256 currentAmount) {
         uint256 currentTime = block.timestamp;
         if (stopTime < currentTime) revert SlopeStopped();
         uint256 timeDiff = stopTime - currentTime; // unchecked: stopTime > currentTime
@@ -29,7 +30,9 @@ contract CoinFiller is BaseFiller {
      * 0x00 is limit order. Requires output.fulfillmentContext == 0x00
      * 0x01 is dutch auction. Requires output.fulfillmentContext == 0x01 | slope | stopTime
      */
-    function _getAmount(OutputDescription calldata output) internal view returns (uint256 amount) {
+    function _getAmount(
+        OutputDescription calldata output
+    ) internal view returns (uint256 amount) {
         uint256 fulfillmentLength = output.fulfillmentContext.length;
         if (fulfillmentLength == 0) return output.amount;
         bytes1 orderType = bytes1(output.fulfillmentContext);
@@ -49,8 +52,7 @@ contract CoinFiller is BaseFiller {
         revert NotImplemented();
     }
 
-    function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) override internal returns (bytes32) {
-
+    function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) internal override returns (bytes32) {
         uint256 amount = _getAmount(output);
         return _fill(orderId, output, amount, proposedSolver);
     }

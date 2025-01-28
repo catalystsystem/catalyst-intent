@@ -3,8 +3,9 @@ pragma solidity ^0.8.26;
 
 import { FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
-import { OutputDescription } from "../reactors/CatalystOrderType.sol";
+
 import { IdentifierLib } from "../libs/IdentifierLib.sol";
+import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 
 /**
  * @notice Foundation for oracles. Exposes attesation logic for consumers.
@@ -14,14 +15,20 @@ abstract contract BaseOracle is IOracle {
     error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash);
     error NotDivisible(uint256 value, uint256 divisor);
     error BadDeploymentAddress(address);
-    
+
     event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 payloadHash);
 
-    /** @notice Stores payload attestations. Payloads are not stored, instead their hashes are. */
+    /**
+     * @notice Stores payload attestations. Payloads are not stored, instead their hashes are.
+     */
     mapping(uint256 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 dataHash => bool))) internal _attestations;
 
-    /** @notice Given an app, returns the combined identifier of both protocols. */
-    function getIdentifier(address app) external view returns (bytes32) {
+    /**
+     * @notice Given an app, returns the combined identifier of both protocols.
+     */
+    function getIdentifier(
+        address app
+    ) external view returns (bytes32) {
         return IdentifierLib.getIdentifier(app, address(this));
     }
 
@@ -71,12 +78,14 @@ abstract contract BaseOracle is IOracle {
      * @dev More efficient implementation of requireProven. Does not return a boolean, instead reverts if false.
      * @param proofSeries remoteOracle, remoteChainId, and dataHash encoded in chucks of 32*3=96 bytes.
      */
-    function efficientRequireProven(bytes calldata proofSeries) external view {
+    function efficientRequireProven(
+        bytes calldata proofSeries
+    ) external view {
         unchecked {
             // Get the number of proof series.
             uint256 proofBytes = proofSeries.length;
-            uint256 series = proofBytes / (32*3);
-            if (series * (32*3) != proofBytes) revert NotDivisible(proofBytes, 32*3);
+            uint256 series = proofBytes / (32 * 3);
+            if (series * (32 * 3) != proofBytes) revert NotDivisible(proofBytes, 32 * 3);
 
             // Go over the data. We will use a for loop iterating over the offset.
             for (uint256 offset; offset < proofBytes;) {

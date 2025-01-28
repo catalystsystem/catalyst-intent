@@ -27,7 +27,6 @@ struct OutputDescription {
      * Is called on recipient.
      */
     bytes remoteCall;
-
     /**
      * @dev Non-particular data that is used to encode non-generic behaviour for a filler.
      */
@@ -49,38 +48,22 @@ struct CatalystOrderData {
 /**
  * @notice Helper library for the Catalyst order type.
  * TYPE_PARTIAL: An incomplete type. Is missing a field.'
- * TYPE_STUB: Type has no subtypes. 
+ * TYPE_STUB: Type has no subtypes.
  * TYPE: Is complete including sub-types.
  */
 library CatalystOrderType {
     //--- Inputs & Outputs Types ---//
 
-    bytes constant OUTPUT_DESCRIPTION_TYPE_STUB = abi.encodePacked(
-        "OutputDescription("
-        "bytes32 remoteOracle,"
-        "uint256 chainId,"
-        "bytes32 token,"
-        "uint256 amount,"
-        "bytes32 recipient,"
-        "bytes remoteCall,"
-        "bytes fulfillmentContext"
-        ")"
-    );
+    bytes constant OUTPUT_DESCRIPTION_TYPE_STUB =
+        abi.encodePacked("OutputDescription(" "bytes32 remoteOracle," "uint256 chainId," "bytes32 token," "uint256 amount," "bytes32 recipient," "bytes remoteCall," "bytes fulfillmentContext" ")");
 
     bytes32 constant OUTPUT_DESCRIPTION_TYPE_HASH = keccak256(OUTPUT_DESCRIPTION_TYPE_STUB);
 
-    function hashOutput(OutputDescription memory output) internal pure returns (bytes32) {
+    function hashOutput(
+        OutputDescription memory output
+    ) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                OUTPUT_DESCRIPTION_TYPE_HASH,
-                output.remoteOracle,
-                output.chainId,
-                output.token,
-                output.amount,
-                output.recipient,
-                keccak256(output.remoteCall),
-                keccak256(output.fulfillmentContext)
-            )
+            abi.encode(OUTPUT_DESCRIPTION_TYPE_HASH, output.remoteOracle, output.chainId, output.token, output.amount, output.recipient, keccak256(output.remoteCall), keccak256(output.fulfillmentContext))
         );
     }
 
@@ -99,5 +82,4 @@ library CatalystOrderType {
             return keccak256(currentHash);
         }
     }
-
 }

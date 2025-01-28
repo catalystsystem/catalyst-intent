@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { WrongChain, WrongRemoteOracle } from "../../interfaces/Errors.sol";
-import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
+
+import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 import { IOracle } from "../../interfaces/IOracle.sol";
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
-import { OutputDescription } from "../CatalystOrderType.sol";
-import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
+import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
+import { OutputDescription } from "../CatalystOrderType.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-
-/** @notice Base  */
+/**
+ * @notice Base
+ */
 abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
@@ -49,29 +51,24 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
      * @param output Output to fill
      * @param proposedSolver Identifier of solver on origin chain that will get inputs.
      */
-    function _fill(
-        bytes32 orderId,
-        OutputDescription calldata output,
-        uint256 outputAmount,
-        bytes32 proposedSolver
-    ) internal returns (bytes32) {
+    function _fill(bytes32 orderId, OutputDescription calldata output, uint256 outputAmount, bytes32 proposedSolver) internal returns (bytes32) {
         if (proposedSolver == bytes32(0)) revert ZeroValue();
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
         _validateChain(output.chainId);
         _IAmRemoteOracle(output.remoteOracle);
-        
+
         // Get hash of output.
         bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(output);
 
         // Get the proof state of the fulfillment.
         bytes32 existingSolver = _filledOutputs[orderId][outputHash].solver;
-        
+
         // Early return if we have already seen proof.
         if (existingSolver != bytes32(0)) return existingSolver;
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _filledOutputs[orderId][outputHash] = FilledOutput({solver: proposedSolver, timestamp: uint32(block.timestamp)});
+        _filledOutputs[orderId][outputHash] = FilledOutput({ solver: proposedSolver, timestamp: uint32(block.timestamp) });
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
@@ -85,16 +82,14 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         uint256 remoteCallLength = output.remoteCall.length;
         if (remoteCallLength > 0) _call(output);
 
-        emit OutputFilled(
-            orderId, proposedSolver, uint32(block.timestamp), output
-        );
+        emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 
         return proposedSolver;
     }
 
     function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) internal virtual returns (bytes32);
 
-    function fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) external returns(bytes32) {
+    function fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) external returns (bytes32) {
         return _fill(orderId, output, proposedSolver);
     }
 
@@ -136,8 +131,10 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         _fillSkip(orderIds, outputs, filler);
     }
 
-    /** @notice Fill via ERC7683 interface */
-	function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
+    /**
+     * @notice Fill via ERC7683 interface
+     */
+    function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
         (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
         if (filler == bytes32(0)) revert ZeroValue();
 
@@ -159,9 +156,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         OutputDescription calldata output
     ) internal {
         address recipient = address(uint160(uint256(output.recipient)));
-        bytes memory payload = abi.encodeWithSignature(
-            "outputFilled(bytes32,uint256,bytes)", output.token, output.amount, output.remoteCall
-        );
+        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, output.amount, output.remoteCall);
         bool success;
         assembly ("memory-safe") {
             // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables
@@ -238,10 +233,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         if (ADDRESS_THIS != fillerIdentifier) revert WrongRemoteOracle(ADDRESS_THIS, fillerIdentifier);
     }
 
-    function _isPayloadValid(
-        address oracle,
-        bytes calldata payload
-    ) view public returns (bool) {
+    function _isPayloadValid(address oracle, bytes calldata payload) public view returns (bool) {
         bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
         bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(remoteOracleIdentifier, chainId, OutputEncodingLib.decodeFillDescriptionCommonPayload(payload));
@@ -262,7 +254,9 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         return true;
     }
 
-    function arePayloadsValid(bytes[] calldata payloads) view external returns(bool) {
+    function arePayloadsValid(
+        bytes[] calldata payloads
+    ) external view returns (bool) {
         address sender = msg.sender;
         uint256 numPayloads = payloads.length;
         for (uint256 i; i < numPayloads; ++i) {

@@ -11,7 +11,7 @@ library BytesLib {
             res.length := calldataload(lengthPtr)
         }
     }
-    
+
     function touint32Array(bytes calldata _bytes, uint256 arg) internal pure returns (uint32[] calldata res) {
         assembly {
             let lengthPtr := add(_bytes.offset, calldataload(add(_bytes.offset, mul(0x20, arg))))

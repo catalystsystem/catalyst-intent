@@ -8,35 +8,39 @@ import "./Getters.sol";
 import "./Structs.sol";
 import "./libraries/external/BytesLib.sol";
 
-
 contract Messages is Getters {
     using BytesLib for bytes;
 
     /// @dev parseAndVerifyVM serves to parse an encodedVM and wholly validate it for consumption
-    function parseAndVerifyVM(bytes calldata encodedVM) public view returns (Structs.VM memory vm, bool valid, string memory reason) {
+    function parseAndVerifyVM(
+        bytes calldata encodedVM
+    ) public view returns (Structs.VM memory vm, bool valid, string memory reason) {
         vm = parseVM(encodedVM);
-        /// setting checkHash to false as we can trust the hash field in this case given that parseVM computes and then sets the hash field above
+        /// setting checkHash to false as we can trust the hash field in this case given that parseVM computes and then
+        /// sets the hash field above
         (valid, reason) = verifyVMInternal(vm, false);
     }
 
-   /**
-    * @dev `verifyVM` serves to validate an arbitrary vm against a valid Guardian set
-    *  - it aims to make sure the VM is for a known guardianSet
-    *  - it aims to ensure the guardianSet is not expired
-    *  - it aims to ensure the VM has reached quorum
-    *  - it aims to verify the signatures provided against the guardianSet
-    *  - it aims to verify the hash field provided against the contents of the vm
-    */
-    function verifyVM(Structs.VM memory vm) public view returns (bool valid, string memory reason) {
-        (valid, reason) = verifyVMInternal(vm, true);    
+    /**
+     * @dev `verifyVM` serves to validate an arbitrary vm against a valid Guardian set
+     *  - it aims to make sure the VM is for a known guardianSet
+     *  - it aims to ensure the guardianSet is not expired
+     *  - it aims to ensure the VM has reached quorum
+     *  - it aims to verify the signatures provided against the guardianSet
+     *  - it aims to verify the hash field provided against the contents of the vm
+     */
+    function verifyVM(
+        Structs.VM memory vm
+    ) public view returns (bool valid, string memory reason) {
+        (valid, reason) = verifyVMInternal(vm, true);
     }
 
     /**
-    * @dev `verifyVMInternal` serves to validate an arbitrary vm against a valid Guardian set
-    * if checkHash is set then the hash field of the vm is verified against the hash of its contents
-    * in the case that the vm is securely parsed and the hash field can be trusted, checkHash can be set to false
-    * as the check would be redundant
-    */
+     * @dev `verifyVMInternal` serves to validate an arbitrary vm against a valid Guardian set
+     * if checkHash is set then the hash field of the vm is verified against the hash of its contents
+     * in the case that the vm is securely parsed and the hash field can be trusted, checkHash can be set to false
+     * as the check would be redundant
+     */
     function verifyVMInternal(Structs.VM memory vm, bool checkHash) internal view returns (bool valid, string memory reason) {
         /// @dev Obtain the current guardianSet for the guardianSetIndex provided
         Structs.GuardianSet memory guardianSet = getGuardianSet(vm.guardianSetIndex);
@@ -47,53 +51,46 @@ contract Messages is Getters {
          * Without this check, it would not be safe to call verifyVM on it's own as vm.hash can be a valid signed hash
          * but the body of the vm could be completely different from what was actually signed by the guardians
          */
-        if(checkHash){
-            bytes memory body = abi.encodePacked(
-                vm.timestamp,
-                vm.nonce,
-                vm.emitterChainId,
-                vm.emitterAddress,
-                vm.sequence,
-                vm.consistencyLevel,
-                vm.payload
-            );
+        if (checkHash) {
+            bytes memory body = abi.encodePacked(vm.timestamp, vm.nonce, vm.emitterChainId, vm.emitterAddress, vm.sequence, vm.consistencyLevel, vm.payload);
 
             bytes32 vmHash = keccak256(abi.encodePacked(keccak256(body)));
 
-            if(vmHash != vm.hash){
+            if (vmHash != vm.hash) {
                 return (false, "vm.hash doesn't match body");
             }
         }
 
-       /**
-        * @dev Checks whether the guardianSet has zero keys
-        * WARNING: This keys check is critical to ensure the guardianSet has keys present AND to ensure
-        * that guardianSet key size doesn't fall to zero and negatively impact quorum assessment.  If guardianSet
-        * key length is 0 and vm.signatures length is 0, this could compromise the integrity of both vm and
-        * signature verification.
-        */
-        if(guardianSet.keys.length == 0){
+        /**
+         * @dev Checks whether the guardianSet has zero keys
+         * WARNING: This keys check is critical to ensure the guardianSet has keys present AND to ensure
+         * that guardianSet key size doesn't fall to zero and negatively impact quorum assessment.  If guardianSet
+         * key length is 0 and vm.signatures length is 0, this could compromise the integrity of both vm and
+         * signature verification.
+         */
+        if (guardianSet.keys.length == 0) {
             return (false, "invalid guardian set");
         }
 
         /// @dev Checks if VM guardian set index matches the current index (unless the current set is expired).
-        if(vm.guardianSetIndex != getCurrentGuardianSetIndex() && guardianSet.expirationTime < block.timestamp){
+        if (vm.guardianSetIndex != getCurrentGuardianSetIndex() && guardianSet.expirationTime < block.timestamp) {
             return (false, "guardian set has expired");
         }
 
-       /**
-        * @dev We're using a fixed point number transformation with 1 decimal to deal with rounding.
-        *   WARNING: This quorum check is critical to assessing whether we have enough Guardian signatures to validate a VM
-        *   if making any changes to this, obtain additional peer review. If guardianSet key length is 0 and
-        *   vm.signatures length is 0, this could compromise the integrity of both vm and signature verification.
-        */
-        if (vm.signatures.length < quorum(guardianSet.keys.length)){
+        /**
+         * @dev We're using a fixed point number transformation with 1 decimal to deal with rounding.
+         *   WARNING: This quorum check is critical to assessing whether we have enough Guardian signatures to validate
+         * a VM
+         *   if making any changes to this, obtain additional peer review. If guardianSet key length is 0 and
+         *   vm.signatures length is 0, this could compromise the integrity of both vm and signature verification.
+         */
+        if (vm.signatures.length < quorum(guardianSet.keys.length)) {
             return (false, "no quorum");
         }
 
         /// @dev Verify the proposed vm.signatures against the guardianSet
         (bool signaturesValid, string memory invalidReason) = verifySignatures(vm.hash, vm.signatures, guardianSet);
-        if(!signaturesValid){
+        if (!signaturesValid) {
             return (false, invalidReason);
         }
 
@@ -101,17 +98,18 @@ contract Messages is Getters {
         return (true, "");
     }
 
-
     /**
      * @dev verifySignatures serves to validate arbitrary signatures against an arbitrary guardianSet
-     *  - it intentionally does not solve for expectations within guardianSet (you should use verifyVM if you need these protections)
+     *  - it intentionally does not solve for expectations within guardianSet (you should use verifyVM if you need these
+     * protections)
      *  - it intentioanlly does not solve for quorum (you should use verifyVM if you need these protections)
-     *  - it intentionally returns true when signatures is an empty set (you should use verifyVM if you need these protections)
+     *  - it intentionally returns true when signatures is an empty set (you should use verifyVM if you need these
+     * protections)
      */
     function verifySignatures(bytes32 hash, Structs.Signature[] memory signatures, Structs.GuardianSet memory guardianSet) public pure returns (bool valid, string memory reason) {
         uint8 lastIndex = 0;
         uint256 guardianCount = guardianSet.keys.length;
-        for (uint i = 0; i < signatures.length; i++) {
+        for (uint256 i = 0; i < signatures.length; i++) {
             Structs.Signature memory sig = signatures[i];
             address signatory = ecrecover(hash, sig.v, sig.r, sig.s);
             // ecrecover returns 0 for invalid signatures. We explicitly require valid signatures to avoid unexpected
@@ -131,7 +129,7 @@ contract Messages is Getters {
             require(sig.guardianIndex < guardianCount, "guardian index out of bounds");
 
             /// Check to see if the signer of the signature does not match a specific Guardian key at the provided index
-            if(signatory != guardianSet.keys[sig.guardianIndex]){
+            if (signatory != guardianSet.keys[sig.guardianIndex]) {
                 return (false, "VM signature invalid");
             }
         }
@@ -144,17 +142,19 @@ contract Messages is Getters {
      * @dev parseVM serves to parse an encodedVM into a vm struct
      *  - it intentionally performs no validation functions, it simply parses raw into a struct
      */
-    function parseVM(bytes memory encodedVM) public pure virtual returns (Structs.VM memory vm) {
-        uint index = 0;
+    function parseVM(
+        bytes memory encodedVM
+    ) public pure virtual returns (Structs.VM memory vm) {
+        uint256 index = 0;
 
         vm.version = encodedVM.toUint8(index);
         index += 1;
-        // SECURITY: Note that currently the VM.version is not part of the hash 
-        // and for reasons described below it cannot be made part of the hash. 
-        // This means that this field's integrity is not protected and cannot be trusted. 
-        // This is not a problem today since there is only one accepted version, but it 
-        // could be a problem if we wanted to allow other versions in the future. 
-        require(vm.version == 1, "VM version incompatible"); 
+        // SECURITY: Note that currently the VM.version is not part of the hash
+        // and for reasons described below it cannot be made part of the hash.
+        // This means that this field's integrity is not protected and cannot be trusted.
+        // This is not a problem today since there is only one accepted version, but it
+        // could be a problem if we wanted to allow other versions in the future.
+        require(vm.version == 1, "VM version incompatible");
 
         vm.guardianSetIndex = encodedVM.toUint32(index);
         index += 4;
@@ -163,7 +163,7 @@ contract Messages is Getters {
         uint256 signersLen = encodedVM.toUint8(index);
         index += 1;
         vm.signatures = new Structs.Signature[](signersLen);
-        for (uint i = 0; i < signersLen; i++) {
+        for (uint256 i = 0; i < signersLen; i++) {
             vm.signatures[i].guardianIndex = encodedVM.toUint8(index);
             index += 1;
 
@@ -210,7 +210,9 @@ contract Messages is Getters {
     /**
      * @dev quorum serves solely to determine the number of signatures required to achieve quorum
      */
-    function quorum(uint numGuardians) public pure virtual returns (uint numSignaturesRequiredForQuorum) {
+    function quorum(
+        uint256 numGuardians
+    ) public pure virtual returns (uint256 numSignaturesRequiredForQuorum) {
         // The max number of guardians is 255
         require(numGuardians < 256, "too many guardians");
         return ((numGuardians * 2) / 3) + 1;

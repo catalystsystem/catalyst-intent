@@ -5,35 +5,24 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IOracle } from "../../interfaces/IOracle.sol";
 
-import {
-    GaslessCrossChainOrder,
-    OnchainCrossChainOrder,
-    IOriginSettler,
-    ResolvedCrossChainOrder,
-    Output,
-    FillInstruction
-} from "../../interfaces/IERC7683.sol";
+import { FillInstruction, GaslessCrossChainOrder, IOriginSettler, OnchainCrossChainOrder, Output, ResolvedCrossChainOrder } from "../../interfaces/IERC7683.sol";
 
 import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
 
-import {
-    InvalidSettlementAddress,
-    WrongChain,
-    InitiateDeadlinePassed
-} from "../../interfaces/Errors.sol";
+import { InitiateDeadlinePassed, InvalidSettlementAddress, WrongChain } from "../../interfaces/Errors.sol";
 
 import { OrderPurchaseType } from "./OrderPurchaseType.sol";
 
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EIP712 } from "solady/utils/EIP712.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 /**
  * @title Base Catalyst Order Intent Settler
  * @notice Defines common logic that can be reused by other settlers to support a variety
  * of asset management schemes.
- * @dev Implements the default CatalystOrderType and makes functions that are dedicated to that order type 
+ * @dev Implements the default CatalystOrderType and makes functions that are dedicated to that order type
  * available to implementing implementations.
  */
 abstract contract BaseSettler is EIP712 {
@@ -46,7 +35,7 @@ abstract contract BaseSettler is EIP712 {
     event Open(bytes32 indexed orderId);
     event OrderPurchased(bytes32 indexed orderId, bytes32 solver, address purchaser);
 
-    uint256 constant DISCOUNT_DENOM = 10**18;
+    uint256 constant DISCOUNT_DENOM = 10 ** 18;
 
     struct Purchased {
         uint32 lastOrderTimestamp;
@@ -57,26 +46,34 @@ abstract contract BaseSettler is EIP712 {
 
     // --- Hashing Orders --- //
 
-    function _orderIdentifier(GaslessCrossChainOrder calldata order) view virtual internal returns(bytes32);
-    
-    function _orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) view virtual internal returns(bytes32);
+    function _orderIdentifier(
+        GaslessCrossChainOrder calldata order
+    ) internal view virtual returns (bytes32);
 
-    function orderIdentifier(GaslessCrossChainOrder calldata order) view external returns(bytes32) {
+    function _orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) internal view virtual returns (bytes32);
+
+    function orderIdentifier(
+        GaslessCrossChainOrder calldata order
+    ) external view returns (bytes32) {
         return _orderIdentifier(order);
     }
 
-    function orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) view external returns(bytes32) {
+    function orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) external view returns (bytes32) {
         return _orderIdentifier(order, user, nonce);
     }
 
     // --- Order Validation --- //
 
-    function _validateOrder(OnchainCrossChainOrder calldata order) internal view {
+    function _validateOrder(
+        OnchainCrossChainOrder calldata order
+    ) internal view {
         // Check if the open deadline has been passed
         if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
     }
 
-    function _validateOrder(GaslessCrossChainOrder calldata order) internal view {
+    function _validateOrder(
+        GaslessCrossChainOrder calldata order
+    ) internal view {
         // Check that we are the settler for this order:
         if (address(this) != order.originSettler) revert InvalidSettlementAddress();
         // Check that this is the right originChain
@@ -87,9 +84,13 @@ abstract contract BaseSettler is EIP712 {
 
     // --- Timestamp Helpers --- //
 
-    /** @notice Finds the largest timestamp in an array */
-    function _maxTimestamp(uint32[] calldata timestamps) internal pure returns (uint256 timestamp) {
-        timestamp = timestamps[0]; 
+    /**
+     * @notice Finds the largest timestamp in an array
+     */
+    function _maxTimestamp(
+        uint32[] calldata timestamps
+    ) internal pure returns (uint256 timestamp) {
+        timestamp = timestamps[0];
 
         uint256 numTimestamps = timestamps.length;
         for (uint256 i = 1; i < numTimestamps; ++i) {
@@ -98,9 +99,13 @@ abstract contract BaseSettler is EIP712 {
         }
     }
 
-    /** @notice Finds the smallest timestamp in an array */
-    function _minTimestamp(uint32[] calldata timestamps) internal pure returns (uint32 timestamp) {
-        timestamp = timestamps[0]; 
+    /**
+     * @notice Finds the smallest timestamp in an array
+     */
+    function _minTimestamp(
+        uint32[] calldata timestamps
+    ) internal pure returns (uint32 timestamp) {
+        timestamp = timestamps[0];
 
         uint256 numTimestamps = timestamps.length;
         for (uint256 i = 1; i < numTimestamps; ++i) {
@@ -116,11 +121,7 @@ abstract contract BaseSettler is EIP712 {
      * In case an order has been bought, and bought in time, the owner will be set to
      * the purchaser. Otherwise it will be set to the solver.
      */
-    function _purchaseGetOrderOwner(
-        bytes32 orderId,
-        address solver,
-        uint32[] calldata timestamps
-    ) internal view returns (address orderOwner) {
+    function _purchaseGetOrderOwner(bytes32 orderId, address solver, uint32[] calldata timestamps) internal view returns (address orderOwner) {
         // Check if the order has been purchased.
         Purchased storage purchaseDetails = purchasedOrders[bytes32(uint256(uint160(solver)))][orderId];
         uint32 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
@@ -175,21 +176,14 @@ abstract contract BaseSettler is EIP712 {
         unchecked {
             // unchecked: uint32(block.timestamp) > timeToBuy => uint32(block.timestamp) - timeToBuy > 0.
             purchased.lastOrderTimestamp = timeToBuy < uint32(block.timestamp) ? uint32(block.timestamp) - timeToBuy : 0;
-            purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0) 
+            purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0)
         }
         // We can now make external calls without allowing local reentries into this call.
 
         // We need to validate that the solver has approved someone else to purchase their order.
         address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
 
-        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(
-            orderId,
-            address(this),
-            newDestination,
-            call,
-            discount,
-            timeToBuy
-        ));
+        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderId, address(this), newDestination, call, discount, timeToBuy));
         bool isValid = SignatureCheckerLib.isValidSignatureNow(orderSolvedByAddress, digest, solverSignature);
         if (!isValid) revert InvalidSigner();
 
@@ -202,12 +196,7 @@ abstract contract BaseSettler is EIP712 {
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
             uint256 amountAfterDiscount = allocatedAmount * discount / DISCOUNT_DENOM;
-            SafeTransferLib.safeTransferFrom(
-                EfficiencyLib.asSanitizedAddress(tokenId),
-                msg.sender,
-                newDestination,
-                amountAfterDiscount
-            );
+            SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount);
         }
 
         if (call.length > 0) newDestination.call(call);
@@ -217,30 +206,18 @@ abstract contract BaseSettler is EIP712 {
 
     //--- ERC7683 Resolvers ---//
 
-    function _resolve(
-        CatalystOrderData memory orderData,
-        address filler
-    ) internal view virtual returns (Output[] memory maxSpent, FillInstruction[] memory fillInstructions, Output[] memory minReceived) {
+    function _resolve(CatalystOrderData memory orderData, address filler) internal view virtual returns (Output[] memory maxSpent, FillInstruction[] memory fillInstructions, Output[] memory minReceived) {
         uint256 numOutputs = orderData.outputs.length;
         maxSpent = new Output[](numOutputs);
-        
+
         // If the output list is sorted by chains, this list is unique and optimal.
         OutputDescription[] memory outputs = orderData.outputs;
         fillInstructions = new FillInstruction[](numOutputs);
         for (uint256 i = 0; i < numOutputs; ++i) {
             OutputDescription memory catalystOutput = outputs[i];
             uint256 chainId = catalystOutput.chainId;
-            maxSpent[i] = Output({
-                token: catalystOutput.token,
-                amount: catalystOutput.amount,
-                recipient: catalystOutput.recipient,
-                chainId: chainId
-            });
-            fillInstructions[i] = FillInstruction({
-                destinationChainId: uint64(chainId),
-                destinationSettler: catalystOutput.remoteOracle,
-                originData: abi.encode(catalystOutput)
-            });
+            maxSpent[i] = Output({ token: catalystOutput.token, amount: catalystOutput.amount, recipient: catalystOutput.recipient, chainId: chainId });
+            fillInstructions[i] = FillInstruction({ destinationChainId: uint64(chainId), destinationSettler: catalystOutput.remoteOracle, originData: abi.encode(catalystOutput) });
         }
 
         // fillerOutputs are of the Output type and as a result, we can't just
@@ -254,12 +231,7 @@ abstract contract BaseSettler is EIP712 {
                 uint256[2] memory input = inputs[i];
                 uint256 tokenId = input[0];
                 uint256 allocatedAmount = input[1];
-                minReceived[i] = Output({
-                    token: bytes32(tokenId),
-                    amount: allocatedAmount,
-                    recipient: bytes32(uint256(uint160(filler))),
-                    chainId: uint32(block.chainid)
-                });
+                minReceived[i] = Output({ token: bytes32(tokenId), amount: allocatedAmount, recipient: bytes32(uint256(uint160(filler))), chainId: uint32(block.chainid) });
             }
         }
     }
@@ -271,10 +243,7 @@ abstract contract BaseSettler is EIP712 {
      * @param order CrossChainOrder to resolve.
      * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
      */
-    function _resolve(
-        GaslessCrossChainOrder calldata order,
-        address filler
-    ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
+    function _resolve(GaslessCrossChainOrder calldata order, address filler) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
         CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
 
         (Output[] memory maxSpent, FillInstruction[] memory fillInstructions, Output[] memory minReceived) = _resolve(orderData, filler);
@@ -292,10 +261,7 @@ abstract contract BaseSettler is EIP712 {
         });
     }
 
-    function _resolve(
-        OnchainCrossChainOrder calldata order,
-        address filler
-    ) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
+    function _resolve(OnchainCrossChainOrder calldata order, address filler) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
         CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
 
         (Output[] memory maxSpent, FillInstruction[] memory fillInstructions, Output[] memory minReceived) = _resolve(orderData, filler);
@@ -325,11 +291,7 @@ abstract contract BaseSettler is EIP712 {
         return _resolve(order, address(0));
     }
 
-    function resolveFor(
-        GaslessCrossChainOrder calldata order,
-        bytes calldata /* signature */,
-        bytes calldata /* originFllerData */
-    ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
+    function resolveFor(GaslessCrossChainOrder calldata order, bytes calldata, /* signature */ bytes calldata /* originFllerData */ ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
         return _resolve(order, address(0));
     }
 }

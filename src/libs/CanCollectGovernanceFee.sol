@@ -78,11 +78,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * save gas when used in a loop. The fee is out of 10**18.
      * @return amountLessFee amount - fee.
      */
-    function _collectGovernanceFee(
-        address token,
-        uint256 amount,
-        uint256 fee
-    ) internal returns (uint256 amountLessFee) {
+    function _collectGovernanceFee(address token, uint256 amount, uint256 fee) internal returns (uint256 amountLessFee) {
         unchecked {
             // Get the governance share of the amountLessFee.
             uint256 governanceShare = _calcFee(amount, fee);
@@ -168,10 +164,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * @param to Recipient of the tokens.
      * @return collectedAmounts Array of the collected governance tokens.
      */
-    function distributeGovernanceTokens(
-        address[] calldata tokens,
-        address to
-    ) external onlyOwner returns (uint256[] memory collectedAmounts) {
+    function distributeGovernanceTokens(address[] calldata tokens, address to) external onlyOwner returns (uint256[] memory collectedAmounts) {
         unchecked {
             uint256 numTokens = tokens.length;
             collectedAmounts = new uint256[](numTokens);

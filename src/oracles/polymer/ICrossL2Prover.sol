@@ -16,8 +16,8 @@
  */
 pragma solidity ^0.8.0;
 
-import {Ics23Proof} from "./IProofVerifier.sol";
-import {IClientUpdates} from "./ILightClient.sol";
+import { IClientUpdates } from "./ILightClient.sol";
+import { Ics23Proof } from "./IProofVerifier.sol";
 
 /**
  * @title ICrossL2Prover
@@ -63,10 +63,9 @@ interface ICrossL2Prover is IClientUpdates {
      *     Logs              []*Log
      *     }
      */
-    function validateReceipt(bytes calldata proof)
-        external
-        view
-        returns (string memory srcChainId, bytes calldata receiptRLP);
+    function validateReceipt(
+        bytes calldata proof
+    ) external view returns (string memory srcChainId, bytes calldata receiptRLP);
 
     /**
      * @notice A a log at a given raw rlp encoded receipt at a given logIndex within the receipt.
@@ -81,13 +80,12 @@ interface ICrossL2Prover is IClientUpdates {
      * Event.selector. The remaining elements in this array are the indexed parameters of the event.
      * @return unindexedData // The abi encoded non-indexed parameters of the event.
      */
-    function validateEvent(uint256 logIndex, bytes calldata proof)
-        external
-        view
-        returns (string memory chainId, address emittingContract, bytes[] calldata topics, bytes calldata unindexedData);
+    function validateEvent(uint256 logIndex, bytes calldata proof) external view returns (string memory chainId, address emittingContract, bytes[] calldata topics, bytes calldata unindexedData);
 
     /**
      * Returns the peptide at a given apphash at a given height,
      */
-    function getState(uint256 height) external view returns (uint256);
+    function getState(
+        uint256 height
+    ) external view returns (uint256);
 }

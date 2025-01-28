@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 interface IOracle {
-    
     /**
      * @notice Check if some data has been attested to.
      * @param remoteChainId Chain the data supposedly originated from.
@@ -20,11 +19,12 @@ interface IOracle {
      */
     function isProven(uint256[] calldata remoteChainIds, bytes32[] calldata remoteOracles, bytes32[] calldata dataHashes) external view returns (bool);
 
-
     /**
      * @notice Reverts if a series of data has not been attested to.
      * @dev More efficient implementation of requireProven.
      * @param proofSeries remoteChainId, remoteOracle,and dataHash encoded in chucks of 32*3=96 chunks.
      */
-    function efficientRequireProven(bytes calldata proofSeries) external view;
+    function efficientRequireProven(
+        bytes calldata proofSeries
+    ) external view;
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.0;
 
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
@@ -16,7 +16,6 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
  * otherwise they will be left in the contract free to take for next the next caller.
  */
 contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
-
     struct Call {
         address target;
         bytes callData;
@@ -60,16 +59,13 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
      * @param message abi encoded array of Call structs, containing a target, callData, and value for each call that
      * the contract should make.
      */
-    function handleV3AcrossMessage(
-        address token,
-        uint256 amount,
-        address,
-        bytes memory message
-    ) external nonReentrant {
+    function handleV3AcrossMessage(address token, uint256 amount, address, bytes memory message) external nonReentrant {
         Instructions memory instructions = abi.decode(message, (Instructions));
 
         // Set approvals base on inputs if requested.
-        if (instructions.setApprovalsUsingInputsFor != address(0)) _setApproval(token, amount, instructions.setApprovalsUsingInputsFor);
+        if (instructions.setApprovalsUsingInputsFor != address(0)) {
+            _setApproval(token, amount, instructions.setApprovalsUsingInputsFor);
+        }
 
         // Execute attached instructions
         _doInstructions(instructions);
@@ -87,7 +83,9 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
 
         // Set approvals base on inputs if requested.
-        if (instructions.setApprovalsUsingInputsFor != address(0)) _setApproval(address(uint160(uint256(token))), amount, instructions.setApprovalsUsingInputsFor);
+        if (instructions.setApprovalsUsingInputsFor != address(0)) {
+            _setApproval(address(uint160(uint256(token))), amount, instructions.setApprovalsUsingInputsFor);
+        }
 
         // Execute attached instructions
         _doInstructions(instructions);
@@ -99,12 +97,14 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
 
     /**
      * @notice Entrypoint for the crosscats handler if inputs are delivered.
-     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else. 
+     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else.
      */
-    function inputsFilled(bytes32 /* orderKeyHash */, uint256[2][] calldata inputs, bytes calldata executionData) external nonReentrant {
+    function inputsFilled(bytes32, /* orderKeyHash */ uint256[2][] calldata inputs, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
         // Set approvals base on inputs if requested.
-        if (instructions.setApprovalsUsingInputsFor != address(0)) _setApprovals(inputs, instructions.setApprovalsUsingInputsFor);
+        if (instructions.setApprovalsUsingInputsFor != address(0)) {
+            _setApprovals(inputs, instructions.setApprovalsUsingInputsFor);
+        }
 
         // Execute attached instructions
         _doInstructions(instructions);
@@ -119,8 +119,12 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
 
     // --- Code dedublication --- //
 
-    /** @notice Helper function to execute attached instructions. */
-    function _doInstructions(Instructions memory instructions) internal {
+    /**
+     * @notice Helper function to execute attached instructions.
+     */
+    function _doInstructions(
+        Instructions memory instructions
+    ) internal {
         // If there is no fallback recipient, call and revert if the inner call fails.
         if (instructions.fallbackRecipient == address(0)) {
             this.attemptCalls(instructions.calls);
@@ -128,16 +132,20 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         }
 
         // Otherwise, try the call and send to the fallback recipient if any tokens are leftover.
-        (bool success, ) = address(this).call(abi.encodeCall(this.attemptCalls, (instructions.calls)));
+        (bool success,) = address(this).call(abi.encodeCall(this.attemptCalls, (instructions.calls)));
         if (!success) emit CallsFailed(instructions.calls, instructions.fallbackRecipient);
     }
 
-    /** @notice Sets approval for a token. */
+    /**
+     * @notice Sets approval for a token.
+     */
     function _setApproval(address token, uint256 amount, address to) internal {
         SafeTransferLib.safeApproveWithRetry(token, to, amount);
     }
 
-    /** @notice Set approvals for a list of tokens. */
+    /**
+     * @notice Set approvals for a list of tokens.
+     */
     function _setApprovals(uint256[2][] calldata inputs, address to) internal {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
@@ -170,14 +178,18 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
         }
     }
 
-    /** @notice External helper to drain remaining tokens. Can be called as an instruction to empty other tokens. */
+    /**
+     * @notice External helper to drain remaining tokens. Can be called as an instruction to empty other tokens.
+     */
     function drainLeftoverTokens(address token, address payable destination) external onlySelf {
         _drainRemainingTokens(token, destination);
     }
 
     // --- Helpers ---//
 
-    function attemptCalls(Call[] memory calls) external onlySelf {
+    function attemptCalls(
+        Call[] memory calls
+    ) external onlySelf {
         uint256 length = calls.length;
         for (uint256 i = 0; i < length; ++i) {
             Call memory call = calls[i];
@@ -188,11 +200,11 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
             }
 
             // wake-disable-next-line reentrancy
-            (bool success, ) = call.target.call{ value: call.value }(call.callData);
+            (bool success,) = call.target.call{ value: call.value }(call.callData);
             if (!success) revert CallReverted(i, calls);
         }
     }
-    
+
     function _requireSelf() internal view {
         // Must be called by this contract to ensure that this cannot be triggered without the explicit consent of the
         // depositor (for a valid relay).
@@ -200,5 +212,5 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
     }
 
     // Used if the caller is trying to unwrap the native token to this contract.
-    receive() external payable {}
+    receive() external payable { }
 }

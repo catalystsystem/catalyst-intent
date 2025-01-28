@@ -13,13 +13,13 @@ import { CannotProveOrder, WrongChain } from "../../interfaces/Errors.sol";
 import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
-import { MessageEncodingLib } from "../MessageEncodingLib.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
+import { MessageEncodingLib } from "../MessageEncodingLib.sol";
 
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 
 /**
- * @notice Wormhole Oracle. 
+ * @notice Wormhole Oracle.
  * Implements a transparent oracle that allows both sending and receiving messages along with
  * exposing the hash of received messages.
  * @dev The contract is mostly trustless but requires someone to translate Wormhole chainIds into
@@ -39,10 +39,14 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
      * identifier) rather than an arbitrary index which is what most messaging protocols use.
      */
     mapping(uint16 messagingProtocolChainIdentifier => uint256 blockChainId) _chainIdentifierToBlockChainId;
-    /** @dev The map is bi-directional. */
+    /**
+     * @dev The map is bi-directional.
+     */
     mapping(uint256 blockChainId => uint16 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
 
-    /** @dev Wormhole generally defines 15 to be equal to Finality */
+    /**
+     * @dev Wormhole generally defines 15 to be equal to Finality
+     */
     uint8 constant WORMHOLE_CONSISTENCY = 15;
 
     IWormhole public immutable WORMHOLE;
@@ -54,15 +58,13 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
     // --- Chain ID Functions --- //
 
-    /** @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
+    /**
+     * @notice Sets an immutable map of the identifier messaging protocols use to chain ids.
      * @dev Can only be called once for every chain.
      * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
      * @param chainId Most common identifier for a chain. For EVM, it can often be accessed through block.chainid.
      */
-    function setChainMap(
-        uint16 messagingProtocolChainIdentifier,
-        uint256 chainId
-    ) onlyOwner external {
+    function setChainMap(uint16 messagingProtocolChainIdentifier, uint256 chainId) external onlyOwner {
         // Check that the inputs havn't been mistakenly called with 0 values.
         if (messagingProtocolChainIdentifier == 0) revert ZeroValue();
         if (chainId == 0) revert ZeroValue();
@@ -100,17 +102,14 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
     // --- Sending Proofs & Generalised Incentives --- //
 
-    /** 
+    /**
      * @notice Takes proofs that have been marked as valid by a source and submits them to Wormhole for broadcast.
      * @param proofSource Application that has potential payloads that are marked as valid.
      * @param payloads List of payloads that are checked for validity against the application and broadcasted.
      */
-    function submit(
-        address proofSource,
-        bytes[] calldata payloads
-    ) public payable returns (uint256 refund) {
+    function submit(address proofSource, bytes[] calldata payloads) public payable returns (uint256 refund) {
         // Check if the payloads are valid.
-        if (!IPayloadCreator(proofSource).arePayloadsValid(payloads)) revert NotAllPayloadsValid(); 
+        if (!IPayloadCreator(proofSource).arePayloadsValid(payloads)) revert NotAllPayloadsValid();
 
         // Payloads are good. We can submit them on behalf of proofSource.
         return _submit(proofSource, payloads);
@@ -120,26 +119,14 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
     /**
      * @notice Submits a proof the associated messaging protocol.
-     * @dev Refunds excess value to msg.sender. 
+     * @dev Refunds excess value to msg.sender.
      */
-    function _submit(
-        address source,
-        bytes[] calldata payloads
-    ) internal returns (uint256 refund) {
+    function _submit(address source, bytes[] calldata payloads) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = MessageEncodingLib.encodeMessage(
-            IdentifierLib.getIdentifier(
-                source, address(this)
-            ),
-            payloads
-        );
+        bytes memory message = MessageEncodingLib.encodeMessage(IdentifierLib.getIdentifier(source, address(this)), payloads);
 
         uint256 packageCost = WORMHOLE.messageFee();
-        WORMHOLE.publishMessage{value: packageCost} (
-            0,
-            message,
-            WORMHOLE_CONSISTENCY
-        );
+        WORMHOLE.publishMessage{ value: packageCost }(0, message, WORMHOLE_CONSISTENCY);
 
         // Refund excess value if any.
         if (msg.value > packageCost) {
@@ -148,7 +135,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         }
     }
 
-    /** 
+    /**
      * @notice Takes a wormhole VAA, which is expected to be from another WormholeOracle implementation
      * and stores attestations of the hash of the payloads contained within the VAA message.
      */
@@ -176,8 +163,12 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         }
     }
 
-    /** @dev _message is the entire Wormhole VAA. It contains both the proof & the message as a slice. */
-    function _verifyPacket(bytes calldata _message) internal view returns(uint16 sourceIdentifier, bytes32 implementationIdentifier, bytes calldata message_) {
+    /**
+     * @dev _message is the entire Wormhole VAA. It contains both the proof & the message as a slice.
+     */
+    function _verifyPacket(
+        bytes calldata _message
+    ) internal view returns (uint16 sourceIdentifier, bytes32 implementationIdentifier, bytes calldata message_) {
         // Decode & verify the VAA.
         // This uses the custom verification logic found in ./external/callworm/WormholeVerifier.sol.
         (sourceIdentifier, implementationIdentifier, message_) = parseAndVerifyVM(_message);

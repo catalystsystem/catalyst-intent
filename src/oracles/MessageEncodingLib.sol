@@ -3,8 +3,9 @@ pragma solidity ^0.8.26;
 
 /**
  * @notice Library to aid in encoding a series of payloads and decoding a series of payloads.
- * @dev The library does not understand the payloads. Likewise, when parsed the payloads are never used but their hashes are.
- * The library works with uint16 sizes, as a result the maximum number of payloads in a single message is 65'535 
+ * @dev The library does not understand the payloads. Likewise, when parsed the payloads are never used but their hashes
+ * are.
+ * The library works with uint16 sizes, as a result the maximum number of payloads in a single message is 65'535
  * and the maximum number of bytes in a payload is 65'535.
  *
  * --- Data Structure ---
@@ -23,36 +24,34 @@ library MessageEncodingLib {
     error TooLargePayload(uint256 size);
     error TooManyPayloads(uint256 size);
 
-    /** @notice Encodes a number of payloads into a single message prepended with an identifier. */
-    function encodeMessage(
-        bytes32 identifier,
-        bytes[] calldata payloads
-    ) internal pure returns (bytes memory encodedPayload) {
+    /**
+     * @notice Encodes a number of payloads into a single message prepended with an identifier.
+     */
+    function encodeMessage(bytes32 identifier, bytes[] calldata payloads) internal pure returns (bytes memory encodedPayload) {
         uint256 numPayloads = payloads.length;
         if (numPayloads > type(uint16).max) revert TooManyPayloads(numPayloads);
 
-        // Set the number of outputs as first 2 bytes. This aids implementations which may not have easy access to data size.
+        // Set the number of outputs as first 2 bytes. This aids implementations which may not have easy access to data
+        // size.
         encodedPayload = bytes.concat(identifier, bytes2(uint16(numPayloads)));
         for (uint256 i; i < numPayloads; ++i) {
             bytes calldata payload = payloads[i];
             // Check if length of payload is within message constraints.
             uint256 payloadLength = payload.length;
             if (payloadLength > type(uint16).max) revert TooLargePayload(payloadLength);
-            encodedPayload = abi.encodePacked(
-                encodedPayload,
-                uint16(payloadLength),
-                payload
-            );
+            encodedPayload = abi.encodePacked(encodedPayload, uint16(payloadLength), payload);
         }
     }
 
-    /** @dev Hashes payloads to reduce memory expansion costs. */
+    /**
+     * @dev Hashes payloads to reduce memory expansion costs.
+     */
     function decodeMessage(
         bytes calldata encodedPayload
     ) internal pure returns (bytes32 identifier, bytes32[] memory payloadHashes) {
         unchecked {
             assembly ("memory-safe") {
-                // Load the identifier as the first 32 bytes of the payload. This is equivalent to 
+                // Load the identifier as the first 32 bytes of the payload. This is equivalent to
                 // identifier = bytes32(encodedPayload[0:32]);
                 identifier := calldataload(encodedPayload.offset)
             }

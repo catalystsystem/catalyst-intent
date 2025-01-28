@@ -16,7 +16,7 @@
  */
 pragma solidity ^0.8.0;
 
-import {Ics23Proof} from "./IProofVerifier.sol";
+import { Ics23Proof } from "./IProofVerifier.sol";
 
 enum LightClientType {
     SimTestLightClient, // Note: not deployed on any mainnets
@@ -70,5 +70,7 @@ interface ILightClient is IClientUpdates {
     /**
      * Returns the apphash at a given height
      */
-    function getState(uint256 height) external view returns (uint256);
+    function getState(
+        uint256 height
+    ) external view returns (uint256);
 }

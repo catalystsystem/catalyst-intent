@@ -12,7 +12,7 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  * - FillDescription encoding is used to describe what was filled on a remote chain. Its purpose is
  * to provide a source of truth.
  *
- * The structure of both are 
+ * The structure of both are
  *
  * Encoded OutputDescription
  *      REMOTE_ORACLE                   0               (32 bytes)
@@ -37,14 +37,13 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  * where Y is the offset from the specific encoding (either 64 or 68)
  *
  */
-
 library OutputEncodingLib {
     error RemoteCallOutOfRange();
     error FulfillmentContextCallOutOfRange();
 
     // --- OutputDescription Encoding --- //
-    
-    /** 
+
+    /**
      * @notice Predictable encoding of OutputDescription that deliberately overlaps with the payload encoding.
      * @dev This function uses length identifiers 2 bytes long. As a result, neither remoteCall nor fulfillmentContext
      * can be larger than 65535.
@@ -71,13 +70,15 @@ library OutputEncodingLib {
         );
     }
 
-    /** 
+    /**
      * @notice Creates a unique hash of an OutputDescription
      * @dev This does provide a description of how an output was filled but just
      * an exact unique identifier for an output description. This identifier is
      * purely intended for the remote chain.
      */
-    function getOutputDescriptionHash(OutputDescription calldata output) pure internal returns(bytes32) {
+    function getOutputDescriptionHash(
+        OutputDescription calldata output
+    ) internal pure returns (bytes32) {
         return keccak256(encodeOutputDescription(output));
     }
 
@@ -86,16 +87,8 @@ library OutputEncodingLib {
      * output hash and the common payload have a shared chunk of data. It only has to be enhanced with
      * remoteOracle and chain id and then hashed.
      */
-    function getOutputDescriptionHash(
-        bytes32 remoteOracle,
-        uint256 chainId,
-        bytes calldata commonPayload
-    ) pure internal returns (bytes32) {
-        return keccak256(abi.encodePacked(
-            remoteOracle,
-            chainId,
-            commonPayload
-        ));
+    function getOutputDescriptionHash(bytes32 remoteOracle, uint256 chainId, bytes calldata commonPayload) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(remoteOracle, chainId, commonPayload));
     }
 
     // --- FillDescription Encoding --- //
@@ -137,42 +130,14 @@ library OutputEncodingLib {
      * because these are attached to the package. Instead the fill description describes
      * how the order was filled. These have to be collected externally.
      */
-    function encodeFillDescription(
-        bytes32 solver,
-        bytes32 orderId,
-        uint32 timestamp,
-        OutputDescription calldata outputDescription
-    ) internal pure returns (bytes memory encodedOutput) {
-
-        return encodedOutput = encodeFillDescription(
-            solver,
-            orderId,
-            timestamp,
-            outputDescription.token,
-            outputDescription.amount,
-            outputDescription.recipient,
-            outputDescription.remoteCall,
-            outputDescription.fulfillmentContext
-        );
+    function encodeFillDescription(bytes32 solver, bytes32 orderId, uint32 timestamp, OutputDescription calldata outputDescription) internal pure returns (bytes memory encodedOutput) {
+        return encodedOutput =
+            encodeFillDescription(solver, orderId, timestamp, outputDescription.token, outputDescription.amount, outputDescription.recipient, outputDescription.remoteCall, outputDescription.fulfillmentContext);
     }
 
-    function encodeFillDescriptionM(
-        bytes32 solver,
-        bytes32 orderId,
-        uint32 timestamp,
-        OutputDescription memory outputDescription
-    ) internal pure returns (bytes memory encodedOutput) {
-
-        return encodedOutput = encodeFillDescription(
-            solver,
-            orderId,
-            timestamp,
-            outputDescription.token,
-            outputDescription.amount,
-            outputDescription.recipient,
-            outputDescription.remoteCall,
-            outputDescription.fulfillmentContext
-        );
+    function encodeFillDescriptionM(bytes32 solver, bytes32 orderId, uint32 timestamp, OutputDescription memory outputDescription) internal pure returns (bytes memory encodedOutput) {
+        return encodedOutput =
+            encodeFillDescription(solver, orderId, timestamp, outputDescription.token, outputDescription.amount, outputDescription.recipient, outputDescription.remoteCall, outputDescription.fulfillmentContext);
     }
 
     // -- FillDescription Decoding Helpers -- //

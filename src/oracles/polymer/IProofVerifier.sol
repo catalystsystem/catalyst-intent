@@ -73,9 +73,7 @@ interface IAppStateVerifier {
      * @param value value to be proven
      * @param proof ICS23 membership proof
      */
-    function verifyMembership(bytes32 appHash, bytes calldata key, bytes calldata value, Ics23Proof calldata proof)
-        external
-        pure;
+    function verifyMembership(bytes32 appHash, bytes calldata key, bytes calldata value, Ics23Proof calldata proof) external pure;
 
     /**
      * @dev verifies the provided ICS23 proof given the trusted app hash. Reverts in case of failure.
@@ -103,11 +101,5 @@ interface IProofVerifier is IAppStateVerifier {
      * @param trustedL1BlockHash trusted L1 block hash. Provided L1 header must match with it.
      * @param trustedL1BlockNumber trusted L1 block number. Provided L1 header must match with it.
      */
-    function verifyStateUpdate(
-        L1Header calldata l1header,
-        OpL2StateProof calldata proof,
-        bytes32 appHash,
-        bytes32 trustedL1BlockHash,
-        uint64 trustedL1BlockNumber
-    ) external view;
+    function verifyStateUpdate(L1Header calldata l1header, OpL2StateProof calldata proof, bytes32 appHash, bytes32 trustedL1BlockHash, uint64 trustedL1BlockNumber) external view;
 }

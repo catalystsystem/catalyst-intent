@@ -11,12 +11,11 @@ import { BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 contract TestBitcoinScript is Test {
     function test() public pure { }
 
-    function test_script_from_BTCAddress() public {
+    function test_script_from_BTCAddress() public view {
         bytes32 pHash = hex"ae2f3d4b06579b62574d6178c10c882b91503740";
         BitcoinAddress memory btcAddress = BitcoinAddress(ScriptAddressType.P2PKH, pHash);
 
-        bytes memory actualScript =
-            bytes.concat(OP_DUB, OP_HASH160, PUSH_20, bytes20(pHash), OP_EQUALVERIFY, OP_CHECKSIG);
+        bytes memory actualScript = bytes.concat(OP_DUB, OP_HASH160, PUSH_20, bytes20(pHash), OP_EQUALVERIFY, OP_CHECKSIG);
         bytes memory expectedScript = this.getScript(btcAddress);
 
         assertEq(keccak256(actualScript), keccak256(expectedScript));

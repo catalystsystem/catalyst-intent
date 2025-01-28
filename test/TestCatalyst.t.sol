@@ -1,26 +1,25 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-
 import "forge-std/Test.sol";
 
-import { CatalystCompactSettler } from "../src/reactors/settler/compact/CatalystCompactSettler.sol";
 import { CoinFiller } from "../src/reactors/filler/CoinFiller.sol";
+import { CatalystCompactSettler } from "../src/reactors/settler/compact/CatalystCompactSettler.sol";
 
-import { MockERC20 } from "./mocks/MockERC20.sol";
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
+import { MockERC20 } from "./mocks/MockERC20.sol";
 
-import { OutputDescription, CatalystOrderType } from "../src/reactors/CatalystOrderType.sol";
-import { TheCompactOrderType, CatalystCompactFilledOrder } from "../src/reactors/settler/compact/TheCompactOrderType.sol";
 import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
+import { CatalystOrderType, OutputDescription } from "../src/reactors/CatalystOrderType.sol";
+import { CatalystCompactFilledOrder, TheCompactOrderType } from "../src/reactors/settler/compact/TheCompactOrderType.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
 import { OutputEncodingLib } from "../src/libs/OutputEncodingLib.sol";
 import { MessageEncodingLib } from "../src/oracles/MessageEncodingLib.sol";
 
+import { WormholeOracle } from "../src/oracles/wormhole/WormholeOracle.sol";
 import { Messages } from "../src/oracles/wormhole/external/wormhole/Messages.sol";
 import { Setters } from "../src/oracles/wormhole/external/wormhole/Setters.sol";
-import { WormholeOracle } from "../src/oracles/wormhole/WormholeOracle.sol";
 import { Structs } from "../src/oracles/wormhole/external/wormhole/Structs.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
@@ -35,16 +34,13 @@ interface ImmutableCreate2Factory {
 }
 
 event PackagePublished(uint32 nonce, bytes payload, uint8 consistencyLevel);
+
 contract ExportedMessages is Messages, Setters {
     function storeGuardianSetPub(Structs.GuardianSet memory set, uint32 index) public {
         return super.storeGuardianSet(set, index);
     }
 
-    function publishMessage(
-        uint32 nonce,
-        bytes calldata payload,
-        uint8 consistencyLevel
-    ) external payable returns (uint64) {
+    function publishMessage(uint32 nonce, bytes calldata payload, uint8 consistencyLevel) external payable returns (uint64) {
         emit PackagePublished(nonce, payload, consistencyLevel);
         return 0;
     }
@@ -85,24 +81,7 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts,
         bytes32 witness
     ) internal view returns (bytes memory sig) {
-
-        bytes32 msgHash = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(
-                        typeHash,
-                        arbiter,
-                        sponsor,
-                        nonce,
-                        expires,
-                        keccak256(abi.encodePacked(idsAndAmounts)),
-                        witness
-                    )
-                )
-            )
-        );
+        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, keccak256(abi.encode(typeHash, arbiter, sponsor, nonce, expires, keccak256(abi.encodePacked(idsAndAmounts)), witness))));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
@@ -140,7 +119,7 @@ contract TestCatalyst is Test {
         token.mint(swapper, 1e18);
 
         anotherToken.mint(solver, 1e18);
-        
+
         vm.prank(swapper);
         token.approve(address(theCompact), type(uint256).max);
         vm.prank(solver);
@@ -167,12 +146,12 @@ contract TestCatalyst is Test {
 
     function test_deposit_compact() external {
         vm.prank(swapper);
-        theCompact.deposit(address(token), alwaysOKAllocator, 1e18/10);
+        theCompact.deposit(address(token), alwaysOKAllocator, 1e18 / 10);
     }
 
     function test_deposit_and_claim() external {
         vm.prank(swapper);
-        uint256 amount = 1e18/10;
+        uint256 amount = 1e18 / 10;
         uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
 
         uint256[2][] memory inputs = new uint256[2][](1);
@@ -206,56 +185,36 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(
-            swapperPrivateKey,
-            typeHash,
-            address(catalystCompactSettler),
-            swapper,
-            0,
-            type(uint32).max,
-            idsAndAmounts,
-            this.orderHash(order)
-        );
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(catalystCompactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
-        
-        bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
+
         uint32[] memory timestamps = new uint32[](1);
 
         vm.prank(solver);
         catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
     }
 
-    function _buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns(bytes memory preMessage) {
-        return abi.encodePacked(
-            hex"000003e8" hex"00000001",
-            emitterChainId,
-            emitterAddress,
-            hex"0000000000000539" hex"0f"
-        );
-    } 
+    function _buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns (bytes memory preMessage) {
+        return abi.encodePacked(hex"000003e8" hex"00000001", emitterChainId, emitterAddress, hex"0000000000000539" hex"0f");
+    }
 
-    function makeValidVAA(uint16 emitterChainId, bytes32 emitterAddress, bytes memory message) internal view returns(bytes memory validVM) {
+    function makeValidVAA(uint16 emitterChainId, bytes32 emitterAddress, bytes memory message) internal view returns (bytes memory validVM) {
         bytes memory postvalidVM = abi.encodePacked(_buildPreMessage(emitterChainId, emitterAddress), message);
         bytes32 vmHash = keccak256(abi.encodePacked(keccak256(postvalidVM)));
-        (uint8 v, bytes32 r,  bytes32 s) = vm.sign(testGuardianPrivateKey, vmHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(testGuardianPrivateKey, vmHash);
 
-        validVM = abi.encodePacked(
-            hex"01" hex"00000000" hex"01",
-            uint8(0),
-            r, s, v - 27,
-            postvalidVM
-        );
+        validVM = abi.encodePacked(hex"01" hex"00000000" hex"01", uint8(0), r, s, v - 27, postvalidVM);
     }
 
     function test_entire_flow() external {
         vm.prank(swapper);
-        uint256 amount = 1e18/10;
+        uint256 amount = 1e18 / 10;
         uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
 
         address localOracle = address(wormholeOracle);
-        bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), address(wormholeOracle));
+        bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), localOracle);
 
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, amount];
@@ -274,7 +233,7 @@ contract TestCatalyst is Test {
             nonce: 0,
             originChainId: block.chainid,
             fillDeadline: type(uint32).max,
-            localOracle: address(wormholeOracle),
+            localOracle: localOracle,
             collateralToken: address(0),
             collateralAmount: uint256(0),
             initiateDeadline: type(uint32).max,
@@ -288,20 +247,11 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(
-            swapperPrivateKey,
-            typeHash,
-            address(catalystCompactSettler),
-            swapper,
-            0,
-            type(uint32).max,
-            idsAndAmounts,
-            this.orderHash(order)
-        );
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(catalystCompactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
-        
+
         // Initiation is over. We need to fill the order.
 
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
@@ -331,7 +281,7 @@ contract TestCatalyst is Test {
 
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = uint32(block.timestamp);
-        
+
         vm.prank(solver);
         catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
         vm.snapshotGasLastCall("finaliseSelf");

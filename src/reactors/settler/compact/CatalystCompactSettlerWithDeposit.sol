@@ -21,11 +21,11 @@ import {
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact
- * by providing the Catalyst order to this contract and providing appropiate allowances.
+ * by providing the Catalyst order to this contract and providing appropriate allowances.
  * @dev 2 deposits pathways are provided:
  * - Deposit for a specific user providing the input tokens from msg.sender.
  * - Permit2 wrapping. If a proper signature for TheCompact is given, the whole order
- * can be submitted to this contract and the appropiate claim is set.
+ * can be submitted to this contract and the appropriate claim is set.
  */
 contract CatalystCompactSettlerWithDeposit is CatalystCompactSettler {
 

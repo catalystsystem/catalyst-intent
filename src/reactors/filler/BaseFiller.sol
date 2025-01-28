@@ -21,10 +21,6 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
 
-    receive() external payable {
-        // Lets us gets refunds from Oracles.
-    }
-
     struct FilledOutput {
         bytes32 solver;
         uint32 timestamp;
@@ -32,7 +28,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
     mapping(bytes32 orderId => mapping(bytes32 outputHash => FilledOutput)) _filledOutputs;
 
-    event OutputFilled(bytes32 orderId, bytes32 solver, OutputDescription output);
+    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
     bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this)))) << 8;
@@ -90,7 +86,7 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         if (remoteCallLength > 0) _call(output);
 
         emit OutputFilled(
-            orderId, proposedSolver, output
+            orderId, proposedSolver, uint32(block.timestamp), output
         );
 
         return proposedSolver;

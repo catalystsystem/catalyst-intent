@@ -9,25 +9,25 @@ import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/lib
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { OutputDescription } from "../../CatalystOrderType.sol";
-import { CatalystCompactFilledOrder, TheCompactOrderType } from "../../settler/compact/TheCompactOrderType.sol";
+import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
+import { CatalystCompactFilledOrder, TheCompactOrderType } from "../../reactors/settler/compact/TheCompactOrderType.sol";
 
-import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
-import { BaseOracle } from "../../../oracles/BaseOracle.sol";
-import { IdentifierLib } from "../../../libs/IdentifierLib.sol";
+import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
+import { BaseOracle } from "../BaseOracle.sol";
+import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 
-import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { GaslessCrossChainOrder } from "../../interfaces/IERC7683.sol";
 
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
  * 1. Directly Oracle. This requires a local light client along side the relevant reactor.
- * 2. Indirectly oracle through the bridge oracle.
+ * 2. Indirectly oracle through a bridge oracle.
  * This requires a local light client and a bridge connection to the relevant reactor.
- * 0xB17C012
  *
  * This filler can work as both an oracle 
+ * 0xB17C012
  */
-contract BitcoinFiller is BaseOracle {
+contract BitcoinOracle is BaseOracle {
     error BadAmount(); // 0x749b5939
     error BadDestinationIdentifier(); // 0x111fe358
     error BadTokenFormat(); // 0x6a6ba82d
@@ -38,7 +38,12 @@ contract BitcoinFiller is BaseOracle {
     error AlreadyDisputed(address disputer);
     error NotDisputed();
     error AmountTooLarge();
+    error DeadlineExpired();
+    error TooEarly();
+    error TooLate();
 
+    /** @dev WARNING! Don't read output.remoteOracle nor output.chainId when emitted by this oracle. */
+    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
     event OutputVerified(
         bytes32 verificationContext
     );
@@ -191,15 +196,24 @@ contract BitcoinFiller is BaseOracle {
     // --- Data Validation Function --- //
 
     /**
-     * @notice The Bitcoin Filler should also work as an oracle if it sits locally on a chain.
+     * @notice The Bitcoin Oracle should also work as an filler if it sits locally on a chain.
      * We don't want to store 2 attests of proofs (filler and oracle uses different schemes) so we instead store the
      * payload attestation. That allows settlers to easily check if outputs has been filled but also if payloads
      * have been verified (incase the settler is on another chain than the light client).
      */
     function _isPayloadValid(address oracle, bytes calldata payload) view internal returns(bool) {
-        bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
-        return _attestations[chainId][remoteOracleIdentifier][keccak256(payload)];
+        return _attestations[chainId][bytes32(uint256(uint160(oracle)))][keccak256(payload)];
+    }
+
+    /** @dev Allows oracles to verify we have confirmed payloads. */
+    function arePayloadsValid(bytes[] calldata payloads) view external returns(bool) {
+        address sender = msg.sender;
+        uint256 numPayloads = payloads.length;
+        for (uint256 i; i < numPayloads; ++i) {
+            if (!_isPayloadValid(sender, payloads[i])) return false;
+        }
+        return true;
     }
 
     // --- Validation --- //
@@ -267,6 +281,12 @@ contract BitcoinFiller is BaseOracle {
         if (!BtcProof.compareScripts(outputScript, txOutScript)) revert ScriptMismatch(outputScript, txOutScript);
     }
 
+    /**
+     * @dev This function does not validate that the output is for this contract.
+     * Instead it assumes that the caller correctly identified that this contract is the proper
+     * contract to call. This is fine, since we never read the chainId nor remoteOracle
+     * when setting the payload as proven.
+     */
     function _verify(
         bytes32 orderId,
         OutputDescription calldata output,
@@ -275,10 +295,6 @@ contract BitcoinFiller is BaseOracle {
         uint256 txOutIx,
         uint256 timestamp
     ) internal {
-        // Validate order context. This lets us ensure that this filler is the correct filler for the output.
-        // _validateChain(output.chainId);          //TODO
-        // _IAmRemoteOracle(output.remoteOracle);   //TODO
-
         bytes32 token = output.token;
         bytes memory outputScript = _bitcoinScript(token, output.recipient);
         uint256 numConfirmations = _getNumConfirmations(token);
@@ -301,7 +317,8 @@ contract BitcoinFiller is BaseOracle {
         ));  
         _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
 
-        // emit OutputFilled(orderId, solver, uint32(timestamp), output);   //TODO
+        // We need to emit this event to make the output recognisably observably filled off-chain.
+        emit OutputFilled(orderId, solver, uint32(timestamp), output);
         emit OutputVerified(inclusionProof.txId);
     }
 
@@ -484,10 +501,8 @@ contract BitcoinFiller is BaseOracle {
         claimedOrder.token = collateralToken;
         // The above lines acts as a local re-entry guard. External calls are now allowed.
 
-
-        // TODO: What to do about these deadlines.
-        uint32 proofDeadline = order.proofDeadline;
-        uint32 challengeDeadline = order.challengeDeadline;
+        if (order.initiateDeadline < block.timestamp) revert TooLate();
+        if (order.challengeDeadline < block.timestamp) revert TooLate();
 
         // Collect collateral from claimant.
         SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, address(this), collateralAmount);
@@ -500,6 +515,7 @@ contract BitcoinFiller is BaseOracle {
     ) external {
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
+        if (order.challengeDeadline < block.timestamp) revert TooLate();
 
         // Check that this order has been claimed but not disputed..
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
@@ -517,7 +533,8 @@ contract BitcoinFiller is BaseOracle {
     function optimisticallyVerify(
         CatalystCompactFilledOrder calldata order
     ) external {
-        // TODO: check deadlines
+        if (order.challengeDeadline >= block.timestamp) revert TooEarly();
+
         bytes32 orderId = _orderIdentifier(order);
 
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
@@ -563,7 +580,7 @@ contract BitcoinFiller is BaseOracle {
     function finaliseDispute(
         CatalystCompactFilledOrder calldata order
     ) external {
-        // TODO: check deadlines
+        if (order.fillDeadline >= block.timestamp) revert TooEarly();
         bytes32 orderId = _orderIdentifier(order);
 
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId];

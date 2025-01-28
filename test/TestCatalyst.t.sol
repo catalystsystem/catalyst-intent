@@ -195,7 +195,7 @@ contract TestCatalyst is Test {
             localOracle: alwaysYesOracle,
             collateralToken: address(0),
             collateralAmount: uint256(0),
-            proofDeadline: type(uint32).max,
+            initiateDeadline: type(uint32).max,
             challengeDeadline: type(uint32).max,
             inputs: inputs,
             outputs: outputs
@@ -277,7 +277,7 @@ contract TestCatalyst is Test {
             localOracle: address(wormholeOracle),
             collateralToken: address(0),
             collateralAmount: uint256(0),
-            proofDeadline: type(uint32).max,
+            initiateDeadline: type(uint32).max,
             challengeDeadline: type(uint32).max,
             inputs: inputs,
             outputs: outputs

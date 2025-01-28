@@ -12,7 +12,7 @@ struct CatalystCompactFilledOrder {
     address localOracle;
     address collateralToken;
     uint256 collateralAmount;
-    uint32 proofDeadline;
+    uint32 initiateDeadline;
     uint32 challengeDeadline;
     uint256[2][] inputs;
     OutputDescription[] outputs;
@@ -27,7 +27,7 @@ struct CatalystWitness {
     address localOracle;
     address collateralToken;
     uint256 collateralAmount;
-    uint32 proofDeadline;
+    uint32 initiateDeadline;
     uint32 challengeDeadline;
     OutputDescription[] outputs;
 }
@@ -51,7 +51,7 @@ library TheCompactOrderType {
             orderData.localOracle,
             orderData.collateralToken,
             orderData.collateralAmount,
-            orderData.proofDeadline,
+            orderData.initiateDeadline,
             orderData.challengeDeadline,
             orderData.inputs,
             abi.encode(orderData.outputs)
@@ -69,7 +69,7 @@ library TheCompactOrderType {
             orderData.localOracle,
             orderData.collateralToken,
             orderData.collateralAmount,
-            orderData.proofDeadline,
+            orderData.initiateDeadline,
             orderData.challengeDeadline,
             orderData.inputs,
             abi.encode(orderData.outputs)
@@ -86,7 +86,7 @@ library TheCompactOrderType {
             order.localOracle,
             order.collateralToken,
             order.collateralAmount,
-            order.proofDeadline,
+            order.initiateDeadline,
             order.challengeDeadline,
             order.inputs,
             abi.encode(order.outputs)
@@ -99,7 +99,7 @@ library TheCompactOrderType {
         "address localOracle,"
         "address collateralToken,"
         "uint256 collateralAmount,"
-        "uint32 proofDeadline,"
+        "uint32 initiateDeadline,"
         "uint32 challengeDeadline,"
         "OutputDescription[] outputs"
         ")"
@@ -144,7 +144,7 @@ library TheCompactOrderType {
                 order.localOracle,
                 order.collateralToken,
                 order.collateralAmount,
-                order.proofDeadline,
+                order.initiateDeadline,
                 order.challengeDeadline,
                 CatalystOrderType.hashOutputs(order.outputs)
             )
@@ -162,7 +162,7 @@ library TheCompactOrderType {
                 orderData.localOracle,
                 orderData.collateralToken,
                 orderData.collateralAmount,
-                orderData.proofDeadline,
+                orderData.initiateDeadline,
                 orderData.challengeDeadline,
                 CatalystOrderType.hashOutputs(orderData.outputs)
             )

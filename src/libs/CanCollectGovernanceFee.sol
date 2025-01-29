@@ -5,20 +5,9 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /**
- * @dev Required for inheritance linearization
- */
-abstract contract ICanCollectGovernanceFee {
-    function _calcFee(uint256 amount, uint256 fee) internal pure virtual returns (uint256 amountLessFee);
-
-    function _calcFee(
-        uint256 amount
-    ) internal view virtual returns (uint256 amountLessFee);
-}
-
-/**
  * @title Extendable contract that allows an implementation to collect governance fees.
  */
-abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
+abstract contract CanCollectGovernanceFee is Ownable {
     error GovernanceFeeTooHigh();
     error GovernanceFeeChangeNotReady();
 
@@ -44,9 +33,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
 
-    constructor(
-        address owner
-    ) payable {
+    constructor(address owner) payable {
         _initializeOwner(owner);
     }
 
@@ -56,14 +43,20 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      */
     mapping(address token => uint256 amount) internal _governanceTokens;
 
+    function _resetGovernanceTokens(address token) internal virtual {
+        _governanceTokens[token] = 0;
+    }
+
     /**
      * @notice Returns the amount of tokens collected by governance.
      * @dev View function for _governanceTokens storage slot.
      */
-    function getGovernanceTokens(
-        address token
-    ) external view returns (uint256 amountTokens) {
+    function _getGovernanceTokens(address token) internal virtual view returns (uint256 amountTokens) {
         return amountTokens = _governanceTokens[token];
+    }
+
+    function getGovernanceTokens(address token) external view returns (uint256 amountTokens) {
+        return _getGovernanceTokens(token);
     }
 
     /**
@@ -76,15 +69,11 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * @param amount for fee to be taken of.
      * @param fee to take of amount and set for token. Fee is provided as a variable to
      * save gas when used in a loop. The fee is out of 10**18.
-     * @return amountLessFee amount - fee.
      */
-    function _collectGovernanceFee(address token, uint256 amount, uint256 fee) internal returns (uint256 amountLessFee) {
+    function _collectGovernanceFee(address token, uint256 amount, uint256 fee) internal returns (uint256 governanceShare) {
         unchecked {
             // Get the governance share of the amountLessFee.
-            uint256 governanceShare = _calcFee(amount, fee);
-
-            // Compute the amount less fee.
-            amountLessFee = amount - governanceShare; // amount >= governanceShare
+            governanceShare = _calcFee(amount, fee);
 
             // Only set storage if the fee is not 0.
             if (governanceShare != 0) _governanceTokens[token] = _governanceTokens[token] + governanceShare;
@@ -94,8 +83,8 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
     /**
      * @notice Overload of _collectGovernanceFee reading the governance fee.
      */
-    function _collectGovernanceFee(address token, uint256 amount) internal returns (uint256 amountLessFee) {
-        return amountLessFee = _collectGovernanceFee(token, amount, governanceFee);
+    function _collectGovernanceFee(address token, uint256 amount) internal returns (uint256 governanceShare) {
+        return governanceShare = _collectGovernanceFee(token, amount, governanceFee);
     }
 
     /**
@@ -104,7 +93,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENOM based.
      * @return amountFee Fee
      */
-    function _calcFee(uint256 amount, uint256 fee) internal pure override returns (uint256 amountFee) {
+    function _calcFee(uint256 amount, uint256 fee) internal pure returns (uint256 amountFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
             if (amount >= type(uint256).max / fee) return amountFee = 0;
@@ -122,7 +111,7 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      */
     function _calcFee(
         uint256 amount
-    ) internal view override returns (uint256 amountFee) {
+    ) internal view returns (uint256 amountFee) {
         return _calcFee(amount, governanceFee);
     }
 
@@ -164,15 +153,15 @@ abstract contract CanCollectGovernanceFee is Ownable, ICanCollectGovernanceFee {
      * @param to Recipient of the tokens.
      * @return collectedAmounts Array of the collected governance tokens.
      */
-    function distributeGovernanceTokens(address[] calldata tokens, address to) external onlyOwner returns (uint256[] memory collectedAmounts) {
+    function distributeGovernanceTokens(address[] calldata tokens, address to) external onlyOwner virtual returns (uint256[] memory collectedAmounts) {
         unchecked {
             uint256 numTokens = tokens.length;
             collectedAmounts = new uint256[](numTokens);
             for (uint256 i = 0; i < numTokens; ++i) {
                 address token = tokens[i];
                 // Read the collected governance tokens and then set to 0 immediately.
-                uint256 tokensToBeClaimed = _governanceTokens[token];
-                _governanceTokens[token] = 0;
+                uint256 tokensToBeClaimed = _getGovernanceTokens(token);
+                _resetGovernanceTokens(token);
 
                 collectedAmounts[i] = tokensToBeClaimed;
                 // Since we have "collected" the fee, it is expected that this function will go through.

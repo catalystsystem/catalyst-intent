@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import { WrongChain, WrongRemoteOracle } from "../../interfaces/Errors.sol";
 
-import { IDestinationSettler } from "../../interfaces/IERC7683.sol";
 import { IOracle } from "../../interfaces/IOracle.sol";
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
@@ -14,7 +13,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 /**
  * @notice Base
  */
-abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
+abstract contract BaseFiller is IPayloadCreator {
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
     error DifferentRemoteOracles();
@@ -34,6 +33,8 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
     bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this)))) << 8;
+
+    function _preDeliveryHook(address recipient, address token, uint256 outputAmount) virtual internal returns (uint256);
 
     /**
      * @notice Verifies & Fills an order.
@@ -74,9 +75,10 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
         address recipient = address(uint160(uint256(output.recipient)));
         address token = address(uint160(uint256(output.token)));
 
+        uint256 deliveryAmount = _preDeliveryHook(recipient, token, outputAmount);
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
-        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, outputAmount);
+        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, deliveryAmount);
 
         // If there is an external call associated with the fill, execute it.
         uint256 remoteCallLength = output.remoteCall.length;
@@ -129,20 +131,6 @@ abstract contract BaseFiller is IPayloadCreator, IDestinationSettler {
     function fillSkip(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
         if (filler == bytes32(0)) revert ZeroValue();
         _fillSkip(orderIds, outputs, filler);
-    }
-
-    /**
-     * @notice Fill via ERC7683 interface
-     */
-    function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
-        (bytes32 filler, bool throwIfSomeoneElseFilled) = abi.decode(fillerData, (bytes32, bool));
-        if (filler == bytes32(0)) revert ZeroValue();
-
-        OutputDescription memory output = abi.decode(originData, (OutputDescription));
-
-        // TODO: Doesn't work because of msg.sender. Delegatecall?
-        bytes32 existingSolver = this.fill(orderId, output, filler);
-        if (throwIfSomeoneElseFilled && existingSolver != filler) revert FilledBySomeoneElse(existingSolver);
     }
 
     // --- External Calls --- ///

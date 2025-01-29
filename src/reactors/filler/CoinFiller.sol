@@ -16,6 +16,10 @@ contract CoinFiller is BaseFiller {
     error NotImplemented();
     error SlopeStopped();
 
+    function _preDeliveryHook(address /* recipient */, address /* token */, uint256 outputAmount) internal virtual override returns (uint256) {
+        return outputAmount;
+    }
+
     function _dutchAuctionSlope(uint256 amount, uint256 slope, uint256 stopTime) internal view returns (uint256 currentAmount) {
         uint256 currentTime = block.timestamp;
         if (stopTime < currentTime) revert SlopeStopped();
@@ -25,8 +29,7 @@ contract CoinFiller is BaseFiller {
 
     /**
      * @notice Computes the amount of an order. Allows limit orders and dutch auctions.
-     * @dev
-     * Uses the fulfillmentContext of the output to determine order type.
+     * @dev Uses the fulfillmentContext of the output to determine order type.
      * 0x00 is limit order. Requires output.fulfillmentContext == 0x00
      * 0x01 is dutch auction. Requires output.fulfillmentContext == 0x01 | slope | stopTime
      */
@@ -42,9 +45,9 @@ contract CoinFiller is BaseFiller {
             uint256 stopTime = uint256(bytes32(output.fulfillmentContext[33:65]));
             // TODO: Enable after tests.
             // assembly ("memory-safe") {
-            //     uint256 slope = uint256(bytes32(output.fulfillmentContext[1:33]));
+            //     // uint256 slope = uint256(bytes32(output.fulfillmentContext[1:33]));
             //     slope := calldataload(add(output.offset, 0x01))
-            //     uint256 stopTime = uint256(bytes32(output.fulfillmentContext[33:65]));
+            //     // uint256 stopTime = uint256(bytes32(output.fulfillmentContext[33:65]));
             //     stopTime := calldataload(add(output.offset, 0x21))
             // }
             return _dutchAuctionSlope(output.amount, slope, stopTime);

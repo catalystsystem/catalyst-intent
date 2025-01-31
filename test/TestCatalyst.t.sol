@@ -9,9 +9,8 @@ import { CatalystCompactSettler } from "../src/reactors/settler/compact/Catalyst
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 
-import { GaslessCrossChainOrder } from "../src/interfaces/IERC7683.sol";
 import { CatalystOrderType, OutputDescription } from "../src/reactors/CatalystOrderType.sol";
-import { CatalystCompactFilledOrder, TheCompactOrderType } from "../src/reactors/settler/compact/TheCompactOrderType.sol";
+import { CatalystCompactOrder, TheCompactOrderType } from "../src/reactors/settler/compact/TheCompactOrderType.sol";
 
 import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
 import { OutputEncodingLib } from "../src/libs/OutputEncodingLib.sol";
@@ -88,7 +87,7 @@ contract TestCatalyst is Test {
     }
 
     function orderHash(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) external pure returns (bytes32) {
         return TheCompactOrderType.orderHash(order);
     }
@@ -166,7 +165,7 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactFilledOrder memory order = CatalystCompactFilledOrder({
+        CatalystCompactOrder memory order = CatalystCompactOrder({
             user: address(swapper),
             nonce: 0,
             originChainId: block.chainid,
@@ -228,7 +227,7 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactFilledOrder memory order = CatalystCompactFilledOrder({
+        CatalystCompactOrder memory order = CatalystCompactOrder({
             user: address(swapper),
             nonce: 0,
             originChainId: block.chainid,

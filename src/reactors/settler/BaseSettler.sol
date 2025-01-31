@@ -7,11 +7,10 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
-import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
+import { OutputDescription } from "../CatalystOrderType.sol";
 import { OrderPurchaseType } from "./OrderPurchaseType.sol";
 
 import { ICrossCatsCallback } from "../../interfaces/ICrossCatsCallback.sol";
-import { FillInstruction, GaslessCrossChainOrder, Output, ResolvedCrossChainOrder } from "../../interfaces/IERC7683.sol";
 import { IOracle } from "../../interfaces/IOracle.sol";
 
 /**
@@ -26,9 +25,6 @@ abstract contract BaseSettler is EIP712 {
     error Expired();
     error InvalidPurchaser();
     error InvalidSigner();
-    error InitiateDeadlinePassed(); // 0x606ef7f5
-    error InvalidSettlementAddress(); // 0x78c8b5df
-    error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
 
     /// @notice Catalyst specific open event that replaces the ERC7683 one for cost purposes.
     event Open(bytes32 indexed orderId, bytes32 solver, address destination);
@@ -42,31 +38,6 @@ abstract contract BaseSettler is EIP712 {
     }
 
     mapping(bytes32 solver => mapping(bytes32 orderId => Purchased)) public purchasedOrders;
-
-    // --- Hashing Orders --- //
-
-    function _orderIdentifier(
-        GaslessCrossChainOrder calldata order
-    ) internal view virtual returns (bytes32);
-
-    function orderIdentifier(
-        GaslessCrossChainOrder calldata order
-    ) external view returns (bytes32) {
-        return _orderIdentifier(order);
-    }
-
-    // --- Order Validation --- //
-
-    function _validateOrder(
-        GaslessCrossChainOrder calldata order
-    ) internal view {
-        // Check that we are the settler for this order:
-        if (address(this) != order.originSettler) revert InvalidSettlementAddress();
-        // Check that this is the right originChain
-        if (block.chainid != order.originChainId) revert WrongChain(block.chainid, order.originChainId);
-        // Check if the open deadline has been passed
-        if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
-    }
 
     // --- Timestamp Helpers --- //
 
@@ -125,22 +96,10 @@ abstract contract BaseSettler is EIP712 {
         return address(uint160(uint256(solver)));
     }
 
-    /**
-     * @notice This function is called by whoever wants to buy an order from a filler.
-     * If the order was purchased in time, then when the order is settled, the inputs will
-     * go to the purchaser instead of the original solver.
-     * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
-     * your funds may be at risk and that you purchase it within the allocated time.
-     * To purchase an order, it is required that you can produce a proper signature
-     * from the solver that signs the purchase details.
-     * @param orderSolvedByIdentifier Solver of the order. Is not validated, need to be correct otherwise
-     * the purchase will be wasted.
-     * @param expiryTimestamp Set to ensure if your transaction isn't mine quickly, you don't end
-     * up purchasing an order that you cannot prove OR is not within the timeToBuy window.
-     */
-    function purchaseOrder(
+    function _purchaseOrder(
+        bytes32 orderId,
+        uint256[2][] calldata inputs,
         bytes32 orderSolvedByIdentifier,
-        GaslessCrossChainOrder calldata order,
         address purchaser,
         uint256 expiryTimestamp,
         address newDestination,
@@ -148,11 +107,9 @@ abstract contract BaseSettler is EIP712 {
         uint48 discount,
         uint32 timeToBuy,
         bytes calldata solverSignature
-    ) external {
+    ) internal {
         if (purchaser == address(0)) revert InvalidPurchaser();
         if (expiryTimestamp < block.timestamp) revert Expired();
-
-        bytes32 orderId = _orderIdentifier(order);
 
         // Check if the order has already been purchased.
         Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderId];
@@ -174,11 +131,9 @@ abstract contract BaseSettler is EIP712 {
         if (!isValid) revert InvalidSigner();
 
         // Pay the input tokens to the solver.
-        CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
-        uint256[2][] memory inputs = orderData.inputs;
-        uint256 numInputs = orderData.inputs.length;
+        uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            uint256[2] memory input = inputs[i];
+            uint256[2] calldata input = inputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
             uint256 amountAfterDiscount = allocatedAmount * discount / DISCOUNT_DENOM;
@@ -187,67 +142,6 @@ abstract contract BaseSettler is EIP712 {
 
         emit OrderPurchased(orderId, orderSolvedByIdentifier, purchaser);
 
-        if (call.length > 0) ICrossCatsCallback(newDestination).inputsFilled(orderData.inputs, call);
-    }
-
-    //--- ERC7683 Resolvers ---//
-
-    function _resolve(CatalystOrderData memory orderData, address filler) internal view virtual returns (Output[] memory maxSpent, FillInstruction[] memory fillInstructions, Output[] memory minReceived) {
-        uint256 numOutputs = orderData.outputs.length;
-        maxSpent = new Output[](numOutputs);
-
-        // If the output list is sorted by chains, this list is unique and optimal.
-        OutputDescription[] memory outputs = orderData.outputs;
-        fillInstructions = new FillInstruction[](numOutputs);
-        for (uint256 i = 0; i < numOutputs; ++i) {
-            OutputDescription memory catalystOutput = outputs[i];
-            uint256 chainId = catalystOutput.chainId;
-            maxSpent[i] = Output({ token: catalystOutput.token, amount: catalystOutput.amount, recipient: catalystOutput.recipient, chainId: chainId });
-            fillInstructions[i] = FillInstruction({ destinationChainId: uint64(chainId), destinationSettler: catalystOutput.remoteOracle, originData: abi.encode(catalystOutput) });
-        }
-
-        // fillerOutputs are of the Output type and as a result, we can't just
-        // load swapperInputs into fillerOutputs. As a result, we need to parse
-        // the individual inputs and make a new struct.
-        uint256[2][] memory inputs = orderData.inputs;
-        uint256 numInputs = inputs.length;
-        minReceived = new Output[](numInputs);
-        unchecked {
-            for (uint256 i; i < numInputs; ++i) {
-                uint256[2] memory input = inputs[i];
-                uint256 tokenId = input[0];
-                uint256 allocatedAmount = input[1];
-                minReceived[i] = Output({ token: bytes32(tokenId), amount: allocatedAmount, recipient: bytes32(uint256(uint160(filler))), chainId: uint32(block.chainid) });
-            }
-        }
-    }
-
-    /**
-     * @notice Resolves an order into an ERC-7683 compatible order struct.
-     * By default relies on _resolveKey to convert OrderKey into a ResolvedCrossChainOrder
-     * @dev Can be overwritten if there isn't a translation of an orderKey into resolvedOrder.
-     * @param order CrossChainOrder to resolve.
-     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
-     */
-    function _resolve(GaslessCrossChainOrder calldata order, address filler) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
-
-        (Output[] memory maxSpent, FillInstruction[] memory fillInstructions, Output[] memory minReceived) = _resolve(orderData, filler);
-
-        // Lastly, complete the ResolvedCrossChainOrder struct.
-        resolvedOrder = ResolvedCrossChainOrder({
-            user: order.user,
-            originChainId: order.originChainId,
-            openDeadline: order.openDeadline,
-            fillDeadline: order.fillDeadline,
-            orderId: _orderIdentifier(order),
-            maxSpent: maxSpent,
-            minReceived: minReceived,
-            fillInstructions: fillInstructions
-        });
-    }
-
-    function resolveFor(GaslessCrossChainOrder calldata order, bytes calldata, /* signature */ bytes calldata /* originFllerData */ ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        return _resolve(order, address(0));
+        if (call.length > 0) ICrossCatsCallback(newDestination).inputsFilled(inputs, call);
     }
 }

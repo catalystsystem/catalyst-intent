@@ -9,13 +9,12 @@ import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactCla
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
 
-import { CatalystOrderData, OutputDescription } from "../../CatalystOrderType.sol";
+import { OutputDescription } from "../../CatalystOrderType.sol";
 import { AllowOpenType } from "../AllowOpenType.sol";
 import { BaseSettler } from "../BaseSettler.sol";
-import { CatalystCompactFilledOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
+import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 
 import { ICrossCatsCallback } from "../../../interfaces/ICrossCatsCallback.sol";
-import { GaslessCrossChainOrder, IOriginSettler, Open, ResolvedCrossChainOrder } from "../../../interfaces/IERC7683.sol";
 import { IOracle } from "../../../interfaces/IOracle.sol";
 import { BytesLib } from "../../../libs/BytesLib.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
@@ -32,7 +31,9 @@ import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 contract CatalystCompactSettler is BaseSettler {
     error NotImplemented();
     error NotOrderOwner();
+    error InitiateDeadlinePassed(); // 0x606ef7f5
     error InvalidTimestampLength();
+    error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
 
     TheCompact public immutable COMPACT;
 
@@ -53,21 +54,24 @@ contract CatalystCompactSettler is BaseSettler {
     // Generic order identifier
 
     function _orderIdentifier(
-        GaslessCrossChainOrder calldata order
-    ) internal view override returns (bytes32) {
-        return TheCompactOrderType.orderIdentifier(order);
-    }
-
-    function _orderIdentifier(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) internal view returns (bytes32) {
         return TheCompactOrderType.orderIdentifier(order);
     }
 
     function orderIdentifier(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) external view returns (bytes32) {
         return _orderIdentifier(order);
+    }
+
+    function _validateOrder(
+        CatalystCompactOrder calldata order
+    ) internal view {
+        // Check that this is the right originChain
+        if (block.chainid != order.originChainId) revert WrongChain(block.chainid, order.originChainId);
+        // Check if the open deadline has been passed
+        if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
     }
 
     //--- Output Proofs ---//
@@ -141,7 +145,7 @@ contract CatalystCompactSettler is BaseSettler {
         if (!isValid) revert InvalidSigner();
     }
 
-    function _finalise(CatalystCompactFilledOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, address destination) internal {
+    function _finalise(CatalystCompactOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, address destination) internal {
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
         // Payout inputs. (This also protects against re-entry calls.)
@@ -150,7 +154,7 @@ contract CatalystCompactSettler is BaseSettler {
         emit Open(orderId, solver, destination);
     }
 
-    function finaliseSelf(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external {
+    function finaliseSelf(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external {
         bytes32 orderId = _orderIdentifier(order);
 
         address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
@@ -163,7 +167,7 @@ contract CatalystCompactSettler is BaseSettler {
         _finalise(order, signatures, orderId, solver, orderOwner);
     }
 
-    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, address destination, bytes calldata call) external {
+    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, address destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
         address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
@@ -185,12 +189,12 @@ contract CatalystCompactSettler is BaseSettler {
      * inside The Compact and will be available to collect.
      * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of
      * the fills.
-     * @param order GaslessCrossChainOrder signed in conjunction with a Compact to form an order.
+     * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorSignature))
      */
     function finaliseFor(
-        CatalystCompactFilledOrder calldata order,
+        CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
         bytes32 solver,
@@ -220,7 +224,7 @@ contract CatalystCompactSettler is BaseSettler {
     // Important, this output generally matters in regards to the orderId. The solver of the first output is determined
     // to be the "orderOwner".
 
-    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, address destination, bytes calldata call) external {
+    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, address destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
         address orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
@@ -242,12 +246,12 @@ contract CatalystCompactSettler is BaseSettler {
      * inside The Compact and will be available to collect.
      * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of
      * the fills.
-     * @param order GaslessCrossChainOrder signed in conjunction with a Compact to form an order.
+     * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorSignature))
      */
     function finaliseFor(
-        CatalystCompactFilledOrder calldata order,
+        CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
         bytes32[] calldata solvers,
@@ -271,7 +275,7 @@ contract CatalystCompactSettler is BaseSettler {
 
     //--- The Compact & Resource Locks ---//
 
-    function _resolveLock(CatalystCompactFilledOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorSignature, address solvedBy) internal virtual {
+    function _resolveLock(CatalystCompactOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorSignature, address solvedBy) internal virtual {
         uint256 numInputs = order.inputs.length;
         BatchClaimComponent[] memory claims = new BatchClaimComponent[](numInputs);
         uint256[2][] calldata maxInputs = order.inputs;
@@ -300,5 +304,47 @@ contract CatalystCompactSettler is BaseSettler {
             })
         );
         require(success); // This should always be true.
+    }
+
+    // --- Purchase Order --- //
+
+    /**
+     * @notice This function is called by whoever wants to buy an order from a filler.
+     * If the order was purchased in time, then when the order is settled, the inputs will
+     * go to the purchaser instead of the original solver.
+     * @dev If you are buying a challenged order, ensure that you have sufficient time to prove the order or
+     * your funds may be at risk and that you purchase it within the allocated time.
+     * To purchase an order, it is required that you can produce a proper signature
+     * from the solver that signs the purchase details.
+     * @param orderSolvedByIdentifier Solver of the order. Is not validated, need to be correct otherwise
+     * the purchase will be wasted.
+     * @param expiryTimestamp Set to ensure if your transaction isn't mine quickly, you don't end
+     * up purchasing an order that you cannot prove OR is not within the timeToBuy window.
+     */
+    function purchaseOrder(
+        CatalystCompactOrder calldata order,
+        bytes32 orderSolvedByIdentifier,
+        address purchaser,
+        uint256 expiryTimestamp,
+        address newDestination,
+        bytes calldata call,
+        uint48 discount,
+        uint32 timeToBuy,
+        bytes calldata solverSignature
+    ) external {
+        bytes32 orderId = _orderIdentifier(order);
+        uint256[2][] calldata inputs = order.inputs;
+        _purchaseOrder(
+            orderId,
+            inputs,
+            orderSolvedByIdentifier,
+            purchaser,
+            expiryTimestamp,
+            newDestination,
+            call,
+            discount,
+            timeToBuy,
+            solverSignature
+        );
     }
 }

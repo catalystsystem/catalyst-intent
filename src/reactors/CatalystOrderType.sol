@@ -33,18 +33,6 @@ struct OutputDescription {
     bytes fulfillmentContext;
 }
 
-struct CatalystOrderData {
-    //- Oracle Context -//
-    address localOracle;
-    address collateralToken;
-    uint256 collateralAmount;
-    uint32 initiateDeadline;
-    uint32 challengeDeadline;
-    // The proof deadline is the fillDeadline
-    uint256[2][] inputs;
-    OutputDescription[] outputs;
-}
-
 /**
  * @notice Helper library for the Catalyst order type.
  * TYPE_PARTIAL: An incomplete type. Is missing a field.'

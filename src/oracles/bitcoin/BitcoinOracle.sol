@@ -10,13 +10,11 @@ import { AddressType, BitcoinAddress, BtcScript } from "bitcoinprism-evm/src/lib
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
-import { CatalystCompactFilledOrder, TheCompactOrderType } from "../../reactors/settler/compact/TheCompactOrderType.sol";
+import { CatalystCompactOrder, TheCompactOrderType } from "../../reactors/settler/compact/TheCompactOrderType.sol";
 
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
 import { BaseOracle } from "../BaseOracle.sol";
-
-import { GaslessCrossChainOrder } from "../../interfaces/IERC7683.sol";
 
 /**
  * @dev Bitcoin oracle can operate in 2 modes:
@@ -347,7 +345,7 @@ contract BitcoinOracle is BaseOracle {
      * @param inclusionProof Proof of inclusion.
      * @param txOutIx Index of the output in the transaction being proved.
      */
-    function verify(bytes32 orderId, CatalystCompactFilledOrder calldata order, uint256 outputIndex, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx) external {
+    function verify(bytes32 orderId, CatalystCompactOrder calldata order, uint256 outputIndex, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx) external {
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
 
@@ -363,7 +361,7 @@ contract BitcoinOracle is BaseOracle {
      */
     function verify(
         bytes32 orderId,
-        CatalystCompactFilledOrder calldata order,
+        CatalystCompactOrder calldata order,
         uint256 outputIndex,
         uint256 blockNum,
         BtcTxProof calldata inclusionProof,
@@ -385,7 +383,7 @@ contract BitcoinOracle is BaseOracle {
      * @dev This settler and oracle only works with the TheCompactOrderType and not with other custom order types.
      */
     function _orderIdentifier(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) internal view virtual returns (bytes32) {
         return TheCompactOrderType.orderIdentifier(order);
     }
@@ -454,7 +452,7 @@ contract BitcoinOracle is BaseOracle {
      * @param orderId Order Identifier. Is used to validate the order has been correctly provided.
      * @param order The order containing the optimistic parameters
      */
-    function claim(bytes32 solver, bytes32 orderId, CatalystCompactFilledOrder calldata order) external {
+    function claim(bytes32 solver, bytes32 orderId, CatalystCompactOrder calldata order) external {
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
 
@@ -486,7 +484,7 @@ contract BitcoinOracle is BaseOracle {
      * @param orderId Order Identifier. Is used to validate the order has been correctly provided.
      * @param order The order containing the optimistic parameters
      */
-    function dispute(bytes32 orderId, CatalystCompactFilledOrder calldata order) external {
+    function dispute(bytes32 orderId, CatalystCompactOrder calldata order) external {
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
         if (order.challengeDeadline < block.timestamp) revert TooLate();
@@ -509,7 +507,7 @@ contract BitcoinOracle is BaseOracle {
      * @dev Sets all outputs belonging to this contract as validated on storage
      */
     function optimisticallyVerify(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) external {
         if (order.challengeDeadline >= block.timestamp) revert TooEarly();
 
@@ -555,7 +553,7 @@ contract BitcoinOracle is BaseOracle {
      * @notice Finalise a dispute if the order hasn't been proven.
      */
     function finaliseDispute(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) external {
         if (order.fillDeadline >= block.timestamp) revert TooEarly();
         bytes32 orderId = _orderIdentifier(order);

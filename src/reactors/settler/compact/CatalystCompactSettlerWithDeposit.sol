@@ -8,11 +8,8 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
 import { Scope } from "the-compact/src/types/Scope.sol";
 
-import { CatalystOrderData } from "../../CatalystOrderType.sol";
 import { CatalystCompactSettler } from "./CatalystCompactSettler.sol";
-import { TheCompactOrderType } from "./TheCompactOrderType.sol";
-
-import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { TheCompactOrderType, CatalystCompactOrder } from "./TheCompactOrderType.sol";
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact
@@ -22,14 +19,14 @@ import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
  * 
  */
 contract CatalystCompactSettlerWithDeposit is CatalystCompactSettler {
-    event Deposited(bytes32 orderId, GaslessCrossChainOrder order);
+    event Deposited(bytes32 orderId, CatalystCompactOrder order);
 
     constructor(
         address compact
     ) CatalystCompactSettler(compact) { }
 
-    function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystOrderData memory orderData, ResetPeriod resetPeriod) internal {
-        uint256[2][] memory idsAndAmounts = orderData.inputs;
+    function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystCompactOrder calldata order, ResetPeriod resetPeriod) internal {
+        uint256[2][] memory idsAndAmounts = order.inputs;
         uint256 numInputs = idsAndAmounts.length;
         // We need to collect the tokens from msg.sender.
         for (uint256 i; i < numInputs; ++i) {
@@ -41,14 +38,13 @@ contract CatalystCompactSettlerWithDeposit is CatalystCompactSettler {
             SafeTransferLib.safeApproveWithRetry(token, address(COMPACT), amount);
         }
 
-        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.orderHash(fillDeadline, orderData), resetPeriod);
+        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.orderHash(order), resetPeriod);
     }
 
-    function depositFor(GaslessCrossChainOrder calldata order, ResetPeriod resetPeriod) external {
+    function depositFor(CatalystCompactOrder calldata order, ResetPeriod resetPeriod) external {
         _validateOrder(order);
 
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-        _deposit(order.user, order.nonce, order.fillDeadline, orderData, resetPeriod);
+        _deposit(order.user, order.nonce, order.fillDeadline, order, resetPeriod);
 
         bytes32 orderId = _orderIdentifier(order);
         emit Deposited(orderId, order);

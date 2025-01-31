@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
-import { CatalystOrderData, CatalystOrderType, OutputDescription } from "../../CatalystOrderType.sol";
+import { CatalystOrderType, OutputDescription } from "../../CatalystOrderType.sol";
 
-struct CatalystCompactFilledOrder {
+struct CatalystCompactOrder {
     address user;
     uint256 nonce;
     uint256 originChainId;
@@ -40,30 +39,7 @@ struct CatalystWitness {
  */
 library TheCompactOrderType {
     function orderIdentifier(
-        GaslessCrossChainOrder calldata order
-    ) internal view returns (bytes32) {
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-        return keccak256(
-            abi.encodePacked(
-                block.chainid,
-                order.originSettler,
-                order.user,
-                order.nonce,
-                order.fillDeadline,
-                orderData.localOracle,
-                orderData.collateralToken,
-                orderData.collateralAmount,
-                orderData.initiateDeadline,
-                orderData.challengeDeadline,
-                orderData.inputs,
-                abi.encode(orderData.outputs)
-            )
-        );
-    }
-
-
-    function orderIdentifier(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) internal view returns (bytes32) {
         return keccak256(
             abi.encodePacked(
@@ -101,7 +77,7 @@ library TheCompactOrderType {
     bytes32 constant BATCH_COMPACT_TYPE_HASH = keccak256(BATCH_COMPACT_TYPE);
 
     function orderHash(
-        CatalystCompactFilledOrder calldata order
+        CatalystCompactOrder calldata order
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
@@ -117,23 +93,8 @@ library TheCompactOrderType {
         );
     }
 
-    function orderHash(uint256 fillDeadline, CatalystOrderData memory orderData) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                CATALYST_WITNESS_TYPE_HASH,
-                fillDeadline,
-                orderData.localOracle,
-                orderData.collateralToken,
-                orderData.collateralAmount,
-                orderData.initiateDeadline,
-                orderData.challengeDeadline,
-                CatalystOrderType.hashOutputs(orderData.outputs)
-            )
-        );
-    }
-
-    function compactHash(address arbiter, uint256 sponsor, uint256 nonce, uint256 expires, uint256 fillDeadline, CatalystOrderData memory orderData) internal pure returns (bytes32) {
-        return keccak256(abi.encode(BATCH_COMPACT_TYPE_HASH, arbiter, sponsor, nonce, expires, hashIdsAndAmounts(orderData.inputs), orderHash(fillDeadline, orderData)));
+    function compactHash(address arbiter, uint256 sponsor, uint256 nonce, uint256 expires, uint256 fillDeadline, CatalystCompactOrder calldata order) internal pure returns (bytes32) {
+        return keccak256(abi.encode(BATCH_COMPACT_TYPE_HASH, arbiter, sponsor, nonce, expires, hashIdsAndAmounts(order.inputs), orderHash(order)));
     }
 
     function hashIdsAndAmounts(

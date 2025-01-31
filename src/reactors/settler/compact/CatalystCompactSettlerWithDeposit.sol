@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
@@ -13,7 +12,7 @@ import { CatalystOrderData } from "../../CatalystOrderType.sol";
 import { CatalystCompactSettler } from "./CatalystCompactSettler.sol";
 import { TheCompactOrderType } from "./TheCompactOrderType.sol";
 
-import { GaslessCrossChainOrder, OnchainCrossChainOrder, ResolvedCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "../../../interfaces/IERC7683.sol";
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact
@@ -24,7 +23,6 @@ import { GaslessCrossChainOrder, OnchainCrossChainOrder, ResolvedCrossChainOrder
  * can be submitted to this contract and the appropriate claim is set.
  */
 contract CatalystCompactSettlerWithDeposit is CatalystCompactSettler {
-    event Deposited(bytes32 orderId, OnchainCrossChainOrder order);
     event Deposited(bytes32 orderId, GaslessCrossChainOrder order);
 
     constructor(

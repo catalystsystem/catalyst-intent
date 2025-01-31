@@ -16,7 +16,7 @@ contract CoinFiller is BaseFiller {
     error NotImplemented();
     error SlopeStopped();
 
-    function _preDeliveryHook(address /* recipient */, address /* token */, uint256 outputAmount) internal virtual override returns (uint256) {
+    function _preDeliveryHook(address, /* recipient */ address, /* token */ uint256 outputAmount) internal virtual override returns (uint256) {
         return outputAmount;
     }
 

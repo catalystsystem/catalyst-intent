@@ -24,21 +24,23 @@ import { GaslessCrossChainOrder } from "../../interfaces/IERC7683.sol";
  * 2. Indirectly oracle through a bridge oracle.
  * This requires a local light client and a bridge connection to the relevant reactor.
  *
+ * This oracle only works on EVM since it requires the original order to compute an orderID
+ * which is used for the optimistic content.
+ *
  * This filler can work as both an oracle
  * 0xB17C012
  */
 contract BitcoinOracle is BaseOracle {
     error BadAmount(); // 0x749b5939
-    error BadDestinationIdentifier(); // 0x111fe358
     error BadTokenFormat(); // 0x6a6ba82d
     error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
     error NotClaimed();
     error AlreadyClaimed(bytes32 claimer);
     error AlreadyDisputed(address disputer);
+    error Disputed();
     error NotDisputed();
     error AmountTooLarge();
-    error DeadlineExpired();
     error TooEarly();
     error TooLate();
 
@@ -68,6 +70,7 @@ contract BitcoinOracle is BaseOracle {
     // addresses are generally pre-compiles and thus would be safe).
     // This also standardizes support for other light clients coins (Lightcoin 0x1C?)
     bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BC0000000000000000000000000000000000;
+
     /**
      * @notice Used light client. If the contract is not overwritten, it is expected to be BitcoinPrism.
      */
@@ -119,8 +122,7 @@ contract BitcoinOracle is BaseOracle {
     function _getTimestampOfBlock(
         bytes calldata blockHeader
     ) internal pure returns (uint256 timestamp) {
-        uint32 time = uint32(bytes4(blockHeader[68:68 + 4]));
-        return timestamp = Endian.reverse32(time);
+        return timestamp = Endian.reverse32(uint32(bytes4(blockHeader[68:68 + 4])));
     }
 
     function _getTimestampOfPreviousBlock(bytes calldata previousBlockHeader, BtcTxProof calldata inclusionProof) internal pure returns (uint256 timestamp) {
@@ -130,10 +132,6 @@ contract BitcoinOracle is BaseOracle {
         // headers are never provided.
         require(previousBlockHeader.length == 80);
 
-        // Check the timestamp. This is done before inclusionProof is checked for validity
-        // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
-        // won't pass.
-
         // Get block hash of the previousBlockHeader.
         bytes32 proposedPreviousBlockHash = BtcProof.getBlockHash(previousBlockHeader);
         // Load the actual previous block hash from the header of the block we just proved.
@@ -142,8 +140,8 @@ contract BitcoinOracle is BaseOracle {
             revert BlockhashMismatch(actualPreviousBlockHash, proposedPreviousBlockHash);
         }
 
-        uint32 time = uint32(bytes4(previousBlockHeader[68:68 + 4]));
-        return timestamp = Endian.reverse32(time);
+        // This is now provably the previous block. As a result, we return the timestamp of the previous block.
+        return _getTimestampOfBlock(previousBlockHeader);
     }
 
     /**
@@ -195,9 +193,10 @@ contract BitcoinOracle is BaseOracle {
      * payload attestation. That allows settlers to easily check if outputs has been filled but also if payloads
      * have been verified (incase the settler is on another chain than the light client).
      */
-    function _isPayloadValid(address oracle, bytes calldata payload) internal view returns (bool) {
-        uint256 chainId = block.chainid;
-        return _attestations[chainId][bytes32(uint256(uint160(oracle)))][keccak256(payload)];
+    function _isPayloadValid(
+        bytes calldata payload
+    ) internal view returns (bool) {
+        return _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][keccak256(payload)];
     }
 
     /**
@@ -206,10 +205,9 @@ contract BitcoinOracle is BaseOracle {
     function arePayloadsValid(
         bytes[] calldata payloads
     ) external view returns (bool) {
-        address sender = msg.sender;
         uint256 numPayloads = payloads.length;
         for (uint256 i; i < numPayloads; ++i) {
-            if (!_isPayloadValid(sender, payloads[i])) return false;
+            if (!_isPayloadValid(payloads[i])) return false;
         }
         return true;
     }
@@ -296,8 +294,9 @@ contract BitcoinOracle is BaseOracle {
         if (sats != output.amount) revert BadAmount();
 
         // Get the solver of the order.
-        bytes32 solver = _resolveClaimed(_claimedOrder[orderId]);
+        bytes32 solver = _resolveClaimed(orderId);
 
+        // Store attestation.
         bytes32 outputHash = keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, uint32(timestamp), output));
         _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
 
@@ -317,9 +316,8 @@ contract BitcoinOracle is BaseOracle {
      */
     function _verifyAttachTimestamp(bytes32 orderId, OutputDescription calldata output, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx) internal {
         // Check the timestamp. This is done before inclusionProof is checked for validity
-        // so it can be manipulated but if it has been manipulated the next check (_validateUnderlyingPayment)
-        // won't pass.
-        // _validateUnderlyingPayment checks if inclusionProof.blockHeader == 80.
+        // so it can be manipulated but if it has been manipulated the later check (_validateUnderlyingPayment)
+        // won't pass. _validateUnderlyingPayment checks if inclusionProof.blockHeader == 80.
         uint256 timestamp = _getTimestampOfBlock(inclusionProof.blockHeader);
 
         _verify(orderId, output, blockNum, inclusionProof, txOutIx, timestamp);
@@ -329,27 +327,31 @@ contract BitcoinOracle is BaseOracle {
      * @notice Function overload of _verify but allows specifying an older block.
      * @dev This function technically extends the verification of outputs 1 block (~10 minutes)
      * into the past beyond what _validateTimestamp would ordinary allow.
-     * The purpose is to protect against slow block mining. Even if it took days to get confirmation on a transaction,
+     * The purpose is to protect against slow block mining. Even if it took days to mine 1 block for a transaction,
      * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
      */
     function _verifyAttachTimestamp(bytes32 orderId, OutputDescription calldata output, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx, bytes calldata previousBlockHeader) internal {
-        // Get the timestamp of block before the one we validated.
+        // Get the timestamp of block before the one we that the transaction was included in.
         uint256 timestamp = _getTimestampOfPreviousBlock(previousBlockHeader, inclusionProof);
 
         _verify(orderId, output, blockNum, inclusionProof, txOutIx, timestamp);
     }
 
     /**
-     * @notice Validate an output is correct.
-     * @dev Specifically, this function uses the other validation functions and adds some
-     * Bitcoin context surrounding it.
-     * @param output Output to prove.
-     * @param blockNum Bitcoin block number of the transaction that the output is included in.
-     * @param inclusionProof Proof of inclusion. fillDeadline is validated against Bitcoin block timestamp.
+     * @notice Validate an output is correct and included in a block with appropriate confiration.
+     * @param orderId Identifier for the order. Is used to check that the order has been correctly proviced
+     * and to find the associated claim.
+     * @param order Order containing the output to prove. Is used to validate the claim on the order id.
+     * @param outputIndex Output index of the order to prove.
+     * @param blockNum Bitcoin block number of block that included the transaction.
+     * @param inclusionProof Proof of inclusion.
      * @param txOutIx Index of the output in the transaction being proved.
      */
-    function verify(bytes32 orderId, OutputDescription calldata output, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx) external {
-        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx);
+    function verify(bytes32 orderId, CatalystCompactFilledOrder calldata order, uint256 outputIndex, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx) external {
+        bytes32 computedOrderId = _orderIdentifier(order);
+        if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
+
+        _verifyAttachTimestamp(orderId, order.outputs[outputIndex], blockNum, inclusionProof, txOutIx);
     }
 
     /**
@@ -359,8 +361,19 @@ contract BitcoinOracle is BaseOracle {
      * The purpose is to protect against slow block mining. Even if it took days to get confirmation on a transaction,
      * it would still be possible to include the proof with a valid time. (assuming the oracle period isn't over yet).
      */
-    function verify(bytes32 orderId, OutputDescription calldata output, uint256 blockNum, BtcTxProof calldata inclusionProof, uint256 txOutIx, bytes calldata previousBlockHeader) external {
-        _verifyAttachTimestamp(orderId, output, blockNum, inclusionProof, txOutIx, previousBlockHeader);
+    function verify(
+        bytes32 orderId,
+        CatalystCompactFilledOrder calldata order,
+        uint256 outputIndex,
+        uint256 blockNum,
+        BtcTxProof calldata inclusionProof,
+        uint256 txOutIx,
+        bytes calldata previousBlockHeader
+    ) external {
+        bytes32 computedOrderId = _orderIdentifier(order);
+        if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
+
+        _verifyAttachTimestamp(orderId, order.outputs[outputIndex], blockNum, inclusionProof, txOutIx, previousBlockHeader);
     }
 
     // --- Optimistic Resolution AND Order-Preclaiming --- //
@@ -380,7 +393,7 @@ contract BitcoinOracle is BaseOracle {
     // --- Pre-claiming of outputs --- //
 
     /**
-     * @notice Packs a uint192 amount into 3 uint fragments
+     * @notice Packs a uint256 amount into 3 uint fragments
      */
     function _packAmount(
         uint256 amount
@@ -392,7 +405,7 @@ contract BitcoinOracle is BaseOracle {
     }
 
     /**
-     * @notice Unpacks 3 uint fragments into a uint192.
+     * @notice Unpacks 3 uint fragments into a uint256.
      */
     function _unpackAmount(uint96 amount1, uint96 amount2, uint64 amount3) internal pure returns (uint256 amount) {
         amount = (amount3 << (96 + 64)) + (amount2 << 96) + amount1;
@@ -403,8 +416,9 @@ contract BitcoinOracle is BaseOracle {
      * @dev Allows reentry calls. Does not honor the check effect pattern globally.
      */
     function _resolveClaimed(
-        ClaimedOrder storage claimedOrder
+        bytes32 orderId
     ) internal returns (bytes32 solver) {
+        ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
         solver = claimedOrder.solver;
         if (solver == bytes32(0)) revert NotClaimed();
 
@@ -418,6 +432,9 @@ contract BitcoinOracle is BaseOracle {
             uint64 amount3 = claimedOrder.amount3;
             address collateralToken = claimedOrder.token;
             uint256 collateralAmount = _unpackAmount(amount1, amount2, amount3);
+            // If the order has been disputed, we need to also collect the disputers collateral for the solver.
+            collateralAmount = disputed ? collateralAmount * (CHALLENGER_COLLATERAL_FACTOR + 1) : collateralAmount;
+
             // Delete storage so no re-entry.
             delete claimedOrder.sponsor;
             delete claimedOrder.amount1;
@@ -426,10 +443,17 @@ contract BitcoinOracle is BaseOracle {
             delete claimedOrder.amount3;
             delete claimedOrder.token;
 
-            SafeTransferLib.safeTransfer(collateralToken, sponsor, disputed ? collateralAmount * (CHALLENGER_COLLATERAL_FACTOR + 1) : collateralAmount);
+            SafeTransferLib.safeTransfer(collateralToken, sponsor, collateralAmount);
         }
     }
 
+    /**
+     * @notice Claim an order.
+     * @dev Only works when the order identifier is exactly as on EVM.
+     * @param solver Identifier to set as the solver.
+     * @param orderId Order Identifier. Is used to validate the order has been correctly provided.
+     * @param order The order containing the optimistic parameters
+     */
     function claim(bytes32 solver, bytes32 orderId, CatalystCompactFilledOrder calldata order) external {
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
@@ -445,6 +469,7 @@ contract BitcoinOracle is BaseOracle {
         claimedOrder.sponsor = msg.sender;
         claimedOrder.amount1 = amount1;
         claimedOrder.amount2 = amount2;
+        if (order.challengeDeadline == order.initiateDeadline) claimedOrder.disputer = AUTO_DISPUTED_COLLATERAL;
         claimedOrder.amount3 = amount3;
         claimedOrder.token = collateralToken;
         // The above lines acts as a local re-entry guard. External calls are now allowed.
@@ -456,6 +481,11 @@ contract BitcoinOracle is BaseOracle {
         SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, address(this), collateralAmount);
     }
 
+    /**
+     * @notice Dispute an order.
+     * @param orderId Order Identifier. Is used to validate the order has been correctly provided.
+     * @param order The order containing the optimistic parameters
+     */
     function dispute(bytes32 orderId, CatalystCompactFilledOrder calldata order) external {
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
@@ -474,6 +504,10 @@ contract BitcoinOracle is BaseOracle {
         SafeTransferLib.safeTransferFrom(collateralToken, msg.sender, address(this), collateralAmount);
     }
 
+    /**
+     * @notice Optimistically verify an order if the order has not been disputed.
+     * @dev Sets all outputs belonging to this contract as validated on storage
+     */
     function optimisticallyVerify(
         CatalystCompactFilledOrder calldata order
     ) external {
@@ -482,10 +516,13 @@ contract BitcoinOracle is BaseOracle {
         bytes32 orderId = _orderIdentifier(order);
 
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId];
+        bool disputed = claimedOrder.disputer != address(0);
+        if (disputed) revert Disputed();
+
         bytes32 solver = claimedOrder.solver;
         address sponsor = claimedOrder.sponsor;
-        bool disputed = claimedOrder.disputer != address(0);
-        // Delete the dispute details.
+
+        // Delete the claim details.
         delete claimedOrder.solver;
         delete claimedOrder.sponsor;
         delete claimedOrder.amount1;
@@ -502,18 +539,21 @@ contract BitcoinOracle is BaseOracle {
             OutputDescription calldata output = order.outputs[i];
             // Is this us?
             // Check if we are the sole oracle OR we are the in the rightmost 16 bytes.
-            bool isUs = output.remoteOracle == bytes32(uint256(uint160(address(this))))
-                || (bytes16(output.remoteOracle) == bytes16(bytes32((IdentifierLib.countLeadingZeros(uint160(address(this))) << 248) + (uint256(uint160(address(this))) << 136) >> 8)));
-            if (!isUs) continue;
+            bool isOurChain = block.chainid == output.chainId;
+            if (!isOurChain) continue;
+            bool IsOurContract = output.remoteOracle == bytes32(uint256(uint160(address(this)))) // Sole
+                || (bytes16(output.remoteOracle) == bytes16(bytes32((IdentifierLib.countLeadingZeros(uint160(address(this))) << 248) + (uint256(uint160(address(this))) << 136) >> 8))); // Rightmost 16
+            if (!IsOurContract) continue;
             bytes32 outputHash = keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, uint32(challengeDeadline), output));
             _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
         }
 
-        address collateralToken = order.collateralToken;
-        uint256 collateralAmount = disputed ? order.collateralAmount * (CHALLENGER_COLLATERAL_FACTOR + 1) : order.collateralAmount;
-        SafeTransferLib.safeTransfer(collateralToken, sponsor, collateralAmount);
+        SafeTransferLib.safeTransfer(order.collateralToken, sponsor, order.collateralAmount);
     }
 
+    /**
+     * @notice Finalise a dispute if the order hasn't been proven.
+     */
     function finaliseDispute(
         CatalystCompactFilledOrder calldata order
     ) external {

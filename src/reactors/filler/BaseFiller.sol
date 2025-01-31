@@ -34,7 +34,7 @@ abstract contract BaseFiller is IPayloadCreator {
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
     bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this)))) << 8;
 
-    function _preDeliveryHook(address recipient, address token, uint256 outputAmount) virtual internal returns (uint256);
+    function _preDeliveryHook(address recipient, address token, uint256 outputAmount) internal virtual returns (uint256);
 
     /**
      * @notice Verifies & Fills an order.
@@ -82,7 +82,7 @@ abstract contract BaseFiller is IPayloadCreator {
 
         // If there is an external call associated with the fill, execute it.
         uint256 remoteCallLength = output.remoteCall.length;
-        if (remoteCallLength > 0) _call(output);
+        if (remoteCallLength > 0) _call(deliveryAmount, output);
 
         emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 
@@ -140,11 +140,9 @@ abstract contract BaseFiller is IPayloadCreator {
      * Source:
      * https://github.com/catalystdao/GeneralisedIncentives/blob/38a88a746c7c18fb5d0f6aba195264fce34944d1/src/IncentivizedMessageEscrow.sol#L680
      */
-    function _call(
-        OutputDescription calldata output
-    ) internal {
+    function _call(uint256 trueAmount, OutputDescription calldata output) internal {
         address recipient = address(uint160(uint256(output.recipient)));
-        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, output.amount, output.remoteCall);
+        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, trueAmount, output.remoteCall);
         bool success;
         assembly ("memory-safe") {
             // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables
@@ -187,13 +185,11 @@ abstract contract BaseFiller is IPayloadCreator {
      * This call can never be executed on-chain. It should also be noted
      * that application can cheat and implement special logic for tx.origin == 0.
      */
-    function call(
-        OutputDescription calldata output
-    ) external {
+    function call(uint256 trueAmount, OutputDescription calldata output) external {
         // Disallow calling on-chain.
         require(msg.sender == address(0));
 
-        _call(output);
+        _call(trueAmount, output);
     }
 
     //-- Helpers --//

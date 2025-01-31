@@ -23,11 +23,13 @@ import { BytesLib } from "../../../libs/BytesLib.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 
 /**
- * @title Catalyst Reactor supporting The Compact
- * @notice The Catalyst Reactor implementation with The Compact as the deposit scheme.
- * This scheme is a remote first design pattern.
+ * @title Catalyst Settler supporting The Compact
+ * @notice This Catalyst Settler implementation uses The Compact as the deposit scheme.
+ * It is a delivery first, inputs second scheme that allows users with a deposit inside The Compact.
  *
- * The current design iteration of the reactor does not support ERC7683 open / OnchainCrossChainOrder.
+ * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
+ * They then needs to either register or sign a supported claim with the intent as the witness.
+ * Without the deposit extension, this contract does not have a way to emit on-chain orders.
  */
 contract CatalystCompactSettler is BaseSettler {
     error NotImplemented();
@@ -49,6 +51,8 @@ contract CatalystCompactSettler is BaseSettler {
         name = "CatalystSettler";
         version = "Compact1";
     }
+
+    // Generic order identifier
 
     function _orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) internal view override returns (bytes32) {
         return TheCompactOrderType.orderIdentifier(order, user, nonce);

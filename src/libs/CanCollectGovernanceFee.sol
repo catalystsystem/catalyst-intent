@@ -33,7 +33,9 @@ abstract contract CanCollectGovernanceFee is Ownable {
     uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
 
-    constructor(address owner) payable {
+    constructor(
+        address owner
+    ) payable {
         _initializeOwner(owner);
     }
 
@@ -43,7 +45,9 @@ abstract contract CanCollectGovernanceFee is Ownable {
      */
     mapping(address token => uint256 amount) internal _governanceTokens;
 
-    function _resetGovernanceTokens(address token) internal virtual {
+    function _resetGovernanceTokens(
+        address token
+    ) internal virtual {
         _governanceTokens[token] = 0;
     }
 
@@ -51,11 +55,15 @@ abstract contract CanCollectGovernanceFee is Ownable {
      * @notice Returns the amount of tokens collected by governance.
      * @dev View function for _governanceTokens storage slot.
      */
-    function _getGovernanceTokens(address token) internal virtual view returns (uint256 amountTokens) {
+    function _getGovernanceTokens(
+        address token
+    ) internal view virtual returns (uint256 amountTokens) {
         return amountTokens = _governanceTokens[token];
     }
 
-    function getGovernanceTokens(address token) external view returns (uint256 amountTokens) {
+    function getGovernanceTokens(
+        address token
+    ) external view returns (uint256 amountTokens) {
         return _getGovernanceTokens(token);
     }
 
@@ -153,7 +161,7 @@ abstract contract CanCollectGovernanceFee is Ownable {
      * @param to Recipient of the tokens.
      * @return collectedAmounts Array of the collected governance tokens.
      */
-    function distributeGovernanceTokens(address[] calldata tokens, address to) external onlyOwner virtual returns (uint256[] memory collectedAmounts) {
+    function distributeGovernanceTokens(address[] calldata tokens, address to) external virtual onlyOwner returns (uint256[] memory collectedAmounts) {
         unchecked {
             uint256 numTokens = tokens.length;
             collectedAmounts = new uint256[](numTokens);

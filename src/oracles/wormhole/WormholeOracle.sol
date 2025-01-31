@@ -104,7 +104,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
     /**
      * @notice Takes proofs that have been marked as valid by a source and submits them to Wormhole for broadcast.
-     * @param proofSource Application that has potential payloads that are marked as valid.
+     * @param proofSource Application that has payloads that are marked as valid.
      * @param payloads List of payloads that are checked for validity against the application and broadcasted.
      */
     function submit(address proofSource, bytes[] calldata payloads) public payable returns (uint256 refund) {

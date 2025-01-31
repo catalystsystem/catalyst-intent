@@ -49,10 +49,10 @@ library OutputEncodingLib {
      * can be larger than 65535.
      */
     function encodeOutputDescription(
-        OutputDescription memory outputDescription
+        OutputDescription calldata outputDescription
     ) internal pure returns (bytes memory encodedOutput) {
-        bytes memory remoteCall = outputDescription.remoteCall;
-        bytes memory fulfillmentContext = outputDescription.fulfillmentContext;
+        bytes calldata remoteCall = outputDescription.remoteCall;
+        bytes calldata fulfillmentContext = outputDescription.fulfillmentContext;
         // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
         if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
         if (fulfillmentContext.length > type(uint16).max) revert FulfillmentContextCallOutOfRange();

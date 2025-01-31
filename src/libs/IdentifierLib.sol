@@ -70,7 +70,7 @@ library IdentifierLib {
         uint256 oracleZeros = countLeadingZeros(uint160(uint256(trueIdentifier)));
 
         // Check if the last 16 bytes matches. If they do, then assume that the entire identifier is valid.
-        // Also check if this is a pesudo-evm address (bytes20)
+        // Also check if this is a pseudo-evm address (bytes20)
         if (((uint256(trueIdentifier) << 136) >> 8) + (oracleZeros << 248) == (uint256(selfReportedIdentifier) << 128)) {
             return selfReportedIdentifier;
         }

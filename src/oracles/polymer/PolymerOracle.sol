@@ -40,7 +40,7 @@ contract PolymerOracle is BaseOracle, Ownable {
      * @param chainId Most common identifier for a chain. For EVM, it can often be accessed through block.chainid.
      */
     function setChainMap(string calldata messagingProtocolChainIdentifier, uint256 chainId) external onlyOwner {
-        // Check that the inputs havn't been mistakenly called with 0 values.
+        // Check that the inputs haven't been mistakenly called with 0 values.
         if (abi.encodePacked(messagingProtocolChainIdentifier).length == 0) revert ZeroValue();
         if (chainId == 0) revert ZeroValue();
 

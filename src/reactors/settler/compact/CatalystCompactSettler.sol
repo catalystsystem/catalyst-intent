@@ -5,7 +5,6 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
-
 import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactClaims.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
@@ -13,12 +12,11 @@ import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
 import { CatalystOrderData, OutputDescription } from "../../CatalystOrderType.sol";
 import { AllowOpenType } from "../AllowOpenType.sol";
 import { BaseSettler } from "../BaseSettler.sol";
-
 import { CatalystCompactFilledOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 
+import { ICrossCatsCallback } from "../../../interfaces/ICrossCatsCallback.sol";
 import { GaslessCrossChainOrder, IOriginSettler, OnchainCrossChainOrder, Open, ResolvedCrossChainOrder } from "../../../interfaces/IERC7683.sol";
 import { IOracle } from "../../../interfaces/IOracle.sol";
-
 import { BytesLib } from "../../../libs/BytesLib.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
 
@@ -33,8 +31,8 @@ import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
  */
 contract CatalystCompactSettler is BaseSettler {
     error NotImplemented();
-    error InvalidTimestampLength();
     error NotOrderOwner();
+    error InvalidTimestampLength();
 
     TheCompact public immutable COMPACT;
 
@@ -87,7 +85,7 @@ contract CatalystCompactSettler is BaseSettler {
      * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
      * if someone filled one of the outputs.
      */
-    function _validateFills(address localOracle, bytes32 orderId, address[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
@@ -97,7 +95,7 @@ contract CatalystCompactSettler is BaseSettler {
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
-            bytes32 payloadHash = _proofPayloadHash(orderId, bytes32(uint256(uint160(solvers[i]))), timestamps[i], output);
+            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], timestamps[i], output);
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x60))
@@ -113,7 +111,7 @@ contract CatalystCompactSettler is BaseSettler {
      * @notice Check if a series of outputs has been proven.
      * @dev Notice that the solver of the first provided output is reported as the entire intent solver.
      */
-    function _validateFills(address localOracle, bytes32 orderId, address solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
@@ -123,7 +121,7 @@ contract CatalystCompactSettler is BaseSettler {
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
-            bytes32 payloadHash = _proofPayloadHash(orderId, bytes32(uint256(uint160(solver))), timestamps[i], output);
+            bytes32 payloadHash = _proofPayloadHash(orderId, solver, timestamps[i], output);
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x60))
@@ -147,16 +145,16 @@ contract CatalystCompactSettler is BaseSettler {
         if (!isValid) revert InvalidSigner();
     }
 
-    function _finalise(CatalystCompactFilledOrder calldata order, bytes calldata signatures, address destination, bytes32 orderId) internal {
+    function _finalise(CatalystCompactFilledOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, address destination) internal {
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
         // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(order, sponsorSignature, allocatorSignature, destination);
 
-        emit Open(orderId);
+        emit Open(orderId, solver, destination);
     }
 
-    function finaliseSelf(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address solver) external {
+    function finaliseSelf(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external {
         bytes32 orderId = _orderIdentifier(order);
 
         address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
@@ -166,10 +164,10 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
-        _finalise(order, signatures, orderOwner, orderId);
+        _finalise(order, signatures, orderId, solver, orderOwner);
     }
 
-    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address solver, address destination, bytes calldata call) external {
+    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, address destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
         address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
@@ -179,9 +177,9 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
-        _finalise(order, signatures, destination, orderId);
+        _finalise(order, signatures, orderId, solver, destination);
 
-        if (call.length > 0) destination.call(call);
+        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
     }
 
     /**
@@ -199,7 +197,7 @@ contract CatalystCompactSettler is BaseSettler {
         CatalystCompactFilledOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
-        address solver,
+        bytes32 solver,
         address destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
@@ -213,9 +211,9 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
 
-        _finalise(order, signatures, destination, orderId);
+        _finalise(order, signatures, orderId, solver, destination);
 
-        if (call.length > 0) destination.call(call);
+        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
     }
 
     // -- Fallback Finalise Functions -- //
@@ -226,7 +224,7 @@ contract CatalystCompactSettler is BaseSettler {
     // Important, this output generally matters in regards to the orderId. The solver of the first output is determined
     // to be the "orderOwner".
 
-    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, address[] calldata solvers, address destination, bytes calldata call) external {
+    function finaliseTo(CatalystCompactFilledOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, address destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
         address orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
@@ -236,9 +234,9 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
 
-        _finalise(order, signatures, destination, orderId);
+        _finalise(order, signatures, orderId, solvers[0], destination);
 
-        if (call.length > 0) destination.call(call);
+        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
     }
 
     /**
@@ -256,7 +254,7 @@ contract CatalystCompactSettler is BaseSettler {
         CatalystCompactFilledOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
-        address[] calldata solvers,
+        bytes32[] calldata solvers,
         address destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
@@ -270,9 +268,9 @@ contract CatalystCompactSettler is BaseSettler {
         // This call will revert if not.
         _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
 
-        _finalise(order, signatures, destination, orderId);
+        _finalise(order, signatures, orderId, solvers[0], destination);
 
-        if (call.length > 0) destination.call(call);
+        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
     }
 
     //--- The Compact & Resource Locks ---//

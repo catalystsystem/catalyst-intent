@@ -99,7 +99,7 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
      * @notice Entrypoint for the crosscats handler if inputs are delivered.
      * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else.
      */
-    function inputsFilled(bytes32, /* orderKeyHash */ uint256[2][] calldata inputs, bytes calldata executionData) external nonReentrant {
+    function inputsFilled(uint256[2][] calldata inputs, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
         // Set approvals base on inputs if requested.
         if (instructions.setApprovalsUsingInputsFor != address(0)) {

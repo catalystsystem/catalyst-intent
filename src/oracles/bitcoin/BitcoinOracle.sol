@@ -31,16 +31,16 @@ import { GaslessCrossChainOrder } from "../../interfaces/IERC7683.sol";
  * 0xB17C012
  */
 contract BitcoinOracle is BaseOracle {
+    error AlreadyClaimed(bytes32 claimer);
+    error AlreadyDisputed(address disputer);
+    error AmountTooLarge();
     error BadAmount(); // 0x749b5939
     error BadTokenFormat(); // 0x6a6ba82d
     error BlockhashMismatch(bytes32 actual, bytes32 proposed); // 0x13ffdc7d
-    error OrderIdMismatch(bytes32 provided, bytes32 computed);
-    error NotClaimed();
-    error AlreadyClaimed(bytes32 claimer);
-    error AlreadyDisputed(address disputer);
     error Disputed();
+    error NotClaimed();
     error NotDisputed();
-    error AmountTooLarge();
+    error OrderIdMismatch(bytes32 provided, bytes32 computed);
     error TooEarly();
     error TooLate();
 

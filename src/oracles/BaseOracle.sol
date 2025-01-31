@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
 import { IOracle } from "../interfaces/IOracle.sol";
-
 import { IdentifierLib } from "../libs/IdentifierLib.sol";
-import { OutputDescription } from "../reactors/CatalystOrderType.sol";
 
 /**
  * @notice Foundation for oracles. Exposes attesation logic for consumers.
  * @dev Ideally the contract has a 16 bytes address, that is 4 bytes have been mined for 0s.
  */
 abstract contract BaseOracle is IOracle {
-    error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash);
     error NotDivisible(uint256 value, uint256 divisor);
-    error BadDeploymentAddress(address);
+    error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 dataHash);
 
     event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 payloadHash);
 

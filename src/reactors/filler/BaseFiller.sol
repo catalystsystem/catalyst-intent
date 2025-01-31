@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { WrongChain, WrongRemoteOracle } from "../../interfaces/Errors.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IOracle } from "../../interfaces/IOracle.sol";
 import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
 import { OutputDescription } from "../CatalystOrderType.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /**
  * @notice Base
  */
 abstract contract BaseFiller is IPayloadCreator {
+    error DifferentRemoteOracles();
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
-    error DifferentRemoteOracles();
+    error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
+    error WrongRemoteOracle(bytes32 addressThis, bytes32 expected); // 0xe57d7773
     error ZeroValue();
 
     // The maximum gas used on calls is 1 million gas.

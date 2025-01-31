@@ -12,7 +12,7 @@ import { CatalystOrderData } from "../../CatalystOrderType.sol";
 import { CatalystCompactSettler } from "./CatalystCompactSettler.sol";
 import { TheCompactOrderType } from "./TheCompactOrderType.sol";
 
-import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact

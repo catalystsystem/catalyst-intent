@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { OutputDescription } from "../CatalystOrderType.sol";
-// import { SolverTimestampBaseFiller } from "./SolverTimestampBaseFiller.sol";
-
 import { IdentifierLib } from "../../libs/IdentifierLib.sol";
 import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
+import { OutputDescription } from "../CatalystOrderType.sol";
 import { BaseFiller } from "./BaseFiller.sol";
 
 /**

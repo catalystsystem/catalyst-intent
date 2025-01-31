@@ -12,9 +12,9 @@ import { ICrossL2Prover } from "./ICrossL2Prover.sol";
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.
  */
 contract PolymerOracle is BaseOracle, Ownable {
+    error AlreadySet();
     error InequalLength();
     error ZeroValue();
-    error AlreadySet();
 
     event MapMessagingProtocolIdentifierToChainId(string messagingProtocolIdentifier, uint256 chainId);
 

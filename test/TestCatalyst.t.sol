@@ -193,7 +193,7 @@ contract TestCatalyst is Test {
         uint32[] memory timestamps = new uint32[](1);
 
         vm.prank(solver);
-        catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
+        catalystCompactSettler.finaliseSelf(order, signature, timestamps, bytes32(uint256(uint160((solver)))));
     }
 
     function _buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns (bytes memory preMessage) {
@@ -283,7 +283,7 @@ contract TestCatalyst is Test {
         timestamps[0] = uint32(block.timestamp);
 
         vm.prank(solver);
-        catalystCompactSettler.finaliseSelf(order, signature, timestamps, solver);
+        catalystCompactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
         vm.snapshotGasLastCall("finaliseSelf");
     }
 }

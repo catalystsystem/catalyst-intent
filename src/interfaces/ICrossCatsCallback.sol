@@ -42,9 +42,8 @@ interface ICrossCatsCallback {
      *
      * The address to call is the first 20 bytes of the data to execute.
      *
-     * @param orderKeyHash Hash of the order key. Can be used for identification.
      * @param inputs Inputs of the order after paying fees.
      * @param executionData Custom data that the filler asked to be provided with the call.
      */
-    function inputsFilled(bytes32 orderKeyHash, uint256[2][] calldata inputs, bytes calldata executionData) external;
+    function inputsFilled(uint256[2][] calldata inputs, bytes calldata executionData) external;
 }

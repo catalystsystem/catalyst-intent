@@ -38,8 +38,8 @@ import { OutputDescription } from "../reactors/CatalystOrderType.sol";
  *
  */
 library OutputEncodingLib {
-    error RemoteCallOutOfRange();
     error FulfillmentContextCallOutOfRange();
+    error RemoteCallOutOfRange();
 
     // --- OutputDescription Encoding --- //
 

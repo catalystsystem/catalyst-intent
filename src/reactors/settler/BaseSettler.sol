@@ -1,22 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { EIP712 } from "solady/utils/EIP712.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { IOracle } from "../../interfaces/IOracle.sol";
-
-import { FillInstruction, GaslessCrossChainOrder, IOriginSettler, OnchainCrossChainOrder, Output, ResolvedCrossChainOrder } from "../../interfaces/IERC7683.sol";
-
-import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
-
-import { InitiateDeadlinePassed, InvalidSettlementAddress, WrongChain } from "../../interfaces/Errors.sol";
-
-import { OrderPurchaseType } from "./OrderPurchaseType.sol";
-
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
-import { EIP712 } from "solady/utils/EIP712.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
+import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
+import { OrderPurchaseType } from "./OrderPurchaseType.sol";
+
+import { ICrossCatsCallback } from "../../interfaces/ICrossCatsCallback.sol";
+import { FillInstruction, GaslessCrossChainOrder, OnchainCrossChainOrder, Output, ResolvedCrossChainOrder } from "../../interfaces/IERC7683.sol";
+import { IOracle } from "../../interfaces/IOracle.sol";
 
 /**
  * @title Base Catalyst Order Intent Settler
@@ -27,12 +23,15 @@ import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
  */
 abstract contract BaseSettler is EIP712 {
     error AlreadyPurchased();
-    error InvalidSigner();
-    error InvalidPurchaser();
     error Expired();
+    error InvalidPurchaser();
+    error InvalidSigner();
+    error InitiateDeadlinePassed(); // 0x606ef7f5
+    error InvalidSettlementAddress(); // 0x78c8b5df
+    error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
 
     /// @notice Catalyst specific open event that replaces the ERC7683 one for cost purposes.
-    event Open(bytes32 indexed orderId);
+    event Open(bytes32 indexed orderId, bytes32 solver, address destination);
     event OrderPurchased(bytes32 indexed orderId, bytes32 solver, address purchaser);
 
     uint256 constant DISCOUNT_DENOM = 10 ** 18;
@@ -121,9 +120,9 @@ abstract contract BaseSettler is EIP712 {
      * In case an order has been bought, and bought in time, the owner will be set to
      * the purchaser. Otherwise it will be set to the solver.
      */
-    function _purchaseGetOrderOwner(bytes32 orderId, address solver, uint32[] calldata timestamps) internal view returns (address orderOwner) {
+    function _purchaseGetOrderOwner(bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal view returns (address orderOwner) {
         // Check if the order has been purchased.
-        Purchased storage purchaseDetails = purchasedOrders[bytes32(uint256(uint160(solver)))][orderId];
+        Purchased storage purchaseDetails = purchasedOrders[solver][orderId];
         uint32 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
         address purchaser = purchaseDetails.purchaser;
 
@@ -136,7 +135,7 @@ abstract contract BaseSettler is EIP712 {
                 return purchaser;
             }
         }
-        return solver;
+        return address(uint160(uint256(solver)));
     }
 
     /**
@@ -199,9 +198,9 @@ abstract contract BaseSettler is EIP712 {
             SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount);
         }
 
-        if (call.length > 0) newDestination.call(call);
-
         emit OrderPurchased(orderId, orderSolvedByIdentifier, purchaser);
+
+        if (call.length > 0) ICrossCatsCallback(newDestination).inputsFilled(orderData.inputs, call);
     }
 
     //--- ERC7683 Resolvers ---//

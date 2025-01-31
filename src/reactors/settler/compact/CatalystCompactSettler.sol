@@ -15,7 +15,7 @@ import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactFilledOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 
 import { ICrossCatsCallback } from "../../../interfaces/ICrossCatsCallback.sol";
-import { GaslessCrossChainOrder, IOriginSettler, OnchainCrossChainOrder, Open, ResolvedCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { GaslessCrossChainOrder, IOriginSettler, Open, ResolvedCrossChainOrder } from "../../../interfaces/IERC7683.sol";
 import { IOracle } from "../../../interfaces/IOracle.sol";
 import { BytesLib } from "../../../libs/BytesLib.sol";
 import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
@@ -51,10 +51,6 @@ contract CatalystCompactSettler is BaseSettler {
     }
 
     // Generic order identifier
-
-    function _orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) internal view override returns (bytes32) {
-        return TheCompactOrderType.orderIdentifier(order, user, nonce);
-    }
 
     function _orderIdentifier(
         GaslessCrossChainOrder calldata order

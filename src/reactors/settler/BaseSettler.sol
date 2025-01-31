@@ -11,7 +11,7 @@ import { CatalystOrderData, OutputDescription } from "../CatalystOrderType.sol";
 import { OrderPurchaseType } from "./OrderPurchaseType.sol";
 
 import { ICrossCatsCallback } from "../../interfaces/ICrossCatsCallback.sol";
-import { FillInstruction, GaslessCrossChainOrder, OnchainCrossChainOrder, Output, ResolvedCrossChainOrder } from "../../interfaces/IERC7683.sol";
+import { FillInstruction, GaslessCrossChainOrder, Output, ResolvedCrossChainOrder } from "../../interfaces/IERC7683.sol";
 import { IOracle } from "../../interfaces/IOracle.sol";
 
 /**
@@ -49,26 +49,13 @@ abstract contract BaseSettler is EIP712 {
         GaslessCrossChainOrder calldata order
     ) internal view virtual returns (bytes32);
 
-    function _orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) internal view virtual returns (bytes32);
-
     function orderIdentifier(
         GaslessCrossChainOrder calldata order
     ) external view returns (bytes32) {
         return _orderIdentifier(order);
     }
 
-    function orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) external view returns (bytes32) {
-        return _orderIdentifier(order, user, nonce);
-    }
-
     // --- Order Validation --- //
-
-    function _validateOrder(
-        OnchainCrossChainOrder calldata order
-    ) internal view {
-        // Check if the open deadline has been passed
-        if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
-    }
 
     function _validateOrder(
         GaslessCrossChainOrder calldata order
@@ -258,36 +245,6 @@ abstract contract BaseSettler is EIP712 {
             minReceived: minReceived,
             fillInstructions: fillInstructions
         });
-    }
-
-    function _resolve(OnchainCrossChainOrder calldata order, address filler) internal view virtual returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        CatalystOrderData memory orderData = abi.decode(order.orderData, (CatalystOrderData));
-
-        (Output[] memory maxSpent, FillInstruction[] memory fillInstructions, Output[] memory minReceived) = _resolve(orderData, filler);
-
-        // Lastly, complete the ResolvedCrossChainOrder struct.
-        resolvedOrder = ResolvedCrossChainOrder({
-            user: address(0),
-            originChainId: block.chainid,
-            openDeadline: 0,
-            fillDeadline: order.fillDeadline,
-            orderId: bytes32(0),
-            maxSpent: maxSpent,
-            minReceived: minReceived,
-            fillInstructions: fillInstructions
-        });
-    }
-
-    /**
-     * @notice ERC-7683: Resolves a specific CrossChainOrder into a generic ResolvedCrossChainOrder
-     * @dev Intended to improve standardized integration of various order types and settlement contracts
-     * @param order CrossChainOrder to resolve.
-     * @return resolvedOrder ERC-7683 compatible order description, including the inputs and outputs of the order
-     */
-    function resolve(
-        OnchainCrossChainOrder calldata order
-    ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {
-        return _resolve(order, address(0));
     }
 
     function resolveFor(GaslessCrossChainOrder calldata order, bytes calldata, /* signature */ bytes calldata /* originFllerData */ ) external view returns (ResolvedCrossChainOrder memory resolvedOrder) {

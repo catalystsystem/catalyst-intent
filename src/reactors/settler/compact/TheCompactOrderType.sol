@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "../../../interfaces/IERC7683.sol";
+import { GaslessCrossChainOrder } from "../../../interfaces/IERC7683.sol";
 import { CatalystOrderData, CatalystOrderType, OutputDescription } from "../../CatalystOrderType.sol";
 
 struct CatalystCompactFilledOrder {
@@ -61,25 +61,6 @@ library TheCompactOrderType {
         );
     }
 
-    function orderIdentifier(OnchainCrossChainOrder calldata order, address user, uint256 nonce) internal view returns (bytes32) {
-        (CatalystOrderData memory orderData) = abi.decode(order.orderData, (CatalystOrderData));
-        return keccak256(
-            abi.encodePacked(
-                block.chainid,
-                address(this),
-                user,
-                nonce,
-                order.fillDeadline,
-                orderData.localOracle,
-                orderData.collateralToken,
-                orderData.collateralAmount,
-                orderData.initiateDeadline,
-                orderData.challengeDeadline,
-                orderData.inputs,
-                abi.encode(orderData.outputs)
-            )
-        );
-    }
 
     function orderIdentifier(
         CatalystCompactFilledOrder calldata order

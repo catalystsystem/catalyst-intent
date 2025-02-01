@@ -85,17 +85,25 @@ abstract contract BaseSettler is EIP712 {
         address purchaser = purchaseDetails.purchaser;
 
         if (purchaser != address(0)) {
-            // Check if the order has been correctly purchased. We use the fill of the first timestamp
+            // Check if the order has been correctly purchased. We use the fill of the last timestamp
             // to gauge the result towards the purchaser
-            uint256 orderTimestamp = _minTimestamp(timestamps);
-            // If the timestamp of the order is less than lastOrderTimestamp, the order was purchased in time.
-            if (lastOrderTimestamp > orderTimestamp) {
+            uint256 orderTimestamp = _maxTimestamp(timestamps);
+            // If the timestamp of the order is less than or equal to lastOrderTimestamp, the order was purchased in time.
+            if (lastOrderTimestamp >= orderTimestamp) {
                 return purchaser;
             }
         }
         return address(uint160(uint256(solver)));
     }
 
+    /**
+     * @notice Helper functions for purchasing orders. Provides base logic, the integrating
+     * implementation just needs to provice the correct orderId and inputs according to the order.
+     * @param orderSolvedByIdentifier Solver of the order. Is not validated, need to be correct otherwise
+     * the purchase will be wasted.
+     * @param expiryTimestamp Set to ensure if your transaction isn't mine quickly, you don't end
+     * up purchasing an order that you cannot prove OR is not within the timeToBuy window.
+     */
     function _purchaseOrder(
         bytes32 orderId,
         uint256[2][] calldata inputs,

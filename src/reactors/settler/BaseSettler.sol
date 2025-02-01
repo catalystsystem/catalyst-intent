@@ -98,7 +98,7 @@ abstract contract BaseSettler is EIP712 {
 
     /**
      * @notice Helper functions for purchasing orders. Provides base logic, the integrating
-     * implementation just needs to provice the correct orderId and inputs according to the order.
+     * implementation just needs to provide the correct orderId and inputs according to the order.
      * @param orderSolvedByIdentifier Solver of the order. Is not validated, need to be correct otherwise
      * the purchase will be wasted.
      * @param expiryTimestamp Set to ensure if your transaction isn't mine quickly, you don't end

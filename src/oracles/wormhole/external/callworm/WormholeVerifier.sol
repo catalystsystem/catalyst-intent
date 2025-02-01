@@ -99,17 +99,20 @@ contract WormholeVerifier is GettersGetter {
 
                 bytes32 r;
                 bytes32 s;
+                bytes1 v1;
                 assembly {
-                    // Load r, s via assembly to save gas. This is equivalent to:
-                    r := calldataload(add(signatures.offset, index)) // bytes32 r = bytes32(signatures[index: index +
-                        // 32]);
+                    // Load r, s via assembly to save gas.
+                    // bytes32 r = bytes32(signatures[index: index + 32]);
+                    r := calldataload(add(signatures.offset, index)) 
                     index := add(index, 0x20) // index += 32;
-                    s := calldataload(add(signatures.offset, index)) // bytes32 s = bytes32(signatures[index: index +
-                        // 32]);
+                    // bytes32 s = bytes32(signatures[index: index + 32]);
+                    s := calldataload(add(signatures.offset, index)) 
                     index := add(index, 0x20) // index += 32;
+                    // bytes1(signatures[index:index + 1])
+                    v1 := calldataload(add(signatures.offset, index))
+                    index := add(index, 0x01) // index += 1;
                 }
-                uint8 v = uint8(bytes1(signatures[index:index + 1])) + 27;
-                index += 1;
+                uint8 v = uint8(v1) + 27;
                 address signatory = ecrecover(hash, v, r, s);
                 // ecrecover returns 0 for invalid signatures. We explicitly require valid signatures to avoid
                 // unexpected
@@ -196,8 +199,7 @@ contract WormholeVerifier is GettersGetter {
             // index += 4;
             index += 8;
 
-            emitterChainId = uint16(bytes2(encodedVM[index:index + 2]));
-            index += 2;
+            emitterChainId = uint16(bytes2(encodedVM[index:index += 2]));
 
             assembly ("memory-safe") {
                 // emitterAddress = bytes32(encodedVM[index:index+32]);

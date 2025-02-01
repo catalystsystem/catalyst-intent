@@ -93,7 +93,7 @@ library TheCompactOrderType {
         );
     }
 
-    function compactHash(address arbiter, uint256 sponsor, uint256 nonce, uint256 expires, uint256 fillDeadline, CatalystCompactOrder calldata order) internal pure returns (bytes32) {
+    function compactHash(address arbiter, uint256 sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order) internal pure returns (bytes32) {
         return keccak256(abi.encode(BATCH_COMPACT_TYPE_HASH, arbiter, sponsor, nonce, expires, hashIdsAndAmounts(order.inputs), orderHash(order)));
     }
 

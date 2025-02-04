@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactClaims.sol";
@@ -10,7 +9,6 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
 
 import { OutputDescription } from "../../CatalystOrderType.sol";
-import { AllowOpenType } from "../AllowOpenType.sol";
 import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 
@@ -33,12 +31,10 @@ contract CatalystCompactSettler is BaseSettler {
     error NotOrderOwner();
     error InitiateDeadlinePassed(); // 0x606ef7f5
     error InvalidTimestampLength();
+    error OrderIdMismatch(bytes32 provided, bytes32 computed);
     error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
 
     TheCompact public immutable COMPACT;
-
-    event Finalised();
-    event Deposited();
 
     constructor(
         address compact
@@ -135,15 +131,6 @@ contract CatalystCompactSettler is BaseSettler {
 
     // --- Finalise Orders --- //
 
-    /**
-     * @notice Check for a signed message by an order owner to allow someone else to redeem an order.
-     * @dev See AllowOpenType.sol
-     */
-    function _allowExternalClaimant(bytes32 orderId, address orderOwner, address nextDestination, bytes calldata call, bytes calldata orderOwnerSignature) internal view {
-        bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));
-        bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, orderOwnerSignature);
-        if (!isValid) revert InvalidSigner();
-    }
 
     function _finalise(CatalystCompactOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, address destination) internal {
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
@@ -151,7 +138,7 @@ contract CatalystCompactSettler is BaseSettler {
         // Payout inputs. (This also protects against re-entry calls.)
         _resolveLock(order, sponsorSignature, allocatorSignature, destination);
 
-        emit Open(orderId, solver, destination);
+        emit Finalised(orderId, solver, destination);
     }
 
     function finaliseSelf(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external {
@@ -322,6 +309,7 @@ contract CatalystCompactSettler is BaseSettler {
      * up purchasing an order that you cannot prove OR is not within the timeToBuy window.
      */
     function purchaseOrder(
+        bytes32 orderId,
         CatalystCompactOrder calldata order,
         bytes32 orderSolvedByIdentifier,
         address purchaser,
@@ -332,7 +320,10 @@ contract CatalystCompactSettler is BaseSettler {
         uint32 timeToBuy,
         bytes calldata solverSignature
     ) external {
-        bytes32 orderId = _orderIdentifier(order);
+        // Sanity check that the user thinks they are buying the right order.
+        bytes32 computedOrderId = _orderIdentifier(order);
+        if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
+
         uint256[2][] calldata inputs = order.inputs;
         _purchaseOrder(
             orderId,

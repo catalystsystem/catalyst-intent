@@ -3,11 +3,13 @@ pragma solidity ^0.8.26;
 
 import { EIP712 } from "solady/utils/EIP712.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 import { OutputDescription } from "../CatalystOrderType.sol";
+import { AllowOpenType } from "./AllowOpenType.sol";
 import { OrderPurchaseType } from "./OrderPurchaseType.sol";
 
 import { ICrossCatsCallback } from "../../interfaces/ICrossCatsCallback.sol";
@@ -26,8 +28,7 @@ abstract contract BaseSettler is EIP712 {
     error InvalidPurchaser();
     error InvalidSigner();
 
-    /// @notice Catalyst specific open event that replaces the ERC7683 one for cost purposes.
-    event Open(bytes32 indexed orderId, bytes32 solver, address destination);
+    event Finalised(bytes32 indexed orderId, bytes32 solver, address destination);
     event OrderPurchased(bytes32 indexed orderId, bytes32 solver, address purchaser);
 
     uint256 constant DISCOUNT_DENOM = 10 ** 18;
@@ -71,6 +72,18 @@ abstract contract BaseSettler is EIP712 {
         }
     }
 
+    // --- External Claimant --- //
+
+    /**
+     * @notice Check for a signed message by an order owner to allow someone else to redeem an order.
+     * @dev See AllowOpenType.sol
+     */
+    function _allowExternalClaimant(bytes32 orderId, address orderOwner, address nextDestination, bytes calldata call, bytes calldata orderOwnerSignature) internal view {
+        bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));
+        bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, orderOwnerSignature);
+        if (!isValid) revert InvalidSigner();
+    }
+
     // --- Order Purchase Helpers --- //
 
     /**
@@ -89,7 +102,7 @@ abstract contract BaseSettler is EIP712 {
             // to gauge the result towards the purchaser
             uint256 orderTimestamp = _maxTimestamp(timestamps);
             // If the timestamp of the order is less than or equal to lastOrderTimestamp, the order was purchased in time.
-            if (lastOrderTimestamp >= orderTimestamp) {
+            if (lastOrderTimestamp <= orderTimestamp) {
                 return purchaser;
             }
         }

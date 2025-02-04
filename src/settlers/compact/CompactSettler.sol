@@ -8,14 +8,14 @@ import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactCla
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
 
-import { OutputDescription } from "../../CatalystOrderType.sol";
+import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 
-import { ICrossCatsCallback } from "../../../interfaces/ICrossCatsCallback.sol";
-import { IOracle } from "../../../interfaces/IOracle.sol";
-import { BytesLib } from "../../../libs/BytesLib.sol";
-import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
+import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
+import { IOracle } from "src/interfaces/IOracle.sol";
+import { BytesLib } from "src/libs/BytesLib.sol";
+import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -26,7 +26,7 @@ import { OutputEncodingLib } from "../../../libs/OutputEncodingLib.sol";
  * They then needs to either register or sign a supported claim with the intent as the witness.
  * Without the deposit extension, this contract does not have a way to emit on-chain orders.
  */
-contract CatalystCompactSettler is BaseSettler {
+contract CompactSettler is BaseSettler {
     error NotImplemented();
     error NotOrderOwner();
     error InitiateDeadlinePassed(); // 0x606ef7f5

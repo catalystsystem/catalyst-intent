@@ -3,15 +3,15 @@
 
 pragma solidity ^0.8.22;
 
-import "../../../src/oracles/wormhole/external/wormhole/Messages.sol";
-import "../../../src/oracles/wormhole/external/wormhole/Setters.sol";
-import { WormholeOracle } from  "../../../src/oracles/wormhole/WormholeOracle.sol";
+import "src/oracles/wormhole/external/wormhole/Messages.sol";
+import "src/oracles/wormhole/external/wormhole/Setters.sol";
+import { WormholeOracle } from  "src/oracles/wormhole/WormholeOracle.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
 
-import { OutputDescription } from "../../../src/reactors/CatalystOrderType.sol";
-import { CoinFiller } from "../../../src/reactors/filler/CoinFiller.sol";
-import { OutputEncodingLib } from "../../../src/libs/OutputEncodingLib.sol";
-import { MessageEncodingLib } from "../../../src/oracles/MessageEncodingLib.sol";
+import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
+import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
+import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 
 import "forge-std/Test.sol";
 

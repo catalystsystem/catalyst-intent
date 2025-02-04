@@ -3,11 +3,10 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { IOracle } from "../../interfaces/IOracle.sol";
-import { IPayloadCreator } from "../../interfaces/IPayloadCreator.sol";
-import { IdentifierLib } from "../../libs/IdentifierLib.sol";
-import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
-import { OutputDescription } from "../CatalystOrderType.sol";
+import { IOracle } from "src/interfaces/IOracle.sol";
+import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
+import { IdentifierLib } from "src/libs/IdentifierLib.sol";
+import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
  * @notice Base

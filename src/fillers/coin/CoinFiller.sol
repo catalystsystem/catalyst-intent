@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { IdentifierLib } from "../../libs/IdentifierLib.sol";
-import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
-import { OutputDescription } from "../CatalystOrderType.sol";
-import { BaseFiller } from "./BaseFiller.sol";
+import { IdentifierLib } from "src/libs/IdentifierLib.sol";
+import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+import { BaseFiller } from "src/fillers/BaseFiller.sol";
 
 /**
  * @dev Solvers use Oracles to pay outputs. This allows us to record the payment.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { CatalystOrderType, OutputDescription } from "../../CatalystOrderType.sol";
+import { OutputDescription, OutputDescriptionType } from "../types/OutputDescriptionType.sol";
 
 struct CatalystCompactOrder {
     address user;
@@ -64,13 +64,13 @@ library TheCompactOrderType {
         "OutputDescription[] outputs" ")"
     );
 
-    bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, CatalystOrderType.OUTPUT_DESCRIPTION_TYPE_STUB);
+    bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.OUTPUT_DESCRIPTION_TYPE_STUB);
 
     bytes32 constant CATALYST_WITNESS_TYPE_HASH = keccak256(CATALYST_WITNESS_TYPE);
 
     bytes constant BATCH_COMPACT_TYPE_PARTIAL = abi.encodePacked("BatchCompact(" "address arbiter," "address sponsor," "uint256 nonce," "uint256 expires," "uint256[2][] idsAndAmounts,");
 
-    bytes constant BATCH_SUB_TYPES = abi.encodePacked("CatalystWitness witness)", CATALYST_WITNESS_TYPE_STUB, CatalystOrderType.OUTPUT_DESCRIPTION_TYPE_STUB);
+    bytes constant BATCH_SUB_TYPES = abi.encodePacked("CatalystWitness witness)", CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.OUTPUT_DESCRIPTION_TYPE_STUB);
 
     bytes constant BATCH_COMPACT_TYPE = abi.encodePacked(BATCH_COMPACT_TYPE_PARTIAL, BATCH_SUB_TYPES);
 
@@ -88,7 +88,7 @@ library TheCompactOrderType {
                 order.collateralAmount,
                 order.initiateDeadline,
                 order.challengeDeadline,
-                CatalystOrderType.hashOutputs(order.outputs)
+                OutputDescriptionType.hashOutputs(order.outputs)
             )
         );
     }

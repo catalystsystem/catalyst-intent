@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import { CatalystCompactSettlerWithDeposit } from "../src/reactors/settler/compact/CatalystCompactSettlerWithDeposit.sol";
+import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWithDeposit.sol";
 import { Script } from "forge-std/Script.sol";
 
 contract DeploytCompactWithDeposit is Script {
@@ -9,6 +9,6 @@ contract DeploytCompactWithDeposit is Script {
 
     function run() external {
         vm.broadcast();
-        address compactSettler = address(new CatalystCompactSettlerWithDeposit(THE_COMPACT));
+        address compactSettler = address(new CompactSettlerWithDeposit(THE_COMPACT));
     }
 }

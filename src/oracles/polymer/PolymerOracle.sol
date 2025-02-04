@@ -3,8 +3,7 @@ pragma solidity ^0.8.26;
 
 import { Ownable } from "solady/auth/Ownable.sol";
 
-import { OutputEncodingLib } from "../../libs/OutputEncodingLib.sol";
-import { OutputDescription } from "../../reactors/CatalystOrderType.sol";
+import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 import { ICrossL2Prover } from "./ICrossL2Prover.sol";
 

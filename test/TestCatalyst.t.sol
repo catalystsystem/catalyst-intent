@@ -3,23 +3,23 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { CoinFiller } from "../src/reactors/filler/CoinFiller.sol";
-import { CatalystCompactSettler } from "../src/reactors/settler/compact/CatalystCompactSettler.sol";
+import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
+import { CompactSettler } from "src/settlers/compact/CompactSettler.sol";
 
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 
-import { CatalystOrderType, OutputDescription } from "../src/reactors/CatalystOrderType.sol";
-import { CatalystCompactOrder, TheCompactOrderType } from "../src/reactors/settler/compact/TheCompactOrderType.sol";
+import { OutputDescriptionType, OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
+import { CatalystCompactOrder, TheCompactOrderType } from "src/settlers/compact/TheCompactOrderType.sol";
 
-import { IdentifierLib } from "../src/libs/IdentifierLib.sol";
-import { OutputEncodingLib } from "../src/libs/OutputEncodingLib.sol";
-import { MessageEncodingLib } from "../src/oracles/MessageEncodingLib.sol";
+import { IdentifierLib } from "src/libs/IdentifierLib.sol";
+import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 
-import { WormholeOracle } from "../src/oracles/wormhole/WormholeOracle.sol";
-import { Messages } from "../src/oracles/wormhole/external/wormhole/Messages.sol";
-import { Setters } from "../src/oracles/wormhole/external/wormhole/Setters.sol";
-import { Structs } from "../src/oracles/wormhole/external/wormhole/Structs.sol";
+import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
+import { Messages } from "src/oracles/wormhole/external/wormhole/Messages.sol";
+import { Setters } from "src/oracles/wormhole/external/wormhole/Setters.sol";
+import { Structs } from "src/oracles/wormhole/external/wormhole/Structs.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
@@ -46,7 +46,7 @@ contract ExportedMessages is Messages, Setters {
 }
 
 contract TestCatalyst is Test {
-    CatalystCompactSettler catalystCompactSettler;
+    CompactSettler compactSettler;
     CoinFiller coinFiller;
 
     // Oracles
@@ -105,7 +105,7 @@ contract TestCatalyst is Test {
 
         DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
-        catalystCompactSettler = new CatalystCompactSettler(address(theCompact));
+        compactSettler = new CompactSettler(address(theCompact));
         coinFiller = new CoinFiller();
         alwaysYesOracle = address(new AlwaysYesOracle());
 
@@ -184,7 +184,7 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(catalystCompactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -192,7 +192,7 @@ contract TestCatalyst is Test {
         uint32[] memory timestamps = new uint32[](1);
 
         vm.prank(solver);
-        catalystCompactSettler.finaliseSelf(order, signature, timestamps, bytes32(uint256(uint160((solver)))));
+        compactSettler.finaliseSelf(order, signature, timestamps, bytes32(uint256(uint160((solver)))));
     }
 
     function _buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns (bytes memory preMessage) {
@@ -246,7 +246,7 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(catalystCompactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -256,7 +256,7 @@ contract TestCatalyst is Test {
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
         bytes32[] memory orderIds = new bytes32[](1);
 
-        bytes32 orderId = catalystCompactSettler.orderIdentifier(order);
+        bytes32 orderId = compactSettler.orderIdentifier(order);
         orderIds[0] = orderId;
 
         vm.prank(solver);
@@ -282,7 +282,7 @@ contract TestCatalyst is Test {
         timestamps[0] = uint32(block.timestamp);
 
         vm.prank(solver);
-        catalystCompactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
+        compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
         vm.snapshotGasLastCall("finaliseSelf");
     }
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { IOracle } from "../interfaces/IOracle.sol";
-import { IdentifierLib } from "../libs/IdentifierLib.sol";
+import { IOracle } from "src/interfaces/IOracle.sol";
+import { IdentifierLib } from "src/libs/IdentifierLib.sol";
 
 /**
  * @notice Foundation for oracles. Exposes attesation logic for consumers.

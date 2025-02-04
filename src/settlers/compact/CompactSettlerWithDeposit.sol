@@ -8,7 +8,7 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
 import { Scope } from "the-compact/src/types/Scope.sol";
 
-import { CatalystCompactSettler } from "./CatalystCompactSettler.sol";
+import { CompactSettler } from "./CompactSettler.sol";
 import { TheCompactOrderType, CatalystCompactOrder } from "./TheCompactOrderType.sol";
 
 /**
@@ -18,12 +18,12 @@ import { TheCompactOrderType, CatalystCompactOrder } from "./TheCompactOrderType
  * deposit in the Compact and emitting the order for consumption by solvers. Tokens are collected from msg.sender.
  * 
  */
-contract CatalystCompactSettlerWithDeposit is CatalystCompactSettler {
+contract CompactSettlerWithDeposit is CompactSettler {
     event Deposited(bytes32 orderId, CatalystCompactOrder order);
 
     constructor(
         address compact
-    ) CatalystCompactSettler(compact) { }
+    ) CompactSettler(compact) { }
 
     function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystCompactOrder calldata order, ResetPeriod resetPeriod) internal {
         uint256[2][] memory idsAndAmounts = order.inputs;

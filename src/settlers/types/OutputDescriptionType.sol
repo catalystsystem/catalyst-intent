@@ -1,45 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-struct OutputDescription {
-    /**
-     * @dev Contract on the destination that tells whether an order was filled.
-     */
-    bytes32 remoteOracle;
-    /**
-     * @dev The destination chain for this output.
-     */
-    uint256 chainId;
-    /**
-     * @dev The address of the token on the destination chain.
-     */
-    bytes32 token;
-    /**
-     * @dev The amount of the token to be sent.
-     */
-    uint256 amount;
-    /**
-     * @dev The address to receive the output tokens.
-     */
-    bytes32 recipient;
-    /**
-     * @dev Additional data that will be used to execute a call on the remote chain.
-     * Is called on recipient.
-     */
-    bytes remoteCall;
-    /**
-     * @dev Non-particular data that is used to encode non-generic behaviour for a filler.
-     */
-    bytes fulfillmentContext;
-}
+import { OutputDescription } from "src/libs/OutputEncodingLib.sol";
 
 /**
- * @notice Helper library for the Catalyst order type.
+ * @notice Helper library for the Output description order type.
  * TYPE_PARTIAL: An incomplete type. Is missing a field.'
  * TYPE_STUB: Type has no subtypes.
  * TYPE: Is complete including sub-types.
  */
-library CatalystOrderType {
+library OutputDescriptionType {
     //--- Inputs & Outputs Types ---//
 
     bytes constant OUTPUT_DESCRIPTION_TYPE_STUB =

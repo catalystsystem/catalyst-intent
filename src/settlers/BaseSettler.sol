@@ -8,18 +8,18 @@ import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
-import { OutputDescription } from "../CatalystOrderType.sol";
-import { AllowOpenType } from "./AllowOpenType.sol";
-import { OrderPurchaseType } from "./OrderPurchaseType.sol";
+import { OutputDescription } from "./types/OutputDescriptionType.sol";
+import { AllowOpenType } from "./types/AllowOpenType.sol";
+import { OrderPurchaseType } from "./types/OrderPurchaseType.sol";
 
-import { ICrossCatsCallback } from "../../interfaces/ICrossCatsCallback.sol";
-import { IOracle } from "../../interfaces/IOracle.sol";
+import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
+import { IOracle } from "src/interfaces/IOracle.sol";
 
 /**
  * @title Base Catalyst Order Intent Settler
  * @notice Defines common logic that can be reused by other settlers to support a variety
  * of asset management schemes.
- * @dev Implements the default CatalystOrderType and makes functions that are dedicated to that order type
+ * @dev Implements the default OutputDescriptionType and makes functions that are dedicated to that order type
  * available to implementing implementations.
  */
 abstract contract BaseSettler is EIP712 {

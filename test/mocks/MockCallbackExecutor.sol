@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { ICrossCatsCallback } from "../../src/interfaces/ICrossCatsCallback.sol";
+import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
 
 contract MockCallbackExecutor is ICrossCatsCallback {
     event InputsFilled(bytes executionData);

@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { CanCollectGovernanceFee } from "../../libs/CanCollectGovernanceFee.sol";
+import { CanCollectGovernanceFee } from "../common/CanCollectGovernanceFee.sol";
 import { CoinFiller } from "./CoinFiller.sol";
 
 /**

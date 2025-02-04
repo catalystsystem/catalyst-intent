@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { ICrossCatsCallback } from "../interfaces/ICrossCatsCallback.sol";
+import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 /**

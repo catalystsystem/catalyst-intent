@@ -120,7 +120,6 @@ abstract contract BaseFiller is IPayloadCreator {
      * @dev If an output has been filled by someone else, this function will revert.
      */
     function fillThrow(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
-        if (filler == bytes32(0)) revert ZeroValue();
         _fillThrow(orderIds, outputs, filler);
     }
 
@@ -129,7 +128,6 @@ abstract contract BaseFiller is IPayloadCreator {
      * @dev If an output has been filled by someone else, this function will skip that output and fill the remaining.
      */
     function fillSkip(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
-        if (filler == bytes32(0)) revert ZeroValue();
         _fillSkip(orderIds, outputs, filler);
     }
 

@@ -125,7 +125,7 @@ abstract contract BaseSettler is EIP712 {
         uint256 expiryTimestamp,
         address newDestination,
         bytes calldata call,
-        uint48 discount,
+        uint64 discount,
         uint32 timeToBuy,
         bytes calldata solverSignature
     ) internal {
@@ -157,7 +157,7 @@ abstract contract BaseSettler is EIP712 {
             uint256[2] calldata input = inputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
-            uint256 amountAfterDiscount = allocatedAmount * discount / DISCOUNT_DENOM;
+            uint256 amountAfterDiscount = allocatedAmount * (DISCOUNT_DENOM - discount) / DISCOUNT_DENOM;   // If discount > DISCOUNT_DENOM the subtraction will throw an exception
             SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount);
         }
 

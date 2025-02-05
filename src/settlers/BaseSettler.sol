@@ -40,6 +40,10 @@ abstract contract BaseSettler is EIP712 {
 
     mapping(bytes32 solver => mapping(bytes32 orderId => Purchased)) public purchasedOrders;
 
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
+        return _domainSeparator();
+    }
+
     // --- Timestamp Helpers --- //
 
     /**
@@ -91,7 +95,7 @@ abstract contract BaseSettler is EIP712 {
      * In case an order has been bought, and bought in time, the owner will be set to
      * the purchaser. Otherwise it will be set to the solver.
      */
-    function _purchaseGetOrderOwner(bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal view returns (address orderOwner) {
+    function _purchaseGetOrderOwner(bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal returns (address orderOwner) {
         // Check if the order has been purchased.
         Purchased storage purchaseDetails = purchasedOrders[solver][orderId];
         uint32 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
@@ -103,8 +107,12 @@ abstract contract BaseSettler is EIP712 {
             uint256 orderTimestamp = _maxTimestamp(timestamps);
             // If the timestamp of the order is less than or equal to lastOrderTimestamp, the order was purchased in time.
             if (lastOrderTimestamp <= orderTimestamp) {
+                delete purchaseDetails.lastOrderTimestamp;
+                delete purchaseDetails.purchaser;
                 return purchaser;
             }
+            delete purchaseDetails.lastOrderTimestamp;
+            delete purchaseDetails.purchaser;
         }
         return address(uint160(uint256(solver)));
     }

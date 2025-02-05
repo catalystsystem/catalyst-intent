@@ -9,7 +9,7 @@ struct OrderPurchase {
     address originSettler;
     address destination;
     bytes call;
-    uint48 discount;
+    uint64 discount;
     uint32 timeToBuy;
 }
 
@@ -20,11 +20,11 @@ struct OrderPurchase {
  * TYPE: Is complete including sub-types.
  */
 library OrderPurchaseType {
-    bytes constant ORDER_PURCHASE_TYPE_STUB = abi.encodePacked("OrderPurchase(" "bytes32 orderId," "address originSettler," "address destination," "bytes call," "uint48 discount," "uint32 timeToBuy" ")");
+    bytes constant ORDER_PURCHASE_TYPE_STUB = abi.encodePacked("OrderPurchase(" "bytes32 orderId," "address originSettler," "address destination," "bytes call," "uint64 discount," "uint32 timeToBuy" ")");
 
     bytes32 constant ORDER_PURCHASE_TYPE_HASH = keccak256(ORDER_PURCHASE_TYPE_STUB);
 
-    function hashOrderPurchase(bytes32 orderId, address originSettler, address destination, bytes calldata call, uint48 discount, uint32 timeToBuy) internal pure returns (bytes32) {
+    function hashOrderPurchase(bytes32 orderId, address originSettler, address destination, bytes calldata call, uint64 discount, uint32 timeToBuy) internal pure returns (bytes32) {
         return keccak256(abi.encode(ORDER_PURCHASE_TYPE_HASH, orderId, originSettler, destination, keccak256(call), discount, timeToBuy));
     }
 }

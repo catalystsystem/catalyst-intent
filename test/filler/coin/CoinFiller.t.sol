@@ -14,6 +14,8 @@ contract TestCoinFiller is Test {
     error WrongChain(uint256 expected, uint256 actual);
     error WrongRemoteOracle(bytes32 addressThis, bytes32 expected);
     error FilledBySomeoneElse(bytes32 solver);
+    error NotImplemented();
+    error SlopeStopped();
 
     event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
@@ -38,6 +40,7 @@ contract TestCoinFiller is Test {
     }
 
     // --- VALID CASES --- //
+
     function test_fill_skip(bytes32 orderId, address sender, bytes32 filler, uint256 amount) public {
         vm.assume(filler != bytes32(0));
 
@@ -160,6 +163,48 @@ contract TestCoinFiller is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
+    function test_dutch_auction(bytes32 orderId, address sender, bytes32 filler, uint256 amount, uint128 slope, uint128 stopTime) public {
+        vm.assume(filler != bytes32(0));
+        vm.assume(slope > 0);
+        vm.assume(stopTime > block.timestamp);
+        vm.assume(type(uint256).max - amount > slope * (stopTime - block.timestamp));
+
+        outputToken.mint(sender, amount + slope * (stopTime - block.timestamp));
+        vm.prank(sender);
+        outputToken.approve(address(coinFiller), amount + slope * (stopTime - block.timestamp));
+
+        bytes32[] memory  orderIds = new bytes32[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        bytes16 fillerAddress = bytes16(uint128(uint160(address(coinFiller)))) << 8;
+        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
+        
+        outputs[0] = OutputDescription({
+            remoteOracle: remoteOracle,
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(outputToken)))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(uint256(slope)), bytes32(uint256(stopTime)))
+        });
+        orderIds[0] = orderId;
+        
+        vm.prank(sender);
+
+        vm.expectEmit();
+        emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
+
+        vm.expectCall(
+            address(outputToken),
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount + slope * (stopTime - block.timestamp))
+        );
+
+        coinFiller.fillSkip(orderIds, outputs, filler);
+
+        assertEq(outputToken.balanceOf(swapper), amount + slope * (stopTime - block.timestamp));
+        assertEq(outputToken.balanceOf(sender), 0);
+    }
+
     // --- FAILURE CASES --- //
     
     function test_fill_throw_zero_filler(address sender, bytes32 orderId) public {
@@ -263,7 +308,7 @@ contract TestCoinFiller is Test {
         coinFiller.fillThrow(orderIds, outputs, differentFiller);
     }
     
-    function test_call_with_real_address(address sender, bytes32 filler, uint256 amount) public {
+    function test_call_with_real_address(address sender, uint256 amount) public {
         vm.assume(sender != address(0));
 
         OutputDescription memory output = OutputDescription({
@@ -279,5 +324,60 @@ contract TestCoinFiller is Test {
         vm.prank(sender);
         vm.expectRevert();
         coinFiller.call(amount, output);
+    }
+
+    function test_invalid_fulfillment_context(address sender, bytes32 filler, bytes32 orderId, uint256 amount, bytes memory fulfillmentContext) public {
+        vm.assume(fulfillmentContext.length != 65 && fulfillmentContext.length != 0);
+        vm.assume(filler != bytes32(0));
+
+        outputToken.mint(sender, amount);
+        vm.prank(sender);
+        outputToken.approve(address(coinFiller), amount);
+
+        bytes32[] memory  orderIds = new bytes32[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        bytes16 fillerAddress = bytes16(uint128(uint160(address(coinFiller)))) << 8;
+        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
+
+        orderIds[0] = orderId;
+        outputs[0] = OutputDescription({
+            remoteOracle: remoteOracle,
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(outputToken)))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: fulfillmentContext
+        });
+
+        vm.prank(sender);
+        vm.expectRevert(NotImplemented.selector);
+        coinFiller.fillThrow(orderIds, outputs, filler);
+    }
+
+    function test_slope_stopped(address sender, bytes32 orderId, bytes32 filler, uint256 amount, uint256 slope, uint256 currentTime, uint256 stopTime) public {
+        vm.assume(stopTime < currentTime);
+        vm.warp(currentTime);
+        vm.assume(filler != bytes32(0));
+
+        bytes32[] memory  orderIds = new bytes32[](1);
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        bytes16 fillerAddress = bytes16(uint128(uint160(address(coinFiller)))) << 8;
+        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
+
+        orderIds[0] = orderId;
+        outputs[0] = OutputDescription({
+            remoteOracle: remoteOracle,
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(outputToken)))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(slope), bytes32(stopTime))
+        });
+
+        vm.prank(sender);
+        vm.expectRevert(SlopeStopped.selector);
+        coinFiller.fillThrow(orderIds, outputs, filler);
     }
 }

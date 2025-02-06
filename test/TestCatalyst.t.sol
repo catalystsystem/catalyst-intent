@@ -4,7 +4,7 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 
 import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
-import { CompactSettler } from "src/settlers/compact/CompactSettler.sol";
+import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWithDeposit.sol";
 
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
@@ -21,7 +21,11 @@ import { Messages } from "src/oracles/wormhole/external/wormhole/Messages.sol";
 import { Setters } from "src/oracles/wormhole/external/wormhole/Setters.sol";
 import { Structs } from "src/oracles/wormhole/external/wormhole/Structs.sol";
 
+import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { TheCompact } from "the-compact/src/TheCompact.sol";
+import { Scope } from "the-compact/src/types/Scope.sol";
+import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
+import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
 
 interface EIP712 {
@@ -46,7 +50,7 @@ contract ExportedMessages is Messages, Setters {
 }
 
 contract TestCatalyst is Test {
-    CompactSettler compactSettler;
+    CompactSettlerWithDeposit compactSettler;
     CoinFiller coinFiller;
 
     // Oracles
@@ -105,7 +109,7 @@ contract TestCatalyst is Test {
 
         DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
-        compactSettler = new CompactSettler(address(theCompact));
+        compactSettler = new CompactSettlerWithDeposit(address(theCompact));
         coinFiller = new CoinFiller();
         alwaysYesOracle = address(new AlwaysYesOracle());
 
@@ -284,5 +288,59 @@ contract TestCatalyst is Test {
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
         vm.snapshotGasLastCall("finaliseSelf");
+    }
+
+    function toTokenId(address tkn, Scope scope, ResetPeriod resetPeriod, address allocator) internal pure returns (uint256 id) {
+        // Derive the allocator ID for the provided allocator address.
+        uint96 allocatorId = IdLib.usingAllocatorId(allocator);
+
+        // Derive resource lock ID (pack scope, reset period, allocator ID, & token).
+        id = ((EfficiencyLib.asUint256(scope) << 255) | (EfficiencyLib.asUint256(resetPeriod) << 252) | (EfficiencyLib.asUint256(allocatorId) << 160) | EfficiencyLib.asUint256(tkn));
+    }
+
+    function test_deposit_for() external {
+        ResetPeriod resetPeriod = ResetPeriod.OneHourAndFiveMinutes;
+        Scope scope = Scope.Multichain;
+
+        uint256 tokenId = toTokenId(address(token), scope, resetPeriod, alwaysOKAllocator);
+        uint256 amount = 1e18 / 10;
+
+        address localOracle = address(wormholeOracle);
+        bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), localOracle);
+
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, amount];
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteOracle: remoteOracle,
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(anotherToken)))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            localOracle: localOracle,
+            collateralToken: address(0),
+            collateralAmount: uint256(0),
+            initiateDeadline: type(uint32).max,
+            challengeDeadline: type(uint32).max,
+            inputs: inputs,
+            outputs: outputs
+        });
+
+
+        vm.prank(swapper);
+        token.approve(address(compactSettler), amount);
+
+        vm.prank(swapper);
+        compactSettler.depositFor(order, resetPeriod);
+
+        // TODO: track events and similarly
     }
 }

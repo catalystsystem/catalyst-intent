@@ -229,13 +229,12 @@ contract CompactSettler is BaseSettler {
     /**
      * @notice Finalises a cross-chain order on behalf of someone else
      * @dev This function serves to finalise intents on the origin chain. It has been assumed that assets have been
-     * locked
-     * inside The Compact and will be available to collect.
+     * locked inside The Compact and will be available to collect.
      * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of
      * the fills.
      * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
-     * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
-     * bytes(allocatorSignature))
+     * @param signatures A signature for the sponsor and the allocator. 
+     *  abi.encode(bytes(sponsorSignature), bytes(allocatorSignature))
      */
     function finaliseFor(
         CatalystCompactOrder calldata order,

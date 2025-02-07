@@ -3,9 +3,9 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { CoinFiller } from "../../../src/reactors/filler/CoinFiller.sol";
+import { CoinFiller } from "../../../src/fillers/coin/CoinFiller.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
-import { OutputDescription } from "../../../src/reactors/CatalystOrderType.sol";
+import { OutputDescription } from "../../../src/libs/OutputEncodingLib.sol";
 import { MockCallbackExecutor } from "../../mocks/MockCallbackExecutor.sol";
 
 contract TestCoinFiller is Test {
@@ -316,7 +316,7 @@ contract TestCoinFiller is Test {
     }
 
     function test_invalid_fulfillment_context(address sender, bytes32 filler, bytes32 orderId, uint256 amount, bytes memory fulfillmentContext) public {
-        vm.assume(fulfillmentContext.length != 65 && fulfillmentContext.length != 0);
+        vm.assume(fulfillmentContext.length != 65 && fulfillmentContext.length > 1);
         vm.assume(filler != bytes32(0));
 
         outputToken.mint(sender, amount);

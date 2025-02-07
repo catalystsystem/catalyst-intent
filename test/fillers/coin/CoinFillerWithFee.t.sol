@@ -2,9 +2,9 @@ pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 
-import { CoinFillerWithFee } from "../../../src/reactors/filler/CoinFillerWithFee.sol";
+import { CoinFillerWithFee } from "../../../src/fillers/coin/CoinFillerWithFee.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
-import { OutputDescription } from "../../../src/reactors/CatalystOrderType.sol";
+import { OutputDescription } from "../../../src/libs/OutputEncodingLib.sol";
 
 contract TestCoinFillerWithFee is Test {
     error GovernanceFeeTooHigh();

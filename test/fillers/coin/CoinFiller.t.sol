@@ -120,6 +120,7 @@ contract TestCoinFiller is Test {
 
     function test_mock_callback_executor(address sender, bytes32 orderId, uint256 amount, bytes32 filler, bytes memory remoteCallData) public {
         vm.assume(filler != bytes32(0));
+        vm.assume(sender != mockCallbackExecutorAddress);
         vm.assume(remoteCallData.length != 0);
 
         outputToken.mint(sender, amount);

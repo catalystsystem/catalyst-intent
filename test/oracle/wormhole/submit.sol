@@ -58,6 +58,7 @@ contract TestSubmitWormholeOracleProofs is Test {
 
 
     function test_fill_then_submit_W(address sender, uint256 amount, address recipient, bytes32 orderId, bytes32 solverIdentifier) external {
+        vm.assume(solverIdentifier != bytes32(0));
         bytes32 fillerOracleIdentifier = oracle.getIdentifier(address(filler));
 
         token.mint(sender, amount);
@@ -78,7 +79,7 @@ contract TestSubmitWormholeOracleProofs is Test {
             address(token), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount)
         );
 
-        vm.prank(sender);
+        vm.prank(sender); 
         filler.fill(orderId, output, solverIdentifier);
 
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), output);

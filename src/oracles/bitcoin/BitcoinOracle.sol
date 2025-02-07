@@ -92,7 +92,7 @@ contract BitcoinOracle is BaseOracle {
     uint32 constant CAN_VALIDATE_OUTPUTS_FOR = 1 days;
 
     /**
-     * @dev Solvers have an additonal LEAD_TIME to fill orders.
+     * @dev Solvers have an additional LEAD_TIME to fill orders.
      */
     uint32 constant LEAD_TIME = 7 minutes;
 
@@ -107,7 +107,7 @@ contract BitcoinOracle is BaseOracle {
 
     /**
      * @notice Returns the number of seconds required to reach confirmation with 99.9%
-     * certaincy.
+     * certainty.
      * How long does it take for us to get 99,9% confidence that a transaction will
      * be confirmable. Examine n identically distributed exponentially random variables
      * with rate 1/10. The sum of the random variables are distributed gamma(n, 1/10).

@@ -173,7 +173,7 @@ contract TestBaseSettler is Test {
         vm.prank(purchaser);
         anotherToken.approve(address(settler), amount);
 
-        // Check inital state:
+        // Check initial state:
         assertEq(token.balanceOf(solver), 0);
         assertEq(anotherToken.balanceOf(solver), 0);
 

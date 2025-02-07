@@ -17,7 +17,7 @@ abstract contract BaseFiller is IPayloadCreator {
     error FilledBySomeoneElse(bytes32 solver);
     error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
     error WrongRemoteOracle(bytes32 addressThis, bytes32 expected); // 0xe57d7773
-    error ZeroValue();
+    error ZeroValue(); // 0x7c946ed7
 
     // The maximum gas used on calls is 1 million gas.
     uint256 constant MAX_GAS_ON_CALL = 1_000_000;
@@ -120,7 +120,6 @@ abstract contract BaseFiller is IPayloadCreator {
      * @dev If an output has been filled by someone else, this function will revert.
      */
     function fillThrow(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
-        if (filler == bytes32(0)) revert ZeroValue();
         _fillThrow(orderIds, outputs, filler);
     }
 
@@ -129,7 +128,6 @@ abstract contract BaseFiller is IPayloadCreator {
      * @dev If an output has been filled by someone else, this function will skip that output and fill the remaining.
      */
     function fillSkip(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
-        if (filler == bytes32(0)) revert ZeroValue();
         _fillSkip(orderIds, outputs, filler);
     }
 

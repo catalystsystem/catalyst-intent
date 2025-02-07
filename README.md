@@ -124,5 +124,5 @@ forge test --gas-report
 ### Coverage
 
 ```shell
-forge coverage --ir-minimum [--report lcov]
+forge coverage --ir-minimum --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" [--report lcov]
 ```

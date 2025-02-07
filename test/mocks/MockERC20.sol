@@ -4,8 +4,6 @@ pragma solidity ^0.8.26;
 import { ERC20 } from "solady/tokens/ERC20.sol";
 
 contract MockERC20 is ERC20 {
-    function test() external pure { }
-
     string internal _name;
     string internal _symbol;
     uint8 internal _decimals;

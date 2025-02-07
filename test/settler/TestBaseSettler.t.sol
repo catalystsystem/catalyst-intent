@@ -13,7 +13,6 @@ interface EIP712 {
 }
 
 contract MockSettler is BaseSettler {
-    function test() external pure { }
     function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
         name = "MockSettler";
         version = "-1";
@@ -78,8 +77,6 @@ contract TestBaseSettler is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
     }
-
-    function test() external pure { }
 
     function setUp() public virtual {
         settler = new MockSettler();

@@ -72,8 +72,6 @@ contract TestCatalyst is Test {
     address alwaysOKAllocator;
     bytes32 DOMAIN_SEPARATOR;
 
-    function test() external pure { }
-
     function getCompactBatchWitnessSignature(
         uint256 privateKey,
         bytes32 typeHash,

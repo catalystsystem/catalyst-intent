@@ -12,7 +12,6 @@ import { MockERC20 } from "./mocks/MockERC20.sol";
 import { OutputDescriptionType, OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "src/settlers/compact/TheCompactOrderType.sol";
 
-import { IdentifierLib } from "src/libs/IdentifierLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 
@@ -159,6 +158,7 @@ contract TestCatalyst is Test {
         inputs[0] = [tokenId, amount];
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
+            remoteFiller: bytes32(0),
             remoteOracle: bytes32(uint256(uint160(alwaysYesOracle))),
             chainId: block.chainid,
             token: bytes32(tokenId),
@@ -211,13 +211,13 @@ contract TestCatalyst is Test {
         uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
 
         address localOracle = address(wormholeOracle);
-        bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), localOracle);
 
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, amount];
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(address(coinFiller)))),
+            remoteOracle: bytes32(uint256(uint160(localOracle))),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount,
@@ -260,7 +260,7 @@ contract TestCatalyst is Test {
         bytes[] memory payloads = new bytes[](1);
         payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
 
-        bytes memory expectedMessageEmitted = this.encodeMessage(remoteOracle, payloads);
+        bytes memory expectedMessageEmitted = this.encodeMessage(outputs[0].remoteFiller, payloads);
 
         vm.expectEmit();
         emit PackagePublished(0, expectedMessageEmitted, 15);
@@ -296,13 +296,13 @@ contract TestCatalyst is Test {
         uint256 amount = 1e18 / 10;
 
         address localOracle = address(wormholeOracle);
-        bytes32 remoteOracle = IdentifierLib.getIdentifier(address(coinFiller), localOracle);
 
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, amount];
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(address(coinFiller)))),
+            remoteOracle: bytes32(uint256(uint160(localOracle))),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount,

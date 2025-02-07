@@ -7,6 +7,10 @@ struct OutputDescription {
      */
     bytes32 remoteOracle;
     /**
+     * @dev Contract on the destination that contains logic to resolve this output
+     */
+    bytes32 remoteFiller;
+    /**
      * @dev The destination chain for this output.
      */
     uint256 chainId;
@@ -46,8 +50,9 @@ struct OutputDescription {
  *
  * Encoded OutputDescription
  *      REMOTE_ORACLE                   0               (32 bytes)
- *      + CHAIN_ID                      32              (32 bytes)
- *      + COMMON_PAYLOAD                64
+ *      + REMOTE_FILLER                 32              (32 bytes)
+ *      + CHAIN_ID                      64              (32 bytes)
+ *      + COMMON_PAYLOAD                96
  *
  * Encoded FillDescription
  *      SOLVER                          0               (32 bytes)
@@ -64,7 +69,7 @@ struct OutputDescription {
  *      + FULFILLMENT_CONTEXT_LENGTH    Y+98+RC_LENGTH  (2 bytes)
  *      + FULFILLMENT_CONTEXT           Y+100+RC_LENGTH (LENGTH bytes)
  *
- * where Y is the offset from the specific encoding (either 64 or 68)
+ * where Y is the offset from the specific encoding (either 68 or 96)
  *
  */
 library OutputEncodingLib {
@@ -89,6 +94,7 @@ library OutputEncodingLib {
 
         return encodedOutput = abi.encodePacked(
             outputDescription.remoteOracle,
+            outputDescription.remoteFiller,
             outputDescription.chainId,
             outputDescription.token,
             outputDescription.amount,
@@ -117,8 +123,8 @@ library OutputEncodingLib {
      * output hash and the common payload have a shared chunk of data. It only has to be enhanced with
      * remoteOracle and chain id and then hashed.
      */
-    function getOutputDescriptionHash(bytes32 remoteOracle, uint256 chainId, bytes calldata commonPayload) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(remoteOracle, chainId, commonPayload));
+    function getOutputDescriptionHash(bytes32 remoteOracle, bytes32 remoteFiller, uint256 chainId, bytes calldata commonPayload) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(remoteOracle, remoteFiller, chainId, commonPayload));
     }
 
     // --- FillDescription Encoding --- //

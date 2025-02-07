@@ -9,10 +9,6 @@ struct CatalystCompactOrder {
     uint256 originChainId;
     uint32 fillDeadline;
     address localOracle;
-    address collateralToken;
-    uint256 collateralAmount;
-    uint32 initiateDeadline;
-    uint32 challengeDeadline;
     uint256[2][] inputs;
     OutputDescription[] outputs;
 }
@@ -24,10 +20,6 @@ struct CatalystCompactOrder {
 struct CatalystWitness {
     uint32 fillDeadline;
     address localOracle;
-    address collateralToken;
-    uint256 collateralAmount;
-    uint32 initiateDeadline;
-    uint32 challengeDeadline;
     OutputDescription[] outputs;
 }
 
@@ -49,10 +41,6 @@ library TheCompactOrderType {
                 order.nonce,
                 order.fillDeadline,
                 order.localOracle,
-                order.collateralToken,
-                order.collateralAmount,
-                order.initiateDeadline,
-                order.challengeDeadline,
                 order.inputs,
                 abi.encode(order.outputs)
             )
@@ -60,8 +48,7 @@ library TheCompactOrderType {
     }
 
     bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked(
-        "CatalystWitness(" "uint32 fillDeadline," "address localOracle," "address collateralToken," "uint256 collateralAmount," "uint32 initiateDeadline," "uint32 challengeDeadline,"
-        "OutputDescription[] outputs" ")"
+        "CatalystWitness(" "uint32 fillDeadline," "address localOracle," "OutputDescription[] outputs" ")"
     );
 
     bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.OUTPUT_DESCRIPTION_TYPE_STUB);
@@ -84,10 +71,6 @@ library TheCompactOrderType {
                 CATALYST_WITNESS_TYPE_HASH,
                 order.fillDeadline,
                 order.localOracle,
-                order.collateralToken,
-                order.collateralAmount,
-                order.initiateDeadline,
-                order.challengeDeadline,
                 OutputDescriptionType.hashOutputs(order.outputs)
             )
         );

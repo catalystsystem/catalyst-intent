@@ -175,10 +175,6 @@ contract TestCatalyst is Test {
             originChainId: block.chainid,
             fillDeadline: type(uint32).max,
             localOracle: alwaysYesOracle,
-            collateralToken: address(0),
-            collateralAmount: uint256(0),
-            initiateDeadline: type(uint32).max,
-            challengeDeadline: type(uint32).max,
             inputs: inputs,
             outputs: outputs
         });
@@ -237,10 +233,6 @@ contract TestCatalyst is Test {
             originChainId: block.chainid,
             fillDeadline: type(uint32).max,
             localOracle: localOracle,
-            collateralToken: address(0),
-            collateralAmount: uint256(0),
-            initiateDeadline: type(uint32).max,
-            challengeDeadline: type(uint32).max,
             inputs: inputs,
             outputs: outputs
         });
@@ -326,10 +318,6 @@ contract TestCatalyst is Test {
             originChainId: block.chainid,
             fillDeadline: type(uint32).max,
             localOracle: localOracle,
-            collateralToken: address(0),
-            collateralAmount: uint256(0),
-            initiateDeadline: type(uint32).max,
-            challengeDeadline: type(uint32).max,
             inputs: inputs,
             outputs: outputs
         });

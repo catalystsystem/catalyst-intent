@@ -14,7 +14,7 @@ interface ICitrea {
  * @dev Bitcoin oracle using the Citrea ABI.
  */
 contract CitreaOracle is BitcoinOracle {
-    constructor(address _citrea, address autoDisputedCollateralTo) payable BitcoinOracle(_citrea, autoDisputedCollateralTo) { }
+    constructor(address _citrea, address autoDisputedCollateralTo, address collateralToken) payable BitcoinOracle(_citrea, autoDisputedCollateralTo, collateralToken) { }
 
     function _getLatestBlockHeight() internal view override returns (uint256 currentHeight) {
         return currentHeight = ICitrea(LIGHT_CLIENT).blockNumber();

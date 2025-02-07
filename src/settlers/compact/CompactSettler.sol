@@ -106,6 +106,8 @@ contract CompactSettler is BaseSettler {
     /**
      * @notice Check if a series of outputs has been proven.
      * @dev Notice that the solver of the first provided output is reported as the entire intent solver.
+     * This function returns true if the order contains no outputs.
+     * That means any order that has no outputs specified can be claimed with no issues.
      */
     function _validateFills(address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;

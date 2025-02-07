@@ -539,6 +539,7 @@ contract BitcoinOracle is BaseOracle {
         bytes32 solver = claimedOrder.solver;
         bytes32 outputHash = keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, uint32(block.timestamp), output));
         _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][outputHash] = true;
+        emit OutputFilled(orderId, solver, uint32(block.timestamp), output);
 
         address sponsor = claimedOrder.sponsor;
         uint256 multiplier = claimedOrder.multiplier;

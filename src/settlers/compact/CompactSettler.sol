@@ -86,18 +86,20 @@ contract CompactSettler is BaseSettler {
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
-        bytes memory proofSeries = new bytes(32 * 3 * numOutputs);
+        bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
+            bytes32 remoteFiller = output.remoteFiller;
             bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], timestamps[i], output);
 
             assembly ("memory-safe") {
-                let offset := add(add(proofSeries, 0x20), mul(i, 0x60))
+                let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
                 mstore(offset, chainId)
                 mstore(add(offset, 0x20), remoteOracle)
-                mstore(add(offset, 0x40), payloadHash)
+                mstore(add(offset, 0x40), remoteFiller)
+                mstore(add(offset, 0x60), payloadHash)
             }
         }
         IOracle(localOracle).efficientRequireProven(proofSeries);
@@ -114,18 +116,20 @@ contract CompactSettler is BaseSettler {
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
-        bytes memory proofSeries = new bytes(32 * 3 * numOutputs);
+        bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
+            bytes32 remoteFiller = output.remoteFiller;
             bytes32 payloadHash = _proofPayloadHash(orderId, solver, timestamps[i], output);
 
             assembly ("memory-safe") {
-                let offset := add(add(proofSeries, 0x20), mul(i, 0x60))
+                let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
                 mstore(offset, chainId)
                 mstore(add(offset, 0x20), remoteOracle)
-                mstore(add(offset, 0x40), payloadHash)
+                mstore(add(offset, 0x40), remoteFiller)
+                mstore(add(offset, 0x60), payloadHash)
             }
         }
         IOracle(localOracle).efficientRequireProven(proofSeries);

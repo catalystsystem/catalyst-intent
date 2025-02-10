@@ -13,7 +13,7 @@ library OutputDescriptionType {
     //--- Inputs & Outputs Types ---//
 
     bytes constant OUTPUT_DESCRIPTION_TYPE_STUB =
-        abi.encodePacked("OutputDescription(" "bytes32 remoteOracle," "uint256 chainId," "bytes32 token," "uint256 amount," "bytes32 recipient," "bytes remoteCall," "bytes fulfillmentContext" ")");
+        abi.encodePacked("OutputDescription(" "bytes32 remoteOracle," "bytes32 remoteFiller," "uint256 chainId," "bytes32 token," "uint256 amount," "bytes32 recipient," "bytes remoteCall," "bytes fulfillmentContext" ")");
 
     bytes32 constant OUTPUT_DESCRIPTION_TYPE_HASH = keccak256(OUTPUT_DESCRIPTION_TYPE_STUB);
 
@@ -21,7 +21,7 @@ library OutputDescriptionType {
         OutputDescription memory output
     ) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(OUTPUT_DESCRIPTION_TYPE_HASH, output.remoteOracle, output.chainId, output.token, output.amount, output.recipient, keccak256(output.remoteCall), keccak256(output.fulfillmentContext))
+            abi.encode(OUTPUT_DESCRIPTION_TYPE_HASH, output.remoteOracle, output.remoteFiller, output.chainId, output.token, output.amount, output.recipient, keccak256(output.remoteCall), keccak256(output.fulfillmentContext))
         );
     }
 

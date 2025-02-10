@@ -91,9 +91,9 @@ contract PolymerOracle is BaseOracle, Ownable {
         // Convert the Polymer ChainID into the canonical chainId.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[chainId];
         bytes32 senderIdentifier = bytes32(uint256(uint160(emittingContract)));
-        _attestations[remoteChainId][senderIdentifier][payloadHash] = true;
+        _attestations[remoteChainId][bytes32(0)][senderIdentifier][payloadHash] = true;
 
-        emit OutputProven(remoteChainId, senderIdentifier, payloadHash);
+        emit OutputProven(remoteChainId, bytes32(0), senderIdentifier, payloadHash);
     }
 
     function receiveMessage(uint256 logIndex, bytes calldata proof) external {

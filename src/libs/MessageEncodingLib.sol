@@ -25,15 +25,15 @@ library MessageEncodingLib {
     error TooManyPayloads(uint256 size);
 
     /**
-     * @notice Encodes a number of payloads into a single message prepended with an identifier.
+     * @notice Encodes a number of payloads into a single message prepended as reported by an application.
      */
-    function encodeMessage(bytes32 identifier, bytes[] calldata payloads) internal pure returns (bytes memory encodedPayload) {
+    function encodeMessage(bytes32 application, bytes[] calldata payloads) internal pure returns (bytes memory encodedPayload) {
         uint256 numPayloads = payloads.length;
         if (numPayloads > type(uint16).max) revert TooManyPayloads(numPayloads);
 
         // Set the number of outputs as first 2 bytes. This aids implementations which may not have easy access to data
         // size.
-        encodedPayload = bytes.concat(identifier, bytes2(uint16(numPayloads)));
+        encodedPayload = bytes.concat(application, bytes2(uint16(numPayloads)));
         for (uint256 i; i < numPayloads; ++i) {
             bytes calldata payload = payloads[i];
             // Check if length of payload is within message constraints.
@@ -48,12 +48,12 @@ library MessageEncodingLib {
      */
     function decodeMessage(
         bytes calldata encodedPayload
-    ) internal pure returns (bytes32 identifier, bytes32[] memory payloadHashes) {
+    ) internal pure returns (bytes32 application, bytes32[] memory payloadHashes) {
         unchecked {
             assembly ("memory-safe") {
                 // Load the identifier as the first 32 bytes of the payload. This is equivalent to
                 // identifier = bytes32(encodedPayload[0:32]);
-                identifier := calldataload(encodedPayload.offset)
+                application := calldataload(encodedPayload.offset)
             }
             uint256 numPayloads = uint256(uint16(bytes2(encodedPayload[32:34])));
 

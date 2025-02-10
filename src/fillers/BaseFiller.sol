@@ -5,7 +5,6 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
-import { IdentifierLib } from "src/libs/IdentifierLib.sol";
 import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
@@ -16,7 +15,7 @@ abstract contract BaseFiller is IPayloadCreator {
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
     error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
-    error WrongRemoteOracle(bytes32 addressThis, bytes32 expected); // 0xe57d7773
+    error WrongRemoteFiller(bytes32 addressThis, bytes32 expected);
     error ZeroValue(); // 0x7c946ed7
 
     // The maximum gas used on calls is 1 million gas.
@@ -32,7 +31,7 @@ abstract contract BaseFiller is IPayloadCreator {
     event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
-    bytes16 immutable ADDRESS_THIS = bytes16(uint128(uint160(address(this)))) << 8;
+    bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
 
     function _preDeliveryHook(address recipient, address token, uint256 outputAmount) internal virtual returns (uint256);
 
@@ -56,7 +55,7 @@ abstract contract BaseFiller is IPayloadCreator {
         if (proposedSolver == bytes32(0)) revert ZeroValue();
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
         _validateChain(output.chainId);
-        _IAmRemoteOracle(output.remoteOracle);
+        _IAmRemoteFiller(output.remoteFiller);
 
         // Get hash of output.
         bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(output);
@@ -207,18 +206,15 @@ abstract contract BaseFiller is IPayloadCreator {
      * @dev For some oracles, it might be required that you "cheat" and change the encoding here.
      * Don't worry (or do worry) because the other side loads the payload as bytes32(bytes).
      */
-    function _IAmRemoteOracle(
-        bytes32 remoteOracleIdentifier
+    function _IAmRemoteFiller(
+        bytes32 remoteFiller
     ) internal view virtual {
-        // Load the first 16 bytes.
-        bytes16 fillerIdentifier = bytes16(remoteOracleIdentifier) << 8;
-        if (ADDRESS_THIS != fillerIdentifier) revert WrongRemoteOracle(ADDRESS_THIS, fillerIdentifier);
+        if (ADDRESS_THIS != remoteFiller) revert WrongRemoteFiller(ADDRESS_THIS, remoteFiller);
     }
 
     function _isPayloadValid(address oracle, bytes calldata payload) public view returns (bool) {
-        bytes32 remoteOracleIdentifier = IdentifierLib.getIdentifier(address(this), oracle);
         uint256 chainId = block.chainid;
-        bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(remoteOracleIdentifier, chainId, OutputEncodingLib.decodeFillDescriptionCommonPayload(payload));
+        bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(bytes32(uint256(uint160(oracle))), bytes32(uint256(uint160(address(this)))), chainId, OutputEncodingLib.decodeFillDescriptionCommonPayload(payload));
 
         bytes32 orderId = OutputEncodingLib.decodeFillDescriptionOrderId(payload);
         FilledOutput storage filledOutput = _filledOutputs[orderId][outputHash];

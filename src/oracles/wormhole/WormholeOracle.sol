@@ -8,7 +8,6 @@ import { WormholeVerifier } from "./external/callworm/WormholeVerifier.sol";
 import { IWormhole } from "./interfaces/IWormhole.sol";
 
 import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
-import { IdentifierLib } from "src/libs/IdentifierLib.sol";
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 
@@ -117,7 +116,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
      */
     function _submit(address source, bytes[] calldata payloads) internal returns (uint256 refund) {
         // This call fails if fillDeadlines.length < outputs.length
-        bytes memory message = MessageEncodingLib.encodeMessage(IdentifierLib.getIdentifier(source, address(this)), payloads);
+        bytes memory message = MessageEncodingLib.encodeMessage(bytes32(uint256(uint160(source))), payloads);
 
         uint256 packageCost = WORMHOLE.messageFee();
         WORMHOLE.publishMessage{ value: packageCost }(0, message, WORMHOLE_CONSISTENCY);
@@ -139,10 +138,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         // Verify Packet and return message identifiers that Wormhole attached.
         (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
         // Decode message.
-        (bytes32 identifierFromMessage, bytes32[] memory payloadHashes) = MessageEncodingLib.decodeMessage(message);
-
-        // Construct the proper identifier.
-        bytes32 senderIdentifier = IdentifierLib.enhanceIdentifier(remoteSenderIdentifier, identifierFromMessage);
+        (bytes32 application, bytes32[] memory payloadHashes) = MessageEncodingLib.decodeMessage(message);
 
         // Map remoteMessagingProtocolChainIdentifier to canonical chain id. This ensures we use canonical ids.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[remoteMessagingProtocolChainIdentifier];
@@ -151,9 +147,9 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         for (uint256 i; i < numPayloads; ++i) {
             // Store payload attestations;
             bytes32 payloadHash = payloadHashes[i];
-            _attestations[remoteChainId][senderIdentifier][payloadHash] = true;
+            _attestations[remoteChainId][remoteSenderIdentifier][application][payloadHash] = true;
 
-            emit OutputProven(remoteChainId, senderIdentifier, payloadHash);
+            emit OutputProven(remoteChainId, remoteSenderIdentifier, application, payloadHash);
         }
     }
 

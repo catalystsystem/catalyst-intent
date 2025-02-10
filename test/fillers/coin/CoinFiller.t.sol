@@ -11,7 +11,7 @@ import { MockCallbackExecutor } from "../../mocks/MockCallbackExecutor.sol";
 contract TestCoinFiller is Test {
     error ZeroValue();  
     error WrongChain(uint256 expected, uint256 actual);
-    error WrongRemoteOracle(bytes32 addressThis, bytes32 expected);
+    error WrongRemoteFiller(bytes32 addressThis, bytes32 expected);
     error FilledBySomeoneElse(bytes32 solver);
     error NotImplemented();
     error SlopeStopped();
@@ -50,11 +50,10 @@ contract TestCoinFiller is Test {
 
         bytes32[] memory  orderIds = new bytes32[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
         
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,
@@ -89,11 +88,10 @@ contract TestCoinFiller is Test {
 
         bytes32[] memory  orderIds = new bytes32[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
         
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,
@@ -128,11 +126,10 @@ contract TestCoinFiller is Test {
         outputToken.approve(coinFillerAddress, amount);
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
         
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,
@@ -170,11 +167,10 @@ contract TestCoinFiller is Test {
         outputToken.approve(coinFillerAddress, amount + slope * (stopTime - block.timestamp));
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
         
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,
@@ -208,6 +204,7 @@ contract TestCoinFiller is Test {
 
         orderIds[0] = orderId;
         outputs[0] = OutputDescription({
+            remoteFiller: bytes32(0),
             remoteOracle: bytes32(0),
             chainId: 0,
             token: bytes32(0),
@@ -229,6 +226,7 @@ contract TestCoinFiller is Test {
         OutputDescription[] memory outputs = new OutputDescription[](1);
 
         outputs[0] = OutputDescription({
+            remoteFiller: bytes32(0),
             remoteOracle: bytes32(0),
             chainId: chainId,
             token: bytes32(0),
@@ -243,9 +241,8 @@ contract TestCoinFiller is Test {
         coinFiller.fill(orderId, outputs[0], filler);
     }
 
-    function test_invalid_oracle(address sender, bytes32 filler, bytes32 orderId, bytes32 oracle) public {
-        bytes16 fillerOracleBytes = bytes16(oracle) << 8;
-        bytes16 coinFillerOracleBytes = bytes16(uint128(uint160(coinFillerAddress))) << 8;
+    function test_invalid_filler(address sender, bytes32 filler, bytes32 orderId, bytes32 fillerOracleBytes) public {
+        bytes32 coinFillerOracleBytes = bytes32(uint256(uint160(coinFillerAddress)));
 
         vm.assume(fillerOracleBytes != coinFillerOracleBytes);
         vm.assume(filler != bytes32(0));
@@ -253,7 +250,8 @@ contract TestCoinFiller is Test {
         OutputDescription[] memory outputs = new OutputDescription[](1);
 
         outputs[0] = OutputDescription({
-            remoteOracle: oracle,
+            remoteFiller: fillerOracleBytes,
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(0),
             amount: 0,
@@ -262,7 +260,7 @@ contract TestCoinFiller is Test {
             fulfillmentContext: bytes("")
         });
 
-        vm.expectRevert(abi.encodeWithSelector(WrongRemoteOracle.selector, coinFillerOracleBytes, fillerOracleBytes));
+        vm.expectRevert(abi.encodeWithSelector(WrongRemoteFiller.selector, coinFillerOracleBytes, fillerOracleBytes));
         vm.prank(sender);
         coinFiller.fill(orderId, outputs[0], filler);
     }     
@@ -277,12 +275,11 @@ contract TestCoinFiller is Test {
 
         bytes32[] memory  orderIds = new bytes32[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
 
         orderIds[0] = orderId;
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,
@@ -302,6 +299,7 @@ contract TestCoinFiller is Test {
         vm.assume(sender != address(0));
 
         OutputDescription memory output = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(coinFiller)))), // TODO: 0?
             remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
@@ -325,11 +323,10 @@ contract TestCoinFiller is Test {
         outputToken.approve(coinFillerAddress, amount);
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
 
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,
@@ -349,11 +346,10 @@ contract TestCoinFiller is Test {
         vm.assume(filler != bytes32(0));
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
 
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,

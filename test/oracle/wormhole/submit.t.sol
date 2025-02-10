@@ -59,18 +59,18 @@ contract TestSubmitWormholeOracleProofs is Test {
 
     function test_fill_then_submit_W(address sender, uint256 amount, address recipient, bytes32 orderId, bytes32 solverIdentifier) external {
         vm.assume(solverIdentifier != bytes32(0));
-        bytes32 fillerOracleIdentifier = oracle.getIdentifier(address(filler));
 
         token.mint(sender, amount);
         vm.prank(sender);
         token.approve(address(filler), amount);
 
         OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(oracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(filler)))),
             token: bytes32(abi.encode(address(token))),
             amount: amount,
             recipient: bytes32(abi.encode(recipient)),
             chainId: uint32(block.chainid),
-            remoteOracle: fillerOracleIdentifier,
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
@@ -87,7 +87,7 @@ contract TestSubmitWormholeOracleProofs is Test {
         payloads[0] = payload;
 
         bytes memory expectedPayload = this.encodeMessageCalldata(
-            fillerOracleIdentifier,
+            output.remoteFiller,
             payloads
         );
 

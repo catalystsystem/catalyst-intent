@@ -64,11 +64,10 @@ contract TestCoinFillerWithFee is Test {
         coinFillerWithFee.applyGovernanceFee();
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        bytes16 fillerAddress = bytes16(uint128(uint160(coinFillerWithFeeAddress))) << 8;
-        bytes32 remoteOracle = bytes32(fillerAddress) >> 8;
 
         outputs[0] = OutputDescription({
-            remoteOracle: remoteOracle,
+            remoteFiller: bytes32(uint256(uint160(coinFillerWithFeeAddress))),
+            remoteOracle: bytes32(0),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(outputTokenAddress))),
             amount: amount,

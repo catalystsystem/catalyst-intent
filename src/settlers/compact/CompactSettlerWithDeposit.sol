@@ -9,14 +9,14 @@ import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
 import { Scope } from "the-compact/src/types/Scope.sol";
 
 import { CompactSettler } from "./CompactSettler.sol";
-import { TheCompactOrderType, CatalystCompactOrder } from "./TheCompactOrderType.sol";
+import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact
  * by providing the Catalyst order to this contract and providing appropriate allowances.
  * @dev Using the Deposit for function, it is possible to convert an order into an associated
  * deposit in the Compact and emitting the order for consumption by solvers. Tokens are collected from msg.sender.
- * 
+ *
  */
 contract CompactSettlerWithDeposit is CompactSettler {
     event Deposited(bytes32 orderId, CatalystCompactOrder order);

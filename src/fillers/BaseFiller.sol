@@ -214,7 +214,8 @@ abstract contract BaseFiller is IPayloadCreator {
 
     function _isPayloadValid(address oracle, bytes calldata payload) public view returns (bool) {
         uint256 chainId = block.chainid;
-        bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(bytes32(uint256(uint160(oracle))), bytes32(uint256(uint160(address(this)))), chainId, OutputEncodingLib.decodeFillDescriptionCommonPayload(payload));
+        bytes32 outputHash =
+            OutputEncodingLib.getOutputDescriptionHash(bytes32(uint256(uint160(oracle))), bytes32(uint256(uint160(address(this)))), chainId, OutputEncodingLib.decodeFillDescriptionCommonPayload(payload));
 
         bytes32 orderId = OutputEncodingLib.decodeFillDescriptionOrderId(payload);
         FilledOutput storage filledOutput = _filledOutputs[orderId][outputHash];

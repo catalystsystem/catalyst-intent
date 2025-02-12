@@ -4,12 +4,13 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 
 import { CoinFiller } from "../../../src/fillers/coin/CoinFiller.sol";
-import { MockERC20 } from "../../mocks/MockERC20.sol";
+
 import { OutputDescription } from "../../../src/libs/OutputEncodingLib.sol";
 import { MockCallbackExecutor } from "../../mocks/MockCallbackExecutor.sol";
+import { MockERC20 } from "../../mocks/MockERC20.sol";
 
 contract TestCoinFiller is Test {
-    error ZeroValue();  
+    error ZeroValue();
     error WrongChain(uint256 expected, uint256 actual);
     error WrongRemoteFiller(bytes32 addressThis, bytes32 expected);
     error FilledBySomeoneElse(bytes32 solver);
@@ -34,7 +35,7 @@ contract TestCoinFiller is Test {
         mockCallbackExecutor = new MockCallbackExecutor();
 
         swapper = makeAddr("swapper");
-        coinFillerAddress  = address(coinFiller);
+        coinFillerAddress = address(coinFiller);
         outputTokenAddress = address(outputToken);
         mockCallbackExecutorAddress = address(mockCallbackExecutor);
     }
@@ -48,9 +49,9 @@ contract TestCoinFiller is Test {
         vm.prank(sender);
         outputToken.approve(coinFillerAddress, amount);
 
-        bytes32[] memory  orderIds = new bytes32[](1);
+        bytes32[] memory orderIds = new bytes32[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        
+
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
@@ -62,16 +63,13 @@ contract TestCoinFiller is Test {
             fulfillmentContext: bytes("")
         });
         orderIds[0] = orderId;
-        
+
         vm.prank(sender);
 
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
 
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount)
-        );
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount));
 
         coinFiller.fillSkip(orderIds, outputs, filler);
 
@@ -86,9 +84,9 @@ contract TestCoinFiller is Test {
         vm.prank(sender);
         outputToken.approve(coinFillerAddress, amount);
 
-        bytes32[] memory  orderIds = new bytes32[](1);
+        bytes32[] memory orderIds = new bytes32[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        
+
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
@@ -100,15 +98,12 @@ contract TestCoinFiller is Test {
             fulfillmentContext: bytes("")
         });
         orderIds[0] = orderId;
-        
+
         vm.prank(sender);
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
 
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount)
-        );
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount));
 
         coinFiller.fillThrow(orderIds, outputs, filler);
 
@@ -126,7 +121,7 @@ contract TestCoinFiller is Test {
         outputToken.approve(coinFillerAddress, amount);
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        
+
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
@@ -137,16 +132,10 @@ contract TestCoinFiller is Test {
             remoteCall: remoteCallData,
             fulfillmentContext: bytes("")
         });
-        
+
         vm.prank(sender);
-        vm.expectCall(
-            mockCallbackExecutorAddress,
-            abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", outputs[0].token, outputs[0].amount, remoteCallData)
-        );
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, mockCallbackExecutorAddress, amount)
-        );
+        vm.expectCall(mockCallbackExecutorAddress, abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", outputs[0].token, outputs[0].amount, remoteCallData));
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, mockCallbackExecutorAddress, amount));
 
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
@@ -167,7 +156,7 @@ contract TestCoinFiller is Test {
         outputToken.approve(coinFillerAddress, amount + slope * (stopTime - block.timestamp));
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
-        
+
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
@@ -178,16 +167,13 @@ contract TestCoinFiller is Test {
             remoteCall: bytes(""),
             fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(uint256(slope)), bytes32(uint256(stopTime)))
         });
-        
+
         vm.prank(sender);
 
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
 
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount + slope * (stopTime - block.timestamp))
-        );
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount + slope * (stopTime - block.timestamp)));
 
         coinFiller.fill(orderId, outputs[0], filler);
 
@@ -196,23 +182,15 @@ contract TestCoinFiller is Test {
     }
 
     // --- FAILURE CASES --- //
-    
+
     function test_fill_zero_filler(address sender, bytes32 orderId) public {
-        bytes32[] memory  orderIds = new bytes32[](1);
+        bytes32[] memory orderIds = new bytes32[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
         bytes32 filler = bytes32(0);
 
         orderIds[0] = orderId;
-        outputs[0] = OutputDescription({
-            remoteFiller: bytes32(0),
-            remoteOracle: bytes32(0),
-            chainId: 0,
-            token: bytes32(0),
-            amount: 0,
-            recipient: bytes32(0),
-            remoteCall: bytes(""),
-            fulfillmentContext: bytes("")
-        });
+        outputs[0] =
+            OutputDescription({ remoteFiller: bytes32(0), remoteOracle: bytes32(0), chainId: 0, token: bytes32(0), amount: 0, recipient: bytes32(0), remoteCall: bytes(""), fulfillmentContext: bytes("") });
 
         vm.expectRevert(ZeroValue.selector);
         vm.prank(sender);
@@ -225,16 +203,8 @@ contract TestCoinFiller is Test {
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
 
-        outputs[0] = OutputDescription({
-            remoteFiller: bytes32(0),
-            remoteOracle: bytes32(0),
-            chainId: chainId,
-            token: bytes32(0),
-            amount: 0,
-            recipient: bytes32(0),
-            remoteCall: bytes(""),
-            fulfillmentContext: bytes("")
-        });
+        outputs[0] =
+            OutputDescription({ remoteFiller: bytes32(0), remoteOracle: bytes32(0), chainId: chainId, token: bytes32(0), amount: 0, recipient: bytes32(0), remoteCall: bytes(""), fulfillmentContext: bytes("") });
 
         vm.expectRevert(abi.encodeWithSelector(WrongChain.selector, block.chainid, chainId));
         vm.prank(sender);
@@ -263,7 +233,7 @@ contract TestCoinFiller is Test {
         vm.expectRevert(abi.encodeWithSelector(WrongRemoteFiller.selector, coinFillerOracleBytes, fillerOracleBytes));
         vm.prank(sender);
         coinFiller.fill(orderId, outputs[0], filler);
-    }     
+    }
 
     function test_fill_made_already(address sender, bytes32 filler, bytes32 differentFiller, bytes32 orderId, uint256 amount) public {
         vm.assume(filler != bytes32(0));
@@ -273,7 +243,7 @@ contract TestCoinFiller is Test {
         vm.prank(sender);
         outputToken.approve(coinFillerAddress, amount);
 
-        bytes32[] memory  orderIds = new bytes32[](1);
+        bytes32[] memory orderIds = new bytes32[](1);
         OutputDescription[] memory outputs = new OutputDescription[](1);
 
         orderIds[0] = orderId;
@@ -294,7 +264,7 @@ contract TestCoinFiller is Test {
         vm.expectRevert(abi.encodeWithSelector(FilledBySomeoneElse.selector, filler));
         coinFiller.fillThrow(orderIds, outputs, differentFiller);
     }
-    
+
     function test_call_with_real_address(address sender, uint256 amount) public {
         vm.assume(sender != address(0));
 
@@ -308,7 +278,7 @@ contract TestCoinFiller is Test {
             remoteCall: bytes(""),
             fulfillmentContext: bytes("")
         });
-        
+
         vm.prank(sender);
         vm.expectRevert();
         coinFiller.call(amount, output);

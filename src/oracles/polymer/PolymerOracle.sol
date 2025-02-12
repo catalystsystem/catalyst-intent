@@ -3,9 +3,9 @@ pragma solidity ^0.8.26;
 
 import { Ownable } from "solady/auth/Ownable.sol";
 
-import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 import { BaseOracle } from "../BaseOracle.sol";
 import { ICrossL2Prover } from "./ICrossL2Prover.sol";
+import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.

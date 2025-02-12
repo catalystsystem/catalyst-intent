@@ -18,11 +18,15 @@ contract MockSettler is BaseSettler {
         version = "-1";
     }
 
-    function maxTimestamp(uint32[] calldata timestamps) external pure returns (uint256 timestamp) {
+    function maxTimestamp(
+        uint32[] calldata timestamps
+    ) external pure returns (uint256 timestamp) {
         return _maxTimestamp(timestamps);
     }
 
-    function minTimestamp(uint32[] calldata timestamps) external pure returns (uint256 timestamp) {
+    function minTimestamp(
+        uint32[] calldata timestamps
+    ) external pure returns (uint256 timestamp) {
         return _minTimestamp(timestamps);
     }
 
@@ -53,7 +57,6 @@ contract TestBaseSettler is Test {
     MockERC20 token;
     MockERC20 anotherToken;
 
-
     uint256 purchaserPrivateKey;
     address purchaser;
     uint256 solverPrivateKey;
@@ -68,11 +71,7 @@ contract TestBaseSettler is Test {
         uint64 discount,
         uint32 timeToBuy
     ) external view returns (bytes memory sig) {
-        bytes32 msgHash = keccak256(abi.encodePacked(
-            "\x19\x01",
-            DOMAIN_SEPARATOR,
-            OrderPurchaseType.hashOrderPurchase(orderId, settlerContract, newDestination, call, discount, timeToBuy)
-        ));
+        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, OrderPurchaseType.hashOrderPurchase(orderId, settlerContract, newDestination, call, discount, timeToBuy)));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
@@ -84,7 +83,6 @@ contract TestBaseSettler is Test {
 
         token = new MockERC20("Mock ERC20", "MOCK", 18);
         anotherToken = new MockERC20("Mock2 ERC20", "MOCK2", 18);
-
 
         (purchaser, purchaserPrivateKey) = makeAddrAndKey("purchaser");
         (solver, solverPrivateKey) = makeAddrAndKey("swapper");
@@ -110,7 +108,6 @@ contract TestBaseSettler is Test {
 
         timestamp_5[0] = 7;
         assertEq(settler.maxTimestamp(timestamp_5), 7);
-
 
         timestamp_5[2] = 3;
         assertEq(settler.maxTimestamp(timestamp_5), 7);
@@ -141,8 +138,10 @@ contract TestBaseSettler is Test {
 
     //--- Order Purchase ---//
 
-    function test_purchase_order(bytes32 orderId) external {
-        uint256 amount = 10**18;
+    function test_purchase_order(
+        bytes32 orderId
+    ) external {
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
         anotherToken.mint(purchaser, amount);
@@ -178,32 +177,16 @@ contract TestBaseSettler is Test {
         assertEq(storageLastOrderTimestamp, 0);
         assertEq(storagePurchaser, address(0));
 
-        vm.expectCall(
-            address(token), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(purchaser), solver, amount)
-        );
-        vm.expectCall(
-            address(anotherToken), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(purchaser), solver, amount)
-        );
+        vm.expectCall(address(token), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(purchaser), solver, amount));
+        vm.expectCall(address(anotherToken), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(purchaser), solver, amount));
 
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
         vm.snapshotGasLastCall("purchaseOrder");
 
         // Check storage and balances.
         assertEq(token.balanceOf(solver), amount);
         assertEq(anotherToken.balanceOf(solver), amount);
-
 
         (storageLastOrderTimestamp, storagePurchaser) = settler.purchasedOrders(orderSolvedByIdentifier, orderId);
         assertEq(storageLastOrderTimestamp, currentTime - timeToBuy);
@@ -212,22 +195,13 @@ contract TestBaseSettler is Test {
         // Try to purchase the same order again
         vm.expectRevert(abi.encodeWithSignature("AlreadyPurchased()"));
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
     }
 
-    function test_error_purchase_order_validation(bytes32 orderId) external {
-        uint256 amount = 10**18;
+    function test_error_purchase_order_validation(
+        bytes32 orderId
+    ) external {
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
         anotherToken.mint(purchaser, amount);
@@ -248,37 +222,15 @@ contract TestBaseSettler is Test {
 
         vm.expectRevert(abi.encodeWithSignature("InvalidPurchaser()"));
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            address(0),
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, address(0), expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
 
         vm.expectRevert(abi.encodeWithSignature("Expired()"));
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            currentTime - 1,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, currentTime - 1, newDestination, call, discount, timeToBuy, solverSignature);
     }
 
     function test_error_purchase_order_validation(bytes32 orderId, bytes calldata solverSignature) external {
-        uint256 amount = 10**18;
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
         anotherToken.mint(purchaser, amount);
@@ -298,23 +250,12 @@ contract TestBaseSettler is Test {
 
         vm.expectRevert(abi.encodeWithSignature("InvalidSigner()"));
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
     }
 
     function test_purchase_order_call(bytes32 orderId, bytes calldata call) external {
         vm.assume(call.length > 0);
-        uint256 amount = 10**18;
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
         anotherToken.mint(purchaser, amount);
@@ -342,18 +283,7 @@ contract TestBaseSettler is Test {
         anotherToken.approve(address(settler), amount);
 
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
 
         assertEq(abi.encodePacked(_inputs), abi.encodePacked(inputs));
         assertEq(_executionData, call);
@@ -361,7 +291,7 @@ contract TestBaseSettler is Test {
 
     function test_error_dependent_on_purchase_order_call(bytes32 orderId, bytes calldata call) external {
         vm.assume(call.length > 0);
-        uint256 amount = 10**18;
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
 
@@ -387,18 +317,7 @@ contract TestBaseSettler is Test {
         vm.expectRevert(abi.encodeWithSignature("ExternalFail()"));
 
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
     }
 
     error ExternalFail();
@@ -416,8 +335,10 @@ contract TestBaseSettler is Test {
 
     //--- Purchase Resolution ---//
 
-    function test_purchase_order_then_resolve(bytes32 orderId) external {
-        uint256 amount = 10**18;
+    function test_purchase_order_then_resolve(
+        bytes32 orderId
+    ) external {
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
 
@@ -443,18 +364,7 @@ contract TestBaseSettler is Test {
         anotherToken.approve(address(settler), amount);
 
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
 
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = currentTime;
@@ -464,8 +374,10 @@ contract TestBaseSettler is Test {
         assertEq(collectedPurchaser, purchaser);
     }
 
-    function test_purchase_order_then_resolve_early_first_fill_late_last(bytes32 orderId) external {
-        uint256 amount = 10**18;
+    function test_purchase_order_then_resolve_early_first_fill_late_last(
+        bytes32 orderId
+    ) external {
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
 
@@ -491,18 +403,7 @@ contract TestBaseSettler is Test {
         anotherToken.approve(address(settler), amount);
 
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
 
         uint32[] memory timestamps = new uint32[](2);
         timestamps[0] = currentTime;
@@ -513,8 +414,10 @@ contract TestBaseSettler is Test {
         assertEq(collectedPurchaser, purchaser);
     }
 
-    function test_purchase_order_then_resolve_too_late_purchase(bytes32 orderId) external {
-        uint256 amount = 10**18;
+    function test_purchase_order_then_resolve_too_late_purchase(
+        bytes32 orderId
+    ) external {
+        uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
 
@@ -540,18 +443,7 @@ contract TestBaseSettler is Test {
         anotherToken.approve(address(settler), amount);
 
         vm.prank(purchaser);
-        settler.purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        settler.purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
 
         uint32[] memory timestamps = new uint32[](2);
         timestamps[0] = currentTime - timeToBuy - 1;

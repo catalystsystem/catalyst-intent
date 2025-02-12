@@ -1,12 +1,10 @@
-
 // SPDX-License-Identifier: Apache 2
 
 pragma solidity ^0.8.22;
 
-import { BaseOracle } from  "src/oracles/BaseOracle.sol";
+import { BaseOracle } from "src/oracles/BaseOracle.sol";
 
 import "forge-std/Test.sol";
-
 
 contract MockBaseOracle is BaseOracle {
     function setAttestation(uint256 remoteChainId, bytes32 senderIdentifier, bytes32 application, bytes32 dataHash) external {
@@ -31,7 +29,9 @@ contract TestBaseOracle is Test {
         assertEq(statusAfter, true);
     }
 
-    function test_fuzz_efficientRequireProven(bytes calldata proofSeries) external {
+    function test_fuzz_efficientRequireProven(
+        bytes calldata proofSeries
+    ) external {
         vm.assume(proofSeries.length > 0);
         uint256 lengthOfProofSeriesIn32Chunks = proofSeries.length / (32 * 4);
         lengthOfProofSeriesIn32Chunks *= (32 * 4);
@@ -39,9 +39,9 @@ contract TestBaseOracle is Test {
             vm.expectRevert(abi.encodeWithSignature("NotDivisible(uint256,uint256)", proofSeries.length, 32 * 4));
         } else {
             uint256 remoteChainId = uint256(bytes32(proofSeries[0:32]));
-            bytes32 remoteOracle  = bytes32(proofSeries[32:64]);
-            bytes32 application  = bytes32(proofSeries[64:96]);
-            bytes32 dataHash  = bytes32(proofSeries[96:128]);
+            bytes32 remoteOracle = bytes32(proofSeries[32:64]);
+            bytes32 application = bytes32(proofSeries[64:96]);
+            bytes32 dataHash = bytes32(proofSeries[96:128]);
             vm.expectRevert(abi.encodeWithSignature("NotProven(uint256,bytes32,bytes32,bytes32)", remoteChainId, remoteOracle, application, dataHash));
         }
         baseOracle.efficientRequireProven(proofSeries);

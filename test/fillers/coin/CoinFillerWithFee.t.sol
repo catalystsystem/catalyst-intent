@@ -3,8 +3,9 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 
 import { CoinFillerWithFee } from "../../../src/fillers/coin/CoinFillerWithFee.sol";
-import { MockERC20 } from "../../mocks/MockERC20.sol";
+
 import { OutputDescription } from "../../../src/libs/OutputEncodingLib.sol";
+import { MockERC20 } from "../../mocks/MockERC20.sol";
 
 contract TestCoinFillerWithFee is Test {
     error GovernanceFeeTooHigh();
@@ -14,7 +15,6 @@ contract TestCoinFillerWithFee is Test {
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
     event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
     event GovernanceFeesDistributed(address indexed to, address[] tokens, uint256[] collectedAmounts);
-
 
     CoinFillerWithFee coinFillerWithFee;
 
@@ -80,14 +80,8 @@ contract TestCoinFillerWithFee is Test {
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
 
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount)
-        );
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, coinFillerWithFeeAddress, expectedGovernanceShare)
-        );
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount));
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, coinFillerWithFeeAddress, expectedGovernanceShare));
 
         coinFillerWithFee.fill(orderId, outputs[0], filler);
 
@@ -106,10 +100,7 @@ contract TestCoinFillerWithFee is Test {
         vm.expectEmit();
         emit GovernanceFeesDistributed(governanceRecipient, tokens, amounts);
 
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transfer(address,uint256)", governanceRecipient, expectedGovernanceShare)
-        );
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transfer(address,uint256)", governanceRecipient, expectedGovernanceShare));
 
         coinFillerWithFee.distributeGovernanceTokens(tokens, governanceRecipient);
 
@@ -117,12 +108,13 @@ contract TestCoinFillerWithFee is Test {
         assertEq(outputToken.balanceOf(coinFillerWithFeeAddress), 0);
     }
 
-
     // --- FAILURE CASES --- //
 
-    function test_invalid_governance_fee(uint64 fee) public {
+    function test_invalid_governance_fee(
+        uint64 fee
+    ) public {
         vm.assume(fee > MAX_GOVERNANCE_FEE);
-        
+
         vm.prank(owner);
         vm.expectRevert(GovernanceFeeTooHigh.selector);
         coinFillerWithFee.setGovernanceFee(fee);
@@ -131,7 +123,7 @@ contract TestCoinFillerWithFee is Test {
     function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
         vm.assume(timeDelay < uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
-        
+
         vm.prank(owner);
         vm.expectEmit();
         emit NextGovernanceFee(fee, uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);

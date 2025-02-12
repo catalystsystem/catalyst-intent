@@ -33,23 +33,10 @@ library TheCompactOrderType {
     function orderIdentifier(
         CatalystCompactOrder calldata order
     ) internal view returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                block.chainid,
-                address(this),
-                order.user,
-                order.nonce,
-                order.fillDeadline,
-                order.localOracle,
-                order.inputs,
-                abi.encode(order.outputs)
-            )
-        );
+        return keccak256(abi.encodePacked(block.chainid, address(this), order.user, order.nonce, order.fillDeadline, order.localOracle, order.inputs, abi.encode(order.outputs)));
     }
 
-    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked(
-        "CatalystWitness(" "uint32 fillDeadline," "address localOracle," "OutputDescription[] outputs" ")"
-    );
+    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked("CatalystWitness(" "uint32 fillDeadline," "address localOracle," "OutputDescription[] outputs" ")");
 
     bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.OUTPUT_DESCRIPTION_TYPE_STUB);
 
@@ -66,14 +53,7 @@ library TheCompactOrderType {
     function orderHash(
         CatalystCompactOrder calldata order
     ) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                CATALYST_WITNESS_TYPE_HASH,
-                order.fillDeadline,
-                order.localOracle,
-                OutputDescriptionType.hashOutputs(order.outputs)
-            )
-        );
+        return keccak256(abi.encode(CATALYST_WITNESS_TYPE_HASH, order.fillDeadline, order.localOracle, OutputDescriptionType.hashOutputs(order.outputs)));
     }
 
     function compactHash(address arbiter, uint256 sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order) internal pure returns (bytes32) {

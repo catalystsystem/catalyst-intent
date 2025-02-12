@@ -7,7 +7,7 @@ contract MockCallbackExecutor is ICrossCatsCallback {
     event InputsFilled(bytes executionData);
     event ExecutorOutputFilled(bytes32 token, uint256 amount, bytes executionData);
 
-    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external override { 
+    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external override {
         emit ExecutorOutputFilled(token, amount, executionData);
     }
 
@@ -15,4 +15,3 @@ contract MockCallbackExecutor is ICrossCatsCallback {
         emit InputsFilled(executionData);
     }
 }
-

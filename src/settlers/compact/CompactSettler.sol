@@ -8,9 +8,9 @@ import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactCla
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
 
-import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
+import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 
 import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
@@ -137,7 +137,6 @@ contract CompactSettler is BaseSettler {
 
     // --- Finalise Orders --- //
 
-
     function _finalise(CatalystCompactOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, address destination) internal {
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
@@ -239,7 +238,7 @@ contract CompactSettler is BaseSettler {
      * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of
      * the fills.
      * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
-     * @param signatures A signature for the sponsor and the allocator. 
+     * @param signatures A signature for the sponsor and the allocator.
      *  abi.encode(bytes(sponsorSignature), bytes(allocatorSignature))
      */
     function finaliseFor(
@@ -330,17 +329,6 @@ contract CompactSettler is BaseSettler {
         if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
 
         uint256[2][] calldata inputs = order.inputs;
-        _purchaseOrder(
-            orderId,
-            inputs,
-            orderSolvedByIdentifier,
-            purchaser,
-            expiryTimestamp,
-            newDestination,
-            call,
-            discount,
-            timeToBuy,
-            solverSignature
-        );
+        _purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
     }
 }

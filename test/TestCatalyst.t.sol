@@ -9,23 +9,24 @@ import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWi
 import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 
-import { OutputDescriptionType, OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "src/settlers/compact/TheCompactOrderType.sol";
+import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
 
-import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
+import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 import { Messages } from "src/oracles/wormhole/external/wormhole/Messages.sol";
 import { Setters } from "src/oracles/wormhole/external/wormhole/Setters.sol";
 import { Structs } from "src/oracles/wormhole/external/wormhole/Structs.sol";
 
-import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { TheCompact } from "the-compact/src/TheCompact.sol";
-import { Scope } from "the-compact/src/types/Scope.sol";
-import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
+
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
+import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
+import { Scope } from "the-compact/src/types/Scope.sol";
 
 interface EIP712 {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
@@ -167,15 +168,8 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order = CatalystCompactOrder({
-            user: address(swapper),
-            nonce: 0,
-            originChainId: block.chainid,
-            fillDeadline: type(uint32).max,
-            localOracle: alwaysYesOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
+        CatalystCompactOrder memory order =
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
@@ -225,15 +219,8 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order = CatalystCompactOrder({
-            user: address(swapper),
-            nonce: 0,
-            originChainId: block.chainid,
-            fillDeadline: type(uint32).max,
-            localOracle: localOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
+        CatalystCompactOrder memory order =
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
@@ -310,16 +297,8 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order = CatalystCompactOrder({
-            user: address(swapper),
-            nonce: 0,
-            originChainId: block.chainid,
-            fillDeadline: type(uint32).max,
-            localOracle: localOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
-
+        CatalystCompactOrder memory order =
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         vm.prank(swapper);
         token.approve(address(compactSettler), amount);

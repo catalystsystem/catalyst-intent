@@ -7,9 +7,9 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { WormholeVerifier } from "./external/callworm/WormholeVerifier.sol";
 import { IWormhole } from "./interfaces/IWormhole.sol";
 
+import { BaseOracle } from "../BaseOracle.sol";
 import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
-import { BaseOracle } from "../BaseOracle.sol";
 
 /**
  * @notice Wormhole Oracle.

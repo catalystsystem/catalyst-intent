@@ -37,12 +37,18 @@ contract BitcoinOracle is BaseOracle {
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
     error TooEarly();
     error TooLate();
+    error ZeroValue(); // 0x7c946ed7
 
     /**
      * @dev WARNING! Don't read output.remoteOracle nor output.chainId when emitted by this oracle.
      */
     event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
     event OutputVerified(bytes32 verificationContext);
+
+    event OutputClaimed(bytes32 indexed orderId, bytes32 outputId);
+    event OutputDisputed(bytes32 indexed orderId, bytes32 outputId);
+    event OutputOptimisticallyVerified(bytes32 indexed orderId, bytes32 outputId);
+    event OutputDisputeFinalised(bytes32 indexed orderId, bytes32 outputId);
 
     // Is 3 storage slots.
     struct ClaimedOrder {
@@ -59,7 +65,7 @@ contract BitcoinOracle is BaseOracle {
         uint32 disputeTimestamp;
     }
 
-    mapping(bytes32 orderId => mapping(bytes32 outputId => ClaimedOrder)) _claimedOrder;
+    mapping(bytes32 orderId => mapping(bytes32 outputId => ClaimedOrder)) public _claimedOrder;
 
     // The Bitcoin Identifier (0xBC) is set in the 20'th byte (from right). This ensures
     // implementations that are only reading the last 20 bytes, still notice this is a Bitcoin address.
@@ -78,7 +84,7 @@ contract BitcoinOracle is BaseOracle {
      * @notice The purpose of the dispute fee is to make sure that 1 person can't claim and dispute the transaction at no risk.
      */
     address public immutable DISPUTED_ORDER_FEE_DESTINATION;
-    uint256 constant DISPUTED_ORDER_FEE_FRACTION = 3;
+    uint256 public constant DISPUTED_ORDER_FEE_FRACTION = 3;
 
     /**
      * @notice Require that the challenger provides X times the collateral of the claimant.
@@ -87,9 +93,10 @@ contract BitcoinOracle is BaseOracle {
 
     address public immutable COLLATERAL_TOKEN;
 
-    uint64 public collateralMultiplier = 1;
-    uint32 public DISPUTE_PERIOD = FOUR_CONFIRMATIONS;
-    uint32 public MIN_TIME_FOR_INCLUSION = TWO_CONFIRMATIONS;
+    // todo: make this adjustable?
+    uint64 public immutable collateralMultiplier = 1;
+    uint32 constant DISPUTE_PERIOD = FOUR_CONFIRMATIONS;
+    uint32 constant MIN_TIME_FOR_INCLUSION = TWO_CONFIRMATIONS;
     uint32 constant CAN_VALIDATE_OUTPUTS_FOR = 1 days;
 
     /**
@@ -136,10 +143,11 @@ contract BitcoinOracle is BaseOracle {
         }
     }
 
-    constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken) payable {
+    constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken, uint64 _collateralMultiplier) payable {
         LIGHT_CLIENT = _lightClient;
         DISPUTED_ORDER_FEE_DESTINATION = disputedOrderFeeDestination;
         COLLATERAL_TOKEN = collateralToken;
+        collateralMultiplier = _collateralMultiplier;
     }
 
     function _outputIdentifier(
@@ -245,11 +253,14 @@ contract BitcoinOracle is BaseOracle {
     function _getNumConfirmations(
         bytes32 token
     ) internal pure returns (uint8 numConfirmations) {
-        // Shift 8 bits to move the second byte to the right. It is now the first byte.
-        // Then select the first byte. Decode as uint8.
-        numConfirmations = uint8(uint256(token) >> 8);
-        // If numConfirmations == 0, set it to 1.
-        numConfirmations = numConfirmations == 0 ? 1 : numConfirmations;
+        assembly ("memory-safe") {
+            // numConfirmations = token << 240 [nc, utxo, 0...]
+            // numConfirmations = numConfirmations >> 248 [...0, nc]
+            numConfirmations := shr(248, shl(240, token))
+
+            // numConfirmations = numConfirmations == 0 ? 1 : numConfirmations
+            numConfirmations := add(eq(numConfirmations, 0), numConfirmations)
+        }
     }
 
     // --- Data Validation Function --- //
@@ -449,10 +460,11 @@ contract BitcoinOracle is BaseOracle {
         // Check if there are outstanding collateral associated with the
         // registered claim.
         address sponsor = claimedOrder.sponsor;
+        uint32 claimTimestamp = claimedOrder.claimTimestamp;
         uint96 multiplier = claimedOrder.multiplier;
         address disputer = claimedOrder.disputer;
-        uint32 disputeTimestamp = claimedOrder.disputeTimestamp;
-        if (sponsor != address(0) && disputeTimestamp >= fillTimestamp) {
+
+        if (sponsor != address(0) && fillTimestamp >= claimTimestamp) {
             bool disputed = disputer != address(0);
             // If the order has been disputed, we need to also collect the disputers collateral for the solver.
 
@@ -480,6 +492,9 @@ contract BitcoinOracle is BaseOracle {
      * @param output The output to verify
      */
     function claim(bytes32 solver, bytes32 orderId, OutputDescription calldata output) external {
+        if (solver == bytes32(0)) revert ZeroValue();
+        if (orderId == bytes32(0)) revert ZeroValue();
+
         bytes32 outputId = _outputIdentifier(output);
         // Check that this order hasn't been claimed before.
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId][outputId];
@@ -495,6 +510,8 @@ contract BitcoinOracle is BaseOracle {
         // Collect collateral from claimant.
         uint256 collateralAmount = output.amount * multiplier;
         SafeTransferLib.safeTransferFrom(COLLATERAL_TOKEN, msg.sender, address(this), collateralAmount);
+
+        emit OutputClaimed(orderId, _outputIdentifier(output));
     }
 
     /**
@@ -506,7 +523,7 @@ contract BitcoinOracle is BaseOracle {
 
         // Check that this order has been claimed but not disputed..
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId][outputId];
-        if (claimedOrder.claimTimestamp + DISPUTE_PERIOD > block.timestamp) revert TooLate();
+        if (claimedOrder.claimTimestamp + DISPUTE_PERIOD < block.timestamp) revert TooLate();
         if (claimedOrder.solver == bytes32(0)) revert NotClaimed();
 
         if (claimedOrder.disputer != address(0)) revert AlreadyDisputed(claimedOrder.disputer);
@@ -522,6 +539,8 @@ contract BitcoinOracle is BaseOracle {
 
         // Collect collateral from disputer.
         SafeTransferLib.safeTransferFrom(COLLATERAL_TOKEN, msg.sender, address(this), collateralAmount);
+
+        emit OutputDisputed(orderId, _outputIdentifier(output));
     }
 
     /**
@@ -533,7 +552,7 @@ contract BitcoinOracle is BaseOracle {
 
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId][outputId];
         if (claimedOrder.solver == bytes32(0)) revert NotClaimed();
-        if (claimedOrder.claimTimestamp + DISPUTE_PERIOD <= block.timestamp) revert TooEarly();
+        if (claimedOrder.claimTimestamp + DISPUTE_PERIOD >= block.timestamp) revert TooEarly();
         bool disputed = claimedOrder.disputer != address(0);
         if (disputed) revert Disputed();
 
@@ -555,6 +574,8 @@ contract BitcoinOracle is BaseOracle {
 
         uint256 collateralAmount = output.amount * multiplier;
         SafeTransferLib.safeTransfer(COLLATERAL_TOKEN, sponsor, collateralAmount);
+
+        emit OutputOptimisticallyVerified(orderId, _outputIdentifier(output));
     }
 
     /**
@@ -587,5 +608,7 @@ contract BitcoinOracle is BaseOracle {
         collateralAmount = collateralAmount * (CHALLENGER_COLLATERAL_FACTOR + 1);
         SafeTransferLib.safeTransfer(COLLATERAL_TOKEN, disputer, collateralAmount - disputeCost);
         if (0 < disputeCost) SafeTransferLib.safeTransfer(COLLATERAL_TOKEN, DISPUTED_ORDER_FEE_DESTINATION, disputeCost);
+
+        emit OutputDisputeFinalised(orderId, _outputIdentifier(output));
     }
 }

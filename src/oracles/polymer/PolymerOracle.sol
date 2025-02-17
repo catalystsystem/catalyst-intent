@@ -12,16 +12,15 @@ import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib
  */
 contract PolymerOracle is BaseOracle, Ownable {
     error AlreadySet();
-    error InequalLength();
     error ZeroValue();
 
-    event MapMessagingProtocolIdentifierToChainId(string messagingProtocolIdentifier, uint256 chainId);
+    event MapMessagingProtocolIdentifierToChainId(uint32 messagingProtocolIdentifier, uint256 chainId);
 
-    mapping(string messagingProtocolChainIdentifier => uint256 blockChainId) _chainIdentifierToBlockChainId;
+    mapping(uint32 messagingProtocolChainIdentifier => uint256 blockChainId) _chainIdentifierToBlockChainId;
     /**
      * @dev The map is bi-directional.
      */
-    mapping(uint256 blockChainId => string messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
+    mapping(uint256 blockChainId => uint32 messagingProtocolChainIdentifier) _blockChainIdToChainIdentifier;
 
     ICrossL2Prover CROSS_L2_PROVER;
 
@@ -38,7 +37,7 @@ contract PolymerOracle is BaseOracle, Ownable {
      * @param messagingProtocolChainIdentifier Messaging provider identifier for a chain.
      * @param chainId Most common identifier for a chain. For EVM, it can often be accessed through block.chainid.
      */
-    function setChainMap(string calldata messagingProtocolChainIdentifier, uint256 chainId) external onlyOwner {
+    function setChainMap(uint32 messagingProtocolChainIdentifier, uint256 chainId) external onlyOwner {
         // Check that the inputs haven't been mistakenly called with 0 values.
         if (abi.encodePacked(messagingProtocolChainIdentifier).length == 0) revert ZeroValue();
         if (chainId == 0) revert ZeroValue();
@@ -59,7 +58,7 @@ contract PolymerOracle is BaseOracle, Ownable {
      * @return chainId Common chain identifier
      */
     function getChainIdentifierToBlockChainId(
-        string calldata messagingProtocolChainIdentifier
+        uint32 messagingProtocolChainIdentifier
     ) external view returns (uint256 chainId) {
         return _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier];
     }
@@ -70,7 +69,7 @@ contract PolymerOracle is BaseOracle, Ownable {
      */
     function getBlockChainIdtoChainIdentifier(
         uint256 chainId
-    ) external view returns (string memory messagingProtocolChainIdentifier) {
+    ) external view returns (uint32 messagingProtocolChainIdentifier) {
         return _blockChainIdToChainIdentifier[chainId];
     }
 
@@ -78,8 +77,13 @@ contract PolymerOracle is BaseOracle, Ownable {
         return outputHash = keccak256(OutputEncodingLib.encodeFillDescriptionM(solver, orderId, timestamp, outputDescription));
     }
 
-    function _processMessage(uint256 logIndex, bytes calldata proof) internal {
-        (string memory chainId, address emittingContract, bytes[] memory topics, bytes memory unindexedData) = CROSS_L2_PROVER.validateEvent(logIndex, proof);
+    function _processMessage(bytes calldata proof) internal {
+        (
+            uint32 chainId,
+            address emittingContract,
+            bytes memory topics,
+            bytes memory unindexedData
+        ) = CROSS_L2_PROVER.validateEvent(proof);
 
         // Store payload attestations;
         bytes32 orderId = bytes32(topics[0]);
@@ -96,16 +100,14 @@ contract PolymerOracle is BaseOracle, Ownable {
         emit OutputProven(remoteChainId, bytes32(0), senderIdentifier, payloadHash);
     }
 
-    function receiveMessage(uint256 logIndex, bytes calldata proof) external {
-        _processMessage(logIndex, proof);
+    function receiveMessage(bytes calldata proof) external {
+        _processMessage(proof);
     }
 
-    function receiveMessage(uint256[] calldata logIndex, bytes[] calldata proof) external {
-        if (logIndex.length != proof.length) revert InequalLength();
-
-        uint256 numProofs = logIndex.length;
+    function receiveMessage(bytes[] calldata proofs) external {
+        uint256 numProofs = proofs.length;
         for (uint256 i; i < numProofs; ++i) {
-            _processMessage(logIndex[i], proof[i]);
+            _processMessage(proofs[i]);
         }
     }
 }

@@ -45,6 +45,8 @@ contract TestBitcoinOracle is Test {
     // --- Optimistic Component --- //
     //  TODO: mock _resolveClaimed
 
+    //-- Claim
+
     function test_claim(bytes32 solver, bytes32 orderId, uint64 amount, address caller) external {
         vm.assume(caller != address(bitcoinOracle));
         vm.assume(caller != address(token));
@@ -89,6 +91,93 @@ contract TestBitcoinOracle is Test {
         assertEq(caller, sponsor_);
         assertEq(address(0), disputer_);
     }
+
+
+    function test_revert_claim_solver_0(bytes32 orderId, address caller, uint64 amount) external {
+        bytes32 solver = bytes32(0);
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        vm.expectRevert(abi.encodeWithSignature("ZeroValue()"));
+        bitcoinOracle.claim(solver, orderId, output);
+    }
+
+    function test_revert_claim_amount_0(bytes32 solver, uint64 amount, address caller) external {
+        bytes32 orderId = bytes32(0);
+        vm.assume(solver != bytes32(0));
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        vm.expectRevert(abi.encodeWithSignature("ZeroValue()"));
+        bitcoinOracle.claim(solver, orderId, output);
+    }
+
+    function test_revert_claim_twice(bytes32 solver, bytes32 orderId, uint64 amount, address caller) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        vm.prank(caller);
+        vm.expectRevert(abi.encodeWithSignature("AlreadyClaimed(bytes32)", solver));
+        bitcoinOracle.claim(solver, orderId, output);
+    }
+
+    //-- Dispute
 
     function test_dispute(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
         vm.assume(solver != bytes32(0));
@@ -142,6 +231,164 @@ contract TestBitcoinOracle is Test {
         assertEq(block.timestamp + 93 minutes, disputeTimestamp_);
     }
 
+    function test_revert_dispute_too_late(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // We need the
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
+        token.mint(disputer, disputeAmount);
+        vm.prank(disputer);
+        token.approve(address(bitcoinOracle), disputeAmount);
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.prank(disputer);
+        vm.expectRevert(abi.encodeWithSignature("TooLate()"));
+        bitcoinOracle.dispute(orderId, output);
+    }
+
+    function test_revert_dispute_no_collateral(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(amount != 0);
+
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // We need the
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        vm.prank(disputer);
+        vm.expectRevert(abi.encodeWithSignature("TransferFromFailed()"));
+        bitcoinOracle.dispute(orderId, output);
+    }
+
+    function test_revert_dispute_not_claimed(bytes32 solver, bytes32 orderId, uint64 amount, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = amount * multiplier;
+        uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
+        token.mint(disputer, disputeAmount);
+        vm.prank(disputer);
+        token.approve(address(bitcoinOracle), disputeAmount);
+
+        vm.prank(disputer);
+        vm.expectRevert(abi.encodeWithSignature("NotClaimed()"));
+        bitcoinOracle.dispute(orderId, output);
+    }
+
+    function test_revert_dispute_twice(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // We need the
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
+        token.mint(disputer, disputeAmount);
+        vm.prank(disputer);
+        token.approve(address(bitcoinOracle), disputeAmount);
+
+        vm.prank(disputer);
+        bitcoinOracle.dispute(orderId, output);
+
+        vm.expectRevert(abi.encodeWithSignature("AlreadyDisputed(address)", disputer));
+        bitcoinOracle.dispute(orderId, output);
+    }
+
+    //-- Optimistic Verification
+
     function test_optimistically_verify(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
@@ -174,16 +421,11 @@ contract TestBitcoinOracle is Test {
 
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
-        vm.snapshotGasLastCall("bitcoinOPVerify");
-
-        uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
-        token.mint(disputer, disputeAmount);
-        vm.prank(disputer);
-        token.approve(address(bitcoinOracle), disputeAmount);
 
         vm.warp(block.timestamp + 131 minutes + 1);
 
         bitcoinOracle.optimisticallyVerify(orderId, output);
+        vm.snapshotGasLastCall("bitcoinOPVerify");
 
         (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_, uint32 disputeTimestamp_) = bitcoinOracle._claimedOrder(orderId, outputId);
 
@@ -194,6 +436,122 @@ contract TestBitcoinOracle is Test {
         assertEq(address(0), disputer_);
         assertEq(0, disputeTimestamp_);
     }
+
+    function test_revert_op_verify_disputed(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // We need the
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+
+        uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
+        token.mint(disputer, disputeAmount);
+        vm.prank(disputer);
+        token.approve(address(bitcoinOracle), disputeAmount);
+
+        vm.prank(disputer);
+        bitcoinOracle.dispute(orderId, output);
+
+        vm.warp(block.timestamp + 131 minutes + 1);
+        
+        vm.expectRevert(abi.encodeWithSignature("Disputed()"));
+        bitcoinOracle.optimisticallyVerify(orderId, output);
+    }
+
+    function test_revert_op_verify_not_claimed(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        vm.warp(block.timestamp + 131 minutes + 1);
+        
+        vm.expectRevert(abi.encodeWithSignature("NotClaimed()"));
+        bitcoinOracle.optimisticallyVerify(orderId, output);
+    }
+
+    function test_revert_op_verify_too_early(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // We need the
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        vm.warp(block.timestamp + 131 minutes);
+
+        vm.expectRevert(abi.encodeWithSignature("TooEarly()"));
+        bitcoinOracle.optimisticallyVerify(orderId, output);
+    }
+
+    //-- Finalise Dispute
 
     function test_finalise_dispute(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
         vm.assume(solver != bytes32(0));
@@ -256,6 +614,88 @@ contract TestBitcoinOracle is Test {
         assertEq(address(0), sponsor_);
         assertEq(address(0), disputer_);
         assertEq(0, disputeTimestamp_);
+    }
+
+    function test_revert_finalise_dispute_too_early(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // We need the
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
+        token.mint(disputer, disputeAmount);
+        vm.prank(disputer);
+        token.approve(address(bitcoinOracle), disputeAmount);
+
+        vm.prank(disputer);
+        bitcoinOracle.dispute(orderId, output);
+
+        vm.warp(block.timestamp + 69 minutes);
+
+        vm.expectRevert(abi.encodeWithSignature("TooEarly()"));
+        bitcoinOracle.finaliseDispute(orderId, output);
+    }
+
+    function test_revert_finalise_dispute_not_disputed(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(disputer != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(orderId != bytes32(0));
+
+        vm.assume(caller != address(token));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            remoteFiller: bytes32(uint256(uint160(address(bitcoinOracle)))),
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: uint256(amount),
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // We need the
+        uint256 collateralAmount = amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.expectRevert(abi.encodeWithSignature("NotDisputed()"));
+        bitcoinOracle.finaliseDispute(orderId, output);
     }
 
     // --- Transaction Verification --- //
@@ -328,6 +768,77 @@ contract TestBitcoinOracle is Test {
         assertEq(0, uint256(multiplier_));
         assertEq(address(0), sponsor_);
         assertEq(address(0), disputer_);
+    }
+
+    function test_verify_after_dispute(bytes32 solver, bytes32 orderId, address caller, address disputer) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(0));
+        vm.assume(caller != address(bitcoinOracle));
+        vm.assume(disputer != address(0));
+        vm.assume(disputer != address(bitcoinOracle));
+        vm.assume(disputer != address(token));
+        vm.assume(caller != disputer);
+
+        // We need to wrap to the Bitcoin block.
+        vm.warp(BLOCK_TIME);
+        bytes32 bitcoinOracleBytes32 = bytes32(uint256(uint160(address(bitcoinOracle))));
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bitcoinOracleBytes32,
+            remoteFiller: bitcoinOracleBytes32,
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: SATS_AMOUNT,
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = output.amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
+        token.mint(disputer, disputeAmount);
+        vm.prank(disputer);
+        token.approve(address(bitcoinOracle), disputeAmount);
+
+        vm.prank(disputer);
+        bitcoinOracle.dispute(orderId, output);
+
+        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+
+        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
+    }
+
+     function test_revert_verify_no_claim(bytes32 solver, bytes32 orderId, address caller) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(0));
+        vm.assume(caller != address(bitcoinOracle));
+
+        // We need to wrap to the Bitcoin block.
+        vm.warp(BLOCK_TIME);
+        bytes32 bitcoinOracleBytes32 = bytes32(uint256(uint160(address(bitcoinOracle))));
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bitcoinOracleBytes32,
+            remoteFiller: bitcoinOracleBytes32,
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: SATS_AMOUNT,
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+
+        vm.expectRevert(abi.encodeWithSignature("NotClaimed()"));
+        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 
     function test_verify_embed(bytes32 solver, bytes32 orderId, address caller) external {
@@ -418,6 +929,43 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, EMBED_TX_OUTPUT_INDEX);
     }
 
+    function test_revert_txo_mismatch_verify_embed(bytes32 solver, bytes32 orderId, address caller, bytes calldata remoteCall) external {
+        vm.assume(keccak256(EMBEDDED_DATA_RETURN) != keccak256(remoteCall));
+        vm.assume(remoteCall.length <= type(uint32).max);
+        vm.assume(remoteCall.length > 0);
+
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(0));
+
+        // We need to wrap to the Bitcoin block.
+        vm.warp(BLOCK_TIME);
+        bytes32 bitcoinOracleBytes32 = bytes32(uint256(uint160(address(bitcoinOracle))));
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bitcoinOracleBytes32,
+            remoteFiller: bitcoinOracleBytes32,
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", bytes1(0x04))),
+            recipient: bytes32(EMBED_PHASH),
+            amount: EMBED_SATS_AMOUNT,
+            chainId: uint32(block.chainid),
+            remoteCall: remoteCall,
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = output.amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: EMBED_TX_ID, txIndex: EMBED_TX_INDEX, txMerkleProof: EMBED_TX_MERKLE_PROOF, rawTx: EMBED_RAW_TX });
+
+        vm.expectRevert();
+        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, EMBED_TX_OUTPUT_INDEX);
+    }
+
     function test_verify_with_previous_block_header(bytes32 solver, bytes32 orderId, address caller) external {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
@@ -455,6 +1003,39 @@ contract TestBitcoinOracle is Test {
         payloads[0] = payload;
         bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
         assertEq(fillerValid, true);
+    }
+
+    function test_revert_verify_with_broken_previous_block_header(bytes32 solver, bytes32 orderId, address caller) external {
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(0));
+
+        // We need to wrap to the Bitcoin block.
+        vm.warp(BLOCK_TIME);
+        bytes32 bitcoinOracleBytes32 = bytes32(uint256(uint160(address(bitcoinOracle))));
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bitcoinOracleBytes32,
+            remoteFiller: bitcoinOracleBytes32,
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: SATS_AMOUNT,
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = output.amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+
+        vm.expectRevert();
+        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX, abi.encodePacked(PREV_BLOCK_HEADER, bytes1(0x01)));
     }
 
     function test_verify_after_block_sumbission(bytes32 solver, bytes32 orderId, address caller) public {
@@ -645,6 +1226,41 @@ contract TestBitcoinOracle is Test {
 
     function test_revert_wrong_utxo_type(bytes32 solver, bytes32 orderId, address caller, bytes1 wrongUTXOType) public {
         vm.assume(wrongUTXOType != UTXO_TYPE);
+
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(0));
+
+        // We need to wrap to the Bitcoin block.
+        vm.warp(BLOCK_TIME);
+        bytes32 bitcoinOracleBytes32 = bytes32(uint256(uint160(address(bitcoinOracle))));
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bitcoinOracleBytes32,
+            remoteFiller: bitcoinOracleBytes32,
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", wrongUTXOType)),
+            recipient: bytes32(PHASH),
+            amount: SATS_AMOUNT,
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        uint256 collateralAmount = output.amount * multiplier;
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+
+        vm.expectRevert();
+        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
+    }
+
+    function test_revert_wrong_utxo_type_P2WPKH(bytes32 solver, bytes32 orderId, address caller) public {
+        bytes1 wrongUTXOType = 0x03;
 
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));

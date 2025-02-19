@@ -281,7 +281,7 @@ contract CompactSettler is BaseSettler {
              });
         }
 
-        bool success = COMPACT.claimAndWithdraw(
+        require(COMPACT.claimAndWithdraw(
             BatchClaimWithWitness({
                 allocatorSignature: allocatorSignature,
                 sponsorSignature: sponsorSignature,
@@ -293,8 +293,7 @@ contract CompactSettler is BaseSettler {
                 claims: claims,
                 claimant: solvedBy
             })
-        );
-        require(success); // This should always be true.
+        ));
     }
 
     // --- Purchase Order --- //
@@ -320,7 +319,7 @@ contract CompactSettler is BaseSettler {
         uint256 expiryTimestamp,
         address newDestination,
         bytes calldata call,
-        uint48 discount,
+        uint64 discount,
         uint32 timeToBuy,
         bytes calldata solverSignature
     ) external {

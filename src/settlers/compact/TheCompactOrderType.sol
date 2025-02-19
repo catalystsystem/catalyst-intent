@@ -56,7 +56,7 @@ library TheCompactOrderType {
         return keccak256(abi.encode(CATALYST_WITNESS_TYPE_HASH, order.fillDeadline, order.localOracle, OutputDescriptionType.hashOutputs(order.outputs)));
     }
 
-    function compactHash(address arbiter, uint256 sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order) internal pure returns (bytes32) {
+    function compactHash(address arbiter, address sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order) internal pure returns (bytes32) {
         return keccak256(abi.encode(BATCH_COMPACT_TYPE_HASH, arbiter, sponsor, nonce, expires, hashIdsAndAmounts(order.inputs), orderHash(order)));
     }
 

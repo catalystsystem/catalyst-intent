@@ -156,7 +156,7 @@ abstract contract BaseSettler is EIP712 {
         address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
 
         bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderId, address(this), newDestination, call, discount, timeToBuy));
-        bool isValid = SignatureCheckerLib.isValidSignatureNow(orderSolvedByAddress, digest, solverSignature);
+        bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderSolvedByAddress, digest, solverSignature);
         if (!isValid) revert InvalidSigner();
 
         // Pay the input tokens to the solver.

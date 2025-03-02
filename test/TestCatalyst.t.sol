@@ -271,6 +271,67 @@ contract TestCatalyst is Test {
         vm.snapshotGasLastCall("finaliseSelf");
     }
 
+    function test_receive_and_settle_with_real_order() external {
+        uint256 initialSwapperBalance = token.balanceOf(swapper);
+        vm.prank(swapper);
+        uint256 amount = 1e18 / 10;
+        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+
+        address localOracle = address(wormholeOracle);
+        // These are the real addresses of fill_and_submit_output.move
+        bytes32 remoteOracle = hex"7c8361d4493d8b4de5a6c57a35458f238cf987f59dde1ea190656b122f77bef9"; // Emitter cap address
+        bytes32 remoteFiller = hex"1611edd9a9d42dbcd9ae773ffa22be0f6017b00590959dd5c767e4efcd34cd0b";
+        bytes32 recipient = hex"000000000000000000000000006217c47ffa5eb3f3c92247fffe22ad998242c5";
+        bytes32 outputToken = hex"5ef2fcf809fb9535ea0aeaea421f683026f06c34569aafc42bcde652ef6dd270";
+        uint256 remoteChainId = 100;
+        bytes32 solverBytes = hex"000000000000000000000000ea22232eee6365d797fec0f804da81f3e3f18c2d";
+        address solverAddress = address(uint160(uint256(solverBytes)));
+
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, amount];
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: remoteFiller,
+            remoteOracle: remoteOracle,
+            chainId: remoteChainId,
+            token: outputToken,
+            amount: amount,
+            recipient: recipient,
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+        CatalystCompactOrder memory order =
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+
+        // Make Compact
+        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
+        uint256[2][] memory idsAndAmounts = new uint256[2][](1);
+        idsAndAmounts[0] = [tokenId, amount];
+
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory allocatorSig = hex"";
+
+        bytes memory signature = abi.encode(sponsorSig, allocatorSig);
+        bytes32 orderId = compactSettler.orderIdentifier(order);
+
+        bytes[] memory payloads = new bytes[](1);
+        payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverBytes, orderId, uint32(block.timestamp), outputs[0]);
+
+        bytes memory expectedMessageEmitted = this.encodeMessage(outputs[0].remoteFiller, payloads);
+
+        bytes memory vaa = makeValidVAA(uint16(remoteChainId), remoteOracle, expectedMessageEmitted);
+        wormholeOracle.setChainMap(uint16(remoteChainId), remoteChainId);
+        wormholeOracle.receiveMessage(vaa);
+
+        uint32[] memory timestamps = new uint32[](1);
+        timestamps[0] = uint32(block.timestamp);
+
+        vm.prank(solverAddress);
+        compactSettler.finaliseSelf(order, signature, timestamps, solverBytes);
+        assertEq(token.balanceOf(solverAddress), amount);
+        assertEq(token.balanceOf(swapper), initialSwapperBalance - amount);
+    }
+
     function test_entire_flow_different_solvers(bytes32 solverIdentifier2) external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;

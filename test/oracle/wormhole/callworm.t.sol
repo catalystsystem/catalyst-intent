@@ -4,6 +4,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 import { WormholeVerifier } from "src/oracles/wormhole/external/callworm/WormholeVerifier.sol";
+import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 import "src/oracles/wormhole/external/wormhole/Messages.sol";
 import "src/oracles/wormhole/external/wormhole/Setters.sol";
 import "src/oracles/wormhole/external/wormhole/Structs.sol";
@@ -54,6 +55,10 @@ contract TestWormholeCallWorm is Test {
 
     function buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns (bytes memory preMessage) {
         return abi.encodePacked(hex"000003e8" hex"00000001", emitterChainId, emitterAddress, hex"0000000000000539" hex"0f");
+    }
+
+    function messagesAddress() internal view returns(address){
+        return address(messages);
     }
 
     // This test checks the possibility of getting a unsigned message verified through verifyVM

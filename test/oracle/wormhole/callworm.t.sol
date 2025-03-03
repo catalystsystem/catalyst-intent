@@ -57,10 +57,6 @@ contract TestWormholeCallWorm is Test {
         return abi.encodePacked(hex"000003e8" hex"00000001", emitterChainId, emitterAddress, hex"0000000000000539" hex"0f");
     }
 
-    function messagesAddress() internal view returns(address){
-        return address(messages);
-    }
-
     // This test checks the possibility of getting a unsigned message verified through verifyVM
     function test_compare_wormhole_implementation_and_calldata_version(
         bytes calldata message

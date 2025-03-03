@@ -279,12 +279,12 @@ contract TestCatalyst is Test {
 
         address localOracle = address(wormholeOracle);
         // These are the real addresses of fill_and_submit_output.move
-        bytes32 remoteOracle = hex"7c8361d4493d8b4de5a6c57a35458f238cf987f59dde1ea190656b122f77bef9"; // Emitter cap address
-        bytes32 remoteFiller = hex"1611edd9a9d42dbcd9ae773ffa22be0f6017b00590959dd5c767e4efcd34cd0b";
-        bytes32 recipient = hex"000000000000000000000000006217c47ffa5eb3f3c92247fffe22ad998242c5";
-        bytes32 outputToken = hex"5ef2fcf809fb9535ea0aeaea421f683026f06c34569aafc42bcde652ef6dd270";
+        bytes32 remoteOracle = 0x7c8361d4493d8b4de5a6c57a35458f238cf987f59dde1ea190656b122f77bef9; // Emitter cap address
+        bytes32 remoteFiller = 0x1611edd9a9d42dbcd9ae773ffa22be0f6017b00590959dd5c767e4efcd34cd0b;
+        bytes32 recipient = 0x000000000000000000000000006217c47ffa5eb3f3c92247fffe22ad998242c5;
+        bytes32 outputToken = 0x5ef2fcf809fb9535ea0aeaea421f683026f06c34569aafc42bcde652ef6dd270;
         uint256 remoteChainId = 100;
-        bytes32 solverBytes = hex"000000000000000000000000ea22232eee6365d797fec0f804da81f3e3f18c2d";
+        bytes32 solverBytes = 0x000000000000000000000000ea22232eee6365d797fec0f804da81f3e3f18c2d;
         address solverAddress = address(uint160(uint256(solverBytes)));
 
         uint256[2][] memory inputs = new uint256[2][](1);

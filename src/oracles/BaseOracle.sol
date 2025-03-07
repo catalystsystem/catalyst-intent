@@ -1,142 +1,82 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { FillDeadlineFarInFuture, FillDeadlineInPast, WrongChain, WrongRemoteOracle } from "../interfaces/Errors.sol";
-import { IOracle } from "../interfaces/IOracle.sol";
-import { OrderKey, OutputDescription } from "../interfaces/Structs.sol";
-import { BaseReactor } from "../reactors/BaseReactor.sol";
+import { IOracle } from "src/interfaces/IOracle.sol";
 
 /**
- * @dev Oracles are also fillers
+ * @notice Foundation for oracles. Exposes attesation logic for consumers.
+ * @dev Ideally the contract has a 16 bytes address, that is 4 bytes have been mined for 0s.
  */
 abstract contract BaseOracle is IOracle {
+    error NotDivisible(uint256 value, uint256 divisor);
+    error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 application, bytes32 dataHash);
 
-    event OutputProven(uint32 fillDeadline, bytes32 outputHash);
-
-    uint256 constant MAX_FUTURE_FILL_TIME = 3 days;
-
-    /**
-     * @notice We use the chain's canonical id rather than the messaging protocol id for clarity.
-     */
-    uint32 public immutable CHAIN_ID = uint32(block.chainid);
-    bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
-
-    mapping(bytes32 outputHash => mapping(uint32 fillDeadline => bool proven)) internal _provenOutput;
-
-    //-- Helpers --//
+    event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 application, bytes32 payloadHash);
 
     /**
-     * @notice Validate that the remote oracle address is this oracle.
-     * @dev For some oracles, it might be required that you "cheat" and change the encoding here.
-     * Don't worry (or do worry) because the other side loads the payload as bytes32(bytes).
+     * @notice Stores payload attestations. Payloads are not stored, instead their hashes are.
      */
-    function _validateRemoteOracleAddress(
-        bytes32 remoteOracle
-    ) internal view virtual {
-        if (ADDRESS_THIS != remoteOracle) revert WrongRemoteOracle(ADDRESS_THIS, remoteOracle);
+    mapping(uint256 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 application => mapping(bytes32 dataHash => bool)))) internal _attestations;
+
+    //--- Data Attestation Validation ---//
+
+    /**
+     * @notice Check if a remote oracle has attested to some data
+     * @dev Helper function for accessing _attestations.
+     * @param remoteChainId Origin chain of the supposed data.
+     * @param remoteOracle Identifier for the remote attestation.
+     * @param dataHash Hash of data.
+     */
+    function _isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 application, bytes32 dataHash) internal view returns (bool) {
+        return _attestations[remoteChainId][remoteOracle][application][dataHash];
     }
 
     /**
-     * @notice Compute the hash for an output. This allows us more easily identify it.
+     * @notice Check if a remote oracle has attested to some data
+     * @param remoteChainId Origin chain of the supposed data.
+     * @param remoteOracle Identifier for the remote attestation.
+     * @param dataHash Hash of data.
      */
-    function _outputHash(
-        OutputDescription calldata output
-    ) internal pure returns (bytes32 outputHash) {
-        outputHash = keccak256(
-            bytes.concat(
-                output.remoteOracle,
-                output.token,
-                bytes4(output.chainId),
-                bytes32(output.amount),
-                output.recipient,
-                output.remoteCall
-            )
-        );
+    function isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 application, bytes32 dataHash) external view returns (bool) {
+        return _isProven(remoteChainId, remoteOracle, application, dataHash);
     }
 
     /**
-     * @notice Compute the hash of an output in memory.
-     * @dev Is slightly more expensive than _outputHash. If possible, try to use _outputHash.
+     * @notice Check if a series of data has been attested to.
+     * @dev More efficient implementation of isProven. Does not return a boolean, instead reverts if false.
+     * This function returns true if proofSeries is empty.
+     * @param proofSeries remoteOracle, remoteChainId, and dataHash encoded in chucks of 32*4=128 bytes.
      */
-    function _outputHashM(
-        OutputDescription memory output
-    ) internal pure returns (bytes32 outputHash) {
-        outputHash = keccak256(
-            bytes.concat(
-                output.remoteOracle,
-                output.token,
-                bytes4(output.chainId),
-                bytes32(output.amount),
-                output.recipient,
-                output.remoteCall
-            )
-        );
-    }
-
-    /**
-     * @notice Validates that fillDeadline honors the conditions:
-     * - Fill time is not in the past (< paymentTimestamp).
-     * - Fill time is not too far in the future,
-     * @param currentTimestamp Timestamp to compare fillDeadline against.
-     * Is expected to be the time when the payment was recorded.
-     * @param fillDeadline Timestamp to compare against paymentTimestamp.
-     * The conditions will be checked against this timestamp.
-     */
-    function _validateTimestamp(uint32 currentTimestamp, uint32 fillDeadline) internal pure {
+    function efficientRequireProven(
+        bytes calldata proofSeries
+    ) external view {
         unchecked {
-            // FillDeadline may not be in the past.
-            if (fillDeadline < currentTimestamp) revert FillDeadlineInPast();
-            // Check that fillDeadline isn't far in the future.
-            // The idea is to protect users against random transfers through this contract.
-            // unchecked: type(uint32).max * 2 < type(uint256).max
-            if (uint256(fillDeadline) > uint256(currentTimestamp) + uint256(MAX_FUTURE_FILL_TIME)) {
-                revert FillDeadlineFarInFuture();
+            // Get the number of proof series.
+            uint256 proofBytes = proofSeries.length;
+            uint256 series = proofBytes / (32 * 4);
+            if (series * (32 * 4) != proofBytes) revert NotDivisible(proofBytes, 32 * 4);
+
+            // Go over the data. We will use a for loop iterating over the offset.
+            for (uint256 offset; offset < proofBytes;) {
+                // Load the proof description.
+                uint256 remoteChainId;
+                bytes32 remoteOracle;
+                bytes32 application;
+                bytes32 dataHash;
+                // Load variables from calldata to save gas compared to slices.
+                assembly ("memory-safe") {
+                    remoteChainId := calldataload(add(proofSeries.offset, offset))
+                    offset := add(offset, 0x20)
+                    remoteOracle := calldataload(add(proofSeries.offset, offset))
+                    offset := add(offset, 0x20)
+                    application := calldataload(add(proofSeries.offset, offset))
+                    offset := add(offset, 0x20)
+                    dataHash := calldataload(add(proofSeries.offset, offset))
+                    offset := add(offset, 0x20)
+                }
+                bool state = _isProven(remoteChainId, remoteOracle, application, dataHash);
+                if (!state) revert NotProven(remoteChainId, remoteOracle, application, dataHash);
             }
         }
-    }
-
-    /**
-     * @notice Validate that expected chain (@param chainId) matches this chain's chainId (block.chainId)
-     */
-    function _validateChain(
-        uint32 chainId
-    ) internal view {
-        if (CHAIN_ID != chainId) revert WrongChain(CHAIN_ID, chainId);
-    }
-
-    //--- Output Proofs ---/
-
-    /**
-     * @notice Check if an output has been proven.
-     * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
-     * @param output Output to check for.
-     * @param fillDeadline The expected fill time. Is used as a time & collision check.
-     */
-    function _isProven(OutputDescription calldata output, uint32 fillDeadline) internal view returns (bool proven) {
-        bytes32 outputHash = _outputHash(output);
-        return _provenOutput[outputHash][fillDeadline];
-    }
-
-    /**
-     * @notice Check if an output has been proven.
-     * @dev Helper function for accessing _provenOutput by hashing `output` through `_outputHash`.
-     * @param output Output to check for.
-     * @param fillDeadline The expected fill time. Is used as a time & collision check.
-     */
-    function isProven(OutputDescription calldata output, uint32 fillDeadline) external view returns (bool proven) {
-        return _isProven(output, fillDeadline);
-    }
-
-    /**
-     * @dev Function overload for isProven to allow proving multiple outputs in a single call.
-     */
-    function isProven(OutputDescription[] calldata outputs, uint32 fillDeadline) public view returns (bool proven) {
-        uint256 numOutputs = outputs.length;
-        for (uint256 i; i < numOutputs; ++i) {
-            if (!_isProven(outputs[i], fillDeadline)) {
-                return proven = false;
-            }
-        }
-        return proven = true;
     }
 }

@@ -142,8 +142,9 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
         // Map remoteMessagingProtocolChainIdentifier to canonical chain id. This ensures we use canonical ids.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[remoteMessagingProtocolChainIdentifier];
+        if (remoteChainId == 0) revert ZeroValue();
+        
         uint256 numPayloads = payloadHashes.length;
-
         for (uint256 i; i < numPayloads; ++i) {
             // Store payload attestations;
             bytes32 payloadHash = payloadHashes[i];

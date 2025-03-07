@@ -12,7 +12,7 @@ import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 
-import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
+import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { BytesLib } from "src/libs/BytesLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
@@ -171,7 +171,7 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solver, destination);
 
-        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
     }
 
     /**
@@ -205,7 +205,7 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solver, destination);
 
-        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
     }
 
     // -- Fallback Finalise Functions -- //
@@ -228,7 +228,7 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
-        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
     }
 
     /**
@@ -261,7 +261,7 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
-        if (call.length > 0) ICrossCatsCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
     }
 
     //--- The Compact & Resource Locks ---//

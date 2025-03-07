@@ -10,7 +10,7 @@ pragma solidity >=0.8.0;
  *
  * The first 20 bytes of the data is called.
  */
-interface ICrossCatsCallback {
+interface ICatalystCallback {
     /**
      * @notice If configured, is called when the output is filled on the destination chain.
      * @dev If the transaction reverts, 1 million gas is provided.

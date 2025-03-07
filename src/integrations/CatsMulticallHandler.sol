@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
+import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 /**
@@ -15,7 +15,7 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
  * The caller should ensure that the tokens received by the handler are completely consumed
  * otherwise they will be left in the contract free to take for next the next caller.
  */
-contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
+contract CatsMulticallHandler is ICatalystCallback, ReentrancyGuard {
     struct Call {
         address target;
         bytes callData;
@@ -76,7 +76,7 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
     }
 
     /**
-     * @notice Entrypoint for the crosscats handler if an output has been delivered.
+     * @notice Entrypoint for the catalyst handler if an output has been delivered.
      * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else.
      */
     function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external nonReentrant {
@@ -96,7 +96,7 @@ contract CatsMulticallHandler is ICrossCatsCallback, ReentrancyGuard {
     }
 
     /**
-     * @notice Entrypoint for the crosscats handler if inputs are delivered.
+     * @notice Entrypoint for the catalyst handler if inputs are delivered.
      * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else.
      */
     function inputsFilled(uint256[2][] calldata inputs, bytes calldata executionData) external nonReentrant {

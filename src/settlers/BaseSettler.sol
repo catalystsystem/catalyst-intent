@@ -12,7 +12,7 @@ import { AllowOpenType } from "./types/AllowOpenType.sol";
 import { OrderPurchaseType } from "./types/OrderPurchaseType.sol";
 import { OutputDescription } from "./types/OutputDescriptionType.sol";
 
-import { ICrossCatsCallback } from "src/interfaces/ICrossCatsCallback.sol";
+import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
 
 /**
@@ -171,6 +171,6 @@ abstract contract BaseSettler is EIP712 {
 
         emit OrderPurchased(orderId, orderSolvedByIdentifier, purchaser);
 
-        if (call.length > 0) ICrossCatsCallback(newDestination).inputsFilled(inputs, call);
+        if (call.length > 0) ICatalystCallback(newDestination).inputsFilled(inputs, call);
     }
 }

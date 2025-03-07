@@ -12,9 +12,10 @@ interface IOracle {
     function isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 remoteApplication, bytes32 dataHash) external view returns (bool);
 
     /**
-     * @notice Reverts if a series of data has not been attested to.
-     * @dev More efficient implementation of requireProven.
-     * @param proofSeries remoteChainId, remoteOracle,and dataHash encoded in chucks of 32*3=96 chunks.
+     * @notice Check if a series of data has been attested to.
+     * @dev More efficient implementation of requireProven. Does not return a boolean, instead reverts if false.
+     * This function returns true if proofSeries is empty.
+     * @param proofSeries remoteOracle, remoteChainId, and dataHash encoded in chucks of 32*4=128 bytes.
      */
     function efficientRequireProven(
         bytes calldata proofSeries

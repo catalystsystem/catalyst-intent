@@ -41,7 +41,7 @@ abstract contract CanCollectGovernanceFee is Ownable {
 
     /**
      * @notice Tokens collected by governance.
-     * @dev Can be accessed through getGovernanceTokens.
+     * @dev Can be accessed through getGovernanceBalance.
      */
     mapping(address token => uint256 amount) internal _governanceTokens;
 
@@ -55,16 +55,16 @@ abstract contract CanCollectGovernanceFee is Ownable {
      * @notice Returns the amount of tokens collected by governance.
      * @dev View function for _governanceTokens storage slot.
      */
-    function _getGovernanceTokens(
+    function _getGovernanceBalance(
         address token
     ) internal view virtual returns (uint256 amountTokens) {
         return amountTokens = _governanceTokens[token];
     }
 
-    function getGovernanceTokens(
+    function getGovernanceBalance(
         address token
     ) external view returns (uint256 amountTokens) {
-        return _getGovernanceTokens(token);
+        return _getGovernanceBalance(token);
     }
 
     /**
@@ -168,7 +168,7 @@ abstract contract CanCollectGovernanceFee is Ownable {
             for (uint256 i = 0; i < numTokens; ++i) {
                 address token = tokens[i];
                 // Read the collected governance tokens and then set to 0 immediately.
-                uint256 tokensToBeClaimed = _getGovernanceTokens(token);
+                uint256 tokensToBeClaimed = _getGovernanceBalance(token);
                 _resetGovernanceTokens(token);
 
                 collectedAmounts[i] = tokensToBeClaimed;

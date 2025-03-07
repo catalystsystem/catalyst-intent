@@ -95,7 +95,7 @@ abstract contract BaseFiller is IPayloadCreator {
     }
 
     /**
-     * @notice function overflow of _fill to allow filling multiple outputs in a single call.
+     * @notice function overload of _fill to allow filling multiple outputs in a single call.
      */
     function _fillThrow(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) internal {
         uint256 numOutputs = outputs.length;

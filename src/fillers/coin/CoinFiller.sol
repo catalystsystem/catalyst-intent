@@ -16,8 +16,8 @@ contract CoinFiller is BaseFiller {
         return outputAmount;
     }
 
-    function _dutchAuctionSlope(uint256 amount, uint256 slope, uint256 stopTime) internal view returns (uint256 currentAmount) {
-        uint256 currentTime = block.timestamp;
+    function _dutchAuctionSlope(uint256 amount, uint256 slope, uint32 stopTime) internal view returns (uint256 currentAmount) {
+        uint32 currentTime = uint32(block.timestamp);
         if (stopTime < currentTime) revert SlopeStopped();
         uint256 timeDiff = stopTime - currentTime; // unchecked: stopTime > currentTime
         return amount + slope * timeDiff;
@@ -36,16 +36,15 @@ contract CoinFiller is BaseFiller {
         if (fulfillmentLength == 0) return output.amount;
         bytes1 orderType = bytes1(output.fulfillmentContext);
         if (orderType == 0x00 && fulfillmentLength == 1) return output.amount;
-        if (orderType == 0x01 && fulfillmentLength == 65) {
-            uint256 slope = uint256(bytes32(output.fulfillmentContext[1:33]));
-            uint256 stopTime = uint256(bytes32(output.fulfillmentContext[33:65]));
-            // TODO: Enable after tests.
-            // assembly ("memory-safe") {
-            //     // uint256 slope = uint256(bytes32(output.fulfillmentContext[1:33]));
-            //     slope := calldataload(add(output.offset, 0x01))
-            //     // uint256 stopTime = uint256(bytes32(output.fulfillmentContext[33:65]));
-            //     stopTime := calldataload(add(output.offset, 0x21))
-            // }
+        if (orderType == 0x01 && fulfillmentLength == 37) {
+            bytes calldata fulfillmentContext = output.fulfillmentContext;
+            uint256 slope; // = uint256(bytes32(output.fulfillmentContext[1:33]));
+            uint32 stopTime; // = uint32(bytes4(output.fulfillmentContext[33:37]));
+            assembly ("memory-safe") {
+                slope := calldataload(add(fulfillmentContext.offset, 0x01))
+                // load the 32 bytes such that the last 4 are stopTime. (thus start loading from the next 4 bytes)
+                stopTime := calldataload(add(fulfillmentContext.offset, 0x05))
+            }
             return _dutchAuctionSlope(output.amount, slope, stopTime);
         }
         revert NotImplemented();

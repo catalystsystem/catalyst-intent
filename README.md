@@ -10,7 +10,7 @@ Catalyst V3 is built to be trust minimized and modular. It consists of
 - **Filler**: Main contract on the remote chain. Allows solvers to fill outputs of orders.
 - **Oracle**: Proof layer. Generally a messaging protocol but can be anything: Optimistic proofs, light clients, storage proofs, off-chain agent, etc. 
 
-Every single component is intended to be easily replaceable or upgradable. As a result, there are minimal dependencies between the various components:
+Every component is intended to be replaceable as a component. As a result, there are minimal dependencies between the various components:
 - The Settler defines the order structure and is (by default) not used anywhere else.
 - The Filler and Settler defines a common output fill payload. The oracle doesn't understand the payload.
 - Only the Settler is aware of the lock's unlock mechanism.

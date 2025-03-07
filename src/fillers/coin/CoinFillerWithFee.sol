@@ -20,12 +20,13 @@ contract CoinFillerWithFee is CoinFiller, CanCollectGovernanceFee {
         return outputAmount;
     }
 
-    function _getGovernanceTokens(
+    function _getGovernanceBalance(
         address token
     ) internal view override returns (uint256 amountTokens) {
         return SafeTransferLib.balanceOf(token, address(this));
     }
 
+    /** @dev The true balance is used, not an internal tracker. As a result, the storage never needs to be reset. */
     function _resetGovernanceTokens(
         address token
     ) internal override { }

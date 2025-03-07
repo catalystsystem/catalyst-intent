@@ -146,7 +146,7 @@ contract TestCoinFiller is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
-    function test_dutch_auction(bytes32 orderId, address sender, bytes32 filler, uint256 amount, uint128 slope, uint128 stopTime) public {
+    function test_dutch_auction(bytes32 orderId, address sender, bytes32 filler, uint256 amount, uint128 slope, uint32 stopTime) public {
         vm.assume(filler != bytes32(0) && swapper != sender);
         vm.assume(stopTime > block.timestamp);
         vm.assume(type(uint256).max - amount > slope * (stopTime - block.timestamp));
@@ -165,7 +165,7 @@ contract TestCoinFiller is Test {
             amount: amount,
             recipient: bytes32(uint256(uint160(swapper))),
             remoteCall: bytes(""),
-            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(uint256(slope)), bytes32(uint256(stopTime)))
+            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(uint256(slope)), bytes4(uint32(stopTime)))
         });
 
         vm.prank(sender);
@@ -285,7 +285,7 @@ contract TestCoinFiller is Test {
     }
 
     function test_invalid_fulfillment_context(address sender, bytes32 filler, bytes32 orderId, uint256 amount, bytes memory fulfillmentContext) public {
-        vm.assume(fulfillmentContext.length != 65 && fulfillmentContext.length > 1);
+        vm.assume(fulfillmentContext.length != 37 && fulfillmentContext.length > 1);
         vm.assume(filler != bytes32(0));
 
         outputToken.mint(sender, amount);
@@ -310,7 +310,7 @@ contract TestCoinFiller is Test {
         coinFiller.fill(orderId, outputs[0], filler);
     }
 
-    function test_slope_stopped(address sender, bytes32 orderId, bytes32 filler, uint256 amount, uint256 slope, uint256 currentTime, uint256 stopTime) public {
+    function test_slope_stopped(address sender, bytes32 orderId, bytes32 filler, uint256 amount, uint256 slope, uint32 currentTime, uint32 stopTime) public {
         vm.assume(stopTime < currentTime);
         vm.warp(currentTime);
         vm.assume(filler != bytes32(0));
@@ -325,7 +325,7 @@ contract TestCoinFiller is Test {
             amount: amount,
             recipient: bytes32(uint256(uint160(swapper))),
             remoteCall: bytes(""),
-            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(slope), bytes32(stopTime))
+            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(slope), bytes4(stopTime))
         });
 
         vm.prank(sender);

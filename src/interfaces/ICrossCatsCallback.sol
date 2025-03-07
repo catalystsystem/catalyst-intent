@@ -7,8 +7,7 @@ pragma solidity >=0.8.0;
  * Funds are likely in danger if the calls revert. Please be careful.
  *
  * If you don't need this functionality, stay away.
- * To enable for outputs, set `remoteCall` to the calldata. recipient is called.
- * To enable for inputs, use fillerData version 2. You set a hash of the data.
+ *
  * The first 20 bytes of the data is called.
  */
 interface ICrossCatsCallback {

@@ -88,7 +88,7 @@ contract TestCoinFillerWithFee is Test {
         assertEq(outputToken.balanceOf(swapper), amount);
         assertEq(outputToken.balanceOf(coinFillerWithFeeAddress), expectedGovernanceShare);
         assertEq(outputToken.balanceOf(sender), 0);
-        assertEq(coinFillerWithFee.getGovernanceTokens(outputTokenAddress), expectedGovernanceShare);
+        assertEq(coinFillerWithFee.getGovernanceBalance(outputTokenAddress), expectedGovernanceShare);
 
         address governanceRecipient = makeAddr("governanceRecipient");
         address[] memory tokens = new address[](1);

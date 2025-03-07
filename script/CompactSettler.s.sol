@@ -4,11 +4,10 @@ pragma solidity ^0.8.22;
 import { Script } from "forge-std/Script.sol";
 import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWithDeposit.sol";
 
-contract DeploytCompactWithDeposit is Script {
-    address constant THE_COMPACT = address(0);
+contract DeployCompactSettler is Script {
 
-    function run() external {
+    function deploy(address theCompact) external {
         vm.broadcast();
-        address compactSettler = address(new CompactSettlerWithDeposit(THE_COMPACT));
+        address(new CompactSettlerWithDeposit{salt: bytes32(0)}(theCompact));
     }
 }

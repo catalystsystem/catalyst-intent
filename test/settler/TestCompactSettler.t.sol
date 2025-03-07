@@ -5,8 +5,9 @@ import "forge-std/Test.sol";
 
 import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
 import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWithDeposit.sol";
-import { OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
+
 import { AllowOpenType } from "src/settlers/types/AllowOpenType.sol";
+import { OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
 
 import { AlwaysYesOracle } from "../mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
@@ -35,8 +36,9 @@ interface EIP712 {
 }
 
 contract MockDepositCompactSettler is CompactSettlerWithDeposit {
-
-    constructor(address compact) CompactSettlerWithDeposit(compact) { }
+    constructor(
+        address compact
+    ) CompactSettlerWithDeposit(compact) { }
 
     function validateFills(address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) external view {
         _validateFills(localOracle, orderId, solvers, timestamps, outputDescriptions);
@@ -46,7 +48,6 @@ contract MockDepositCompactSettler is CompactSettlerWithDeposit {
         _validateFills(localOracle, orderId, solver, timestamps, outputDescriptions);
     }
 }
-
 
 contract TestCompactSettler is Test {
     event Transfer(address from, address to, uint256 amount);
@@ -102,7 +103,6 @@ contract TestCompactSettler is Test {
         anotherToken.approve(address(coinFiller), type(uint256).max);
 
         // Oracles
-
     }
 
     function orderHash(
@@ -111,9 +111,7 @@ contract TestCompactSettler is Test {
         return TheCompactOrderType.orderHash(order);
     }
 
-    function compactHash(
-        address arbiter, address sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order
-    ) external pure returns (bytes32) {
+    function compactHash(address arbiter, address sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order) external pure returns (bytes32) {
         return TheCompactOrderType.compactHash(arbiter, sponsor, nonce, expires, order);
     }
 
@@ -133,13 +131,7 @@ contract TestCompactSettler is Test {
         return bytes.concat(r, s, bytes1(v));
     }
 
-    function getOrderOpenSignature(
-        uint256 privateKey,
-        bytes32 orderId,
-        address originSettler,
-        address destination,
-        bytes calldata call
-    ) external view returns (bytes memory sig) {
+    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, address destination, bytes calldata call) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
         bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, originSettler, destination, call)));
 
@@ -206,27 +198,17 @@ contract TestCompactSettler is Test {
         bytes32 typehash = 0x3bf5e03b33f9a0f3a5f54719ee043a9f9b34f4de44765c1b5afb7e0de6b8a6b0;
 
         vm.expectEmit();
-        emit CompactRegistered(target, claimHash, typehash, block.timestamp + 65*60);
+        emit CompactRegistered(target, claimHash, typehash, block.timestamp + 65 * 60);
 
         vm.prank(swapper);
         compactSettler.depositFor(order, resetPeriod);
     }
 
     function hashOrderPurchase(bytes32 orderId, address originSettler, address destination, bytes calldata call, uint64 discount, uint32 timeToBuy) external pure returns (bytes32) {
-        return OrderPurchaseType.hashOrderPurchase(
-            orderId,
-            originSettler,
-            destination,
-            call,
-            discount,
-            timeToBuy
-        );
+        return OrderPurchaseType.hashOrderPurchase(orderId, originSettler, destination, call, discount, timeToBuy);
     }
 
-    function test_purchase_order(
-        address purchaser,
-        address target
-    ) external {
+    function test_purchase_order(address purchaser, address target) external {
         vm.assume(purchaser != address(0));
         vm.assume(target != address(0));
         uint256 amount = 10 ** 18;
@@ -281,10 +263,7 @@ contract TestCompactSettler is Test {
         assertEq(storagePurchaser, purchaser);
     }
 
-    function test_revert_purchase_order_invalid_order_id(
-        address purchaser,
-        address target
-    ) external {
+    function test_revert_purchase_order_invalid_order_id(address purchaser, address target) external {
         vm.assume(purchaser != address(0));
         vm.assume(target != address(0));
         uint256 amount = 10 ** 18;
@@ -344,6 +323,7 @@ contract TestCompactSettler is Test {
     // -- Units Tests -- //
 
     error InvalidProofSeries();
+
     mapping(bytes proofSeries => bool valid) _validProofSeries;
 
     function efficientRequireProven(
@@ -357,15 +337,11 @@ contract TestCompactSettler is Test {
         OutputDescription outputDescription;
     }
 
-    function test_validate_fills_one_solver(
-        bytes32 solverIdentifier,
-        bytes32 orderId,
-        OrderFulfillmentDescription[] calldata orderFulfillmentDescription
-    ) external {
+    function test_validate_fills_one_solver(bytes32 solverIdentifier, bytes32 orderId, OrderFulfillmentDescription[] calldata orderFulfillmentDescription) external {
         vm.assume(orderFulfillmentDescription.length > 0);
 
         address localOracle = address(this);
-        
+
         bytes memory expectedProofPayload = hex"";
         uint32[] memory timestamps = new uint32[](orderFulfillmentDescription.length);
         OutputDescription[] memory outputDescriptions = new OutputDescription[](orderFulfillmentDescription.length);
@@ -392,13 +368,10 @@ contract TestCompactSettler is Test {
         OutputDescription outputDescription;
     }
 
-    function test_validate_fills_multiple_solvers(
-        bytes32 orderId,
-        OrderFulfillmentDescriptionWithSolver[] calldata orderFulfillmentDescriptionWithSolver
-    ) external {
+    function test_validate_fills_multiple_solvers(bytes32 orderId, OrderFulfillmentDescriptionWithSolver[] calldata orderFulfillmentDescriptionWithSolver) external {
         vm.assume(orderFulfillmentDescriptionWithSolver.length > 0);
         address localOracle = address(this);
-        
+
         bytes memory expectedProofPayload = hex"";
         uint32[] memory timestamps = new uint32[](orderFulfillmentDescriptionWithSolver.length);
         OutputDescription[] memory outputDescriptions = new OutputDescription[](orderFulfillmentDescriptionWithSolver.length);
@@ -423,7 +396,9 @@ contract TestCompactSettler is Test {
 
     // -- Larger Integration tests -- //
 
-    function test_finalise_self(address non_solver) external {
+    function test_finalise_self(
+        address non_solver
+    ) external {
         vm.assume(non_solver != solver);
 
         vm.prank(swapper);
@@ -479,21 +454,12 @@ contract TestCompactSettler is Test {
 
         vm.expectCall(
             address(alwaysYesOracle),
-            abi.encodeWithSignature(
-                "efficientRequireProven(bytes)",
-                abi.encodePacked(
-                    order.outputs[0].chainId,
-                    order.outputs[0].remoteOracle,
-                    order.outputs[0].remoteFiller,
-                    payloadHash
-                )
-            )
+            abi.encodeWithSignature("efficientRequireProven(bytes)", abi.encodePacked(order.outputs[0].chainId, order.outputs[0].remoteOracle, order.outputs[0].remoteFiller, payloadHash))
         );
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
         vm.snapshotGasLastCall("finaliseSelf");
-
 
         assertEq(token.balanceOf(solver), amount);
     }
@@ -552,7 +518,7 @@ contract TestCompactSettler is Test {
         vm.prank(solver);
         compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, destination, hex"");
         vm.snapshotGasLastCall("finaliseTo");
-        
+
         assertEq(token.balanceOf(destination), amount);
     }
 
@@ -617,11 +583,9 @@ contract TestCompactSettler is Test {
         vm.prank(non_solver);
         compactSettler.finaliseFor(order, signature, timestamps, solverIdentifier, destination, hex"", orderOwnerSignature);
         vm.snapshotGasLastCall("finaliseTo");
-        
+
         assertEq(token.balanceOf(destination), amount);
     }
 
-    function test_purchase_and_resolve() external {
-
-    }
+    function test_purchase_and_resolve() external { }
 }

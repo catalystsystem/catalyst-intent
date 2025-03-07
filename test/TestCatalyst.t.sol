@@ -271,7 +271,9 @@ contract TestCatalyst is Test {
         vm.snapshotGasLastCall("finaliseSelf");
     }
 
-    function test_entire_flow_different_solvers(bytes32 solverIdentifier2) external {
+    function test_entire_flow_different_solvers(
+        bytes32 solverIdentifier2
+    ) external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
         uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
@@ -344,8 +346,15 @@ contract TestCatalyst is Test {
         timestamps[0] = uint32(block.timestamp);
         timestamps[1] = uint32(block.timestamp);
 
-
-        vm.expectRevert(abi.encodeWithSignature("NotProven(uint256,bytes32,bytes32,bytes32)", outputs[1].chainId, outputs[1].remoteOracle, outputs[1].remoteFiller, keccak256(OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[1]))));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "NotProven(uint256,bytes32,bytes32,bytes32)",
+                outputs[1].chainId,
+                outputs[1].remoteOracle,
+                outputs[1].remoteFiller,
+                keccak256(OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[1]))
+            )
+        );
         vm.prank(solver);
         compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, solver, hex"");
 
@@ -366,13 +375,7 @@ contract TestCatalyst is Test {
         compactSettler.finaliseFor(order, signature, timestamps, solverIdentifierList, solver, hex"", solverSignature);
     }
 
-    function getOrderOpenSignature(
-        uint256 privateKey,
-        bytes32 orderId,
-        address originSettler,
-        address destination,
-        bytes calldata call
-    ) external view returns (bytes memory sig) {
+    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, address destination, bytes calldata call) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
         bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, originSettler, destination, call)));
 

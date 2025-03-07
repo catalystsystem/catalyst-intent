@@ -92,7 +92,6 @@ contract TestBitcoinOracle is Test {
         assertEq(address(0), disputer_);
     }
 
-
     function test_revert_claim_solver_0(bytes32 orderId, address caller, uint64 amount) external {
         bytes32 solver = bytes32(0);
         vm.assume(orderId != bytes32(0));
@@ -469,7 +468,6 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-
         uint256 disputeAmount = collateralAmount * bitcoinOracle.DISPUTED_ORDER_FEE_FRACTION();
         token.mint(disputer, disputeAmount);
         vm.prank(disputer);
@@ -479,7 +477,7 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.dispute(orderId, output);
 
         vm.warp(block.timestamp + 131 minutes + 1);
-        
+
         vm.expectRevert(abi.encodeWithSignature("Disputed()"));
         bitcoinOracle.optimisticallyVerify(orderId, output);
     }
@@ -508,7 +506,7 @@ contract TestBitcoinOracle is Test {
         });
 
         vm.warp(block.timestamp + 131 minutes + 1);
-        
+
         vm.expectRevert(abi.encodeWithSignature("NotClaimed()"));
         bitcoinOracle.optimisticallyVerify(orderId, output);
     }
@@ -815,7 +813,7 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 
-     function test_revert_verify_no_claim(bytes32 solver, bytes32 orderId, address caller) external {
+    function test_revert_verify_no_claim(bytes32 solver, bytes32 orderId, address caller) external {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
         vm.assume(caller != address(0));

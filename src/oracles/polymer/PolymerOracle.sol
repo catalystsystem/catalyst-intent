@@ -77,13 +77,10 @@ contract PolymerOracle is BaseOracle, Ownable {
         return outputHash = keccak256(OutputEncodingLib.encodeFillDescriptionM(solver, orderId, timestamp, outputDescription));
     }
 
-    function _processMessage(bytes calldata proof) internal {
-        (
-            uint32 chainId,
-            address emittingContract,
-            bytes memory topics,
-            bytes memory unindexedData
-        ) = CROSS_L2_PROVER.validateEvent(proof);
+    function _processMessage(
+        bytes calldata proof
+    ) internal {
+        (uint32 chainId, address emittingContract, bytes memory topics, bytes memory unindexedData) = CROSS_L2_PROVER.validateEvent(proof);
 
         // Store payload attestations;
         bytes32 orderId = bytes32(topics[0]);
@@ -100,11 +97,15 @@ contract PolymerOracle is BaseOracle, Ownable {
         emit OutputProven(remoteChainId, bytes32(0), senderIdentifier, payloadHash);
     }
 
-    function receiveMessage(bytes calldata proof) external {
+    function receiveMessage(
+        bytes calldata proof
+    ) external {
         _processMessage(proof);
     }
 
-    function receiveMessage(bytes[] calldata proofs) external {
+    function receiveMessage(
+        bytes[] calldata proofs
+    ) external {
         uint256 numProofs = proofs.length;
         for (uint256 i; i < numProofs; ++i) {
             _processMessage(proofs[i]);

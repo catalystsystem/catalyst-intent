@@ -281,19 +281,21 @@ contract CompactSettler is BaseSettler {
              });
         }
 
-        require(COMPACT.claimAndWithdraw(
-            BatchClaimWithWitness({
-                allocatorSignature: allocatorSignature,
-                sponsorSignature: sponsorSignature,
-                sponsor: order.user,
-                nonce: order.nonce,
-                expires: order.fillDeadline,
-                witness: TheCompactOrderType.orderHash(order),
-                witnessTypestring: string(TheCompactOrderType.BATCH_SUB_TYPES),
-                claims: claims,
-                claimant: solvedBy
-            })
-        ));
+        require(
+            COMPACT.claimAndWithdraw(
+                BatchClaimWithWitness({
+                    allocatorSignature: allocatorSignature,
+                    sponsorSignature: sponsorSignature,
+                    sponsor: order.user,
+                    nonce: order.nonce,
+                    expires: order.fillDeadline,
+                    witness: TheCompactOrderType.orderHash(order),
+                    witnessTypestring: string(TheCompactOrderType.BATCH_SUB_TYPES),
+                    claims: claims,
+                    claimant: solvedBy
+                })
+            )
+        );
     }
 
     // --- Purchase Order --- //

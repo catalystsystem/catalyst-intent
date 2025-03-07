@@ -26,7 +26,9 @@ contract CoinFillerWithFee is CoinFiller, CanCollectGovernanceFee {
         return SafeTransferLib.balanceOf(token, address(this));
     }
 
-    /** @dev The true balance is used, not an internal tracker. As a result, the storage never needs to be reset. */
+    /**
+     * @dev The true balance is used, not an internal tracker. As a result, the storage never needs to be reset.
+     */
     function _resetGovernanceTokens(
         address token
     ) internal override { }

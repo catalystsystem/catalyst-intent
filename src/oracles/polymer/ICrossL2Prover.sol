@@ -8,11 +8,7 @@ interface ICrossL2Prover {
      * @return topics Concatenated Event topics
      * @return unindexedData Non-indexed event parameters
      */
-    function validateEvent(bytes calldata proof) external
-    returns (
-        uint32 chainId,
-        address emittingContract,
-        bytes memory topics,
-        bytes memory unindexedData
-    );
+    function validateEvent(
+        bytes calldata proof
+    ) external returns (uint32 chainId, address emittingContract, bytes memory topics, bytes memory unindexedData);
 }

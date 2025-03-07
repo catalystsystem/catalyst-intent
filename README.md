@@ -1,10 +1,10 @@
-# Catalyst V3: Intent based cross-chain swaps
+# Catalyst Intent: Intent based cross-chain swaps
 
 Catalyst is an intent based cross-chain swap protocol. Users sign intents: What asset they want, how they want etc, etc. which is claimed and then delivered by solvers.
 
 It is intended to be used in a Output first, inputs second context in conjunction with resource locks. This increases the integration flexibility and provides a better user experience.
 
-Catalyst V3 is built to be trust minimized and modular. It consists of 
+Catalyst Intent is built to be trust minimized and modular. It consists of 
 - **Lock Mechanism**: The system is designed to keep the lock mechanism outside of the core design. As a result, it can easily support new locks.
 - **Settler**: Main contract that sits on the origin chain. Serves multiple roles but the main role is to facilitate the translation of proofs to the unlock call for the lock.
 - **Filler**: Main contract on the remote chain. Allows solvers to fill outputs of orders.

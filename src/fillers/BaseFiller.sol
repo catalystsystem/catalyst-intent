@@ -35,6 +35,10 @@ abstract contract BaseFiller is IPayloadCreator {
 
     function _preDeliveryHook(address recipient, address token, uint256 outputAmount) internal virtual returns (uint256);
 
+    function _getOutputDescriptionHash(OutputDescription calldata output) internal virtual pure returns (bytes32 outputHash) {
+        return OutputEncodingLib.getOutputDescriptionHash(output);
+    }
+
     /**
      * @notice Verifies & Fills an order.
      * If an order has already been filled given the output & fillDeadline, then this function
@@ -58,7 +62,7 @@ abstract contract BaseFiller is IPayloadCreator {
         _IAmRemoteFiller(output.remoteFiller);
 
         // Get hash of output.
-        bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(output);
+        bytes32 outputHash = _getOutputDescriptionHash(output);
 
         // Get the proof state of the fulfillment.
         bytes32 existingSolver = _filledOutputs[orderId][outputHash].solver;

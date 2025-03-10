@@ -98,4 +98,9 @@ contract SignedCoinFiller is CoinFillerWithFee, EIP712 {
         bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(signer, digest, signature);
         if (!isValid) revert InvalidSigner();
     }
+
+    function fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver, bytes calldata signature) external returns (bytes32) {
+        _validateSolver(output, proposedSolver, signature);
+        return _fill(orderId, output, proposedSolver);
+    }
 }

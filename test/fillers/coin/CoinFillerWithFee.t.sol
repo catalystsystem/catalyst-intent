@@ -43,7 +43,7 @@ contract TestCoinFillerWithFee is Test {
     // --- VALID CASES --- //
 
     function test_fees_with_entire_flow(bytes32 orderId, address sender, bytes32 filler, uint64 fee, uint64 timeDelay, uint128 amount) public {
-        vm.assume(fee <= MAX_GOVERNANCE_FEE && fee != 0);
+        vm.assume(fee <= MAX_GOVERNANCE_FEE);
         vm.assume(timeDelay > uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
         vm.assume(filler != bytes32(0) && sender != swapper);
 

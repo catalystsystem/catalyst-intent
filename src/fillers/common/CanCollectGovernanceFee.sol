@@ -104,7 +104,7 @@ abstract contract CanCollectGovernanceFee is Ownable {
     function _calcFee(uint256 amount, uint256 fee) internal pure returns (uint256 amountFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
-            if (amount >= type(uint256).max / fee) return amountFee = 0;
+            if (fee == 0 || amount >= type(uint256).max / fee) return amountFee = 0;
             // The above check ensures that amount * fee < type(uint256).max.
             // amount >= amount * fee / GOVERNANCE_FEE_DENOM since fee < GOVERNANCE_FEE_DENOM
             return amountFee = amount * fee / GOVERNANCE_FEE_DENOM;

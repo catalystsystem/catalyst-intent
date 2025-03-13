@@ -17,6 +17,8 @@ import { CatalystCompactOrder, TheCompactOrderType } from "src/settlers/compact/
 import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 
+import { CompactSettler } from "src/settlers/compact/CompactSettler.sol";
+
 import { ERC20 } from "lib/solady/src/tokens/ERC20.sol";
 
 import { console } from "forge-std/console.sol";
@@ -56,7 +58,7 @@ contract CreateOrder is Script {
         bytes32 domainSeparator = THE_COMPACT.DOMAIN_SEPARATOR();
         bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, keccak256(abi.encode(typeHash, arbiter, order.user, order.nonce, order.fillDeadline, keccak256(abi.encodePacked(order.inputs)), orderWitnessHash(order)))));
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(vm.envUint("PRIVATE_KEY"), msgHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(msgHash);
         return bytes.concat(r, s, bytes1(v));
     }
 
@@ -85,12 +87,100 @@ contract CreateOrder is Script {
         return id = THE_COMPACT.deposit(token, ALLOCATOR, ResetPeriod.OneDay, Scope.Multichain, amount, msg.sender);
     }
 
-    function signIntent(uint256 tokenId, uint256 inputAmount, address outToken, uint256 outputAmount, uint256 nonce, uint256 remoteChain) view external returns(bytes32 orderId, bytes memory sponsorSig) {
+    // 36286452483532273188258183071097127586156282419649613466036116694645176389502
+    // 0x8bff75c2f27cb873be99dc6e447c2e08b86a330c4a568ccfd618c29966b5c4d2
+    // 0xed79a496ac82c23f97aa5cac1a9689ec715c0cb003b3899f355c1a4dbbfb3e1b49262a1cab5f455e4275ba0d07d51cb2aeabd235b17a0211cf37ede4c65caf311b
+
+    function signIntent(uint256 tokenId, uint256 inputAmount, address outToken, uint256 outputAmount, uint256 nonce, uint256 remoteChain) external returns(bytes32 orderId, bytes memory sponsorSig, CatalystCompactOrder memory order) {
         // Manage Inputs
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, inputAmount];
 
         // Manage Outputs
+
+        vm.startBroadcast();
+
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
+            remoteOracle: bytes32(uint256(uint160(WORMHOLE_ORACLE[remoteChain]))),
+            chainId: remoteChain,
+            token: bytes32(uint256(uint160(address(outToken)))),
+            amount: outputAmount,
+            recipient: bytes32(uint256(uint160(msg.sender))),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // Construct our order.
+
+        order =
+            CatalystCompactOrder({ user: address(msg.sender), nonce: nonce, originChainId: block.chainid, fillDeadline: uint32(block.timestamp + 1 days), localOracle: ALWAYS_YES_ORACLE, inputs: inputs, outputs: outputs });
+
+        // Create Associated Signature
+        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
+        sponsorSig = getCompactBatchWitnessSignature(
+            typeHash,
+            COMPACT_SETTLER,
+            order
+        );
+
+        orderId = orderIdentifier(order);
+        console.logBytes32(orderId);
+        console.logBytes(sponsorSig);
+    }
+
+    function fillOutput(bytes32 orderId, address token, uint256 amount, bytes32 recipient) external {
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
+            remoteOracle: bytes32(uint256(uint160(WORMHOLE_ORACLE[block.chainid]))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(token)))),
+            amount: amount,
+            recipient: recipient,
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        vm.startBroadcast();
+
+        if (ERC20(token).allowance(msg.sender, COIN_FILLER) < amount) ERC20(token).approve(COIN_FILLER, amount);
+
+        bytes32 solverIdentifier = bytes32(uint256(uint160(msg.sender)));
+        CoinFiller(COIN_FILLER).fill(orderId, outputs[0], solverIdentifier);
+    }
+
+    function submitOutput(bytes32 orderId, address token, uint256 amount, bytes32 recipient, uint32 timestamp) external {
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
+            remoteOracle: bytes32(uint256(uint160(WORMHOLE_ORACLE[block.chainid]))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(token)))),
+            amount: amount,
+            recipient: recipient,
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        vm.startBroadcast();
+        bytes32 solverIdentifier = bytes32(uint256(uint160(msg.sender)));
+        
+        bytes[] memory payloads = new bytes[](1);
+        payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, timestamp, outputs[0]);
+        WormholeOracle(WORMHOLE_ORACLE[block.chainid]).submit(COIN_FILLER, payloads);
+    }
+
+    function finaliseIntent(uint256 tokenId, uint256 inputAmount, address outToken, uint256 outputAmount, uint256 nonce, uint256 remoteChain, bytes calldata signature, uint32 timestamp, uint32 fillDeadline) external {
+        // Manage Inputs
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, inputAmount];
+
+        // Manage Outputs
+
+
+        vm.startBroadcast();
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
@@ -107,42 +197,13 @@ contract CreateOrder is Script {
         // Construct our order.
 
         CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(msg.sender), nonce: nonce, originChainId: block.chainid, fillDeadline: uint32(block.timestamp + 1 days), localOracle: ALWAYS_YES_ORACLE, inputs: inputs, outputs: outputs });
+            CatalystCompactOrder({ user: address(msg.sender), nonce: nonce, originChainId: block.chainid, fillDeadline: fillDeadline, localOracle: ALWAYS_YES_ORACLE, inputs: inputs, outputs: outputs });
 
-        // Create Associated Signature
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
-        sponsorSig = getCompactBatchWitnessSignature(
-            typeHash,
-            COMPACT_SETTLER,
-            order
-        );
 
-        orderId = orderIdentifier(order);
-        console.logBytes32(orderId);
-        console.logBytes(sponsorSig);
-    }
-
-    function fillOutput(bytes32 orderId, address token, uint256 amount, address recipient) external {
-        OutputDescription[] memory outputs = new OutputDescription[](1);
-        outputs[0] = OutputDescription({
-            remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
-            remoteOracle: bytes32(uint256(uint160(WORMHOLE_ORACLE[block.chainid]))),
-            chainId: block.chainid,
-            token: bytes32(uint256(uint160(address(token)))),
-            amount: amount,
-            recipient: bytes32(uint256(uint160(recipient))),
-            remoteCall: hex"",
-            fulfillmentContext: hex""
-        });
-
-        if (ERC20(token).allowance(msg.sender, COIN_FILLER) < amount) ERC20(token).approve(COIN_FILLER, amount);
-
+        uint32[] memory timestamps = new uint32[](1);
+        timestamps[0] = timestamp;
         bytes32 solverIdentifier = bytes32(uint256(uint160(msg.sender)));
-        CoinFiller(COIN_FILLER).fill(orderId, outputs[0], solverIdentifier);
 
-
-        bytes[] memory payloads = new bytes[](1);
-        payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
-        WormholeOracle(WORMHOLE_ORACLE[block.chainid]).submit(COIN_FILLER, payloads);
+        CompactSettler(COMPACT_SETTLER).finaliseSelf(order, abi.encode(signature, hex""), timestamps, solverIdentifier);
     }
 }

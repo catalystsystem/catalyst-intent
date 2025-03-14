@@ -29,10 +29,10 @@ interface IOutputSettlement {
 
 ### Validation
 
-Compliant Validation contracts MUST implement the `IValidation` interface to expose valid payloads collected from other chains.
+Compliant Validation contracts MUST implement the `IOutputValidator` interface to expose valid payloads collected from other chains.
 
 ```solidity
-interface IValidation {
+interface IOutputValidator {
     /**
      * @notice Check if some data has been attested to.
      * @param remoteChainId Chain the data originated from.
@@ -55,6 +55,10 @@ interface IValidation {
 }
 ```
 
+### Input Settlement
+
+The specification does not define which input schemes are used. However, Input Setttlements SHALL access proven outputs through the either of the validation interfaces – `isProven` or `efficientRequireProven` – allowing Input Settlements to use any validation layer supporting the `IOutputValidator` interface.
+
 ### Payload Encoding (Optional)
 
 The specification does not specify an encoding for payloads. Output Settlement systems MAY implement or be inspired by the `FillDescription`:
@@ -72,6 +76,10 @@ Encoded FillDescription
      + FULFILLMENT_CONTEXT_LENGTH    166+RC_LENGTH   (2 bytes)
      + FULFILLMENT_CONTEXT           168+RC_LENGTH   (LENGTH bytes)
 ```
+
+#### Conflict between Output and Input Settlement
+
+If the Output and Input Settlement implementation uses different payload encoding schemes, they won't be composable. As a result, it is RECOMMENDED to use the `FillDescription` specification whenever possible. However, even in these cases, validation implementations remain composable.
 
 ### General Compatibility
 

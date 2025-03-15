@@ -55,6 +55,24 @@ interface IOutputValidator {
 }
 ```
 
+#### Validation Payload
+
+The specification does not define _how_ messages are sent between validation contracts only that Validation layers  MUST take valid payloads from `IOutputSettlement` implementations and MUST implement the `IOutputValidator` to make valid payloads available.
+
+How payloads are packaged is not defined but a RECOMMENDED payload structure can be seen below.
+
+```
+Common Structure (1 instance)
+    SENDER_IDENTIFIER       0       (32 bytes)
+    + NUM_PAYLOADS          32      (2 bytes)
+
+Payloads (NUM_PAYLOADS instances)
+    + PAYLOAD_LENGTH          M_i+0   (2 bytes)
+    + PAYLOAD                 M_i+2   (PAYLOAD_LENGTH bytes)
+
+where M_i = sum_0^(i-1) M_i and M_0 = 34
+```
+
 ### Input Settlement
 
 The specification does not define which input schemes are used. However, Input Setttlements SHALL access proven outputs through the either of the validation interfaces – `isProven` or `efficientRequireProven` – allowing Input Settlements to use any validation layer supporting the `IOutputValidator` interface.

@@ -1,6 +1,12 @@
 ## Abstract
 
-This specification standardizes intent systems so that components in an intent system can be used composably.
+This specification standardizes intent systems to ensure that components within an intent system can be used composably.
+
+## Motivation
+
+Intents have been proposed as a key element in the broader chain abstraction puzzle. To function effectively, intents must be scalable and expressive. Currently, scalability is limited by the fragmentation of intent execution and validation, while expressivity is constrained by the available settlement structures.
+
+This specification aims to standardize and modularize intent systems, allowing multiple intent systems to reuse and share components. This approach enables intent consumers, producers, or dependents to contribute to scalability by providing open components.
 
 ## Specification
 
@@ -8,16 +14,18 @@ The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL 
 
 ### System Design
 
-An intent system contains at least three components:
+An intent system comprises of at least three components:
 - **Output Settlement**: Records and specifies how outputs are delivered.
-- **Validation**: Validates whether outputs have been delivered through the output settlement.
-- **Input Settlement**: Allows for collecting and releasing input tokens.
+- **Validation**: Verifies whether outputs have been delivered through the output settlement.
+- **Input Settlement**: Facilitates the collection and release of input tokens.
 
-An intent system built using the above components has data flowing from the Output Settlement to the Validation to the Input Settlement. As a result, the Output Settlement and Validation need to provide interfaces for the subsidiary contracts to read.
+In this design, data flows from the Output Settlement to the Validation component, and then to the Input Settlement. Consequently, the Output Settlement and Validation components must provide interfaces for subsidiary contracts to read.
+
+The goal is to support **multichain** systems, meaning the design must not restrict the expression of inputs across different chains.
 
 ### Output Settlement
 
-Compliant Output Settlement contracts MUST implement the `IOutputSettlement` interface to expose whether a list of payloads is valid.
+Compliant Output Settlement contracts MUST implement the `IOutputSettlement` interface to determine whether a list of payloads is valid.
 
 ```solidity
 interface IOutputSettlement {
@@ -27,6 +35,8 @@ interface IOutputSettlement {
 }
 ```
 
+The aim is to make the validation layer and output settlement pluggable, meaning the output settlement does not need to know the interface of the validation layer, nor does the validation layer need to conform to a specific standard.
+
 ### Validation
 
 Compliant Validation contracts MUST implement the `IOutputValidator` interface to expose valid payloads collected from other chains.
@@ -34,7 +44,7 @@ Compliant Validation contracts MUST implement the `IOutputValidator` interface t
 ```solidity
 interface IOutputValidator {
     /**
-     * @notice Check if some data has been attested to.
+     * @notice Check if data has been attested to.
      * @param remoteChainId Chain the data originated from.
      * @param remoteOracle Identifier for the remote attestation.
      * @param remoteApplication Identifier for the application that the attestation originated from.
@@ -57,9 +67,9 @@ interface IOutputValidator {
 
 #### Validation Payload
 
-The specification does not define _how_ messages are sent between validation contracts only that Validation layers  MUST take valid payloads from `IOutputSettlement` implementations and MUST implement the `IOutputValidator` to make valid payloads available.
+The specification does not define how messages are sent between validation contracts, only that Validation layers MUST take valid payloads from `IOutputSettlement` implementations and MUST implement the `IOutputValidator` to make valid payloads available.
 
-How payloads are packaged is not defined but a RECOMMENDED payload structure can be seen below.
+While the packaging of payloads is not defined, a RECOMMENDED payload structure is provided below.
 
 ```
 Common Structure (1 instance)
@@ -73,9 +83,24 @@ Payloads (NUM_PAYLOADS instances)
 where M_i = sum_0^(i-1) M_i and M_0 = 34
 ```
 
+#### (Not) Standardizing Validation Interface
+
+This specification intentionally does not standardize the validation layer interface. Intents used for chain abstraction generally require proof of fulfillment rather than directional messages. As a result, current messaging interfaces are insufficient for this goal in a **multichain** context.
+
+This approach allows each validation interface to be implemented optimally. For example, the following interface assumes it is possible to broadcast a proof that `bytes[] calldata payloads` are valid, without being chain-specific.
+
+```solidity
+/// @notice Example validation interface for broadcasting a set of payloads.
+function submit(address proofSource, bytes[] calldata payloads) external payable returns (uint256 refund) {
+    if (!IPayloadCreator(proofSource).arePayloadsValid(payloads)) revert NotAllPayloadsValid();
+
+    return _submit(proofSource, payloads);
+}
+```
+
 ### Input Settlement
 
-The specification does not define which input schemes are used. However, Input Setttlements SHALL access proven outputs through the either of the validation interfaces – `isProven` or `efficientRequireProven` – allowing Input Settlements to use any validation layer supporting the `IOutputValidator` interface.
+The specification does not define which input schemes are used. However, Input Settlements SHALL access proven outputs through either of the validation interfaces – `isProven` or `efficientRequireProven` – allowing Input Settlements to use any validation layer supporting the `IOutputValidator` interface.
 
 ### Payload Encoding (Optional)
 
@@ -97,16 +122,18 @@ Encoded FillDescription
 
 #### Conflict between Output and Input Settlement
 
-If the Output and Input Settlement implementation uses different payload encoding schemes, they won't be composable. As a result, it is RECOMMENDED to use the `FillDescription` specification whenever possible. However, even in these cases, validation implementations remain composable.
+If the Output and Input Settlement implementations use different payload encoding schemes, they will not be composable. Therefore, it is RECOMMENDED to use the `FillDescription` specification whenever possible. However, even in these cases, validation implementations remain composable.
 
 ### General Compatibility
 
-`address` variables SHALL be encoded as `bytes32` to be compatible with virtual machines having addresses larger than 20 bytes. This does not make the implementation less efficient.
+`address` variables SHALL be encoded as `bytes32` to be compatible with virtual machines having addresses larger than 20 bytes. This does not affect implementation efficiency.
 
 ### Solver Interfaces
 
-This specification does not propose any interface for initiating, solving, or finalizing intents. There are secondary interfaces to facilitate this.
+This specification does not propose any interface for initiating, solving, or finalizing intents. Secondary interfaces facilitate these processes.
 
 The purpose of this specification is to propose minimal and efficient interfaces for building composable intent protocols and reusing components.
 
 ## Security Considerations
+
+The specification allows for the mixing and matching of contracts, which could introduce malicious proofs. Therefore, it is crucial to properly validate, encode, and decode payloads to prevent malicious contracts from entering malicious payloads on behalf of others.

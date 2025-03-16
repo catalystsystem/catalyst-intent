@@ -81,7 +81,7 @@ abstract contract BaseFiller is IPayloadCreator {
 
         // If there is an external call associated with the fill, execute it.
         uint256 remoteCallLength = output.remoteCall.length;
-        if (remoteCallLength > 0) _call(deliveryAmount, output);
+        if (remoteCallLength > 0) _call(deliveryAmount, address(uint160(uint256(output.recipient))), output.token, output.remoteCall);
 
         emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 
@@ -137,15 +137,14 @@ abstract contract BaseFiller is IPayloadCreator {
      * Source:
      * https://github.com/catalystdao/GeneralisedIncentives/blob/38a88a746c7c18fb5d0f6aba195264fce34944d1/src/IncentivizedMessageEscrow.sol#L680
      */
-    function _call(uint256 trueAmount, OutputDescription calldata output) internal {
-        address recipient = address(uint160(uint256(output.recipient)));
-        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, trueAmount, output.remoteCall);
+    function _call(uint256 amount, address destination, bytes32 token, bytes calldata remoteCall) internal {
+        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", token, amount, remoteCall);
         bool success;
         assembly ("memory-safe") {
             // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables
             // are assigned, the contract can be attacked by a so called return bomb. This incur additional cost to the
             // relayer they aren't paid for. To protect the relayer, the call is made in inline assembly.
-            success := call(MAX_GAS_ON_CALL, recipient, 0, add(payload, 0x20), mload(payload), 0, 0)
+            success := call(MAX_GAS_ON_CALL, destination, 0, add(payload, 0x20), mload(payload), 0, 0)
             // This is what the call would look like non-assembly.
             // recipient.call{gas: MAX_GAS_ON_CALL}(
             //      abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, output.amount,
@@ -176,6 +175,7 @@ abstract contract BaseFiller is IPayloadCreator {
         // maxGasAck, when it turns out it got less it silently reverts (say by a low level call ala ours).
     }
 
+
     /**
      * @notice Allows estimating the gas used for an external call.
      * @dev To call, set msg.sender to address(0).
@@ -186,7 +186,7 @@ abstract contract BaseFiller is IPayloadCreator {
         // Disallow calling on-chain.
         require(msg.sender == address(0));
 
-        _call(trueAmount, output);
+        _call(trueAmount, address(uint160(uint256(output.recipient))), output.token, output.remoteCall);
     }
 
     //-- Helpers --//

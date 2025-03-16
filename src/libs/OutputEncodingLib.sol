@@ -106,6 +106,29 @@ library OutputEncodingLib {
         );
     }
 
+    function encodeOutputDescriptionMemory(
+        OutputDescription memory outputDescription
+    ) internal pure returns (bytes memory encodedOutput) {
+        bytes memory remoteCall = outputDescription.remoteCall;
+        bytes memory fulfillmentContext = outputDescription.fulfillmentContext;
+        // Check that the length of remoteCall & fulfillmentContext does not exceed type(uint16).max
+        if (remoteCall.length > type(uint16).max) revert RemoteCallOutOfRange();
+        if (fulfillmentContext.length > type(uint16).max) revert FulfillmentContextCallOutOfRange();
+
+        return encodedOutput = abi.encodePacked(
+            outputDescription.remoteOracle,
+            outputDescription.remoteFiller,
+            outputDescription.chainId,
+            outputDescription.token,
+            outputDescription.amount,
+            outputDescription.recipient,
+            uint16(remoteCall.length), // To protect against data collisions
+            remoteCall,
+            uint16(fulfillmentContext.length), // To protect against data collisions
+            fulfillmentContext
+        );
+    }
+
     /**
      * @notice Creates a unique hash of an OutputDescription
      * @dev This does provide a description of how an output was filled but just
@@ -116,6 +139,12 @@ library OutputEncodingLib {
         OutputDescription calldata output
     ) internal pure returns (bytes32) {
         return keccak256(encodeOutputDescription(output));
+    }
+
+    function getOutputDescriptionHashMemory(
+        OutputDescription memory output
+    ) internal pure returns (bytes32) {
+        return keccak256(encodeOutputDescriptionMemory(output));
     }
 
     /**

@@ -17,6 +17,17 @@ import { Test } from "forge-std/Test.sol";
 import { BitcoinOracle } from "src/oracles/bitcoin/BitcoinOracle.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 
+contract BitcoinOracleMock is BitcoinOracle {
+
+    constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken, uint64 _collateralMultiplier) payable BitcoinOracle(_lightClient, disputedOrderFeeDestination, collateralToken, _collateralMultiplier) { }
+
+    function getProofPeriod(
+        uint256 confirmations
+    ) external pure returns (uint256) {
+        return _getProofPeriod(confirmations);
+    }
+}
+
 contract TestBitcoinOracle is Test {
     event OutputClaimed(bytes32 indexed orderId, bytes32 outputId);
 
@@ -27,7 +38,7 @@ contract TestBitcoinOracle is Test {
     WormholeOracle wormholeOracle;
 
     BtcPrism btcPrism;
-    BitcoinOracle bitcoinOracle;
+    BitcoinOracleMock bitcoinOracle;
 
     uint256 multiplier = 1e10 * 100;
 
@@ -39,7 +50,23 @@ contract TestBitcoinOracle is Test {
 
         btcPrism = new BtcPrism(BLOCK_HEIGHT, BLOCK_HASH, BLOCK_TIME, EXPECTED_TARGET, false);
 
-        bitcoinOracle = new BitcoinOracle(address(btcPrism), address(0), address(token), uint64(multiplier));
+        bitcoinOracle = new BitcoinOracleMock(address(btcPrism), address(0), address(token), uint64(multiplier));
+    }
+
+    // --- Time To Confirmation --- //
+
+    function test_proof_period() external view {
+        assertEq(bitcoinOracle.getProofPeriod(1), 69 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(2), 93 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(3), 112 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(4), 131 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(5), 148 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(6), 165 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(7), 181 minutes + 7 minutes);
+    }
+
+    function test_proof_period_n(uint8 n) external view {
+        assertEq(bitcoinOracle.getProofPeriod(7 + uint256(n)), 181 minutes + 7 minutes + uint256(n) * 15 minutes);
     }
 
     // --- Optimistic Component --- //

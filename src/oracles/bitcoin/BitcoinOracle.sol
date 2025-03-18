@@ -132,12 +132,12 @@ contract BitcoinOracle is BaseOracle {
         uint256 confirmations
     ) internal pure returns (uint256) {
         unchecked {
-            uint256 gammaDistribution = confirmations < 3
+            uint256 gammaDistribution = confirmations <= 3
                 ? (confirmations == 1 ? ONE_CONFIRMATION : (confirmations == 2 ? TWO_CONFIRMATIONS : THREE_CONFIRMATIONS))
                 : (
                     confirmations < 8
                         ? (confirmations == 4 ? FOUR_CONFIRMATIONS : (confirmations == 5 ? FIVE_CONFIRMATIONS : (confirmations == 6 ? SIX_CONFIRMATIONS : SEVEN_CONFIRMATIONS)))
-                        : 181 minutes + confirmations * TIME_PER_ADDITIONAL_CONFIRMATION
+                        : 181 minutes + (confirmations - 7) * TIME_PER_ADDITIONAL_CONFIRMATION
                 );
             return gammaDistribution + LEAD_TIME;
         }

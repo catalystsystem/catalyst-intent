@@ -93,8 +93,7 @@ contract BitcoinOracle is BaseOracle {
 
     address public immutable COLLATERAL_TOKEN;
 
-    // todo: make this adjustable?
-    uint64 public immutable DEFAULT_COLLATERAL_MULTIPLIER = 1;
+    uint64 public immutable DEFAULT_COLLATERAL_MULTIPLIER;
     uint32 constant DISPUTE_PERIOD = FOUR_CONFIRMATIONS;
     uint32 constant MIN_TIME_FOR_INCLUSION = TWO_CONFIRMATIONS;
     uint32 constant CAN_VALIDATE_OUTPUTS_FOR = 1 days;
@@ -143,13 +142,17 @@ contract BitcoinOracle is BaseOracle {
         }
     }
 
-    function _readMultiplier(bytes calldata fulfillmentContext) internal pure returns(uint64 multiplier) {
-        if (fulfillmentContext.length <= 32) return DEFAULT_COLLATERAL_MULTIPLIER;
-        // multiplier = abi.decode(fulfillmentContext, uint64);
-        assembly ("memory-safe") {
-            multiplier := calldataload(fulfillmentContext.offset)
+    function _readMultiplier(bytes calldata fulfillmentContext) internal view returns(uint256 multiplier) {
+        uint256 fulfillmentLength = fulfillmentContext.length;
+        if (fulfillmentLength == 0) return DEFAULT_COLLATERAL_MULTIPLIER;
+        bytes1 orderType = bytes1(fulfillmentContext);
+        if (orderType == 0xBC && fulfillmentLength == 33) {
+            // multiplier = abi.decode(fulfillmentContext, uint64);
+            assembly ("memory-safe") {
+                multiplier := calldataload(add(fulfillmentContext.offset, 0x01))
+            }
         }
-        return multiplier;
+        return multiplier != 0 ? multiplier : DEFAULT_COLLATERAL_MULTIPLIER;
     }
 
     constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken, uint64 collateralMultiplier) payable {
@@ -508,7 +511,7 @@ contract BitcoinOracle is BaseOracle {
         // Check that this order hasn't been claimed before.
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId][outputId];
         if (claimedOrder.solver != bytes32(0)) revert AlreadyClaimed(claimedOrder.solver);
-        uint64 multiplier = _readMultiplier(output.fulfillmentContext);
+        uint256 multiplier = _readMultiplier(output.fulfillmentContext);
 
         claimedOrder.solver = solver;
         claimedOrder.claimTimestamp = uint32(block.timestamp);

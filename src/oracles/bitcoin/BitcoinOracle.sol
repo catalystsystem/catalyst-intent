@@ -463,8 +463,9 @@ contract BitcoinOracle is BaseOracle {
         uint32 claimTimestamp = claimedOrder.claimTimestamp;
         uint96 multiplier = claimedOrder.multiplier;
         address disputer = claimedOrder.disputer;
+        uint32 disputeTimestamp = claimedOrder.disputeTimestamp;
 
-        if (sponsor != address(0) && fillTimestamp >= claimTimestamp) {
+        if (sponsor != address(0) && fillTimestamp >= claimTimestamp && (disputer == address(0) || fillTimestamp <= disputeTimestamp)) {
             bool disputed = disputer != address(0);
             // If the order has been disputed, we need to also collect the disputers collateral for the solver.
 

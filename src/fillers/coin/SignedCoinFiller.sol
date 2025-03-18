@@ -56,16 +56,16 @@ contract SignedCoinFiller is CoinFillerWithFee, EIP712 {
     }
 
     function _contextTrueAmount(bytes calldata fulfillmentContext) internal pure returns (uint256 amount) {
-        // amount = uint256(bytes32(output.fulfillmentContext[0:32])));
+        // amount = uint256(bytes32(output.fulfillmentContext[1:33])));
         assembly ("memory-safe") {
-            amount := calldataload(add(fulfillmentContext.offset, 0x00))
+            amount := calldataload(add(fulfillmentContext.offset, 0x01))
         }
     }
 
     function _contextSigner(bytes calldata fulfillmentContext) internal pure returns (address signer) {
-        // signer = address(uint160(uint256(bytes32(output.fulfillmentContext[33:65])));
+        // signer = address(uint160(uint256(bytes32(output.fulfillmentContext[34:66])));
         assembly ("memory-safe") {
-            signer := calldataload(add(fulfillmentContext.offset, 0x21))
+            signer := calldataload(add(fulfillmentContext.offset, 0x22))
         }
     }
     
@@ -74,7 +74,7 @@ contract SignedCoinFiller is CoinFillerWithFee, EIP712 {
      * @dev Uses the fulfillmentContext of the output to determine order type.
      * This contract only understand off-chain auction swaps.
      * Structure:
-     * uint256(trueAmount) | bytes1(orderTypeIdentifier) | signer | ......
+     * 0x80 | uint256(trueAmount) | bytes1(orderTypeIdentifier) | signer | ......
      * In the actual order, bytes1(orderTypeIdentifier) is the first byte but the order server pre-pends the trueAmount
      */
     function _getAmount(
@@ -91,6 +91,9 @@ contract SignedCoinFiller is CoinFillerWithFee, EIP712 {
     ) view internal {
         bytes calldata fulfillmentContext = output.fulfillmentContext;
         uint256 amount = _contextTrueAmount(fulfillmentContext);
+        // The output amount shall describe a minimum output such
+        // that a fradulent signer cannot cheat the user.
+        amount = amount >= output.amount ? amount : output.amount;
         address signer = _contextSigner(fulfillmentContext);
 
         bytes32 digest = _hashTypedData(SignedOutputType.hashSignedOutput(output, solver, amount));

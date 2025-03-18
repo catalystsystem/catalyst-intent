@@ -14,7 +14,7 @@ struct SignedOutput {
     uint256 chainId;
     bytes32 token;
     uint256 amount;
-    /** @dev Ammended amount to the original order. */
+    /** @dev Amended amount to the original order. */
     uint256 trueAmount;
     bytes32 recipient;
     bytes remoteCall;

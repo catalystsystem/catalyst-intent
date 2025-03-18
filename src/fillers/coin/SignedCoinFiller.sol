@@ -92,7 +92,7 @@ contract SignedCoinFiller is CoinFillerWithFee, EIP712 {
         bytes calldata fulfillmentContext = output.fulfillmentContext;
         uint256 amount = _contextTrueAmount(fulfillmentContext);
         // The output amount shall describe a minimum output such
-        // that a fradulent signer cannot cheat the user.
+        // that a fraudulent signer cannot cheat the user.
         amount = amount >= output.amount ? amount : output.amount;
         address signer = _contextSigner(fulfillmentContext);
 

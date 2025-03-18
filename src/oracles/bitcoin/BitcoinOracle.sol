@@ -146,7 +146,7 @@ contract BitcoinOracle is BaseOracle {
         uint256 fulfillmentLength = fulfillmentContext.length;
         if (fulfillmentLength == 0) return DEFAULT_COLLATERAL_MULTIPLIER;
         bytes1 orderType = bytes1(fulfillmentContext);
-        if (orderType == 0xBC && fulfillmentLength == 33) {
+        if (orderType == 0xB0 && fulfillmentLength == 33) {
             // multiplier = abi.decode(fulfillmentContext, uint64);
             assembly ("memory-safe") {
                 multiplier := calldataload(add(fulfillmentContext.offset, 0x01))

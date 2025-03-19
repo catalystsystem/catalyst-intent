@@ -47,7 +47,8 @@ contract CreateOrder is Script {
     function orderIdentifier(
         CatalystCompactOrder memory order
     ) internal view returns (bytes32) {
-        return keccak256(abi.encodePacked(block.chainid, address(this), order.user, order.nonce, order.fillDeadline, order.localOracle, order.inputs, abi.encode(order.outputs)));
+        bytes memory encodedOrder = abi.encodePacked(block.chainid, COMPACT_SETTLER, order.user, order.nonce, order.fillDeadline, order.localOracle, order.inputs, abi.encode(order.outputs));
+        return keccak256(encodedOrder);
     }
 
     function getCompactBatchWitnessSignature(

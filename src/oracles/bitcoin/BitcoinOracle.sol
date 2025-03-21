@@ -74,8 +74,6 @@ contract BitcoinOracle is BaseOracle {
     // This also standardizes support for other light clients coins (Lightcoin 0x1C?)
     bytes30 constant BITCOIN_AS_TOKEN = 0x000000000000000000000000BC0000000000000000000000000000000000;
 
-    bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
-
     /**
      * @notice Used light client. If the contract is not overwritten, it is expected to be BitcoinPrism.
      */
@@ -274,7 +272,7 @@ contract BitcoinOracle is BaseOracle {
     function _isPayloadValid(
         bytes calldata payload
     ) internal view returns (bool) {
-        return _attestations[block.chainid][ADDRESS_THIS][ADDRESS_THIS][keccak256(payload)];
+        return _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][keccak256(payload)];
     }
 
     /**
@@ -379,7 +377,7 @@ contract BitcoinOracle is BaseOracle {
 
         // Store attestation.
         bytes32 outputHash = keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, uint32(timestamp), output));
-        _attestations[block.chainid][ADDRESS_THIS][ADDRESS_THIS][outputHash] = true;
+        _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][outputHash] = true;
 
         // We need to emit this event to make the output recognisably observably filled off-chain.
         emit OutputFilled(orderId, solver, uint32(timestamp), output);
@@ -558,7 +556,7 @@ contract BitcoinOracle is BaseOracle {
 
         bytes32 solver = claimedOrder.solver;
         bytes32 outputHash = keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, uint32(block.timestamp), output));
-        _attestations[block.chainid][ADDRESS_THIS][ADDRESS_THIS][outputHash] = true;
+        _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][outputHash] = true;
         emit OutputFilled(orderId, solver, uint32(block.timestamp), output);
 
         address sponsor = claimedOrder.sponsor;

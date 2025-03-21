@@ -31,7 +31,6 @@ abstract contract BaseFiller is IPayloadCreator {
     event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
-    bytes32 immutable ADDRESS_THIS = bytes32(uint256(uint160(address(this))));
 
     function _preDeliveryHook(address recipient, address token, uint256 outputAmount) internal virtual returns (uint256);
 
@@ -209,7 +208,7 @@ abstract contract BaseFiller is IPayloadCreator {
     function _IAmRemoteFiller(
         bytes32 remoteFiller
     ) internal view virtual {
-        if (ADDRESS_THIS != remoteFiller) revert WrongRemoteFiller(ADDRESS_THIS, remoteFiller);
+        if (bytes32(uint256(uint160(address(this)))) != remoteFiller) revert WrongRemoteFiller(bytes32(uint256(uint160(address(this)))), remoteFiller);
     }
 
     function _isPayloadValid(address oracle, bytes calldata payload) public view returns (bool) {

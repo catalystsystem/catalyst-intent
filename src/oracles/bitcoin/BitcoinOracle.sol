@@ -42,7 +42,7 @@ contract BitcoinOracle is BaseOracle {
     /**
      * @dev WARNING! Don't read output.remoteOracle nor output.chainId when emitted by this oracle.
      */
-    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
+    event OutputFilled(bytes32 indexed orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
     event OutputVerified(bytes32 verificationContext);
 
     event OutputClaimed(bytes32 indexed orderId, bytes32 outputId);

@@ -20,7 +20,7 @@ contract TestWormholeOracle is Test {
         uint256 readChainId = wormholeOracle.getChainIdentifierToBlockChainId(messagingProtocolChainIdentifier);
         assertEq(readChainId, chainId);
 
-        uint16 readMessagingProtocolChainIdentifier = wormholeOracle.getBlockChainIdtoChainIdentifier(chainId);
+        uint16 readMessagingProtocolChainIdentifier = wormholeOracle.getBlockChainIdToChainIdentifier(chainId);
         assertEq(readMessagingProtocolChainIdentifier, messagingProtocolChainIdentifier);
 
         vm.expectRevert(abi.encodeWithSignature("AlreadySet()"));

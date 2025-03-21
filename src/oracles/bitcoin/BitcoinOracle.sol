@@ -123,7 +123,7 @@ contract BitcoinOracle is BaseOracle {
      * 1 confirmations: 69 minutes.
      * 3 confirmations: 112 minutes.
      * 5 confirmations: 148 minutes.
-     * 7 confimrations: 181 minutes.
+     * 7 confirmations: 181 minutes.
      * You may wonder why the delta decreases as we increase confirmations?
      * That is the law of large numbers in action.
      * @dev Cannot handle confirmations == 0. Silently returns 181 minutes as a failure.
@@ -246,7 +246,7 @@ contract BitcoinOracle is BaseOracle {
      * 1 confirmations: 69 minutes.
      * 3 confirmations: 112 minutes.
      * 5 confirmations: 148 minutes.
-     * 7 confimrations: 181 minutes.
+     * 7 confirmations: 181 minutes.
      * You may wonder why the delta decreases as we increase confirmations?
      * That is the law of large numbers in action.
      */

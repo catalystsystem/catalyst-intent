@@ -511,7 +511,7 @@ contract BitcoinOracle is BaseOracle {
         uint256 collateralAmount = output.amount * multiplier;
         SafeTransferLib.safeTransferFrom(COLLATERAL_TOKEN, msg.sender, address(this), collateralAmount);
 
-        emit OutputClaimed(orderId, _outputIdentifier(output));
+        emit OutputClaimed(orderId, outputId);
     }
 
     /**

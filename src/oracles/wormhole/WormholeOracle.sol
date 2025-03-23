@@ -11,6 +11,9 @@ import { BaseOracle } from "../BaseOracle.sol";
 import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 
+import { ExecutorMessages } from "./external/ExecutorMessages.sol";
+import { IExecutor } from "./interfaces/IExecutor.sol";
+
 /**
  * @notice Wormhole Oracle.
  * Implements a transparent oracle that allows both sending and receiving messages along with
@@ -44,9 +47,13 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
     IWormhole public immutable WORMHOLE;
 
+    uint16 immutable localWormholeChainId;
+
     constructor(address _owner, address _wormhole) payable WormholeVerifier(_wormhole) {
         _initializeOwner(_owner);
         WORMHOLE = IWormhole(_wormhole);
+
+        localWormholeChainId = WORMHOLE.chainId();
     }
 
     // --- Chain ID Functions --- //
@@ -97,15 +104,18 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
 
     /**
      * @notice Takes proofs that have been marked as valid by a source and submits them to Wormhole for broadcast.
-     * @param proofSource Application that has payloads that are marked as valid.
+     * @param source Application that has payloads that are marked as valid.
      * @param payloads List of payloads that are checked for validity against the application and broadcasted.
      */
-    function submit(address proofSource, bytes[] calldata payloads) public payable returns (uint256 refund) {
-        // Check if the payloads are valid.
-        if (!IPayloadCreator(proofSource).arePayloadsValid(payloads)) revert NotAllPayloadsValid();
+    function submit(address source, bytes[] calldata payloads) public payable returns (uint256 refund, uint64 seq) {
+        uint256 packageCost;
+        (packageCost, seq) = _submit(source, payloads);
 
-        // Payloads are good. We can submit them on behalf of proofSource.
-        return _submit(proofSource, payloads);
+        // Refund excess value if any.
+        if (msg.value > packageCost) {
+            refund = msg.value - packageCost;
+            SafeTransferLib.safeTransferETH(msg.sender, refund);
+        }
     }
 
     // --- Wormhole Logic --- //
@@ -114,18 +124,28 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
      * @notice Submits a proof the associated messaging protocol.
      * @dev Refunds excess value to msg.sender.
      */
-    function _submit(address source, bytes[] calldata payloads) internal returns (uint256 refund) {
+    function _submit(address source, bytes[] calldata payloads) internal returns (uint256 packageCost, uint64 seq) {
+        // Check if the payloads are valid.
+        if (!IPayloadCreator(source).arePayloadsValid(payloads)) revert NotAllPayloadsValid();
+
         // This call fails if fillDeadlines.length < outputs.length
         bytes memory message = MessageEncodingLib.encodeMessage(bytes32(uint256(uint160(source))), payloads);
 
-        uint256 packageCost = WORMHOLE.messageFee();
-        WORMHOLE.publishMessage{ value: packageCost }(0, message, WORMHOLE_CONSISTENCY);
+        packageCost = WORMHOLE.messageFee();
+        seq = WORMHOLE.publishMessage{ value: packageCost }(0, message, WORMHOLE_CONSISTENCY);
+    }
 
-        // Refund excess value if any.
-        if (msg.value > packageCost) {
-            refund = msg.value - packageCost;
-            SafeTransferLib.safeTransferETH(msg.sender, refund);
-        }
+    function submitAndRelay(address source, bytes[] calldata payloads, address executor, uint256 destinatonChain, bytes32 destinationTarget, bytes calldata signedQuote, bytes calldata relayInstructions) payable external {
+        if (executor == address(0)) revert ZeroValue();
+        (uint256 packageCost, uint64 seq) = _submit(source, payloads);
+
+        uint256 executorVal = msg.value - packageCost;
+
+        bytes memory vaaV1RequestBytes = ExecutorMessages.makeVAAv1Request(localWormholeChainId, bytes32(uint256(uint160(address(this)))), seq);
+
+        IExecutor(executor).requestExecution{value: executorVal}(
+            _blockChainIdToChainIdentifier[destinatonChain], destinationTarget, msg.sender, signedQuote, vaaV1RequestBytes, relayInstructions
+        );
     }
 
     /**

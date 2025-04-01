@@ -460,11 +460,16 @@ contract BitcoinOracle is BaseOracle {
         // Check if there are outstanding collateral associated with the
         // registered claim.
         address sponsor = claimedOrder.sponsor;
-        uint32 claimTimestamp = claimedOrder.claimTimestamp;
         uint96 multiplier = claimedOrder.multiplier;
+        uint32 disputeTimestamp = claimedOrder.disputeTimestamp;
         address disputer = claimedOrder.disputer;
 
-        if (sponsor != address(0) && fillTimestamp >= claimTimestamp) {
+        // Check if the fill was before the disputeTimestamp.
+        // - fillTimestamp >= claimTimestamp is not checked and it is assumed the
+        // 1 day validation window is sufficient to check that the transaction was
+        // made to fill this output.
+        // - recall that the dispute timestamp has a sufficient  
+        if (sponsor != address(0) && (disputer == address(0) || fillTimestamp <= disputeTimestamp)) {
             bool disputed = disputer != address(0);
             // If the order has been disputed, we need to also collect the disputers collateral for the solver.
 

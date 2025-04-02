@@ -23,7 +23,7 @@ import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
  * It is a delivery first, inputs second scheme that allows users with a deposit inside The Compact.
  *
  * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
- * They then needs to either register or sign a supported claim with the intent as the witness.
+ * They then need to either register or sign a supported claim with the intent as the witness.
  * Without the deposit extension, this contract does not have a way to emit on-chain orders.
  */
 contract CompactSettler is BaseSettler {

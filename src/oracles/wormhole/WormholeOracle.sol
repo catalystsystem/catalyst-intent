@@ -87,7 +87,7 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
      * @param chainId Common chain identifier
      * @return messagingProtocolChainIdentifier Messaging protocol chain identifier.
      */
-    function getBlockChainIdtoChainIdentifier(
+    function getBlockChainIdToChainIdentifier(
         uint256 chainId
     ) external view returns (uint16 messagingProtocolChainIdentifier) {
         return _blockChainIdToChainIdentifier[chainId];

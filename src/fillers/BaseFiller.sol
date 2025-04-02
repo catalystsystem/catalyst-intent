@@ -28,7 +28,7 @@ abstract contract BaseFiller is IPayloadCreator {
 
     mapping(bytes32 orderId => mapping(bytes32 outputHash => FilledOutput)) _filledOutputs;
 
-    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
+    event OutputFilled(bytes32 indexed orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
 

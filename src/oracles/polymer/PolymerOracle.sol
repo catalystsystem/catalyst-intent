@@ -2,10 +2,12 @@
 pragma solidity ^0.8.26;
 
 import { Ownable } from "solady/auth/Ownable.sol";
+import { LibBytes } from "solady/utils/LibBytes.sol";
 
 import { BaseOracle } from "../BaseOracle.sol";
 import { ICrossL2Prover } from "./ICrossL2Prover.sol";
 import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+
 
 /**
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.
@@ -39,13 +41,13 @@ contract PolymerOracle is BaseOracle, Ownable {
      */
     function setChainMap(uint32 messagingProtocolChainIdentifier, uint256 chainId) external onlyOwner {
         // Check that the inputs haven't been mistakenly called with 0 values.
-        if (abi.encodePacked(messagingProtocolChainIdentifier).length == 0) revert ZeroValue();
+        if (messagingProtocolChainIdentifier == 0) revert ZeroValue();
         if (chainId == 0) revert ZeroValue();
 
         // This call only allows setting either value once, then they are done for.
         // We need to check if they are currently unset.
         if (_chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] != 0) revert AlreadySet();
-        if (abi.encodePacked(_blockChainIdToChainIdentifier[chainId]).length != 0) revert AlreadySet();
+        if (_blockChainIdToChainIdentifier[chainId] != 0) revert AlreadySet();
 
         _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] = chainId;
         _blockChainIdToChainIdentifier[chainId] = messagingProtocolChainIdentifier;
@@ -82,8 +84,8 @@ contract PolymerOracle is BaseOracle, Ownable {
     ) internal {
         (uint32 chainId, address emittingContract, bytes memory topics, bytes memory unindexedData) = CROSS_L2_PROVER.validateEvent(proof);
 
-        // Store payload attestations;
-        bytes32 orderId = bytes32(topics[0]);
+        // OrderId is topic[1] which is 32 to 64 bytes.
+        bytes32 orderId = bytes32(LibBytes.slice(topics, 32, 64));
 
         (bytes32 solver, uint32 timestamp, OutputDescription memory output) = abi.decode(unindexedData, (bytes32, uint32, OutputDescription));
 
@@ -91,10 +93,12 @@ contract PolymerOracle is BaseOracle, Ownable {
 
         // Convert the Polymer ChainID into the canonical chainId.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[chainId];
-        bytes32 senderIdentifier = bytes32(uint256(uint160(emittingContract)));
-        _attestations[remoteChainId][bytes32(0)][senderIdentifier][payloadHash] = true;
+        if (remoteChainId == 0) revert ZeroValue();
+        
+        bytes32 application = bytes32(uint256(uint160(emittingContract)));
+        _attestations[remoteChainId][bytes32(uint256(uint160(address(this))))][application][payloadHash] = true;
 
-        emit OutputProven(remoteChainId, bytes32(0), senderIdentifier, payloadHash);
+        emit OutputProven(remoteChainId, bytes32(uint256(uint160(address(this)))), application, payloadHash);
     }
 
     function receiveMessage(

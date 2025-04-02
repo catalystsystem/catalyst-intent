@@ -55,9 +55,18 @@ abstract contract BaseOracle is IOracle {
             uint256 proofBytes = proofSeries.length;
             uint256 series = proofBytes / (32 * 4);
             if (series * (32 * 4) != proofBytes) revert NotDivisible(proofBytes, 32 * 4);
+            
 
+            uint256 offset;
+            uint256 end;
+            assembly ("memory-safe") {
+                offset := proofSeries.offset
+                // overflow: proofSeries.offset + proofBytes indicates a point
+                // in calldata. Calldata is bounded.
+                end := add(proofSeries.offset, proofBytes)
+            }
             // Go over the data. We will use a for loop iterating over the offset.
-            for (uint256 offset; offset < proofBytes;) {
+            for (; offset < end;) {
                 // Load the proof description.
                 uint256 remoteChainId;
                 bytes32 remoteOracle;
@@ -65,13 +74,13 @@ abstract contract BaseOracle is IOracle {
                 bytes32 dataHash;
                 // Load variables from calldata to save gas compared to slices.
                 assembly ("memory-safe") {
-                    remoteChainId := calldataload(add(proofSeries.offset, offset))
+                    remoteChainId := calldataload(offset)
                     offset := add(offset, 0x20)
-                    remoteOracle := calldataload(add(proofSeries.offset, offset))
+                    remoteOracle := calldataload(offset)
                     offset := add(offset, 0x20)
-                    application := calldataload(add(proofSeries.offset, offset))
+                    application := calldataload(offset)
                     offset := add(offset, 0x20)
-                    dataHash := calldataload(add(proofSeries.offset, offset))
+                    dataHash := calldataload(offset)
                     offset := add(offset, 0x20)
                 }
                 bool state = _isProven(remoteChainId, remoteOracle, application, dataHash);

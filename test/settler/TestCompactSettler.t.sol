@@ -467,6 +467,7 @@ contract TestCompactSettler is Test {
     function test_finalise_to(address non_solver, address destination) external {
         vm.assume(destination != address(compactSettler));
         vm.assume(destination != address(theCompact));
+        vm.assume(token.balanceOf(destination) == 0);
         vm.assume(non_solver != solver);
 
         vm.prank(swapper);

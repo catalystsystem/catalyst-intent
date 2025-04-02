@@ -42,7 +42,7 @@ contract BitcoinOracle is BaseOracle {
     /**
      * @dev WARNING! Don't read output.remoteOracle nor output.chainId when emitted by this oracle.
      */
-    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
+    event OutputFilled(bytes32 indexed orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
     event OutputVerified(bytes32 verificationContext);
 
     event OutputClaimed(bytes32 indexed orderId, bytes32 outputId);
@@ -91,8 +91,7 @@ contract BitcoinOracle is BaseOracle {
 
     address public immutable COLLATERAL_TOKEN;
 
-    // todo: make this adjustable?
-    uint64 public immutable collateralMultiplier = 1;
+    uint64 public immutable DEFAULT_COLLATERAL_MULTIPLIER;
     uint32 constant DISPUTE_PERIOD = FOUR_CONFIRMATIONS;
     uint32 constant MIN_TIME_FOR_INCLUSION = TWO_CONFIRMATIONS;
     uint32 constant CAN_VALIDATE_OUTPUTS_FOR = 1 days;
@@ -130,22 +129,35 @@ contract BitcoinOracle is BaseOracle {
         uint256 confirmations
     ) internal pure returns (uint256) {
         unchecked {
-            uint256 gammaDistribution = confirmations < 3
+            uint256 gammaDistribution = confirmations <= 3
                 ? (confirmations == 1 ? ONE_CONFIRMATION : (confirmations == 2 ? TWO_CONFIRMATIONS : THREE_CONFIRMATIONS))
                 : (
                     confirmations < 8
                         ? (confirmations == 4 ? FOUR_CONFIRMATIONS : (confirmations == 5 ? FIVE_CONFIRMATIONS : (confirmations == 6 ? SIX_CONFIRMATIONS : SEVEN_CONFIRMATIONS)))
-                        : 181 minutes + confirmations * TIME_PER_ADDITIONAL_CONFIRMATION
+                        : 181 minutes + (confirmations - 7) * TIME_PER_ADDITIONAL_CONFIRMATION
                 );
             return gammaDistribution + LEAD_TIME;
         }
     }
 
-    constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken, uint64 _collateralMultiplier) payable {
+    function _readMultiplier(bytes calldata fulfillmentContext) internal view returns(uint256 multiplier) {
+        uint256 fulfillmentLength = fulfillmentContext.length;
+        if (fulfillmentLength == 0) return DEFAULT_COLLATERAL_MULTIPLIER;
+        bytes1 orderType = bytes1(fulfillmentContext);
+        if (orderType == 0xB0 && fulfillmentLength == 33) {
+            // multiplier = abi.decode(fulfillmentContext, uint64);
+            assembly ("memory-safe") {
+                multiplier := calldataload(add(fulfillmentContext.offset, 0x01))
+            }
+        }
+        return multiplier != 0 ? multiplier : DEFAULT_COLLATERAL_MULTIPLIER;
+    }
+
+    constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken, uint64 collateralMultiplier) payable {
         LIGHT_CLIENT = _lightClient;
         DISPUTED_ORDER_FEE_DESTINATION = disputedOrderFeeDestination;
         COLLATERAL_TOKEN = collateralToken;
-        collateralMultiplier = _collateralMultiplier;
+        DEFAULT_COLLATERAL_MULTIPLIER = collateralMultiplier;
     }
 
     function _outputIdentifier(
@@ -458,11 +470,16 @@ contract BitcoinOracle is BaseOracle {
         // Check if there are outstanding collateral associated with the
         // registered claim.
         address sponsor = claimedOrder.sponsor;
-        uint32 claimTimestamp = claimedOrder.claimTimestamp;
         uint96 multiplier = claimedOrder.multiplier;
+        uint32 disputeTimestamp = claimedOrder.disputeTimestamp;
         address disputer = claimedOrder.disputer;
 
-        if (sponsor != address(0) && fillTimestamp >= claimTimestamp) {
+        // Check if the fill was before the disputeTimestamp.
+        // - fillTimestamp >= claimTimestamp is not checked and it is assumed the
+        // 1 day validation window is sufficient to check that the transaction was
+        // made to fill this output.
+        // - recall that the dispute timestamp has a sufficient  
+        if (sponsor != address(0) && (disputer == address(0) || fillTimestamp <= disputeTimestamp)) {
             bool disputed = disputer != address(0);
             // If the order has been disputed, we need to also collect the disputers collateral for the solver.
 
@@ -497,7 +514,7 @@ contract BitcoinOracle is BaseOracle {
         // Check that this order hasn't been claimed before.
         ClaimedOrder storage claimedOrder = _claimedOrder[orderId][outputId];
         if (claimedOrder.solver != bytes32(0)) revert AlreadyClaimed(claimedOrder.solver);
-        uint64 multiplier = collateralMultiplier;
+        uint256 multiplier = _readMultiplier(output.fulfillmentContext);
 
         claimedOrder.solver = solver;
         claimedOrder.claimTimestamp = uint32(block.timestamp);
@@ -509,7 +526,7 @@ contract BitcoinOracle is BaseOracle {
         uint256 collateralAmount = output.amount * multiplier;
         SafeTransferLib.safeTransferFrom(COLLATERAL_TOKEN, msg.sender, address(this), collateralAmount);
 
-        emit OutputClaimed(orderId, _outputIdentifier(output));
+        emit OutputClaimed(orderId, outputId);
     }
 
     /**

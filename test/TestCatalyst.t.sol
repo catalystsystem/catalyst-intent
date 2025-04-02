@@ -66,6 +66,9 @@ contract TestCatalyst is Test {
     uint256 testGuardianPrivateKey;
     address testGuardian;
 
+    uint256 allocatorPrivateKey;
+    address allocator;
+
     MockERC20 token;
     MockERC20 anotherToken;
 
@@ -105,6 +108,11 @@ contract TestCatalyst is Test {
         alwaysOKAllocator = address(new AlwaysOKAllocator());
 
         theCompact.__registerAllocator(alwaysOKAllocator, "");
+
+        (allocator, allocatorPrivateKey) = makeAddrAndKey("allocator");
+
+        vm.prank(allocator);
+        theCompact.__registerAllocator(allocator, "");
 
         DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
@@ -206,7 +214,7 @@ contract TestCatalyst is Test {
     function test_entire_flow() external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+        uint256 tokenId = theCompact.deposit(address(token), allocator, amount);
 
         address localOracle = address(wormholeOracle);
 
@@ -231,8 +239,9 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
-        bytes memory allocatorSig = hex"";
+        bytes32 orderHash = this.orderHash(order);
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, orderHash);
+        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, orderHash);
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 

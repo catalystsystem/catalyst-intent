@@ -274,6 +274,8 @@ contract TestCatalyst is Test {
     function test_entire_flow_different_solvers(
         bytes32 solverIdentifier2
     ) external {
+        bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
+        vm.assume(solverIdentifier != solverIdentifier2);
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
         uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
@@ -318,7 +320,6 @@ contract TestCatalyst is Test {
 
         // Initiation is over. We need to fill the order.
 
-        bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
 
         bytes32 orderId = compactSettler.orderIdentifier(order);
 

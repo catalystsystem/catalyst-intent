@@ -768,6 +768,67 @@ contract TestBitcoinOracle is Test {
         assertEq(address(0), disputer_);
     }
 
+    function test_verify_custom_multiplier(bytes32 solver, bytes32 orderId, address caller, uint8 custom_multiplier) external {
+        vm.assume(custom_multiplier != 0);
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(0));
+        vm.assume(caller != address(bitcoinOracle));
+
+        // We need to wrap to the Bitcoin block.
+        vm.warp(BLOCK_TIME);
+        bytes32 bitcoinOracleBytes32 = bytes32(uint256(uint160(address(bitcoinOracle))));
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bitcoinOracleBytes32,
+            remoteFiller: bitcoinOracleBytes32,
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: SATS_AMOUNT,
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: bytes.concat(bytes1(0xB0), bytes32(uint256(custom_multiplier)))
+        });
+
+        uint256 collateralAmount = output.amount * uint256(custom_multiplier);
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        bytes32 outputId = bitcoinOracle.outputIdentifier(output);
+
+        vm.expectEmit();
+        emit OutputClaimed(orderId, bitcoinOracle.outputIdentifier(output));
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        (, , uint64 multiplier_, , ,) = bitcoinOracle._claimedOrder(orderId, outputId);
+
+        assertEq(custom_multiplier, multiplier_);
+
+        // Check for a refund of collateral.
+        assertEq(token.balanceOf(address(bitcoinOracle)), collateralAmount);
+        assertEq(token.balanceOf(caller), 0);
+
+        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+
+        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
+
+        // Check if the payload has been correctly stored for both a local oracle and remote oracle.
+
+        // Remote oracle (as filler)
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(BLOCK_TIME), output);
+        bytes[] memory payloads = new bytes[](1);
+        payloads[0] = payload;
+        bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
+        assertEq(fillerValid, true);
+
+        // Local oracle (as oracle)
+
+        bool oracleValid = bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
+        assertEq(oracleValid, true);
+    }
+
     function test_verify_after_dispute(bytes32 solver, bytes32 orderId, address caller, address disputer) external {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));

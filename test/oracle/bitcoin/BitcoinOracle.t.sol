@@ -17,6 +17,17 @@ import { Test } from "forge-std/Test.sol";
 import { BitcoinOracle } from "src/oracles/bitcoin/BitcoinOracle.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 
+contract BitcoinOracleMock is BitcoinOracle {
+
+    constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken, uint64 _collateralMultiplier) payable BitcoinOracle(_lightClient, disputedOrderFeeDestination, collateralToken, _collateralMultiplier) { }
+
+    function getProofPeriod(
+        uint256 confirmations
+    ) external pure returns (uint256) {
+        return _getProofPeriod(confirmations);
+    }
+}
+
 contract TestBitcoinOracle is Test {
     event OutputClaimed(bytes32 indexed orderId, bytes32 outputId);
 
@@ -27,7 +38,7 @@ contract TestBitcoinOracle is Test {
     WormholeOracle wormholeOracle;
 
     BtcPrism btcPrism;
-    BitcoinOracle bitcoinOracle;
+    BitcoinOracleMock bitcoinOracle;
 
     uint256 multiplier = 1e10 * 100;
 
@@ -39,7 +50,23 @@ contract TestBitcoinOracle is Test {
 
         btcPrism = new BtcPrism(BLOCK_HEIGHT, BLOCK_HASH, BLOCK_TIME, EXPECTED_TARGET, false);
 
-        bitcoinOracle = new BitcoinOracle(address(btcPrism), address(0), address(token), uint64(multiplier));
+        bitcoinOracle = new BitcoinOracleMock(address(btcPrism), address(0), address(token), uint64(multiplier));
+    }
+
+    // --- Time To Confirmation --- //
+
+    function test_proof_period() external view {
+        assertEq(bitcoinOracle.getProofPeriod(1), 69 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(2), 93 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(3), 112 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(4), 131 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(5), 148 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(6), 165 minutes + 7 minutes);
+        assertEq(bitcoinOracle.getProofPeriod(7), 181 minutes + 7 minutes);
+    }
+
+    function test_proof_period_n(uint8 n) external view {
+        assertEq(bitcoinOracle.getProofPeriod(7 + uint256(n)), 181 minutes + 7 minutes + uint256(n) * 15 minutes);
     }
 
     // --- Optimistic Component --- //
@@ -766,6 +793,67 @@ contract TestBitcoinOracle is Test {
         assertEq(0, uint256(multiplier_));
         assertEq(address(0), sponsor_);
         assertEq(address(0), disputer_);
+    }
+
+    function test_verify_custom_multiplier(bytes32 solver, bytes32 orderId, address caller, uint8 custom_multiplier) external {
+        vm.assume(custom_multiplier != 0);
+        vm.assume(solver != bytes32(0));
+        vm.assume(orderId != bytes32(0));
+        vm.assume(caller != address(0));
+        vm.assume(caller != address(bitcoinOracle));
+
+        // We need to wrap to the Bitcoin block.
+        vm.warp(BLOCK_TIME);
+        bytes32 bitcoinOracleBytes32 = bytes32(uint256(uint160(address(bitcoinOracle))));
+        OutputDescription memory output = OutputDescription({
+            remoteOracle: bitcoinOracleBytes32,
+            remoteFiller: bitcoinOracleBytes32,
+            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", UTXO_TYPE)),
+            recipient: bytes32(PHASH),
+            amount: SATS_AMOUNT,
+            chainId: uint32(block.chainid),
+            remoteCall: hex"",
+            fulfillmentContext: bytes.concat(bytes1(0xB0), bytes32(uint256(custom_multiplier)))
+        });
+
+        uint256 collateralAmount = output.amount * uint256(custom_multiplier);
+        token.mint(caller, collateralAmount);
+        vm.prank(caller);
+        token.approve(address(bitcoinOracle), collateralAmount);
+
+        bytes32 outputId = bitcoinOracle.outputIdentifier(output);
+
+        vm.expectEmit();
+        emit OutputClaimed(orderId, bitcoinOracle.outputIdentifier(output));
+
+        vm.prank(caller);
+        bitcoinOracle.claim(solver, orderId, output);
+
+        (, , uint64 multiplier_, , ,) = bitcoinOracle._claimedOrder(orderId, outputId);
+
+        assertEq(custom_multiplier, multiplier_);
+
+        // Check for a refund of collateral.
+        assertEq(token.balanceOf(address(bitcoinOracle)), collateralAmount);
+        assertEq(token.balanceOf(caller), 0);
+
+        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+
+        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
+
+        // Check if the payload has been correctly stored for both a local oracle and remote oracle.
+
+        // Remote oracle (as filler)
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(BLOCK_TIME), output);
+        bytes[] memory payloads = new bytes[](1);
+        payloads[0] = payload;
+        bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
+        assertEq(fillerValid, true);
+
+        // Local oracle (as oracle)
+
+        bool oracleValid = bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
+        assertEq(oracleValid, true);
     }
 
     function test_verify_after_dispute(bytes32 solver, bytes32 orderId, address caller, address disputer) external {

@@ -17,7 +17,7 @@ contract TestCoinFiller is Test {
     error NotImplemented();
     error SlopeStopped();
 
-    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
+    event OutputFilled(bytes32 indexed orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
     CoinFiller coinFiller;
 

@@ -41,13 +41,13 @@ contract PolymerOracle is BaseOracle, Ownable {
      */
     function setChainMap(uint32 messagingProtocolChainIdentifier, uint256 chainId) external onlyOwner {
         // Check that the inputs haven't been mistakenly called with 0 values.
-        if (abi.encodePacked(messagingProtocolChainIdentifier).length == 0) revert ZeroValue();
+        if (messagingProtocolChainIdentifier == 0) revert ZeroValue();
         if (chainId == 0) revert ZeroValue();
 
         // This call only allows setting either value once, then they are done for.
         // We need to check if they are currently unset.
         if (_chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] != 0) revert AlreadySet();
-        if (abi.encodePacked(_blockChainIdToChainIdentifier[chainId]).length != 0) revert AlreadySet();
+        if (_blockChainIdToChainIdentifier[chainId] != 0) revert AlreadySet();
 
         _chainIdentifierToBlockChainId[messagingProtocolChainIdentifier] = chainId;
         _blockChainIdToChainIdentifier[chainId] = messagingProtocolChainIdentifier;
@@ -93,6 +93,8 @@ contract PolymerOracle is BaseOracle, Ownable {
 
         // Convert the Polymer ChainID into the canonical chainId.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[chainId];
+        if (remoteChainId == 0) revert ZeroValue();
+        
         bytes32 application = bytes32(uint256(uint160(emittingContract)));
         _attestations[remoteChainId][bytes32(uint256(uint160(address(this))))][application][payloadHash] = true;
 

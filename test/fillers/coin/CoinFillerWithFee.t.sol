@@ -13,7 +13,7 @@ contract TestCoinFillerWithFee is Test {
 
     event NextGovernanceFee(uint64 nextGovernanceFee, uint64 nextGovernanceFeeTime);
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
-    event OutputFilled(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
+    event OutputFilled(bytes32 indexed orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
     event GovernanceFeesDistributed(address indexed to, address[] tokens, uint256[] collectedAmounts);
 
     CoinFillerWithFee coinFillerWithFee;

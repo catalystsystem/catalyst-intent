@@ -42,17 +42,15 @@ contract TestCoinFiller is Test {
 
     // --- VALID CASES --- //
 
-    function test_fill_skip(bytes32 orderId, address sender, bytes32 filler, uint256 amount) public {
+    function test_fill(bytes32 orderId, address sender, bytes32 filler, uint256 amount) public {
         vm.assume(filler != bytes32(0) && swapper != sender);
 
         outputToken.mint(sender, amount);
         vm.prank(sender);
         outputToken.approve(coinFillerAddress, amount);
 
-        bytes32[] memory orderIds = new bytes32[](1);
-        OutputDescription[] memory outputs = new OutputDescription[](1);
 
-        outputs[0] = OutputDescription({
+        OutputDescription memory output = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
             chainId: block.chainid,
@@ -62,31 +60,28 @@ contract TestCoinFiller is Test {
             remoteCall: bytes(""),
             fulfillmentContext: bytes("")
         });
-        orderIds[0] = orderId;
-
+    
         vm.prank(sender);
-
         vm.expectEmit();
-        emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
+        emit OutputFilled(orderId, filler, uint32(block.timestamp), output);
 
         vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount));
 
-        coinFiller.fillSkip(orderIds, outputs, filler);
+        coinFiller.fill(orderId, output, filler);
 
         assertEq(outputToken.balanceOf(swapper), amount);
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
-    function test_fill_throw(bytes32 orderId, address sender, bytes32 filler, uint256 amount) public {
-        vm.assume(filler != bytes32(0) && swapper != sender);
+    function test_fill_batch(bytes32 orderId, address sender, bytes32 filler, bytes32 nextFiller, uint128 amount, uint128 amount2) public {
+        vm.assume(filler != bytes32(0) && swapper != sender && nextFiller != filler && nextFiller != bytes32(0) && amount != amount2);
 
-        outputToken.mint(sender, amount);
+        outputToken.mint(sender, uint256(amount) + uint256(amount2));
         vm.prank(sender);
-        outputToken.approve(coinFillerAddress, amount);
+        outputToken.approve(coinFillerAddress, uint256(amount) + uint256(amount2));
 
-        bytes32[] memory orderIds = new bytes32[](1);
-        OutputDescription[] memory outputs = new OutputDescription[](1);
 
+        OutputDescription[] memory outputs = new OutputDescription[](2);
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
@@ -97,18 +92,50 @@ contract TestCoinFiller is Test {
             remoteCall: bytes(""),
             fulfillmentContext: bytes("")
         });
-        orderIds[0] = orderId;
 
-        vm.prank(sender);
+        outputs[1] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(outputTokenAddress))),
+            amount: amount2,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: bytes("")
+        });
+    
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
+        emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[1]);
 
         vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount));
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount2));
 
-        coinFiller.fillThrow(orderIds, outputs, filler);
+        uint256 prefillSnapshot = vm.snapshot();
 
-        assertEq(outputToken.balanceOf(swapper), amount);
+        vm.prank(sender);
+        coinFiller.fillBatch(orderId, outputs, filler);
+
+        assertEq(outputToken.balanceOf(swapper), uint256(amount) + uint256(amount2));
         assertEq(outputToken.balanceOf(sender), 0);
+
+        vm.revertTo(prefillSnapshot);
+        // Fill the first output by someone else. The other outputs won't be filled.
+        vm.prank(sender);
+        coinFiller.fill(orderId, outputs[0], nextFiller);
+
+        vm.expectRevert(abi.encodeWithSignature("FilledBySomeoneElse(bytes32)", (nextFiller)));
+        vm.prank(sender);
+        coinFiller.fillBatch(orderId, outputs, filler);
+
+        vm.revertTo(prefillSnapshot);
+        // Fill the second output by someone else. The first output will be filled.
+
+        vm.prank(sender);
+        coinFiller.fill(orderId, outputs[1], nextFiller);
+
+        vm.prank(sender);
+        coinFiller.fillBatch(orderId, outputs, filler);
     }
 
     function test_mock_callback_executor(address sender, bytes32 orderId, uint256 amount, bytes32 filler, bytes memory remoteCallData) public {
@@ -243,11 +270,7 @@ contract TestCoinFiller is Test {
         vm.prank(sender);
         outputToken.approve(coinFillerAddress, amount);
 
-        bytes32[] memory orderIds = new bytes32[](1);
-        OutputDescription[] memory outputs = new OutputDescription[](1);
-
-        orderIds[0] = orderId;
-        outputs[0] = OutputDescription({
+        OutputDescription memory output = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
             chainId: block.chainid,
@@ -259,10 +282,12 @@ contract TestCoinFiller is Test {
         });
 
         vm.prank(sender);
-        coinFiller.fillThrow(orderIds, outputs, filler);
+        coinFiller.fill(orderId, output, filler);
         vm.prank(sender);
-        vm.expectRevert(abi.encodeWithSelector(FilledBySomeoneElse.selector, filler));
-        coinFiller.fillThrow(orderIds, outputs, differentFiller);
+        bytes32 alreadyFilledBy = coinFiller.fill(orderId, output, differentFiller);
+
+        assertNotEq(alreadyFilledBy, differentFiller);
+        assertEq(alreadyFilledBy, filler);
     }
 
     function test_call_with_real_address(address sender, uint256 amount) public {

@@ -5,6 +5,8 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
+import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
+
 import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
@@ -17,9 +19,6 @@ abstract contract BaseFiller is IPayloadCreator {
     error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
     error WrongRemoteFiller(bytes32 addressThis, bytes32 expected);
     error ZeroValue(); // 0x7c946ed7
-
-    // The maximum gas used on calls is 1 million gas.
-    uint256 constant MAX_GAS_ON_CALL = 1_000_000;
 
     struct FilledOutput {
         bytes32 solver;
@@ -80,7 +79,7 @@ abstract contract BaseFiller is IPayloadCreator {
 
         // If there is an external call associated with the fill, execute it.
         uint256 remoteCallLength = output.remoteCall.length;
-        if (remoteCallLength > 0) _call(deliveryAmount, output);
+        if (remoteCallLength > 0) ICatalystCallback(recipient).outputFilled(output.token, deliveryAmount, output.remoteCall);
 
         emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 
@@ -89,91 +88,42 @@ abstract contract BaseFiller is IPayloadCreator {
 
     function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) internal virtual returns (bytes32);
 
+    // --- Solver Interface --- //
+
     function fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) external returns (bytes32) {
         return _fill(orderId, output, proposedSolver);
     }
 
+    // --- Batch Solving --- //
+
     /**
-     * @notice function overload of _fill to allow filling multiple outputs in a single call.
+     * @dev This function aids to simplify solver selection from outputs fills.
+     * The first output of an order will determine which solver "wins" the order.
+     * This function fills the first output by proposedSolver. Otherwise reverts.
+     * Then it attempts to fill the remaining outputs. If they have already been filled,
+     * it skips.
+     * If any of the outputs fails to fill (because of tokens OR external call) the entire
+     * fill reverts.
+     * 
+     * This function does not validate any part of the order but ensures multiple output orders
+     * can be filled in a safer manner.
+     *
+     * @param orderId Identifier for the order. Is not validated, ensure it is correct.
+     * @param outputs Order output descriptions. ENSURE that the FIRST output of the order is also the first output of this function.
+     * @param proposedSolver Solver identifier that will be able to claim funds on the input chain.
      */
-    function _fillThrow(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) internal {
+    function fillBatch(bytes32 orderId, OutputDescription[] calldata outputs, bytes32 proposedSolver) external {
+        bytes32 actualSolver = _fill(orderId, outputs[0], proposedSolver);
+        if (actualSolver != proposedSolver) revert FilledBySomeoneElse(actualSolver);
+
         uint256 numOutputs = outputs.length;
-        for (uint256 i; i < numOutputs; ++i) {
-            bytes32 existingSolver = _fill(orderIds[i], outputs[i], filler);
-            if (existingSolver != filler) revert FilledBySomeoneElse(existingSolver);
+        for (uint256 i = 1; i < numOutputs; ++i) {
+            _fill(orderId, outputs[i], proposedSolver);
         }
     }
 
-    function _fillSkip(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) internal {
-        uint256 numOutputs = outputs.length;
-        for (uint256 i; i < numOutputs; ++i) {
-            _fill(orderIds[i], outputs[i], filler);
-        }
-    }
 
-    // --- Solver Interface --- //
-
-    /**
-     * @notice Fills several outputs in one go. Can be used to batch fill orders to save gas.
-     * @dev If an output has been filled by someone else, this function will revert.
-     */
-    function fillThrow(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
-        _fillThrow(orderIds, outputs, filler);
-    }
-
-    /**
-     * @notice Fills several outputs in one go. Can be used to batch fill orders to save gas.
-     * @dev If an output has been filled by someone else, this function will skip that output and fill the remaining.
-     */
-    function fillSkip(bytes32[] calldata orderIds, OutputDescription[] calldata outputs, bytes32 filler) external {
-        _fillSkip(orderIds, outputs, filler);
-    }
-
-    // --- External Calls --- ///
-
-    /**
-     * @notice Allows calling an external function in a non-griefing manner.
-     * Source:
-     * https://github.com/catalystdao/GeneralisedIncentives/blob/38a88a746c7c18fb5d0f6aba195264fce34944d1/src/IncentivizedMessageEscrow.sol#L680
-     */
-    function _call(uint256 trueAmount, OutputDescription calldata output) internal {
-        address recipient = address(uint160(uint256(output.recipient)));
-        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, trueAmount, output.remoteCall);
-        bool success;
-        assembly ("memory-safe") {
-            // Because Solidity always create RETURNDATACOPY for external calls, even low-level calls where no variables
-            // are assigned, the contract can be attacked by a so called return bomb. This incur additional cost to the
-            // relayer they aren't paid for. To protect the relayer, the call is made in inline assembly.
-            success := call(MAX_GAS_ON_CALL, recipient, 0, add(payload, 0x20), mload(payload), 0, 0)
-            // This is what the call would look like non-assembly.
-            // recipient.call{gas: MAX_GAS_ON_CALL}(
-            //      abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", output.token, output.amount,
-            // output.remoteCall)
-            // );
-        }
-
-        // External calls are allocated gas according roughly the following: min( gasleft * 63/64, gasArg ).
-        // If there is no check against gasleft, then a relayer could potentially cheat by providing less gas.
-        // Without a check, they only have to provide enough gas such that any further logic executees on 1/64 of
-        // gasleft To ensure maximum compatibility with external tx simulation and gas estimation tools we will
-        // check a more complex but more forgiving expression.
-        // Before the call, there needs to be at least maxGasAck * 64/63 gas available. With that available, then
-        // the call is allocated exactly min(+(maxGasAck * 64/63 * 63/64), maxGasAck) = maxGasAck.
-        // If the call uses up all of the gas, then there must be maxGasAck * 64/63 - maxGasAck = maxGasAck * 1/63
-        // gas left. It is sufficient to check that smaller limit rather than the larger limit.
-        // Furthermore, if we only check when the call fails we don't have to read gasleft if it is not needed.
-        unchecked {
-            if (!success) if (gasleft() < MAX_GAS_ON_CALL * 1 / 63) revert NotEnoughGasExecution();
-        }
-        // Why is this better (than checking before)?
-        // 1. Only when call fails is it checked.. The vast majority of acks should not revert so it won't be checked.
-        // 2. For the majority of applications it is going to be hold that: gasleft > rest of logic > maxGasAck * 1 / 63
-        // and as such won't impact and execution/gas simuatlion/estimation libs.
-
-        // Why is this worse?
-        // 1. What if the application expected us to check that it got maxGasAck? It might assume that it gets
-        // maxGasAck, when it turns out it got less it silently reverts (say by a low level call ala ours).
-    }
+    // --- External Calls --- //
 
     /**
      * @notice Allows estimating the gas used for an external call.
@@ -185,7 +135,7 @@ abstract contract BaseFiller is IPayloadCreator {
         // Disallow calling on-chain.
         require(msg.sender == address(0));
 
-        _call(trueAmount, output);
+        ICatalystCallback(address(uint160(uint256(output.recipient)))).outputFilled(output.token, trueAmount, output.remoteCall);
     }
 
     //-- Helpers --//

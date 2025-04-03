@@ -239,22 +239,20 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes32 orderHash = this.orderHash(order);
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, orderHash);
-        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, orderHash);
+        bytes32 _orderHash = this.orderHash(order);
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
+        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 
         // Initiation is over. We need to fill the order.
 
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
-        bytes32[] memory orderIds = new bytes32[](1);
-
+        
         bytes32 orderId = compactSettler.orderIdentifier(order);
-        orderIds[0] = orderId;
 
         vm.prank(solver);
-        coinFiller.fillThrow(orderIds, outputs, solverIdentifier);
+        coinFiller.fill(orderId, outputs[0], solverIdentifier);
         vm.snapshotGasLastCall("fillThrow");
 
         bytes[] memory payloads = new bytes[](1);

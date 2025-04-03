@@ -25,6 +25,11 @@ contract CompactSettlerWithDeposit is CompactSettler {
         address compact
     ) CompactSettler(compact) { }
 
+    function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
+        name = "CatalystSettlerWithDeposit";
+        version = "Compact1d";
+    }
+
     function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystCompactOrder calldata order, ResetPeriod resetPeriod) internal {
         uint256[2][] memory idsAndAmounts = order.inputs;
         uint256 numInputs = idsAndAmounts.length;

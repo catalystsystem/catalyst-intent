@@ -31,7 +31,7 @@ contract CoinFiller is BaseFiller {
      */
     function _getAmount(
         OutputDescription calldata output
-    ) internal view returns (uint256 amount) {
+    ) internal virtual view returns (uint256 amount) {
         uint256 fulfillmentLength = output.fulfillmentContext.length;
         if (fulfillmentLength == 0) return output.amount;
         bytes1 orderType = bytes1(output.fulfillmentContext);

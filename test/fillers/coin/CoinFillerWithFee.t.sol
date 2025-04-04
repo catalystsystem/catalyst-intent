@@ -26,7 +26,7 @@ contract TestCoinFillerWithFee is Test {
     address outputTokenAddress;
 
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
-    uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
+    uint32 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
     uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
 
     function setUp() public {
@@ -42,9 +42,9 @@ contract TestCoinFillerWithFee is Test {
 
     // --- VALID CASES --- //
 
-    function test_fees_with_entire_flow(bytes32 orderId, address sender, bytes32 filler, uint64 fee, uint64 timeDelay, uint128 amount) public {
+    function test_fees_with_entire_flow(bytes32 orderId, address sender, bytes32 filler, uint64 fee, uint32 timeDelay, uint128 amount) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
-        vm.assume(timeDelay > uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+        vm.assume(timeDelay > uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
         vm.assume(filler != bytes32(0) && sender != swapper);
 
         uint256 expectedGovernanceShare = uint256(amount) * uint256(fee) / GOVERNANCE_FEE_DENOM;
@@ -55,7 +55,7 @@ contract TestCoinFillerWithFee is Test {
 
         vm.prank(owner);
         vm.expectEmit();
-        emit NextGovernanceFee(fee, uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+        emit NextGovernanceFee(fee, uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
         coinFillerWithFee.setGovernanceFee(fee);
 
         vm.warp(timeDelay);
@@ -78,12 +78,12 @@ contract TestCoinFillerWithFee is Test {
 
         vm.prank(sender);
         vm.expectEmit();
-        emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
+        emit OutputFilled(orderId, filler, timeDelay, outputs[0]);
 
         vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount));
         vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, coinFillerWithFeeAddress, expectedGovernanceShare));
 
-        coinFillerWithFee.fill(orderId, outputs[0], filler);
+        coinFillerWithFee.fill(type(uint32).max, orderId, outputs[0], filler);
 
         assertEq(outputToken.balanceOf(swapper), amount);
         assertEq(outputToken.balanceOf(coinFillerWithFeeAddress), expectedGovernanceShare);
@@ -122,11 +122,11 @@ contract TestCoinFillerWithFee is Test {
 
     function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
-        vm.assume(timeDelay < uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+        vm.assume(timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
 
         vm.prank(owner);
         vm.expectEmit();
-        emit NextGovernanceFee(fee, uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+        emit NextGovernanceFee(fee, uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
         coinFillerWithFee.setGovernanceFee(fee);
 
         vm.warp(timeDelay);

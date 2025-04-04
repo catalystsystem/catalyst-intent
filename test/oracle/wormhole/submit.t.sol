@@ -70,7 +70,7 @@ contract TestSubmitWormholeOracleProofs is Test {
         vm.expectCall(address(token), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount));
 
         vm.prank(sender);
-        filler.fill(orderId, output, solverIdentifier);
+        filler.fill(type(uint32).max, orderId, output, solverIdentifier);
 
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), output);
         bytes[] memory payloads = new bytes[](1);

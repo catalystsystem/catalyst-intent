@@ -7,6 +7,7 @@ struct CatalystCompactOrder {
     address user;
     uint256 nonce;
     uint256 originChainId;
+    uint32 expires;
     uint32 fillDeadline;
     address localOracle;
     uint256[2][] inputs;

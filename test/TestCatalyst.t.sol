@@ -181,7 +181,7 @@ contract TestCatalyst is Test {
             fulfillmentContext: hex""
         });
         CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
@@ -232,29 +232,27 @@ contract TestCatalyst is Test {
             fulfillmentContext: hex""
         });
         CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes32 orderHash = this.orderHash(order);
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, orderHash);
-        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, orderHash);
+        bytes32 _orderHash = this.orderHash(order);
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
+        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 
         // Initiation is over. We need to fill the order.
 
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
-        bytes32[] memory orderIds = new bytes32[](1);
-
+        
         bytes32 orderId = compactSettler.orderIdentifier(order);
-        orderIds[0] = orderId;
 
         vm.prank(solver);
-        coinFiller.fillThrow(orderIds, outputs, solverIdentifier);
+        coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
         vm.snapshotGasLastCall("fillThrow");
 
         bytes[] memory payloads = new bytes[](1);
@@ -315,7 +313,7 @@ contract TestCatalyst is Test {
             fulfillmentContext: hex""
         });
         CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
@@ -333,10 +331,10 @@ contract TestCatalyst is Test {
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
         vm.prank(solver);
-        coinFiller.fill(orderId, outputs[0], solverIdentifier);
+        coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
 
         vm.prank(solver);
-        coinFiller.fill(orderId, outputs[1], solverIdentifier2);
+        coinFiller.fill(type(uint32).max, orderId, outputs[1], solverIdentifier2);
 
         bytes[] memory payloads = new bytes[](2);
         payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);

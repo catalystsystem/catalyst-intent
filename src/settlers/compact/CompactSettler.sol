@@ -32,6 +32,7 @@ contract CompactSettler is BaseSettler {
     error InitiateDeadlinePassed(); // 0x606ef7f5
     error InvalidTimestampLength();
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
+    error FilledTooLate(uint32 expected, uint32 actual);
     error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
 
     TheCompact public immutable COMPACT;
@@ -81,18 +82,21 @@ contract CompactSettler is BaseSettler {
      * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
      * if someone filled one of the outputs.
      */
-    function _validateFills(address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, uint32 fillDeadline, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
+            uint32 outputFilledAt = timestamps[i];
+            if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
+
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], timestamps[i], output);
+            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], outputFilledAt, output);
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
@@ -111,18 +115,21 @@ contract CompactSettler is BaseSettler {
      * This function returns true if the order contains no outputs.
      * That means any order that has no outputs specified can be claimed with no issues.
      */
-    function _validateFills(address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, uint32 fillDeadline, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
+            uint32 outputFilledAt = timestamps[i];
+            if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
+
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solver, timestamps[i], output);
+            bytes32 payloadHash = _proofPayloadHash(orderId, solver, outputFilledAt, output);
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
@@ -154,7 +161,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solver, timestamps, order.fillDeadline, order.outputs);
 
         _finalise(order, signatures, orderId, solver, orderOwner);
     }
@@ -167,7 +174,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solver, timestamps, order.fillDeadline, order.outputs);
 
         _finalise(order, signatures, orderId, solver, destination);
 
@@ -201,7 +208,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solver, timestamps, order.fillDeadline, order.outputs);
 
         _finalise(order, signatures, orderId, solver, destination);
 
@@ -224,7 +231,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solvers, timestamps, order.fillDeadline, order.outputs);
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
@@ -257,7 +264,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, solvers, timestamps, order.fillDeadline, order.outputs);
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
@@ -288,7 +295,7 @@ contract CompactSettler is BaseSettler {
                     sponsorSignature: sponsorSignature,
                     sponsor: order.user,
                     nonce: order.nonce,
-                    expires: order.fillDeadline,
+                    expires: order.expires,
                     witness: TheCompactOrderType.orderHash(order),
                     witnessTypestring: string(TheCompactOrderType.BATCH_SUB_TYPES),
                     claims: claims,

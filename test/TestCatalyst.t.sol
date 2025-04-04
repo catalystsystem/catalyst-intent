@@ -181,7 +181,7 @@ contract TestCatalyst is Test {
             fulfillmentContext: hex""
         });
         CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
@@ -232,7 +232,7 @@ contract TestCatalyst is Test {
             fulfillmentContext: hex""
         });
         CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
@@ -252,7 +252,7 @@ contract TestCatalyst is Test {
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
         vm.prank(solver);
-        coinFiller.fill(orderId, outputs[0], solverIdentifier);
+        coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
         vm.snapshotGasLastCall("fillThrow");
 
         bytes[] memory payloads = new bytes[](1);
@@ -313,7 +313,7 @@ contract TestCatalyst is Test {
             fulfillmentContext: hex""
         });
         CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         // Make Compact
         bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
@@ -331,10 +331,10 @@ contract TestCatalyst is Test {
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
         vm.prank(solver);
-        coinFiller.fill(orderId, outputs[0], solverIdentifier);
+        coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
 
         vm.prank(solver);
-        coinFiller.fill(orderId, outputs[1], solverIdentifier2);
+        coinFiller.fill(type(uint32).max, orderId, outputs[1], solverIdentifier2);
 
         bytes[] memory payloads = new bytes[](2);
         payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);

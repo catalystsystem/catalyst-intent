@@ -19,6 +19,7 @@ abstract contract BaseFiller is IPayloadCreator {
     error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
     error WrongRemoteFiller(bytes32 addressThis, bytes32 expected);
     error ZeroValue(); // 0x7c946ed7
+    error FillDeadline();
 
     struct FilledOutput {
         bytes32 solver;
@@ -90,7 +91,9 @@ abstract contract BaseFiller is IPayloadCreator {
 
     // --- Solver Interface --- //
 
-    function fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) external returns (bytes32) {
+    function fill(uint32 fillDeadline, bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) external returns (bytes32) {
+        if (fillDeadline < block.timestamp) revert FillDeadline();
+        
         return _fill(orderId, output, proposedSolver);
     }
 
@@ -112,7 +115,9 @@ abstract contract BaseFiller is IPayloadCreator {
      * @param outputs Order output descriptions. ENSURE that the FIRST output of the order is also the first output of this function.
      * @param proposedSolver Solver identifier that will be able to claim funds on the input chain.
      */
-    function fillBatch(bytes32 orderId, OutputDescription[] calldata outputs, bytes32 proposedSolver) external {
+    function fillBatch(uint32 fillDeadline, bytes32 orderId, OutputDescription[] calldata outputs, bytes32 proposedSolver) external {
+        if (fillDeadline < block.timestamp) revert FillDeadline();
+
         bytes32 actualSolver = _fill(orderId, outputs[0], proposedSolver);
         if (actualSolver != proposedSolver) revert FilledBySomeoneElse(actualSolver);
 

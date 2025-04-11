@@ -4,9 +4,9 @@ pragma solidity ^0.8.26;
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
-import { BatchClaimWithWitness } from "the-compact/src/interfaces/ITheCompactClaims.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
-import { BatchClaimComponent } from "the-compact/src/types/Components.sol";
+import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
+import { SplitBatchClaimComponent, SplitComponent } from "the-compact/src/types/Components.sol";
 
 import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
@@ -144,11 +144,19 @@ contract CompactSettler is BaseSettler {
 
     // --- Finalise Orders --- //
 
-    function _finalise(CatalystCompactOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, address destination) internal {
+    function _validateOrderOwner(
+        bytes32 orderOwner
+    ) internal view {
+        // We need to cast orderOwner down. This is important to ensure that
+        // the solver can opt-in to an compact transfer instead of withdrawal.
+        if (EfficiencyLib.asSanitizedAddress(uint256(orderOwner)) != msg.sender) revert NotOrderOwner();
+    }
+
+    function _finalise(CatalystCompactOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, bytes32 destination) internal {
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
-        bytes calldata allocatorSignature = BytesLib.toBytes(signatures, 1);
+        bytes calldata allocatorData = BytesLib.toBytes(signatures, 1);
         // Payout inputs. (This also protects against re-entry calls.)
-        _resolveLock(order, sponsorSignature, allocatorSignature, destination);
+        _resolveLock(order, sponsorSignature, allocatorData, destination);
 
         emit Finalised(orderId, solver, destination);
     }
@@ -156,8 +164,8 @@ contract CompactSettler is BaseSettler {
     function finaliseSelf(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external {
         bytes32 orderId = _orderIdentifier(order);
 
-        address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
-        if (orderOwner != msg.sender) revert NotOrderOwner();
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
+        _validateOrderOwner(orderOwner);
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
@@ -166,11 +174,11 @@ contract CompactSettler is BaseSettler {
         _finalise(order, signatures, orderId, solver, orderOwner);
     }
 
-    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, address destination, bytes calldata call) external {
+    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, bytes32 destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
-        address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
-        if (orderOwner != msg.sender) revert NotOrderOwner();
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
+        _validateOrderOwner(orderOwner);
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
@@ -178,7 +186,7 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solver, destination);
 
-        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
     }
 
     /**
@@ -190,21 +198,21 @@ contract CompactSettler is BaseSettler {
      * the fills.
      * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
-     * bytes(allocatorSignature))
+     * bytes(allocatorData))
      */
     function finaliseFor(
         CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
         bytes32 solver,
-        address destination,
+        bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
     ) external {
         bytes32 orderId = _orderIdentifier(order);
 
-        address orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
-        _allowExternalClaimant(orderId, orderOwner, destination, call, orderOwnerSignature);
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
+        _allowExternalClaimant(orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature);
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
@@ -212,7 +220,7 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solver, destination);
 
-        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
     }
 
     // -- Fallback Finalise Functions -- //
@@ -223,11 +231,11 @@ contract CompactSettler is BaseSettler {
     // Important, this output generally matters in regards to the orderId. The solver of the first output is determined
     // to be the "orderOwner".
 
-    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, address destination, bytes calldata call) external {
+    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, bytes32 destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
-        address orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
-        if (orderOwner != msg.sender) revert NotOrderOwner();
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        _validateOrderOwner(orderOwner);
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
@@ -235,7 +243,7 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
-        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
     }
 
     /**
@@ -246,21 +254,21 @@ contract CompactSettler is BaseSettler {
      * the fills.
      * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
      * @param signatures A signature for the sponsor and the allocator.
-     *  abi.encode(bytes(sponsorSignature), bytes(allocatorSignature))
+     *  abi.encode(bytes(sponsorSignature), bytes(allocatorData))
      */
     function finaliseFor(
         CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
         bytes32[] calldata solvers,
-        address destination,
+        bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
     ) external {
         bytes32 orderId = _orderIdentifier(order);
 
-        address orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
-        _allowExternalClaimant(orderId, orderOwner, destination, call, orderOwnerSignature);
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        _allowExternalClaimant(orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature);
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
@@ -268,40 +276,41 @@ contract CompactSettler is BaseSettler {
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
-        if (call.length > 0) ICatalystCallback(destination).inputsFilled(order.inputs, call);
+        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
     }
 
     //--- The Compact & Resource Locks ---//
 
-    function _resolveLock(CatalystCompactOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorSignature, address solvedBy) internal virtual {
+    function _resolveLock(CatalystCompactOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorData, bytes32 claimant) internal virtual {
         uint256 numInputs = order.inputs.length;
-        BatchClaimComponent[] memory claims = new BatchClaimComponent[](numInputs);
+        SplitBatchClaimComponent[] memory splitBatchComponents = new SplitBatchClaimComponent[](numInputs);
         uint256[2][] calldata maxInputs = order.inputs;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] calldata input = maxInputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
-            claims[i] = BatchClaimComponent({
+            SplitComponent[] memory splitComponents = new SplitComponent[](1);
+            splitComponents[0] = SplitComponent({ claimant: uint256(claimant), amount: allocatedAmount });
+            splitBatchComponents[i] = SplitBatchClaimComponent({
                 id: tokenId, // The token ID of the ERC6909 token to allocate.
                 allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
-                amount: allocatedAmount // The claimed token amount; specified by the arbiter.
-             });
+                portions: splitComponents
+            });
         }
 
         require(
-            COMPACT.claimAndWithdraw(
-                BatchClaimWithWitness({
-                    allocatorSignature: allocatorSignature,
+            COMPACT.claim(
+                BatchClaim({
+                    allocatorData: allocatorData,
                     sponsorSignature: sponsorSignature,
                     sponsor: order.user,
                     nonce: order.nonce,
                     expires: order.expires,
                     witness: TheCompactOrderType.orderHash(order),
                     witnessTypestring: string(TheCompactOrderType.BATCH_SUB_TYPES),
-                    claims: claims,
-                    claimant: solvedBy
+                    claims: splitBatchComponents
                 })
-            )
+            ) != bytes32(0)
         );
     }
 
@@ -324,7 +333,7 @@ contract CompactSettler is BaseSettler {
         bytes32 orderId,
         CatalystCompactOrder calldata order,
         bytes32 orderSolvedByIdentifier,
-        address purchaser,
+        bytes32 purchaser,
         uint256 expiryTimestamp,
         address newDestination,
         bytes calldata call,

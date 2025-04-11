@@ -8,7 +8,6 @@ import { BaseOracle } from "../BaseOracle.sol";
 import { ICrossL2Prover } from "./ICrossL2Prover.sol";
 import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
-
 /**
  * @notice Polymer Oracle that uses the fill event to reconstruct the payload for verification.
  */
@@ -94,7 +93,7 @@ contract PolymerOracle is BaseOracle, Ownable {
         // Convert the Polymer ChainID into the canonical chainId.
         uint256 remoteChainId = _chainIdentifierToBlockChainId[chainId];
         if (remoteChainId == 0) revert ZeroValue();
-        
+
         bytes32 application = bytes32(uint256(uint160(emittingContract)));
         _attestations[remoteChainId][bytes32(uint256(uint160(address(this))))][application][payloadHash] = true;
 

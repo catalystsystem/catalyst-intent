@@ -30,7 +30,7 @@ contract CompactSettlerWithDeposit is CompactSettler {
         version = "Compact1d";
     }
 
-    function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystCompactOrder calldata order, ResetPeriod resetPeriod) internal {
+    function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystCompactOrder calldata order) internal {
         uint256[2][] memory idsAndAmounts = order.inputs;
         uint256 numInputs = idsAndAmounts.length;
         // We need to collect the tokens from msg.sender.
@@ -43,13 +43,15 @@ contract CompactSettlerWithDeposit is CompactSettler {
             SafeTransferLib.safeApproveWithRetry(token, address(COMPACT), amount);
         }
 
-        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.orderHash(order), resetPeriod);
+        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.orderHash(order));
     }
 
-    function depositFor(CatalystCompactOrder calldata order, ResetPeriod resetPeriod) external {
+    function depositFor(
+        CatalystCompactOrder calldata order
+    ) external {
         _validateOrder(order);
 
-        _deposit(order.user, order.nonce, order.fillDeadline, order, resetPeriod);
+        _deposit(order.user, order.nonce, order.fillDeadline, order);
 
         bytes32 orderId = _orderIdentifier(order);
         emit Deposited(orderId, order);

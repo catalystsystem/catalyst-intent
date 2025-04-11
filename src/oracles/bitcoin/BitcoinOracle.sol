@@ -140,7 +140,9 @@ contract BitcoinOracle is BaseOracle {
         }
     }
 
-    function _readMultiplier(bytes calldata fulfillmentContext) internal view returns(uint256 multiplier) {
+    function _readMultiplier(
+        bytes calldata fulfillmentContext
+    ) internal view returns (uint256 multiplier) {
         uint256 fulfillmentLength = fulfillmentContext.length;
         if (fulfillmentLength == 0) return DEFAULT_COLLATERAL_MULTIPLIER;
         bytes1 orderType = bytes1(fulfillmentContext);
@@ -478,7 +480,7 @@ contract BitcoinOracle is BaseOracle {
         // - fillTimestamp >= claimTimestamp is not checked and it is assumed the
         // 1 day validation window is sufficient to check that the transaction was
         // made to fill this output.
-        // - recall that the dispute timestamp has a sufficient  
+        // - recall that the dispute timestamp has a sufficient
         if (sponsor != address(0) && (disputer == address(0) || fillTimestamp <= disputeTimestamp)) {
             bool disputed = disputer != address(0);
             // If the order has been disputed, we need to also collect the disputers collateral for the solver.

@@ -3,9 +3,9 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
+import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
-import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 
 import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
@@ -93,7 +93,7 @@ abstract contract BaseFiller is IPayloadCreator {
 
     function fill(uint32 fillDeadline, bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) external returns (bytes32) {
         if (fillDeadline < block.timestamp) revert FillDeadline();
-        
+
         return _fill(orderId, output, proposedSolver);
     }
 
@@ -107,7 +107,7 @@ abstract contract BaseFiller is IPayloadCreator {
      * it skips.
      * If any of the outputs fails to fill (because of tokens OR external call) the entire
      * fill reverts.
-     * 
+     *
      * This function does not validate any part of the order but ensures multiple output orders
      * can be filled in a safer manner.
      *
@@ -126,7 +126,6 @@ abstract contract BaseFiller is IPayloadCreator {
             _fill(orderId, outputs[i], proposedSolver);
         }
     }
-
 
     // --- External Calls --- //
 

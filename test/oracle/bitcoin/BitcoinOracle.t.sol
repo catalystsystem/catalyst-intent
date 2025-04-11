@@ -18,8 +18,12 @@ import { BitcoinOracle } from "src/oracles/bitcoin/BitcoinOracle.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 
 contract BitcoinOracleMock is BitcoinOracle {
-
-    constructor(address _lightClient, address disputedOrderFeeDestination, address collateralToken, uint64 _collateralMultiplier) payable BitcoinOracle(_lightClient, disputedOrderFeeDestination, collateralToken, _collateralMultiplier) { }
+    constructor(
+        address _lightClient,
+        address disputedOrderFeeDestination,
+        address collateralToken,
+        uint64 _collateralMultiplier
+    ) payable BitcoinOracle(_lightClient, disputedOrderFeeDestination, collateralToken, _collateralMultiplier) { }
 
     function getProofPeriod(
         uint256 confirmations
@@ -65,7 +69,9 @@ contract TestBitcoinOracle is Test {
         assertEq(bitcoinOracle.getProofPeriod(7), 181 minutes + 7 minutes);
     }
 
-    function test_proof_period_n(uint8 n) external view {
+    function test_proof_period_n(
+        uint8 n
+    ) external view {
         assertEq(bitcoinOracle.getProofPeriod(7 + uint256(n)), 181 minutes + 7 minutes + uint256(n) * 15 minutes);
     }
 
@@ -829,7 +835,7 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        (, , uint64 multiplier_, , ,) = bitcoinOracle._claimedOrder(orderId, outputId);
+        (,, uint64 multiplier_,,,) = bitcoinOracle._claimedOrder(orderId, outputId);
 
         assertEq(custom_multiplier, multiplier_);
 

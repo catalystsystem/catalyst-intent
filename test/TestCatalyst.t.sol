@@ -81,7 +81,6 @@ contract TestCatalyst is Test {
 
     function getCompactBatchWitnessSignature(
         uint256 privateKey,
-        bytes32 typeHash,
         address arbiter,
         address sponsor,
         uint256 nonce,
@@ -89,16 +88,70 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts,
         bytes32 witness
     ) internal view returns (bytes memory sig) {
-        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, keccak256(abi.encode(typeHash, arbiter, sponsor, nonce, expires, keccak256(abi.encodePacked(idsAndAmounts)), witness))));
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            bytes(
+                                "BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,uint256[2][] idsAndAmounts,Mandate mandate)Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+                            )
+                        ),
+                        arbiter,
+                        sponsor,
+                        nonce,
+                        expires,
+                        keccak256(abi.encodePacked(idsAndAmounts)),
+                        witness
+                    )
+                )
+            )
+        );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
     }
 
-    function orderHash(
-        CatalystCompactOrder calldata order
-    ) external pure returns (bytes32) {
-        return TheCompactOrderType.orderHash(order);
+    function witnessHash(
+        CatalystCompactOrder memory order
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    bytes(
+                        "Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+                    )
+                ),
+                order.fillDeadline,
+                order.localOracle,
+                outputsHash(order.outputs)
+            )
+        );
+    }
+
+    function outputsHash(
+        OutputDescription[] memory outputs
+    ) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](outputs.length);
+        for (uint256 i = 0; i < outputs.length; ++i) {
+            OutputDescription memory output = outputs[i];
+            hashes[i] = keccak256(
+                abi.encode(
+                    keccak256(bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)")),
+                    output.remoteOracle,
+                    output.remoteFiller,
+                    output.chainId,
+                    output.token,
+                    output.amount,
+                    output.recipient,
+                    keccak256(output.remoteCall),
+                    keccak256(output.fulfillmentContext)
+                )
+            );
+        }
+        return keccak256(abi.encodePacked(hashes));
     }
 
     function encodeMessage(bytes32 remoteIdentifier, bytes[] calldata payloads) external pure returns (bytes memory) {
@@ -202,11 +255,10 @@ contract TestCatalyst is Test {
         });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -261,13 +313,11 @@ contract TestCatalyst is Test {
         });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes32 _orderHash = this.orderHash(order);
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
-        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
+        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 
@@ -350,11 +400,10 @@ contract TestCatalyst is Test {
         });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);

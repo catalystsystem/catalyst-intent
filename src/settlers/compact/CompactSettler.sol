@@ -306,8 +306,8 @@ contract CompactSettler is BaseSettler {
                     sponsor: order.user,
                     nonce: order.nonce,
                     expires: order.expires,
-                    witness: TheCompactOrderType.orderHash(order),
-                    witnessTypestring: string(TheCompactOrderType.BATCH_SUB_TYPES),
+                    witness: TheCompactOrderType.witnessHash(order),
+                    witnessTypestring: string(TheCompactOrderType.BATCH_COMPACT_SUB_TYPES),
                     claims: splitBatchComponents
                 })
             ) != bytes32(0)

@@ -18,7 +18,7 @@ struct AllowOpen {
  * TYPE: Is complete including sub-types.
  */
 library AllowOpenType {
-    bytes constant ALLOW_OPEN_TYPE_STUB = abi.encodePacked("AllowOpen(bytes32 orderId,bytes32 originSettler,address destination,bytes call)");
+    bytes constant ALLOW_OPEN_TYPE_STUB = bytes("AllowOpen(bytes32 orderId,bytes32 originSettler,address destination,bytes call)");
 
     bytes32 constant ALLOW_OPEN_TYPE_HASH = keccak256(ALLOW_OPEN_TYPE_STUB);
 

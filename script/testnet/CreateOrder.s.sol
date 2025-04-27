@@ -131,6 +131,62 @@ contract CreateOrder is Script {
         console.logBytes(sponsorSig);
     }
 
+    function signIntentNonEVM(
+        bytes32 remoteFiller,
+        bytes32 remoteOracle,
+        uint256 tokenId,
+        uint256 inputAmount,
+        bytes32 outToken,
+        uint256 outputAmount,
+        uint256 nonce,
+        uint256 remoteChain,
+        bytes32 recipient,
+        uint32 fillDeadline
+    ) external {
+        // Manage Inputs
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, inputAmount];
+
+        // Manage Outputs
+
+        vm.startBroadcast();
+
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: remoteFiller,
+            remoteOracle: remoteOracle,
+            chainId: remoteChain,
+            token: outToken,
+            amount: outputAmount,
+            recipient: recipient,
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // Construct our order.
+
+        CatalystCompactOrder memory order =
+            CatalystCompactOrder({ user: address(msg.sender), nonce: nonce, originChainId: block.chainid, fillDeadline: fillDeadline, localOracle: ALWAYS_YES_ORACLE, inputs: inputs, outputs: outputs });
+
+        // Create Associated Signature
+        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(
+            typeHash,
+            COMPACT_SETTLER,
+            order
+        );
+
+        bytes32 orderId = orderIdentifier(order);
+        console.logBytes32(orderId);
+        console.logBytes(sponsorSig);
+    }
+
+    function receiveMessage(
+        bytes calldata rawMessage
+    ) external {
+        WormholeOracle(WORMHOLE_ORACLE[block.chainid]).receiveMessage(rawMessage);
+    }
+
     function fillOutput(bytes32 orderId, address token, uint256 amount, bytes32 recipient) external {
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
@@ -150,6 +206,26 @@ contract CreateOrder is Script {
 
         bytes32 solverIdentifier = bytes32(uint256(uint160(msg.sender)));
         CoinFiller(COIN_FILLER).fill(orderId, outputs[0], solverIdentifier);
+    }
+
+    function fillOutputNonEVM(bytes32 orderId, address token, uint256 amount, bytes32 recipient, bytes32 proposedSolver) external {
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
+            remoteOracle: bytes32(uint256(uint160(WORMHOLE_ORACLE[block.chainid]))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(token)))),
+            amount: amount,
+            recipient: recipient,
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        vm.startBroadcast();
+
+        if (ERC20(token).allowance(msg.sender, COIN_FILLER) < amount) ERC20(token).approve(COIN_FILLER, amount);
+
+        CoinFiller(COIN_FILLER).fill(orderId, outputs[0], proposedSolver);
     }
 
     function submitOutput(bytes32 orderId, address token, uint256 amount, bytes32 recipient, uint32 timestamp) external {
@@ -173,7 +249,36 @@ contract CreateOrder is Script {
         WormholeOracle(WORMHOLE_ORACLE[block.chainid]).submit(COIN_FILLER, payloads);
     }
 
-    function finaliseIntent(uint256 tokenId, uint256 inputAmount, address outToken, uint256 outputAmount, uint256 nonce, uint256 remoteChain, bytes calldata signature, uint32 timestamp, uint32 fillDeadline) external {
+    function submitOutputNonEVM(bytes32 orderId, address token, uint256 amount, bytes32 recipient, uint32 timestamp, bytes32 proposedSolver) external {
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
+            remoteOracle: bytes32(uint256(uint160(WORMHOLE_ORACLE[block.chainid]))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(token)))),
+            amount: amount,
+            recipient: recipient,
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        vm.startBroadcast();
+        
+        bytes[] memory payloads = new bytes[](1);
+        payloads[0] = OutputEncodingLib.encodeFillDescriptionM(proposedSolver, orderId, timestamp, outputs[0]);
+        WormholeOracle(WORMHOLE_ORACLE[block.chainid]).submit(COIN_FILLER, payloads);
+    }
+
+    function finaliseIntent(
+        uint256 tokenId,
+        uint256 inputAmount,
+        address outToken,
+        uint256 outputAmount,
+        uint256 nonce,
+        uint256 remoteChain,
+        bytes calldata signature,
+        uint32 timestamp,
+        uint32 fillDeadline) external {
         // Manage Inputs
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, inputAmount];
@@ -204,6 +309,57 @@ contract CreateOrder is Script {
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = timestamp;
         bytes32 solverIdentifier = bytes32(uint256(uint160(msg.sender)));
+
+        CompactSettler(COMPACT_SETTLER).finaliseSelf(order, abi.encode(signature, hex""), timestamps, solverIdentifier);
+    }
+
+    function finaliseIntentNonEVM(
+        bytes32 remoteFiller,
+        bytes32 remoteOracle,
+        uint256 tokenId,
+        uint256 inputAmount,
+        bytes32 outToken,
+        uint256 outputAmount,
+        uint256 nonce,
+        uint256 remoteChain,
+        bytes32 recipient,
+        bytes32 proposedSolver,
+        address user,
+        uint32 fillDeadline,
+        uint32 timestamp,
+        bytes calldata signature
+    ) external {
+
+          // Manage Inputs
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, inputAmount];
+
+        // Manage Outputs
+
+
+        vm.startBroadcast();
+
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: remoteFiller,
+            remoteOracle: remoteOracle,
+            chainId: remoteChain,
+            token: outToken,
+            amount: outputAmount,
+            recipient: recipient,
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+
+        // Construct our order.
+
+        CatalystCompactOrder memory order =
+            CatalystCompactOrder({ user: user, nonce: nonce, originChainId: block.chainid, fillDeadline: fillDeadline, localOracle: ALWAYS_YES_ORACLE, inputs: inputs, outputs: outputs });
+
+
+        uint32[] memory timestamps = new uint32[](1);
+        timestamps[0] = timestamp;
+        bytes32 solverIdentifier = proposedSolver;
 
         CompactSettler(COMPACT_SETTLER).finaliseSelf(order, abi.encode(signature, hex""), timestamps, solverIdentifier);
     }

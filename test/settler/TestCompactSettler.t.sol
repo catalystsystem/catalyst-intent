@@ -7,7 +7,7 @@ import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
 import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWithDeposit.sol";
 
 import { AllowOpenType } from "src/settlers/types/AllowOpenType.sol";
-import { OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
+import { OrderPurchase, OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
 
 import { AlwaysYesOracle } from "../mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
@@ -37,15 +37,16 @@ interface EIP712 {
 
 contract MockDepositCompactSettler is CompactSettlerWithDeposit {
     constructor(
-        address compact
-    ) CompactSettlerWithDeposit(compact) { }
+        address compact,
+        address initalOwner
+    ) CompactSettlerWithDeposit(compact, initalOwner) { }
 
-    function validateFills(address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, uint32 fillDeadline, OutputDescription[] calldata outputDescriptions) external view {
-        _validateFills(localOracle, orderId, solvers, timestamps, fillDeadline, outputDescriptions);
+    function validateFills(CatalystCompactOrder calldata order, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps) external view {
+        _validateFills(order, orderId, solvers, timestamps);
     }
 
-    function validateFills(address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, uint32 fillDeadline, OutputDescription[] calldata outputDescriptions) external view {
-        _validateFills(localOracle, orderId, solver, timestamps, fillDeadline, outputDescriptions);
+    function validateFills(CatalystCompactOrder calldata order, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) external view {
+        _validateFills(order, orderId, solver, timestamps);
     }
 }
 
@@ -53,12 +54,19 @@ contract TestCompactSettler is Test {
     event Transfer(address from, address to, uint256 amount);
     event Transfer(address by, address from, address to, uint256 id, uint256 amount);
     event CompactRegistered(address indexed sponsor, bytes32 claimHash, bytes32 typehash);
+    event NextGovernanceFee(uint64 nextGovernanceFee, uint64 nextGovernanceFeeTime);
+    event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
+
+    uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
 
     MockDepositCompactSettler compactSettler;
     CoinFiller coinFiller;
 
     // Oracles
     address alwaysYesOracle;
+    
+    address owner;
 
     uint256 swapperPrivateKey;
     address swapper;
@@ -87,7 +95,9 @@ contract TestCompactSettler is Test {
 
         DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
-        compactSettler = new MockDepositCompactSettler(address(theCompact));
+        owner = makeAddr("owner");
+
+        compactSettler = new MockDepositCompactSettler(address(theCompact), owner);
         coinFiller = new CoinFiller();
         alwaysYesOracle = address(new AlwaysYesOracle());
 
@@ -155,23 +165,18 @@ contract TestCompactSettler is Test {
 
     function getOrderPurchaseSignature(
         uint256 privateKey,
-        bytes32 orderId,
-        address originSettler,
-        address destination,
-        bytes calldata call,
-        uint64 discount,
-        uint32 timeToBuy
+        OrderPurchase calldata orderPurchase
     ) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
-        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, OrderPurchaseType.hashOrderPurchase(orderId, originSettler, destination, call, discount, timeToBuy)));
+        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, OrderPurchaseType.hashOrderPurchase(orderPurchase)));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
     }
 
-    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, bytes32 destination, bytes calldata call) external view returns (bytes memory sig) {
+    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, bytes32 destination, bytes calldata call) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
-        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, originSettler, destination, call)));
+        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, destination, call)));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
@@ -269,8 +274,8 @@ contract TestCompactSettler is Test {
         compactSettler.depositFor(order);
     }
 
-    function hashOrderPurchase(bytes32 orderId, address originSettler, address destination, bytes calldata call, uint64 discount, uint32 timeToBuy) external pure returns (bytes32) {
-        return OrderPurchaseType.hashOrderPurchase(orderId, originSettler, destination, call, discount, timeToBuy);
+    function hashOrderPurchase(OrderPurchase calldata orderPurchase) external pure returns (bytes32) {
+        return OrderPurchaseType.hashOrderPurchase(orderPurchase);
     }
 
     function test_purchase_order(address purchaser, address target) external {
@@ -312,12 +317,15 @@ contract TestCompactSettler is Test {
 
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
+        OrderPurchase memory orderPurchase = OrderPurchase({
+            orderId: orderId,
+            destination: solver,
+            call: hex"",
+            discount: 0,
+            timeToBuy: 1000
+        });
         uint256 expiryTimestamp = type(uint256).max;
-        address newDestination = solver;
-        bytes memory call = hex"";
-        uint48 discount = 0;
-        uint32 timeToBuy = 1000;
-        bytes memory solverSignature = this.getOrderPurchaseSignature(solverPrivateKey, orderId, address(compactSettler), newDestination, call, discount, timeToBuy);
+        bytes memory solverSignature = this.getOrderPurchaseSignature(solverPrivateKey, orderPurchase);
 
         uint32 currentTime = 10000;
         vm.warp(currentTime);
@@ -328,10 +336,10 @@ contract TestCompactSettler is Test {
         anotherToken.approve(address(compactSettler), amount);
 
         vm.prank(purchaser);
-        compactSettler.purchaseOrder(orderId, order, orderSolvedByIdentifier, bytes32(uint256(uint160(purchaser))), expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
+        compactSettler.purchaseOrder(orderPurchase, order, orderSolvedByIdentifier, bytes32(uint256(uint160(purchaser))), expiryTimestamp, solverSignature);
 
         (uint32 storageLastOrderTimestamp, bytes32 storagePurchaser) = compactSettler.purchasedOrders(orderSolvedByIdentifier, orderId);
-        assertEq(storageLastOrderTimestamp, currentTime - timeToBuy);
+        assertEq(storageLastOrderTimestamp, currentTime - orderPurchase. timeToBuy);
         assertEq(storagePurchaser, bytes32(uint256(uint160(purchaser))));
     }
 
@@ -374,12 +382,15 @@ contract TestCompactSettler is Test {
 
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
-        uint256 expiryTimestamp = type(uint256).max;
-        address newDestination = solver;
-        bytes memory call = hex"";
-        uint48 discount = 0;
-        uint32 timeToBuy = 1000;
-        bytes memory solverSignature = this.getOrderPurchaseSignature(solverPrivateKey, orderId, address(compactSettler), newDestination, call, discount, timeToBuy);
+
+        OrderPurchase memory orderPurchase = OrderPurchase({
+            orderId: orderId,
+            destination: solver,
+            call: hex"",
+            discount: 0,
+            timeToBuy: 1000
+        });
+        bytes memory solverSignature = this.getOrderPurchaseSignature(solverPrivateKey, orderPurchase);
 
         uint32 currentTime = 10000;
         vm.warp(currentTime);
@@ -395,8 +406,10 @@ contract TestCompactSettler is Test {
         order.inputs[0][1] = order.inputs[0][1] - 1;
         bytes32 badOrderId = compactSettler.orderIdentifier(order);
 
+
+        uint256 expiryTimestamp = type(uint256).max;
         vm.expectRevert(abi.encodeWithSignature("OrderIdMismatch(bytes32,bytes32)", orderId, badOrderId));
-        compactSettler.purchaseOrder(orderId, order, orderSolvedByIdentifier, bytes32(uint256(uint160(purchaser))), expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
+        compactSettler.purchaseOrder(orderPurchase, order, orderSolvedByIdentifier, bytes32(uint256(uint160(purchaser))), expiryTimestamp, solverSignature);
     }
 
     // -- Units Tests -- //
@@ -438,7 +451,16 @@ contract TestCompactSettler is Test {
         }
         _validProofSeries[expectedProofPayload] = true;
 
-        compactSettler.validateFills(localOracle, orderId, solverIdentifier, timestamps, type(uint32).max, outputDescriptions);
+        compactSettler.validateFills(CatalystCompactOrder({
+            user: address(0),
+            nonce: 0,
+            originChainId: 0,
+            expires: type(uint32).max,
+            fillDeadline: type(uint32).max,
+            localOracle: localOracle,
+            inputs: new uint256[2][](0),
+            outputs: outputDescriptions
+        }), orderId, solverIdentifier, timestamps);
     }
 
     struct OrderFulfillmentDescriptionWithSolver {
@@ -470,7 +492,16 @@ contract TestCompactSettler is Test {
         }
         _validProofSeries[expectedProofPayload] = true;
 
-        compactSettler.validateFills(localOracle, orderId, solvers, timestamps, type(uint32).max, outputDescriptions);
+        compactSettler.validateFills(CatalystCompactOrder({
+            user: address(0),
+            nonce: 0,
+            originChainId: 0,
+            expires: type(uint32).max,
+            fillDeadline: type(uint32).max,
+            localOracle: localOracle,
+            inputs: new uint256[2][](0),
+            outputs: outputDescriptions
+        }), orderId, solvers, timestamps);
     }
 
     // -- Larger Integration tests -- //
@@ -737,7 +768,7 @@ contract TestCompactSettler is Test {
 
         assertEq(token.balanceOf(destination), 0);
 
-        orderOwnerSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, address(compactSettler), bytes32(uint256(uint160(destination))), hex"");
+        orderOwnerSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, bytes32(uint256(uint160(destination))), hex"");
 
         vm.prank(non_solver);
         compactSettler.finaliseFor(order, signature, timestamps, solverIdentifier, bytes32(uint256(uint160(destination))), hex"", orderOwnerSignature);
@@ -746,5 +777,106 @@ contract TestCompactSettler is Test {
         assertEq(token.balanceOf(destination), amount);
     }
 
-    function test_purchase_and_resolve() external { }
+    // --- Fee tests --- //
+
+    function test_invalid_governance_fee(
+        uint64 fee
+    ) public {
+        vm.assume(fee > MAX_GOVERNANCE_FEE);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
+        compactSettler.setGovernanceFee(fee);
+    }
+
+    function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {
+        vm.assume(fee <= MAX_GOVERNANCE_FEE);
+        vm.assume(timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+
+        vm.prank(owner);
+        vm.expectEmit();
+        emit NextGovernanceFee(fee, uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+        compactSettler.setGovernanceFee(fee);
+
+        vm.warp(timeDelay);
+        vm.expectRevert(abi.encodeWithSignature("GovernanceFeeChangeNotReady()"));
+        compactSettler.applyGovernanceFee();
+
+        vm.warp(uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+
+        assertEq(compactSettler.governanceFee(), 0);
+
+        vm.expectEmit();
+        emit GovernanceFeeChanged(0, fee);
+        compactSettler.applyGovernanceFee();
+
+        assertEq(compactSettler.governanceFee(), fee);
+    }
+
+    function test_finalise_self_with_fee(uint64 fee) external {
+        vm.assume(fee <= MAX_GOVERNANCE_FEE);
+        vm.prank(owner);
+        compactSettler.setGovernanceFee(fee);
+        vm.warp(uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY + 1);
+        compactSettler.applyGovernanceFee();
+
+        vm.prank(swapper);
+        uint256 amount = 1e18 / 10;
+        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+
+        address localOracle = address(alwaysYesOracle);
+
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [tokenId, amount];
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(coinFiller)))),
+            remoteOracle: bytes32(uint256(uint160(localOracle))),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(anotherToken)))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: hex"",
+            fulfillmentContext: hex""
+        });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
+
+        // Make Compact
+        uint256[2][] memory idsAndAmounts = new uint256[2][](1);
+        idsAndAmounts[0] = [tokenId, amount];
+
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
+        bytes memory allocatorSig = hex"";
+
+        bytes memory signature = abi.encode(sponsorSig, allocatorSig);
+
+        bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
+
+        bytes32 orderId = compactSettler.orderIdentifier(order);
+
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
+        bytes32 payloadHash = keccak256(payload);
+
+        uint32[] memory timestamps = new uint32[](1);
+        timestamps[0] = uint32(block.timestamp);
+
+        uint256 govFeeAmount = amount * fee / 10**18;
+        uint256 amountPostFee = amount - govFeeAmount;
+
+        vm.prank(solver);
+        compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
+        vm.snapshotGasLastCall("finaliseSelf");
+
+        assertEq(token.balanceOf(solver), amountPostFee);
+        assertEq(theCompact.balanceOf(owner, tokenId), govFeeAmount);
+    }
 }

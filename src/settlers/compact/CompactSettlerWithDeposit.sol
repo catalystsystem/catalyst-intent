@@ -16,14 +16,14 @@ import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType
  * by providing the Catalyst order to this contract and providing appropriate allowances.
  * @dev Using the Deposit for function, it is possible to convert an order into an associated
  * deposit in the Compact and emitting the order for consumption by solvers. Tokens are collected from msg.sender.
- *
  */
 contract CompactSettlerWithDeposit is CompactSettler {
     event Deposited(bytes32 orderId, CatalystCompactOrder order);
 
     constructor(
-        address compact
-    ) CompactSettler(compact) { }
+        address compact,
+        address initialOwner
+    ) CompactSettler(compact, initialOwner) { }
 
     function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
         name = "CatalystSettlerWithDeposit";

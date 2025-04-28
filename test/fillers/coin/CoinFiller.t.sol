@@ -72,6 +72,31 @@ contract TestCoinFiller is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
+    function test_exclusive_fill(bytes32 orderId, address sender, uint256 amount, bytes32 exclusiveFor, bytes32 solverIdentifier, uint32 startTime, uint32 currentTime) public {
+        vm.assume(solverIdentifier != bytes32(0) && swapper != sender);
+        vm.warp(currentTime);
+
+        outputToken.mint(sender, amount);
+        vm.prank(sender);
+        outputToken.approve(coinFillerAddress, amount);
+
+        OutputDescription memory output = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(outputTokenAddress))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: abi.encodePacked(bytes1(0xe0), exclusiveFor, startTime)
+        });
+
+        vm.prank(sender);
+
+        if (exclusiveFor != solverIdentifier && currentTime < startTime) vm.expectRevert(abi.encodeWithSignature("ExclusiveTo(bytes32)", exclusiveFor));
+        coinFiller.fill(type(uint32).max, orderId, output, solverIdentifier);
+    }
+
     function test_fill_batch(bytes32 orderId, address sender, bytes32 filler, bytes32 nextFiller, uint128 amount, uint128 amount2) public {
         vm.assume(filler != bytes32(0) && swapper != sender && nextFiller != filler && nextFiller != bytes32(0) && amount != amount2);
 
@@ -171,14 +196,18 @@ contract TestCoinFiller is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
-    function test_dutch_auction(bytes32 orderId, address sender, bytes32 filler, uint256 amount, uint128 slope, uint32 stopTime) public {
+    function test_dutch_auction(bytes32 orderId, address sender, bytes32 filler, uint128 amount, uint16 startTime, uint16 runTime, uint64 slope, uint16 currentTime) public {
+        uint32 stopTime = uint32(startTime) + uint32(runTime);
         vm.assume(filler != bytes32(0) && swapper != sender);
-        vm.assume(stopTime > block.timestamp);
-        vm.assume(type(uint256).max - amount > slope * (stopTime - block.timestamp));
+        vm.warp(currentTime);
 
-        outputToken.mint(sender, amount + slope * (stopTime - block.timestamp));
+        uint256 minAmount = amount;
+        uint256 maxAmount = amount + uint256(slope) * uint256(stopTime - startTime);
+        uint256 finalAmount = startTime > currentTime ? maxAmount : (stopTime < currentTime ? minAmount : (amount + uint256(slope) * uint256(stopTime - currentTime)));
+
+        outputToken.mint(sender, finalAmount);
         vm.prank(sender);
-        outputToken.approve(coinFillerAddress, amount + slope * (stopTime - block.timestamp));
+        outputToken.approve(coinFillerAddress, finalAmount);
 
         OutputDescription[] memory outputs = new OutputDescription[](1);
 
@@ -190,20 +219,94 @@ contract TestCoinFiller is Test {
             amount: amount,
             recipient: bytes32(uint256(uint160(swapper))),
             remoteCall: bytes(""),
-            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(uint256(slope)), bytes4(uint32(stopTime)))
+            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes4(uint32(startTime)), bytes4(uint32(stopTime)), bytes32(uint256(slope)))
         });
+  
 
         vm.prank(sender);
 
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
 
-        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount + slope * (stopTime - block.timestamp)));
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, finalAmount));
 
         coinFiller.fill(type(uint32).max, orderId, outputs[0], filler);
 
-        assertEq(outputToken.balanceOf(swapper), amount + slope * (stopTime - block.timestamp));
+        assertEq(outputToken.balanceOf(swapper), finalAmount);
         assertEq(outputToken.balanceOf(sender), 0);
+    }
+
+    function test_exclusive_dutch_auction(bytes32 orderId, address sender, uint128 amount, uint16 startTime, uint16 runTime, uint64 slope, uint16 currentTime, bytes32 exclusiveFor) public {
+        uint32 stopTime = uint32(startTime) + uint32(runTime);
+        vm.assume(exclusiveFor != bytes32(0) && swapper != sender);
+        vm.warp(currentTime);
+
+        uint256 minAmount = amount;
+        uint256 maxAmount = amount + uint256(slope) * uint256(stopTime - startTime);
+        uint256 finalAmount = startTime > currentTime ? maxAmount : (stopTime < currentTime ? minAmount : (amount + uint256(slope) * uint256(stopTime - currentTime)));
+
+        outputToken.mint(sender, finalAmount);
+        vm.prank(sender);
+        outputToken.approve(coinFillerAddress, finalAmount);
+
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(outputTokenAddress))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: abi.encodePacked(bytes1(0xe1), bytes32(exclusiveFor), bytes4(uint32(startTime)), bytes4(uint32(stopTime)), bytes32(uint256(slope)))
+        });
+  
+
+        vm.prank(sender);
+
+        vm.expectEmit();
+        emit OutputFilled(orderId, exclusiveFor, uint32(block.timestamp), outputs[0]);
+
+        vm.expectCall(outputTokenAddress, abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, finalAmount));
+
+        coinFiller.fill(type(uint32).max, orderId, outputs[0], exclusiveFor);
+
+        assertEq(outputToken.balanceOf(swapper), finalAmount);
+        assertEq(outputToken.balanceOf(sender), 0);
+    }
+
+    function test_revert_exclusive_for_another_dutch_auction(bytes32 orderId, address sender, uint128 amount, uint16 startTime, uint16 runTime, uint64 slope, uint16 currentTime, bytes32 exclusiveFor, bytes32 solverIdentifier) public {
+        uint32 stopTime = uint32(startTime) + uint32(runTime);
+        vm.assume(solverIdentifier != bytes32(0) && swapper != sender);
+        vm.assume(solverIdentifier != exclusiveFor);
+        vm.warp(currentTime);
+
+        uint256 minAmount = amount;
+        uint256 maxAmount = amount + uint256(slope) * uint256(stopTime - startTime);
+        uint256 finalAmount = startTime > currentTime ? maxAmount : (stopTime < currentTime ? minAmount : (amount + uint256(slope) * uint256(stopTime - currentTime)));
+
+        outputToken.mint(sender, finalAmount);
+        vm.prank(sender);
+        outputToken.approve(coinFillerAddress, finalAmount);
+
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(outputTokenAddress))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: abi.encodePacked(bytes1(0xe1), bytes32(exclusiveFor), bytes4(uint32(startTime)), bytes4(uint32(stopTime)), bytes32(uint256(slope)))
+        });
+  
+
+        vm.prank(sender);
+        if (startTime > currentTime) vm.expectRevert(abi.encodeWithSignature("ExclusiveTo(bytes32)", exclusiveFor));
+        coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
     }
 
     // --- FAILURE CASES --- //
@@ -332,7 +435,10 @@ contract TestCoinFiller is Test {
     }
 
     function test_invalid_fulfillment_context(address sender, bytes32 filler, bytes32 orderId, uint256 amount, bytes memory fulfillmentContext) public {
-        vm.assume(fulfillmentContext.length != 37 && fulfillmentContext.length > 1);
+        vm.assume(bytes1(fulfillmentContext) != 0x00 && fulfillmentContext.length != 1);
+        vm.assume(bytes1(fulfillmentContext) != 0x01 && fulfillmentContext.length != 41);
+        vm.assume(bytes1(fulfillmentContext) != 0xe0 && fulfillmentContext.length != 37);
+        vm.assume(bytes1(fulfillmentContext) != 0xe1 && fulfillmentContext.length != 73);
         vm.assume(filler != bytes32(0));
 
         outputToken.mint(sender, amount);
@@ -354,29 +460,6 @@ contract TestCoinFiller is Test {
 
         vm.prank(sender);
         vm.expectRevert(NotImplemented.selector);
-        coinFiller.fill(type(uint32).max, orderId, outputs[0], filler);
-    }
-
-    function test_slope_stopped(address sender, bytes32 orderId, bytes32 filler, uint256 amount, uint256 slope, uint32 currentTime, uint32 stopTime) public {
-        vm.assume(stopTime < currentTime);
-        vm.warp(currentTime);
-        vm.assume(filler != bytes32(0));
-
-        OutputDescription[] memory outputs = new OutputDescription[](1);
-
-        outputs[0] = OutputDescription({
-            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
-            remoteOracle: bytes32(0),
-            chainId: block.chainid,
-            token: bytes32(uint256(uint160(outputTokenAddress))),
-            amount: amount,
-            recipient: bytes32(uint256(uint160(swapper))),
-            remoteCall: bytes(""),
-            fulfillmentContext: abi.encodePacked(bytes1(0x01), bytes32(slope), bytes4(stopTime))
-        });
-
-        vm.prank(sender);
-        vm.expectRevert(SlopeStopped.selector);
         coinFiller.fill(type(uint32).max, orderId, outputs[0], filler);
     }
 }

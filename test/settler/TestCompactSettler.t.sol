@@ -628,8 +628,6 @@ contract TestCompactSettler is Test {
 
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
-        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, filledAt, outputs[0]);
-
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = filledAt;
 

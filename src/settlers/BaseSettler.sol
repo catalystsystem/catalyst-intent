@@ -22,7 +22,7 @@ import { IOracle } from "src/interfaces/IOracle.sol";
  * @dev Implements the default OutputDescriptionType and makes functions that are dedicated to that order type
  * available to implementing implementations.
  */
-abstract contract BaseSettler is EIP712 {
+abstract contract BaseSettler is EIP712, ReentrancyGuard {
     error AlreadyPurchased();
     error Expired();
     error InvalidPurchaser();

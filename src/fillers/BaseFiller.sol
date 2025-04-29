@@ -75,8 +75,8 @@ abstract contract BaseFiller is IPayloadCreator, BaseOracle {
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, outputAmount);
 
         // If there is an external call associated with the fill, execute it.
-        uint256 remoteCallLength = output.remoteCall.length;
-        if (remoteCallLength > 0) ICatalystCallback(recipient).outputFilled(output.token, outputAmount, output.remoteCall);
+        bytes calldata remoteCall = output.remoteCall;
+        if (remoteCall.length > 0) ICatalystCallback(recipient).outputFilled(output.token, outputAmount, remoteCall);
 
         emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 

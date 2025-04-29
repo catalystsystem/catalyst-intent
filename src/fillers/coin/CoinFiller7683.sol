@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
+import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IDestinationSettler } from "src/interfaces/IERC7683.sol";
 
 import { CoinFiller } from "./CoinFiller.sol";
@@ -68,23 +69,11 @@ contract CoinFiller7683 is CoinFiller, IDestinationSettler {
         SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, deliveryAmount);
 
         // If there is an external call associated with the fill, execute it.
-        uint256 remoteCallLength = output.remoteCall.length;
-        if (remoteCallLength > 0) _callMemory(deliveryAmount, address(uint160(uint256(output.recipient))), output.token, output.remoteCall);
+        bytes memory remoteCall = output.remoteCall;
+        if (remoteCall.length > 0) ICatalystCallback(recipient).outputFilled(output.token, deliveryAmount, remoteCall);
 
         emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 
         return proposedSolver;
-    }
-
-
-    function _callMemory(uint256 amount, address destination, bytes32 token, bytes memory remoteCall) internal {
-        bytes memory payload = abi.encodeWithSignature("outputFilled(bytes32,uint256,bytes)", token, amount, remoteCall);
-        bool success;
-        assembly ("memory-safe") {
-            success := call(MAX_GAS_ON_CALL, destination, 0, add(payload, 0x20), mload(payload), 0, 0)
-        }
-        unchecked {
-            if (!success) if (gasleft() < MAX_GAS_ON_CALL * 1 / 63) revert NotEnoughGasExecution();
-        }
     }
 }

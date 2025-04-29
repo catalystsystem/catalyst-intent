@@ -482,7 +482,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -556,7 +556,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -616,7 +616,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -683,7 +683,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 

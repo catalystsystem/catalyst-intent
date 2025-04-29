@@ -6,7 +6,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
-import { SplitBatchClaimComponent, SplitComponent } from "the-compact/src/types/Components.sol";
+import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
 
 import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
@@ -283,23 +283,23 @@ contract CompactSettler is BaseSettler {
 
     function _resolveLock(CatalystCompactOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorData, bytes32 claimant) internal virtual {
         uint256 numInputs = order.inputs.length;
-        SplitBatchClaimComponent[] memory splitBatchComponents = new SplitBatchClaimComponent[](numInputs);
+        BatchClaimComponent[] memory batchClaimComponents = new BatchClaimComponent[](numInputs);
         uint256[2][] calldata maxInputs = order.inputs;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] calldata input = maxInputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
-            SplitComponent[] memory splitComponents = new SplitComponent[](1);
-            splitComponents[0] = SplitComponent({ claimant: uint256(claimant), amount: allocatedAmount });
-            splitBatchComponents[i] = SplitBatchClaimComponent({
+            Component[] memory components = new Component[](1);
+            components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
+            batchClaimComponents[i] = BatchClaimComponent({
                 id: tokenId, // The token ID of the ERC6909 token to allocate.
                 allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
-                portions: splitComponents
+                portions: components
             });
         }
 
         require(
-            COMPACT.claim(
+            COMPACT.batchClaim(
                 BatchClaim({
                     allocatorData: allocatorData,
                     sponsorSignature: sponsorSignature,
@@ -308,7 +308,7 @@ contract CompactSettler is BaseSettler {
                     expires: order.expires,
                     witness: TheCompactOrderType.witnessHash(order),
                     witnessTypestring: string(TheCompactOrderType.BATCH_COMPACT_SUB_TYPES),
-                    claims: splitBatchComponents
+                    claims: batchClaimComponents
                 })
             ) != bytes32(0)
         );

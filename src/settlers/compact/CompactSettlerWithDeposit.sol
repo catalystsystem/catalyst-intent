@@ -43,7 +43,7 @@ contract CompactSettlerWithDeposit is CompactSettler {
             SafeTransferLib.safeApproveWithRetry(token, address(COMPACT), amount);
         }
 
-        COMPACT.depositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.witnessHash(order));
+        COMPACT.batchDepositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.witnessHash(order));
     }
 
     function depositFor(

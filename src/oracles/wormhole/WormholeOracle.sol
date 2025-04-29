@@ -102,7 +102,12 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
      */
     function submit(address proofSource, bytes[] calldata payloads) public payable returns (uint256 refund) {
         // Check if the payloads are valid.
-        if (!IPayloadCreator(proofSource).arePayloadsValid(payloads)) revert NotAllPayloadsValid();
+        uint256 numPayloads = payloads.length;
+        bytes32[] memory payloadHashes = new bytes32[](numPayloads);
+        for (uint256 i; i < numPayloads; ++i) {
+            payloadHashes[i] = keccak256(payloads[i]);
+        }
+        if (!IPayloadCreator(proofSource).arePayloadsValid(payloadHashes)) revert NotAllPayloadsValid();
 
         // Payloads are good. We can submit them on behalf of proofSource.
         return _submit(proofSource, payloads);

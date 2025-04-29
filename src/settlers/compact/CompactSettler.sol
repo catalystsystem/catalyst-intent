@@ -32,7 +32,7 @@ import { IOracle } from "src/interfaces/IOracle.sol";
  *
  * The ownable component of the smart contract is only used for fees.
  */
-contract CompactSettler is BaseSettler, Ownable {
+contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
     error NotImplemented();
     error NotOrderOwner();
     error InitiateDeadlinePassed(); // 0x606ef7f5

@@ -3,8 +3,8 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
+import { BaseOracle } from "src/oracles/BaseOracle.sol";
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
-import { IOracle } from "src/interfaces/IOracle.sol";
 import { IPayloadCreator } from "src/interfaces/IPayloadCreator.sol";
 
 import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
@@ -12,7 +12,7 @@ import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib
 /**
  * @notice Base
  */
-abstract contract BaseFiller is IPayloadCreator {
+abstract contract BaseFiller is IPayloadCreator, BaseOracle {
     error DifferentRemoteOracles();
     error NotEnoughGasExecution(); // 0x6bc33587
     error FilledBySomeoneElse(bytes32 solver);
@@ -21,12 +21,7 @@ abstract contract BaseFiller is IPayloadCreator {
     error ZeroValue(); // 0x7c946ed7
     error FillDeadline();
 
-    struct FilledOutput {
-        bytes32 solver;
-        uint32 timestamp;
-    }
-
-    mapping(bytes32 orderId => mapping(bytes32 outputHash => FilledOutput)) _filledOutputs;
+    mapping(bytes32 orderId => mapping(bytes32 outputHash => bytes32 solver)) _filledOutputs;
 
     event OutputFilled(bytes32 indexed orderId, bytes32 solver, uint32 timestamp, OutputDescription output);
 
@@ -58,14 +53,18 @@ abstract contract BaseFiller is IPayloadCreator {
         bytes32 outputHash = OutputEncodingLib.getOutputDescriptionHash(output);
 
         // Get the proof state of the fulfillment.
-        bytes32 existingSolver = _filledOutputs[orderId][outputHash].solver;
+        bytes32 existingSolver = _filledOutputs[orderId][outputHash];
 
         // Early return if we have already seen proof.
         if (existingSolver != bytes32(0)) return existingSolver;
 
         // The fill status is set before the transfer.
         // This allows the above code-chunk to act as a local re-entry check.
-        _filledOutputs[orderId][outputHash] = FilledOutput({ solver: proposedSolver, timestamp: uint32(block.timestamp) });
+        _filledOutputs[orderId][outputHash] = proposedSolver;
+
+        // Set the associated attestation as true.
+        bytes32 dataHash = keccak256(OutputEncodingLib.encodeFillDescription(proposedSolver, orderId, uint32(block.timestamp), output));
+        _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][dataHash] = true;
 
         // Load order description.
         address recipient = address(uint160(uint256(output.recipient)));
@@ -156,41 +155,22 @@ abstract contract BaseFiller is IPayloadCreator {
      * @dev For some oracles, it might be required that you "cheat" and change the encoding here.
      * Don't worry (or do worry) because the other side loads the payload as bytes32(bytes).
      */
-    function _IAmRemoteFiller(
-        bytes32 remoteFiller
-    ) internal view virtual {
+    function _IAmRemoteFiller(bytes32 remoteFiller) internal view virtual {
         if (bytes32(uint256(uint160(address(this)))) != remoteFiller) revert WrongRemoteFiller(bytes32(uint256(uint160(address(this)))), remoteFiller);
     }
 
-    function _isPayloadValid(address oracle, bytes calldata payload) public view returns (bool) {
-        uint256 chainId = block.chainid;
-        bytes32 outputHash =
-            OutputEncodingLib.getOutputDescriptionHash(bytes32(uint256(uint160(oracle))), bytes32(uint256(uint160(address(this)))), chainId, OutputEncodingLib.decodeFillDescriptionCommonPayload(payload));
-
-        bytes32 orderId = OutputEncodingLib.decodeFillDescriptionOrderId(payload);
-        FilledOutput storage filledOutput = _filledOutputs[orderId][outputHash];
-
-        bytes32 filledSolver = filledOutput.solver;
-        uint32 filledTimestamp = filledOutput.timestamp;
-        if (filledSolver == bytes32(0)) return false;
-
-        bytes32 payloadSolver = OutputEncodingLib.decodeFillDescriptionSolver(payload);
-        uint32 payloadTimestamp = OutputEncodingLib.decodeFillDescriptionTimestamp(payload);
-
-        if (filledSolver != payloadSolver) return false;
-        if (filledTimestamp != payloadTimestamp) return false;
-
-        return true;
+    function _isPayloadValid(bytes32 payloadHash) public view returns (bool) {
+        return _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][payloadHash];
     }
 
     function arePayloadsValid(
-        bytes[] calldata payloads
+        bytes32[] calldata payloadHashes
     ) external view returns (bool) {
-        address sender = msg.sender;
-        uint256 numPayloads = payloads.length;
+        uint256 numPayloads = payloadHashes.length;
+        bool accumulator = true;
         for (uint256 i; i < numPayloads; ++i) {
-            if (!_isPayloadValid(sender, payloads[i])) return false;
+            accumulator = accumulator && _isPayloadValid(payloadHashes[i]);
         }
-        return true;
+        return accumulator;
     }
 }

@@ -9,7 +9,7 @@ import { IOracle } from "src/interfaces/IOracle.sol";
  */
 abstract contract BaseOracle is IOracle {
     error NotDivisible(uint256 value, uint256 divisor);
-    error NotProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 application, bytes32 dataHash);
+    error NotProven();
 
     event OutputProven(uint256 chainid, bytes32 remoteIdentifier, bytes32 application, bytes32 payloadHash);
 
@@ -64,6 +64,7 @@ abstract contract BaseOracle is IOracle {
                 // in calldata. Calldata is bounded.
                 end := add(proofSeries.offset, proofBytes)
             }
+            bool state = true;
             // Go over the data. We will use a for loop iterating over the offset.
             for (; offset < end;) {
                 // Load the proof description.
@@ -82,9 +83,9 @@ abstract contract BaseOracle is IOracle {
                     dataHash := calldataload(offset)
                     offset := add(offset, 0x20)
                 }
-                bool state = _isProven(remoteChainId, remoteOracle, application, dataHash);
-                if (!state) revert NotProven(remoteChainId, remoteOracle, application, dataHash);
+                state = state && _isProven(remoteChainId, remoteOracle, application, dataHash);
             }
+            if (!state) revert NotProven();
         }
     }
 }

@@ -777,9 +777,9 @@ contract TestBitcoinOracle is Test {
 
         // Remote oracle (as filler)
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(BLOCK_TIME), output);
-        bytes[] memory payloads = new bytes[](1);
-        payloads[0] = payload;
-        bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
+        bytes32[] memory payloadHashes = new bytes32[](1);
+        payloadHashes[0] = keccak256(payload);
+        bool fillerValid = bitcoinOracle.arePayloadsValid(payloadHashes);
         assertEq(fillerValid, true);
 
         // Local oracle (as oracle)
@@ -851,9 +851,9 @@ contract TestBitcoinOracle is Test {
 
         // Remote oracle (as filler)
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(BLOCK_TIME), output);
-        bytes[] memory payloads = new bytes[](1);
-        payloads[0] = payload;
-        bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
+        bytes32[] memory payloadHashes = new bytes32[](1);
+        payloadHashes[0] = keccak256(payload);
+        bool fillerValid = bitcoinOracle.arePayloadsValid(payloadHashes);
         assertEq(fillerValid, true);
 
         // Local oracle (as oracle)
@@ -973,9 +973,9 @@ contract TestBitcoinOracle is Test {
 
         // Remote oracle (as filler)
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(BLOCK_TIME), output);
-        bytes[] memory payloads = new bytes[](1);
-        payloads[0] = payload;
-        bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
+        bytes32[] memory payloadHashes = new bytes32[](1);
+        payloadHashes[0] = keccak256(payload);
+        bool fillerValid = bitcoinOracle.arePayloadsValid(payloadHashes);
         assertEq(fillerValid, true);
 
         // Local oracle (as oracle)
@@ -1091,9 +1091,9 @@ contract TestBitcoinOracle is Test {
 
         // Remote oracle (as filler)
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(PREV_BLOCK_TIME), output);
-        bytes[] memory payloads = new bytes[](1);
-        payloads[0] = payload;
-        bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
+        bytes32[] memory payloadHashes = new bytes32[](1);
+        payloadHashes[0] = keccak256(payload);
+        bool fillerValid = bitcoinOracle.arePayloadsValid(payloadHashes);
         assertEq(fillerValid, true);
     }
 
@@ -1165,9 +1165,9 @@ contract TestBitcoinOracle is Test {
 
         // Remote oracle (as filler)
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(BLOCK_TIME), output);
-        bytes[] memory payloads = new bytes[](1);
-        payloads[0] = payload;
-        bool fillerValid = bitcoinOracle.arePayloadsValid(payloads);
+        bytes32[] memory payloadHashes = new bytes32[](1);
+        payloadHashes[0] = keccak256(payload);
+        bool fillerValid = bitcoinOracle.arePayloadsValid(payloadHashes);
         assertEq(fillerValid, true);
     }
 

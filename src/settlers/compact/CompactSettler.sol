@@ -31,7 +31,7 @@ import { IOracle } from "src/interfaces/IOracle.sol";
  *
  * The ownable component of the smart contract is only used for fees.
  */
-contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
+contract CompactSettler is BaseSettler, Ownable {
     error NotImplemented();
     error NotOrderOwner();
     error InitiateDeadlinePassed(); // 0x606ef7f5
@@ -285,7 +285,7 @@ contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
         bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
-    ) external nonReentrant {
+    ) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);

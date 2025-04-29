@@ -6,7 +6,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IDestinationSettler } from "src/interfaces/IERC7683.sol";
 
-import { CoinFiller } from "./CoinFiller.sol";
+import { BaseFiller } from "../BaseFiller.sol";
 import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
@@ -14,7 +14,12 @@ import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib
  * Tokens never touch this contract but goes directly from solver to user.
  * This filler contract only supports limit orders.
  */
-contract CoinFiller7683 is CoinFiller, IDestinationSettler {
+contract CoinFiller7683 is BaseFiller, IDestinationSettler {
+    error NotImplemented();
+
+    function _fill(bytes32, OutputDescription calldata, bytes32) pure internal override returns (bytes32) {
+        revert NotImplemented();
+    }
 
     function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external {
         bytes32 proposedSolver;
@@ -25,14 +30,13 @@ contract CoinFiller7683 is CoinFiller, IDestinationSettler {
         OutputDescription memory output = abi.decode(originData, (OutputDescription));
 
         uint256 amount = _getAmountMemory(output);
-
-
-        _fillMemory(orderId, output, amount, proposedSolver);
+        bytes32 recordedSolver =_fillMemory(orderId, output, amount, proposedSolver);
+        if (recordedSolver != proposedSolver) revert FilledBySomeoneElse(recordedSolver);
     }
 
     function _getAmountMemory(
         OutputDescription memory output
-    ) internal view returns (uint256 amount) {
+    ) internal pure returns (uint256 amount) {
         uint256 fulfillmentLength = output.fulfillmentContext.length;
         if (fulfillmentLength == 0) return output.amount;
         bytes1 orderType = bytes1(output.fulfillmentContext);
@@ -63,14 +67,13 @@ contract CoinFiller7683 is CoinFiller, IDestinationSettler {
         address recipient = address(uint160(uint256(output.recipient)));
         address token = address(uint160(uint256(output.token)));
 
-        uint256 deliveryAmount = _preDeliveryHook(recipient, token, outputAmount);
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
-        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, deliveryAmount);
+        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, outputAmount);
 
         // If there is an external call associated with the fill, execute it.
         bytes memory remoteCall = output.remoteCall;
-        if (remoteCall.length > 0) ICatalystCallback(recipient).outputFilled(output.token, deliveryAmount, remoteCall);
+        if (remoteCall.length > 0) ICatalystCallback(recipient).outputFilled(output.token, outputAmount, remoteCall);
 
         emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 

@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { IdLib } from "the-compact/src/lib/IdLib.sol";
@@ -236,7 +235,7 @@ contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
         emit Finalised(orderId, solver, destination);
     }
 
-    function finaliseSelf(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external nonReentrant {
+    function finaliseSelf(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
@@ -251,7 +250,7 @@ contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
 
     }
 
-    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, bytes32 destination, bytes calldata call) external nonReentrant {
+    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, bytes32 destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
@@ -310,7 +309,7 @@ contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
     // Important, this output generally matters in regards to the orderId. The solver of the first output is determined
     // to be the "orderOwner".
 
-    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, bytes32 destination, bytes calldata call) external nonReentrant {
+    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, bytes32 destination, bytes calldata call) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
@@ -344,7 +343,7 @@ contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
         bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
-    ) external nonReentrant {
+    ) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
@@ -446,7 +445,7 @@ contract CompactSettler is BaseSettler, Ownable, ReentrancyGuard {
         bytes32 purchaser,
         uint256 expiryTimestamp,
         bytes calldata solverSignature
-    ) external nonReentrant {
+    ) external {
         // Sanity check that the user thinks they are buying the right order.
         bytes32 computedOrderId = _orderIdentifier(order);
         if (computedOrderId != orderPurchase.orderId) revert OrderIdMismatch(orderPurchase.orderId, computedOrderId);

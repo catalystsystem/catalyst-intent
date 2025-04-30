@@ -15,3 +15,5 @@ docs/
 
 # Coverage files
 lcov.info
+
+**/node_modules

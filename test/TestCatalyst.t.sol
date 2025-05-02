@@ -222,13 +222,13 @@ contract TestCatalyst is Test {
 
     function test_deposit_compact() external {
         vm.prank(swapper);
-        theCompact.deposit(address(token), alwaysOkAllocatorLockTag, 1e18 / 10);
+        theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, 1e18 / 10, swapper);
     }
 
     function test_deposit_and_claim() external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, amount];
@@ -284,7 +284,7 @@ contract TestCatalyst is Test {
     function test_entire_flow() external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), signAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), signAllocatorLockTag, amount, swapper);
 
         address localOracle = address(wormholeOracle);
 
@@ -361,7 +361,7 @@ contract TestCatalyst is Test {
         vm.assume(solverIdentifier != solverIdentifier2);
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(wormholeOracle);
 

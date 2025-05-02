@@ -513,7 +513,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -587,7 +587,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -642,7 +642,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -709,7 +709,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -817,7 +817,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOkAllocatorLockTag, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -856,6 +856,10 @@ contract TestCompactSettler is Test {
 
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
 
+        bytes32 orderId = compactSettler.orderIdentifier(order);
+
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
+
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = uint32(block.timestamp);
 
@@ -864,7 +868,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
-        vm.snapshotGasLastCall("finaliseSelfWithFee");
+        vm.snapshotGasLastCall("finaliseSelf");
 
         assertEq(token.balanceOf(solver), amountPostFee);
         assertEq(theCompact.balanceOf(owner, tokenId), govFeeAmount);

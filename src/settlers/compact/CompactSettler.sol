@@ -8,7 +8,7 @@ import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
-import { SplitBatchClaimComponent, SplitComponent } from "the-compact/src/types/Components.sol";
+import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
 
 import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
@@ -363,17 +363,17 @@ contract CompactSettler is BaseSettler, Ownable {
 
     function _resolveLock(CatalystCompactOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorData, bytes32 claimant) internal virtual {
         uint256 numInputs = order.inputs.length;
-        SplitBatchClaimComponent[] memory splitBatchComponents = new SplitBatchClaimComponent[](numInputs);
+        BatchClaimComponent[] memory batchClaimComponents = new BatchClaimComponent[](numInputs);
         uint256[2][] calldata maxInputs = order.inputs;
+        uint64 fee = governanceFee;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] calldata input = maxInputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
 
-            SplitComponent[] memory splitComponents;
+            Component[] memory components;
 
             // If the governance fee is set, we need to add a governance fee split.
-            uint64 fee = governanceFee;
             if (fee != 0) {
                 uint256 governanceShare = _calcFee(allocatedAmount, fee);
                 if (governanceShare != 0) {
@@ -384,31 +384,31 @@ contract CompactSettler is BaseSettler, Ownable {
                         // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
                         // and places it infront of the current vault owner.
                         uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
-                        splitComponents = new SplitComponent[](2);
+                        components = new Component[](2);
                         // For the user
-                        splitComponents[0] = SplitComponent({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
+                        components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
                         // For governance
-                        splitComponents[1] = SplitComponent({ claimant: uint256(ownerId), amount: governanceShare });
-                        splitBatchComponents[i] = SplitBatchClaimComponent({
+                        components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
+                        batchClaimComponents[i] = BatchClaimComponent({
                             id: tokenId, // The token ID of the ERC6909 token to allocate.
                             allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
-                            portions: splitComponents
+                            portions: components
                         });
                         continue;
                     }
                 }
             }
-            splitComponents = new SplitComponent[](1);
-            splitComponents[0] = SplitComponent({ claimant: uint256(claimant), amount: allocatedAmount });
-            splitBatchComponents[i] = SplitBatchClaimComponent({
+            components = new Component[](1);
+            components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
+            batchClaimComponents[i] = BatchClaimComponent({
                 id: tokenId, // The token ID of the ERC6909 token to allocate.
                 allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
-                portions: splitComponents
+                portions: components
             });
         }
 
         require(
-            COMPACT.claim(
+            COMPACT.batchClaim(
                 BatchClaim({
                     allocatorData: allocatorData,
                     sponsorSignature: sponsorSignature,
@@ -417,7 +417,7 @@ contract CompactSettler is BaseSettler, Ownable {
                     expires: order.expires,
                     witness: TheCompactOrderType.witnessHash(order),
                     witnessTypestring: string(TheCompactOrderType.BATCH_COMPACT_SUB_TYPES),
-                    claims: splitBatchComponents
+                    claims: batchClaimComponents
                 })
             ) != bytes32(0)
         );

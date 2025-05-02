@@ -7,7 +7,12 @@ import { BaseOracle } from "src/oracles/BaseOracle.sol";
 import "forge-std/Test.sol";
 
 contract MockBaseOracle is BaseOracle {
-    function setAttestation(uint256 remoteChainId, bytes32 senderIdentifier, bytes32 application, bytes32 dataHash) external {
+    function setAttestation(
+        uint256 remoteChainId,
+        bytes32 senderIdentifier,
+        bytes32 application,
+        bytes32 dataHash
+    ) external {
         _attestations[remoteChainId][senderIdentifier][application][dataHash] = true;
     }
 }
@@ -19,7 +24,12 @@ contract TestBaseOracle is Test {
         baseOracle = new MockBaseOracle();
     }
 
-    function test_is_proven(uint256 remoteChainId, bytes32 application, bytes32 remoteOracle, bytes32 dataHash) external {
+    function test_is_proven(
+        uint256 remoteChainId,
+        bytes32 application,
+        bytes32 remoteOracle,
+        bytes32 dataHash
+    ) external {
         bool statusBefore = baseOracle.isProven(remoteChainId, remoteOracle, application, dataHash);
         assertEq(statusBefore, false);
 

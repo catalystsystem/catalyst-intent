@@ -13,11 +13,13 @@ library OutputDescriptionType {
     //--- Inputs & Outputs Types ---//
 
     // TheCompact needs the type without the last ")"
-    bytes constant MANDATE_OUTPUT_COMPACT_TYPE_STUB =
-        bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext");
+    bytes constant MANDATE_OUTPUT_COMPACT_TYPE_STUB = bytes(
+        "MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext"
+    );
 
-    bytes constant MANDATE_OUTPUT_TYPE_STUB =
-        bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)");
+    bytes constant MANDATE_OUTPUT_TYPE_STUB = bytes(
+        "MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+    );
 
     bytes32 constant MANDATE_OUTPUT_TYPE_HASH = keccak256(MANDATE_OUTPUT_TYPE_STUB);
 

@@ -22,7 +22,11 @@ contract ExportedMessages is Messages, Setters {
         return super.storeGuardianSet(set, index);
     }
 
-    function publishMessage(uint32 nonce, bytes calldata payload, uint8 consistencyLevel) external payable returns (uint64 sequence) {
+    function publishMessage(
+        uint32 nonce,
+        bytes calldata payload,
+        uint8 consistencyLevel
+    ) external payable returns (uint64 sequence) {
         emit PackagePublished(nonce, payload, consistencyLevel);
         return 0;
     }
@@ -45,11 +49,20 @@ contract TestSubmitWormholeOracleProofs is Test {
         token = new MockERC20("TEST", "TEST", 18);
     }
 
-    function encodeMessageCalldata(bytes32 identifier, bytes[] calldata payloads) external pure returns (bytes memory) {
+    function encodeMessageCalldata(
+        bytes32 identifier,
+        bytes[] calldata payloads
+    ) external pure returns (bytes memory) {
         return MessageEncodingLib.encodeMessage(identifier, payloads);
     }
 
-    function test_fill_then_submit_W(address sender, uint256 amount, address recipient, bytes32 orderId, bytes32 solverIdentifier) external {
+    function test_fill_then_submit_W(
+        address sender,
+        uint256 amount,
+        address recipient,
+        bytes32 orderId,
+        bytes32 solverIdentifier
+    ) external {
         vm.assume(solverIdentifier != bytes32(0));
 
         token.mint(sender, amount);
@@ -67,12 +80,16 @@ contract TestSubmitWormholeOracleProofs is Test {
             fulfillmentContext: hex""
         });
 
-        vm.expectCall(address(token), abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount));
+        vm.expectCall(
+            address(token),
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", address(sender), recipient, amount)
+        );
 
         vm.prank(sender);
         filler.fill(type(uint32).max, orderId, output, solverIdentifier);
 
-        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), output);
+        bytes memory payload =
+            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), output);
         bytes[] memory payloads = new bytes[](1);
         payloads[0] = payload;
 

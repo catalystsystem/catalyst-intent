@@ -59,7 +59,12 @@ contract CatsMulticallHandler is ICatalystCallback, ReentrancyGuard {
      * @param message abi encoded array of Call structs, containing a target, callData, and value for each call that
      * the contract should make.
      */
-    function handleV3AcrossMessage(address token, uint256 amount, address, bytes memory message) external nonReentrant {
+    function handleV3AcrossMessage(
+        address token,
+        uint256 amount,
+        address,
+        bytes memory message
+    ) external nonReentrant {
         Instructions memory instructions = abi.decode(message, (Instructions));
 
         // Set approvals base on inputs if requested.
@@ -77,7 +82,8 @@ contract CatsMulticallHandler is ICatalystCallback, ReentrancyGuard {
 
     /**
      * @notice Entrypoint for the catalyst handler if an output has been delivered.
-     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else.
+     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone
+     * else.
      */
     function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
@@ -97,7 +103,8 @@ contract CatsMulticallHandler is ICatalystCallback, ReentrancyGuard {
 
     /**
      * @notice Entrypoint for the catalyst handler if inputs are delivered.
-     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone else.
+     * @dev Please make sure to empty the contract of tokens after your call otherwise they can be taken by someone
+     * else.
      */
     function inputsFilled(uint256[2][] calldata inputs, bytes calldata executionData) external nonReentrant {
         Instructions memory instructions = abi.decode(executionData, (Instructions));
@@ -113,7 +120,9 @@ contract CatsMulticallHandler is ICatalystCallback, ReentrancyGuard {
         // If there are leftover tokens, send them to the fallback recipient regardless of execution success.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
-            _drainRemainingTokens(EfficiencyLib.asSanitizedAddress(inputs[i][0]), payable(instructions.fallbackRecipient));
+            _drainRemainingTokens(
+                EfficiencyLib.asSanitizedAddress(inputs[i][0]), payable(instructions.fallbackRecipient)
+            );
         }
     }
 

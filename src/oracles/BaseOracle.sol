@@ -16,7 +16,10 @@ abstract contract BaseOracle is IOracle {
     /**
      * @notice Stores payload attestations. Payloads are not stored, instead their hashes are.
      */
-    mapping(uint256 remoteChainId => mapping(bytes32 senderIdentifier => mapping(bytes32 application => mapping(bytes32 dataHash => bool)))) internal _attestations;
+    mapping(
+        uint256 remoteChainId
+            => mapping(bytes32 senderIdentifier => mapping(bytes32 application => mapping(bytes32 dataHash => bool)))
+    ) internal _attestations;
 
     //--- Data Attestation Validation ---//
 
@@ -27,7 +30,12 @@ abstract contract BaseOracle is IOracle {
      * @param remoteOracle Identifier for the remote attestation.
      * @param dataHash Hash of data.
      */
-    function _isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 application, bytes32 dataHash) internal view returns (bool) {
+    function _isProven(
+        uint256 remoteChainId,
+        bytes32 remoteOracle,
+        bytes32 application,
+        bytes32 dataHash
+    ) internal view returns (bool) {
         return _attestations[remoteChainId][remoteOracle][application][dataHash];
     }
 
@@ -37,7 +45,12 @@ abstract contract BaseOracle is IOracle {
      * @param remoteOracle Identifier for the remote attestation.
      * @param dataHash Hash of data.
      */
-    function isProven(uint256 remoteChainId, bytes32 remoteOracle, bytes32 application, bytes32 dataHash) external view returns (bool) {
+    function isProven(
+        uint256 remoteChainId,
+        bytes32 remoteOracle,
+        bytes32 application,
+        bytes32 dataHash
+    ) external view returns (bool) {
         return _isProven(remoteChainId, remoteOracle, application, dataHash);
     }
 

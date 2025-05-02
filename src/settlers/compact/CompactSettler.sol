@@ -5,20 +5,22 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
-import { IdLib } from "the-compact/src/lib/IdLib.sol";
+
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
 import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
 
 import { BaseSettler } from "../BaseSettler.sol";
-import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
+
 import { OrderPurchase } from "../types/OrderPurchaseType.sol";
 import { OutputDescription } from "../types/OutputDescriptionType.sol";
+import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
 
-import { BytesLib } from "src/libs/BytesLib.sol";
-import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
+import { BytesLib } from "src/libs/BytesLib.sol";
+import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -26,7 +28,7 @@ import { IOracle } from "src/interfaces/IOracle.sol";
  * It is a delivery first, inputs second scheme that allows users with a deposit inside The Compact.
  *
  * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
- * They then need to either register or sign a supported claim with the intent as the witness.
+ * They then need to either register or sign a supported claim with the intent outputs as the witness.
  * Without the deposit extension, this contract does not have a way to emit on-chain orders.
  *
  * The ownable component of the smart contract is only used for fees.
@@ -34,13 +36,13 @@ import { IOracle } from "src/interfaces/IOracle.sol";
 contract CompactSettler is BaseSettler, Ownable {
     error NotImplemented();
     error NotOrderOwner();
-    error InitiateDeadlinePassed(); // 0x606ef7f5
+    error InitiateDeadlinePassed();
     error InvalidTimestampLength();
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
     error FilledTooLate(uint32 expected, uint32 actual);
-    error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
     error GovernanceFeeTooHigh();
     error GovernanceFeeChangeNotReady();
+    error WrongChain(uint256 expected, uint256 actual);
 
     /**
      * @notice Governance fee will be changed shortly.
@@ -54,22 +56,55 @@ contract CompactSettler is BaseSettler, Ownable {
 
     TheCompact public immutable COMPACT;
 
-    uint64 public governanceFee = 0;
-    uint64 public nextGovernanceFee = 0;
-    uint64 public nextGovernanceFeeTime = type(uint64).max;
+    /**
+     * @notice When a new governance fee is set, when will it be applicable.
+     * @dev Is used to prevent changing governance from changing the fee mid-flight.
+     */
     uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
+    /**
+     * @dev Resolution of the governance fee. Need to fit in uint64.
+     */
     uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
+    /**
+     * @dev Max possible fee.
+     */
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 5%
 
-    constructor(
-        address compact,
-        address initialOwner
-    ) {
+    /**
+     * @notice Current applied governance fee.
+     */
+    uint64 public governanceFee = 0;
+    /**
+     * @notice Next governance fee. Will be applied: nextGovernanceFeeTime < block.timestamp
+     */
+    uint64 public nextGovernanceFee = 0;
+    /**
+     * @notice When the next governance fee will be applied. Is type(uint64).max when no change is scheduled.
+     */
+    uint64 public nextGovernanceFeeTime = type(uint64).max;
+
+    constructor(address compact, address initialOwner) {
         COMPACT = TheCompact(compact);
         _initializeOwner(initialOwner);
     }
 
+    /**
+     * @notice EIP712
+     */
+    function _domainNameAndVersion()
+        internal
+        pure
+        virtual
+        override
+        returns (string memory name, string memory version)
+    {
+        name = "CatalystSettler";
+        version = "Compact1";
+    }
+
     // Governance Fees
+    // Governance fees are applied through the split functionality of TheCompact. If governanceFee > 0, another
+    // component will be added to the claim to send the governance fee to owner().
 
     /**
      * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
@@ -90,9 +125,14 @@ contract CompactSettler is BaseSettler, Ownable {
      */
     function applyGovernanceFee() external {
         if (block.timestamp < nextGovernanceFeeTime) revert GovernanceFeeChangeNotReady();
+        // Load the previous governance fee.
         uint64 oldGovernanceFee = governanceFee;
+        // Set the next governanceFee.
         governanceFee = nextGovernanceFee;
+        // Ensure this function can't be called again.
+        nextGovernanceFeeTime = type(uint64).max;
 
+        // Emit associated event.
         emit GovernanceFeeChanged(oldGovernanceFee, nextGovernanceFee);
     }
 
@@ -112,11 +152,6 @@ contract CompactSettler is BaseSettler, Ownable {
         }
     }
 
-    function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
-        name = "CatalystSettler";
-        version = "Compact1";
-    }
-
     // Generic order identifier
 
     function _orderIdentifier(
@@ -131,18 +166,14 @@ contract CompactSettler is BaseSettler, Ownable {
         return _orderIdentifier(order);
     }
 
-    function _validateOrder(
-        CatalystCompactOrder calldata order
-    ) internal view {
-        // Check that this is the right originChain
-        if (block.chainid != order.originChainId) revert WrongChain(block.chainid, order.originChainId);
-        // Check if the open deadline has been passed
-        if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
-    }
-
     //--- Output Proofs ---//
 
-    function _proofPayloadHash(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription calldata outputDescription) internal pure returns (bytes32 outputHash) {
+    function _proofPayloadHash(
+        bytes32 orderId,
+        bytes32 solver,
+        uint32 timestamp,
+        OutputDescription calldata outputDescription
+    ) internal pure returns (bytes32 outputHash) {
         return keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, timestamp, outputDescription));
     }
 
@@ -151,14 +182,19 @@ contract CompactSettler is BaseSettler, Ownable {
      * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
      * if someone filled one of the outputs.
      */
-    function _validateFills(CatalystCompactOrder calldata order, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps) internal view {
+    function _validateFills(
+        CatalystCompactOrder calldata order,
+        bytes32 orderId,
+        bytes32[] calldata solvers,
+        uint32[] calldata timestamps
+    ) internal view {
         OutputDescription[] calldata outputDescriptions = order.outputs;
 
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
-         uint32 fillDeadline = order.fillDeadline;
+        uint32 fillDeadline = order.fillDeadline;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             uint32 outputFilledAt = timestamps[i];
@@ -187,13 +223,18 @@ contract CompactSettler is BaseSettler, Ownable {
      * This function returns true if the order contains no outputs.
      * That means any order that has no outputs specified can be claimed with no issues.
      */
-    function _validateFills(CatalystCompactOrder calldata order, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal view {
+    function _validateFills(
+        CatalystCompactOrder calldata order,
+        bytes32 orderId,
+        bytes32 solver,
+        uint32[] calldata timestamps
+    ) internal view {
         OutputDescription[] calldata outputDescriptions = order.outputs;
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
-         uint32 fillDeadline = order.fillDeadline;
+        uint32 fillDeadline = order.fillDeadline;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             uint32 outputFilledAt = timestamps[i];
@@ -226,7 +267,13 @@ contract CompactSettler is BaseSettler, Ownable {
         if (EfficiencyLib.asSanitizedAddress(uint256(orderOwner)) != msg.sender) revert NotOrderOwner();
     }
 
-    function _finalise(CatalystCompactOrder calldata order, bytes calldata signatures, bytes32 orderId, bytes32 solver, bytes32 destination) internal {
+    function _finalise(
+        CatalystCompactOrder calldata order,
+        bytes calldata signatures,
+        bytes32 orderId,
+        bytes32 solver,
+        bytes32 destination
+    ) internal {
         bytes calldata sponsorSignature = BytesLib.toBytes(signatures, 0);
         bytes calldata allocatorData = BytesLib.toBytes(signatures, 1);
         // Payout inputs. (This also protects against re-entry calls.)
@@ -235,44 +282,54 @@ contract CompactSettler is BaseSettler, Ownable {
         emit Finalised(orderId, solver, destination);
     }
 
-    function finaliseSelf(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver) external {
+    function finaliseSelf(
+        CatalystCompactOrder calldata order,
+        bytes calldata signatures,
+        uint32[] calldata timestamps,
+        bytes32 solver
+    ) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
         _validateOrderOwner(orderOwner);
 
-        // Deliver outputs before the order has been finalised. This requires reentrancy guards!
+        // Deliver outputs before the order has been finalised.
         _finalise(order, signatures, orderId, solver, orderOwner);
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _validateFills(order, orderId, solver, timestamps);
-
     }
 
-    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32 solver, bytes32 destination, bytes calldata call) external {
+    function finaliseTo(
+        CatalystCompactOrder calldata order,
+        bytes calldata signatures,
+        uint32[] calldata timestamps,
+        bytes32 solver,
+        bytes32 destination,
+        bytes calldata call
+    ) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
         _validateOrderOwner(orderOwner);
 
-        // Deliver outputs before the order has been finalised. This requires reentrancy guards!
+        // Deliver outputs before the order has been finalised.
         _finalise(order, signatures, orderId, solver, destination);
-        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        if (call.length > 0) {
+            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        }
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _validateFills(order, orderId, solver, timestamps);
-
     }
 
     /**
      * @notice Finalises a cross-chain order on behalf of someone else
      * @dev This function serves to finalise intents on the origin chain. It has been assumed that assets have been
-     * locked
-     * inside The Compact and will be available to collect.
-     * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of
-     * the fills.
+     * locked inside The Compact and will be available to collect. To properly collect the order details and proofs,
+     * the settler needs the solver identifier and the timestamps of the fills.
      * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorData))
@@ -289,16 +346,19 @@ contract CompactSettler is BaseSettler, Ownable {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
-        _allowExternalClaimant(orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature);
+        _allowExternalClaimant(
+            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+        );
 
-        // Deliver outputs before the order has been finalised. This requires reentrancy guards!
+        // Deliver outputs before the order has been finalised.'
         _finalise(order, signatures, orderId, solver, destination);
-        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        if (call.length > 0) {
+            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        }
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _validateFills(order, orderId, solver, timestamps);
-
     }
 
     // -- Fallback Finalise Functions -- //
@@ -309,28 +369,35 @@ contract CompactSettler is BaseSettler, Ownable {
     // Important, this output generally matters in regards to the orderId. The solver of the first output is determined
     // to be the "orderOwner".
 
-    function finaliseTo(CatalystCompactOrder calldata order, bytes calldata signatures, uint32[] calldata timestamps, bytes32[] calldata solvers, bytes32 destination, bytes calldata call) external {
+    function finaliseTo(
+        CatalystCompactOrder calldata order,
+        bytes calldata signatures,
+        uint32[] calldata timestamps,
+        bytes32[] calldata solvers,
+        bytes32 destination,
+        bytes calldata call
+    ) external {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
         _validateOrderOwner(orderOwner);
 
-        // Deliver outputs before the order has been finalised. This requires reentrancy guards!
+        // Deliver outputs before the order has been finalised.
         _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        if (call.length > 0) {
+            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        }
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _validateFills(order, orderId, solvers, timestamps);
-
     }
 
     /**
      * @notice Finalises a cross-chain order on behalf of someone else
      * @dev This function serves to finalise intents on the origin chain. It has been assumed that assets have been
-     * locked inside The Compact and will be available to collect.
-     * To properly collect the order details and proofs, the settler needs the solver identifier and the timestamps of
-     * the fills.
+     * locked inside The Compact and will be available to collect. To properly collect the order details and proofs,
+     * the settler needs the solver identifier and the timestamps of the fills.
      * @param order CatalystCompactOrder signed in conjunction with a Compact to form an order.
      * @param signatures A signature for the sponsor and the allocator.
      *  abi.encode(bytes(sponsorSignature), bytes(allocatorData))
@@ -347,21 +414,29 @@ contract CompactSettler is BaseSettler, Ownable {
         bytes32 orderId = _orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
-        _allowExternalClaimant(orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature);
+        _allowExternalClaimant(
+            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+        );
 
-        // Deliver outputs before the order has been finalised. This requires reentrancy guards!
+        // Deliver outputs before the order has been finalised.
         _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        if (call.length > 0) {
+            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+        }
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _validateFills(order, orderId, solvers, timestamps);
-
     }
 
     //--- The Compact & Resource Locks ---//
 
-    function _resolveLock(CatalystCompactOrder calldata order, bytes calldata sponsorSignature, bytes calldata allocatorData, bytes32 claimant) internal virtual {
+    function _resolveLock(
+        CatalystCompactOrder calldata order,
+        bytes calldata sponsorSignature,
+        bytes calldata allocatorData,
+        bytes32 claimant
+    ) internal virtual {
         uint256 numInputs = order.inputs.length;
         BatchClaimComponent[] memory batchClaimComponents = new BatchClaimComponent[](numInputs);
         uint256[2][] calldata maxInputs = order.inputs;
@@ -378,9 +453,9 @@ contract CompactSettler is BaseSettler, Ownable {
                 uint256 governanceShare = _calcFee(allocatedAmount, fee);
                 if (governanceShare != 0) {
                     unchecked {
-                        // To reduce the cost associated with the governance fee, 
+                        // To reduce the cost associated with the governance fee,
                         // we want to do a 6909 transfer instead of burn and mint.
-                        // Note: While this function is called with replaced token, it 
+                        // Note: While this function is called with replaced token, it
                         // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
                         // and places it infront of the current vault owner.
                         uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());

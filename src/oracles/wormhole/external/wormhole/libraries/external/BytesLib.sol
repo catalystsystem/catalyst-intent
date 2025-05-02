@@ -154,7 +154,13 @@ library BytesLib {
                 let end := add(_postBytes, mlength)
                 let mask := sub(exp(0x100, submod), 1)
 
-                sstore(sc, add(and(fslot, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00), and(mload(mc), mask)))
+                sstore(
+                    sc,
+                    add(
+                        and(fslot, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00),
+                        and(mload(mc), mask)
+                    )
+                )
 
                 for {
                     mc := add(mc, 0x20)

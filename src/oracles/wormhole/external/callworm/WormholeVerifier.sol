@@ -87,7 +87,11 @@ contract WormholeVerifier is GettersGetter {
      *  - it intentionally returns true when signatures is an empty set (you should use verifyVM if you need these
      * protections)
      */
-    function verifySignatures(bytes32 hash, bytes calldata signatures, Structs.GuardianSet memory guardianSet) public pure {
+    function verifySignatures(
+        bytes32 hash,
+        bytes calldata signatures,
+        Structs.GuardianSet memory guardianSet
+    ) public pure {
         uint8 lastIndex = 0;
         uint256 guardianCount = guardianSet.keys.length;
         uint256 signersLen = uint8(bytes1(signatures[0]));
@@ -146,7 +150,19 @@ contract WormholeVerifier is GettersGetter {
      */
     function parseVM(
         bytes calldata encodedVM
-    ) public view virtual returns (uint16 emitterChainId, bytes32 emitterAddress, uint32 guardianSetIndex, bytes calldata signatures, bytes32 bodyHash, bytes calldata payload) {
+    )
+        public
+        view
+        virtual
+        returns (
+            uint16 emitterChainId,
+            bytes32 emitterAddress,
+            uint32 guardianSetIndex,
+            bytes calldata signatures,
+            bytes32 bodyHash,
+            bytes calldata payload
+        )
+    {
         unchecked {
             uint256 index = 0;
 

@@ -141,7 +141,8 @@ contract WormholeOracle is BaseOracle, WormholeVerifier, Ownable {
         bytes calldata rawMessage
     ) external {
         // Verify Packet and return message identifiers that Wormhole attached.
-        (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) = _verifyPacket(rawMessage);
+        (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes calldata message) =
+            _verifyPacket(rawMessage);
         // Decode message.
         (bytes32 application, bytes32[] memory payloadHashes) = MessageEncodingLib.decodeMessage(message);
 

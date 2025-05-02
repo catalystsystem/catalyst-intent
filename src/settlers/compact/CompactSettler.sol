@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
+import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
 import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
 
 import { BaseSettler } from "../BaseSettler.sol";
 import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
-import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
+import { OrderPurchase } from "../types/OrderPurchaseType.sol";
+import { OutputDescription } from "../types/OutputDescriptionType.sol";
 
-import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
-import { IOracle } from "src/interfaces/IOracle.sol";
 import { BytesLib } from "src/libs/BytesLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
+import { IOracle } from "src/interfaces/IOracle.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -25,8 +28,10 @@ import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
  * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
  * They then need to either register or sign a supported claim with the intent as the witness.
  * Without the deposit extension, this contract does not have a way to emit on-chain orders.
+ *
+ * The ownable component of the smart contract is only used for fees.
  */
-contract CompactSettler is BaseSettler {
+contract CompactSettler is BaseSettler, Ownable {
     error NotImplemented();
     error NotOrderOwner();
     error InitiateDeadlinePassed(); // 0x606ef7f5
@@ -34,13 +39,77 @@ contract CompactSettler is BaseSettler {
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
     error FilledTooLate(uint32 expected, uint32 actual);
     error WrongChain(uint256 expected, uint256 actual); // 0x264363e1
+    error GovernanceFeeTooHigh();
+    error GovernanceFeeChangeNotReady();
+
+    /**
+     * @notice Governance fee will be changed shortly.
+     */
+    event NextGovernanceFee(uint64 nextGovernanceFee, uint64 nextGovernanceFeeTime);
+
+    /**
+     * @notice Governance fee changed. This fee is taken of the inputs.
+     */
+    event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
     TheCompact public immutable COMPACT;
 
+    uint64 public governanceFee = 0;
+    uint64 public nextGovernanceFee = 0;
+    uint64 public nextGovernanceFeeTime = type(uint64).max;
+    uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
+    uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
+
     constructor(
-        address compact
+        address compact,
+        address initialOwner
     ) {
         COMPACT = TheCompact(compact);
+        _initializeOwner(initialOwner);
+    }
+
+    // Governance Fees
+
+    /**
+     * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
+     * @param _nextGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
+     */
+    function setGovernanceFee(
+        uint64 _nextGovernanceFee
+    ) external onlyOwner {
+        if (_nextGovernanceFee > MAX_GOVERNANCE_FEE) revert GovernanceFeeTooHigh();
+        nextGovernanceFee = _nextGovernanceFee;
+        nextGovernanceFeeTime = uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY;
+
+        emit NextGovernanceFee(nextGovernanceFee, nextGovernanceFeeTime);
+    }
+
+    /**
+     * @notice Applies a scheduled governace fee change.
+     */
+    function applyGovernanceFee() external {
+        if (block.timestamp < nextGovernanceFeeTime) revert GovernanceFeeChangeNotReady();
+        uint64 oldGovernanceFee = governanceFee;
+        governanceFee = nextGovernanceFee;
+
+        emit GovernanceFeeChanged(oldGovernanceFee, nextGovernanceFee);
+    }
+
+    /**
+     * @notice Helper function to compute the fee.
+     * @param amount To compute fee of.
+     * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENOM based.
+     * @return amountFee Fee
+     */
+    function _calcFee(uint256 amount, uint256 fee) internal pure returns (uint256 amountFee) {
+        unchecked {
+            // Check if amount * fee overflows. If it does, don't take the fee.
+            if (fee == 0 || amount >= type(uint256).max / fee) return amountFee = 0;
+            // The above check ensures that amount * fee < type(uint256).max.
+            // amount >= amount * fee / GOVERNANCE_FEE_DENOM since fee < GOVERNANCE_FEE_DENOM
+            return amountFee = amount * fee / GOVERNANCE_FEE_DENOM;
+        }
     }
 
     function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
@@ -82,11 +151,14 @@ contract CompactSettler is BaseSettler {
      * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
      * if someone filled one of the outputs.
      */
-    function _validateFills(address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, uint32 fillDeadline, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(CatalystCompactOrder calldata order, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps) internal view {
+        OutputDescription[] calldata outputDescriptions = order.outputs;
+
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
+         uint32 fillDeadline = order.fillDeadline;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             uint32 outputFilledAt = timestamps[i];
@@ -106,7 +178,7 @@ contract CompactSettler is BaseSettler {
                 mstore(add(offset, 0x60), payloadHash)
             }
         }
-        IOracle(localOracle).efficientRequireProven(proofSeries);
+        IOracle(order.localOracle).efficientRequireProven(proofSeries);
     }
 
     /**
@@ -115,11 +187,13 @@ contract CompactSettler is BaseSettler {
      * This function returns true if the order contains no outputs.
      * That means any order that has no outputs specified can be claimed with no issues.
      */
-    function _validateFills(address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, uint32 fillDeadline, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(CatalystCompactOrder calldata order, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal view {
+        OutputDescription[] calldata outputDescriptions = order.outputs;
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
+         uint32 fillDeadline = order.fillDeadline;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             uint32 outputFilledAt = timestamps[i];
@@ -139,7 +213,7 @@ contract CompactSettler is BaseSettler {
                 mstore(add(offset, 0x60), payloadHash)
             }
         }
-        IOracle(localOracle).efficientRequireProven(proofSeries);
+        IOracle(order.localOracle).efficientRequireProven(proofSeries);
     }
 
     // --- Finalise Orders --- //
@@ -169,7 +243,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.fillDeadline, order.outputs);
+        _validateFills(order, orderId, solver, timestamps);
 
         _finalise(order, signatures, orderId, solver, orderOwner);
     }
@@ -182,7 +256,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.fillDeadline, order.outputs);
+        _validateFills(order, orderId, solver, timestamps);
 
         _finalise(order, signatures, orderId, solver, destination);
 
@@ -216,7 +290,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.fillDeadline, order.outputs);
+        _validateFills(order, orderId, solver, timestamps);
 
         _finalise(order, signatures, orderId, solver, destination);
 
@@ -239,7 +313,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solvers, timestamps, order.fillDeadline, order.outputs);
+        _validateFills(order, orderId, solvers, timestamps);
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
@@ -272,7 +346,7 @@ contract CompactSettler is BaseSettler {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solvers, timestamps, order.fillDeadline, order.outputs);
+        _validateFills(order, orderId, solvers, timestamps);
 
         _finalise(order, signatures, orderId, solvers[0], destination);
 
@@ -289,7 +363,36 @@ contract CompactSettler is BaseSettler {
             uint256[2] calldata input = maxInputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
-            Component[] memory components = new Component[](1);
+
+            Component[] memory components;
+
+            // If the governance fee is set, we need to add a governance fee split.
+            uint64 fee = governanceFee;
+            if (fee != 0) {
+                uint256 governanceShare = _calcFee(allocatedAmount, fee);
+                if (governanceShare != 0) {
+                    unchecked {
+                        // To reduce the cost associated with the governance fee, 
+                        // we want to do a 6909 transfer instead of burn and mint.
+                        // Note: While this function is called with replaced token, it 
+                        // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
+                        // and places it infront of the current vault owner.
+                        uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
+                        components = new Component[](2);
+                        // For the user
+                        components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
+                        // For governance
+                        components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
+                        batchClaimComponents[i] = BatchClaimComponent({
+                            id: tokenId, // The token ID of the ERC6909 token to allocate.
+                            allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
+                            portions: components
+                        });
+                        continue;
+                    }
+                }
+            }
+            components = new Component[](1);
             components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
             batchClaimComponents[i] = BatchClaimComponent({
                 id: tokenId, // The token ID of the ERC6909 token to allocate.
@@ -330,22 +433,18 @@ contract CompactSettler is BaseSettler {
      * up purchasing an order that you cannot prove OR is not within the timeToBuy window.
      */
     function purchaseOrder(
-        bytes32 orderId,
+        OrderPurchase calldata orderPurchase,
         CatalystCompactOrder calldata order,
         bytes32 orderSolvedByIdentifier,
         bytes32 purchaser,
         uint256 expiryTimestamp,
-        address newDestination,
-        bytes calldata call,
-        uint64 discount,
-        uint32 timeToBuy,
         bytes calldata solverSignature
     ) external {
         // Sanity check that the user thinks they are buying the right order.
         bytes32 computedOrderId = _orderIdentifier(order);
-        if (computedOrderId != orderId) revert OrderIdMismatch(orderId, computedOrderId);
+        if (computedOrderId != orderPurchase.orderId) revert OrderIdMismatch(orderPurchase.orderId, computedOrderId);
 
         uint256[2][] calldata inputs = order.inputs;
-        _purchaseOrder(orderId, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
+        _purchaseOrder(orderPurchase, inputs, orderSolvedByIdentifier, purchaser, expiryTimestamp, solverSignature);
     }
 }

@@ -13,10 +13,11 @@ import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol"
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { BytesLib } from "src/libs/BytesLib.sol";
+import { IsContractLib } from "src/libs/IsContractLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 import { IOriginSettler, Open, Output } from "src/interfaces/IERC7683.sol";
-import { CatalystCompactOrder, Order7683Type, MandatePermit2 } from "./Order7683Type.sol";
+import { CatalystCompactOrder, Order7683Type, MandateERC7683 } from "./Order7683Type.sol";
 
 import { OnchainCrossChainOrder, GaslessCrossChainOrder, ResolvedCrossChainOrder, FillInstruction } from "src/interfaces/IERC7683.sol";
 
@@ -48,7 +49,7 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
     mapping(bytes32 orderId => OrderStatus) _deposited;
 
     // Address of the Permit2 contract.
-    address private constant _PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    ISignatureTransfer constant PERMIT2 = ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
         name = "CatalystEscrow7683";
@@ -73,7 +74,7 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
     function orderIdentifier(
         GaslessCrossChainOrder calldata order
     ) view external returns(bytes32) {
-        (CatalystCompactOrder memory compactOrder, ) = Order7683Type.convertToCompactOrder(order);
+        CatalystCompactOrder memory compactOrder = Order7683Type.convertToCompactOrder(order);
         return Order7683Type.orderIdentifierMemory(compactOrder);
         
     }
@@ -133,20 +134,86 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
         emit Open(orderId, _resolve(uint32(0), orderId, compactOrder));
     }
 
-    function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata originFillerData) external {
+    function _openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes32 orderId, CatalystCompactOrder memory compactOrder, address to) internal {
+
+        uint256[2][] memory orderInputs = compactOrder.inputs;
+        // Load the number of inputs. We need them to set the array size & convert each
+        // input struct into a transferDetails struct.
+        uint256 numInputs = orderInputs.length;
+        ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](numInputs);
+        ISignatureTransfer.SignatureTransferDetails[] memory transferDetails = new ISignatureTransfer.SignatureTransferDetails[](numInputs);
+        // Iterate through each input.
+        for (uint256 i; i < numInputs; ++i) {
+            uint256[2] memory orderInput = orderInputs[i];
+            address token = EfficiencyLib.asSanitizedAddress(orderInput[0]);
+            uint256 amount = orderInput[1];
+
+            // Check if input tokens are contracts.
+            IsContractLib.checkCodeSize(token);
+
+            // Set the allowance. This is the explicit max allowed amount approved by the user.
+            permitted[i] =
+                ISignatureTransfer.TokenPermissions({ token: token, amount: amount });
+            // Set our requested transfer. This has to be less than or equal to the allowance
+            transferDetails[i] =
+                ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
+        }
+
+        ISignatureTransfer.PermitBatchTransferFrom memory permitBatch =
+            ISignatureTransfer.PermitBatchTransferFrom({ permitted: permitted, nonce: compactOrder.nonce, deadline: order.openDeadline });
+        PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, order.user, Order7683Type.witnessHash(order, compactOrder), string(Order7683Type.ERC7683_GASLESS_CROSS_CHAIN_ORDER), signature);
+
+        emit Open(orderId, _resolve(order.openDeadline, orderId, compactOrder));
+    }
+
+    function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata /* originFillerData */) external {
         // Validate the ERC7683 structure.
         _validateChain(order.originChainId);
         _validateDeadline(order.openDeadline);
         _validateDeadline(order.fillDeadline);
 
-        (CatalystCompactOrder memory compactOrder, MandatePermit2 memory orderData) = Order7683Type.convertToCompactOrder(order);
+        CatalystCompactOrder memory compactOrder = Order7683Type.convertToCompactOrder(order);
         bytes32 orderId = Order7683Type.orderIdentifierMemory(compactOrder);
 
+
+        if (_deposited[orderId] != OrderStatus.None) revert InvalidOrderStatus();
+        // Mark order as deposited. If we can't make the deposit, we will
+        // revert and it will unmark it. This acts as a reentry check.
+        _deposited[orderId] = OrderStatus.Deposited;
+
+
         // Collect input tokens
-        // TODO: permit2
+        _openFor(order, signature, orderId, compactOrder, address(this));
+    }
+
+    /**
+     * @dev This function can only be used when the intent described is a same-chain intent.
+     * Set the solver as msg.sender (of this call). Timestamp will be collected from block.tiemstamp.
+     */
+    function openForAndFinalise(GaslessCrossChainOrder calldata order, bytes calldata signature, address destination, bytes calldata call) external {
+        // Validate the ERC7683 structure.
+        _validateChain(order.originChainId);
+        _validateDeadline(order.openDeadline);
+        _validateDeadline(order.fillDeadline);
+
+        CatalystCompactOrder memory compactOrder = Order7683Type.convertToCompactOrder(order);
+        bytes32 orderId = Order7683Type.orderIdentifierMemory(compactOrder);
 
 
-        emit Open(orderId, _resolve(order.openDeadline, orderId, compactOrder));
+        if (_deposited[orderId] != OrderStatus.None) revert InvalidOrderStatus();
+        // Mark order as deposited. If we can't make the deposit, we will
+        // revert and it will unmark it. This acts as a reentry check.
+        _deposited[orderId] = OrderStatus.Claimed;
+
+
+        // Send input tokens to the provided destination so the tokens can be used for secondary purposes.
+        _openFor(order, signature, orderId, compactOrder, destination);
+        // Call the destination (if needed) so the caller can inject logic into our call.
+        if (call.length > 0) ICatalystCallback(destination).inputsFilled(compactOrder.inputs, call);
+
+        // Check if the outputs have been proven according to the oracles.
+        // This call will revert if not.
+        _validateFills(compactOrder.localOracle, orderId, compactOrder.outputs);
     }
 
     function _resolve(uint32 openDeadline, bytes32 orderId, CatalystCompactOrder memory compactOrder) internal pure returns (ResolvedCrossChainOrder memory) {
@@ -206,7 +273,7 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
 
 
     function resolveFor(GaslessCrossChainOrder calldata order, bytes calldata /* originFillerData */) external view returns (ResolvedCrossChainOrder memory) {
-        (CatalystCompactOrder memory compactOrder, ) = Order7683Type.convertToCompactOrder(order);
+        CatalystCompactOrder memory compactOrder = Order7683Type.convertToCompactOrder(order);
         bytes32 orderId = Order7683Type.orderIdentifierMemory(compactOrder);
         return _resolve(order.openDeadline, orderId, compactOrder);
     }
@@ -224,6 +291,37 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
 
     function _proofPayloadHash(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription calldata outputDescription) internal pure returns (bytes32 outputHash) {
         return keccak256(OutputEncodingLib.encodeFillDescription(solver, orderId, timestamp, outputDescription));
+    }
+
+    function _proofPayloadHashM(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription memory outputDescription) internal pure returns (bytes32 outputHash) {
+        return keccak256(OutputEncodingLib.encodeFillDescriptionM(solver, orderId, timestamp, outputDescription));
+    }
+
+    /**
+     * @notice Check if a series of outputs has been proven.
+     * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
+     * if someone filled one of the outputs.
+     */
+    function _validateFills(address localOracle, bytes32 orderId, OutputDescription[] memory outputDescriptions) internal view {
+        uint256 numOutputs = outputDescriptions.length;
+
+        bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
+        for (uint256 i; i < numOutputs; ++i) {
+            OutputDescription memory output = outputDescriptions[i];
+            uint256 chainId = output.chainId;
+            bytes32 remoteOracle = output.remoteOracle;
+            bytes32 remoteFiller = output.remoteFiller;
+            bytes32 payloadHash = _proofPayloadHashM(orderId, bytes32(uint256(uint160(msg.sender))), uint32(block.timestamp), output);
+
+            assembly ("memory-safe") {
+                let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
+                mstore(offset, chainId)
+                mstore(add(offset, 0x20), remoteOracle)
+                mstore(add(offset, 0x40), remoteFiller)
+                mstore(add(offset, 0x60), payloadHash)
+            }
+        }
+        IOracle(localOracle).efficientRequireProven(proofSeries);
     }
 
     /**

@@ -8,7 +8,7 @@ import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "src/interfaces/I
 import { CatalystCompactOrder } from "../compact/TheCompactOrderType.sol";
 
 /** @notice The signed witness / mandate used for the permit2 transaction. */
-struct MandatePermit2 {
+struct MandateERC7683 {
     uint32 expiry;
     address user;
     uint256 nonce;
@@ -69,8 +69,8 @@ library Order7683Type {
 
     function convertToCompactOrder(
         GaslessCrossChainOrder calldata gaslessOrder
-    ) internal pure returns (CatalystCompactOrder memory compactOrder, MandatePermit2 memory orderData) {
-        orderData = abi.decode(gaslessOrder.orderData, (MandatePermit2));
+    ) internal pure returns (CatalystCompactOrder memory compactOrder) {
+        MandateERC7683 memory orderData = abi.decode(gaslessOrder.orderData, (MandateERC7683));
         compactOrder = CatalystCompactOrder({
             user: gaslessOrder.user,
             nonce: gaslessOrder.nonce,
@@ -87,7 +87,7 @@ library Order7683Type {
         address user,
         OnchainCrossChainOrder calldata onchainOrder
     ) internal view returns (CatalystCompactOrder memory compactOrder) {
-        MandatePermit2 memory orderData = abi.decode(onchainOrder.orderData, (MandatePermit2));
+        MandateERC7683 memory orderData = abi.decode(onchainOrder.orderData, (MandateERC7683));
         compactOrder = CatalystCompactOrder({
             user: user,
             nonce: 0,
@@ -100,15 +100,58 @@ library Order7683Type {
         });
     }
 
-    function decode(bytes calldata orderData) internal pure returns(MandatePermit2 memory) {
-        return abi.decode(orderData, (MandatePermit2));
-    }
-
-    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked("MandatePermit2(address user,uint256 nonce,address localOracle,uint256[2][] inputs,OutputDescription[] outputs)");
+    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked("MandateERC7683(address user,uint256 nonce,address localOracle,uint256[2][] inputs,MandateOutput[] outputs)");
 
     bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.MANDATE_OUTPUT_TYPE_STUB);
 
-    bytes32 constant CATALYST_WITNESS_TYPE_HASH = keccak256(CATALYST_WITNESS_TYPE);
+    bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_PARTIAL = abi.encodePacked(
+        "GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint256 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType"
+    );
+
+    bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_STUB = abi.encodePacked(
+        ERC7683_GASLESS_CROSS_CHAIN_ORDER_PARTIAL, ",MandateERC7683 orderData)"
+    );
+
+    bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER = abi.encodePacked(
+        ERC7683_GASLESS_CROSS_CHAIN_ORDER_STUB, CATALYST_WITNESS_TYPE
+    );
+
+    bytes32 constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_TYPE_HASH = keccak256(ERC7683_GASLESS_CROSS_CHAIN_ORDER);
+
+    function witnessHash(
+        GaslessCrossChainOrder calldata order,
+        CatalystCompactOrder memory compactOrder
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                ERC7683_GASLESS_CROSS_CHAIN_ORDER_TYPE_HASH,
+                order.originSettler,
+                order.user,
+                order.nonce,
+                order.originChainId,
+                order.openDeadline,
+                order.fillDeadline,
+                order.orderDataType,
+                orderDataHash(compactOrder)
+            )
+        );
+    }
+
+    function orderDataHash(
+        CatalystCompactOrder memory order
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                CATALYST_WITNESS_TYPE,
+                order.expires,
+                order.user,
+                order.nonce,
+                order.localOracle,
+                order.inputs,
+                order.outputs
+            )
+        );
+    }
 
 
     function toIdsAndAmountsHashMemory(

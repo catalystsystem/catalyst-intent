@@ -147,7 +147,7 @@ library Order7683Type {
                 order.user,
                 order.nonce,
                 order.localOracle,
-                order.inputs,
+                toIdsAndAmountsHashMemory(order.inputs),
                 order.outputs
             )
         );
@@ -162,7 +162,6 @@ library Order7683Type {
 
     /**
      * @notice Internal pure function for deriving the hash of ids and amounts provided.
-     
      * @param idsAndAmounts      An array of ids and amounts.
      * @return idsAndAmountsHash The hash of the ids and amounts.
      * @dev From TheCompact src/lib/HashLib.sol

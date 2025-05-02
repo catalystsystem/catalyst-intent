@@ -38,8 +38,8 @@ interface EIP712 {
 contract MockDepositCompactSettler is CompactSettlerWithDeposit {
     constructor(
         address compact,
-        address initalOwner
-    ) CompactSettlerWithDeposit(compact, initalOwner) { }
+        address initialOwner
+    ) CompactSettlerWithDeposit(compact, initialOwner) { }
 
     function validateFills(CatalystCompactOrder calldata order, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps) external view {
         _validateFills(order, orderId, solvers, timestamps);

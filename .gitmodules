@@ -10,3 +10,6 @@
 [submodule "lib/the-compact"]
 	path = lib/the-compact
 	url = https://github.com/Uniswap/the-compact
+[submodule "lib/permit2"]
+	path = lib/permit2
+	url = https://github.com/Uniswap/permit2

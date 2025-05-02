@@ -54,8 +54,6 @@ contract CompactSettler is BaseSettler, Ownable {
      */
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
-    TheCompact public immutable COMPACT;
-
     /**
      * @notice When a new governance fee is set, when will it be applicable.
      * @dev Is used to prevent changing governance from changing the fee mid-flight.
@@ -82,6 +80,8 @@ contract CompactSettler is BaseSettler, Ownable {
      * @notice When the next governance fee will be applied. Is type(uint64).max when no change is scheduled.
      */
     uint64 public nextGovernanceFeeTime = type(uint64).max;
+
+    TheCompact public immutable COMPACT;
 
     constructor(address compact, address initialOwner) {
         COMPACT = TheCompact(compact);

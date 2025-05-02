@@ -65,7 +65,7 @@ contract TestCompactSettler is Test {
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
     uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 10%
 
     MockDepositCompactSettler compactSettler;
     CoinFiller coinFiller;

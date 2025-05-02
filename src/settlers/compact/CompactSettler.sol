@@ -359,6 +359,7 @@ contract CompactSettler is BaseSettler, Ownable {
         uint256 numInputs = order.inputs.length;
         BatchClaimComponent[] memory batchClaimComponents = new BatchClaimComponent[](numInputs);
         uint256[2][] calldata maxInputs = order.inputs;
+        uint64 fee = governanceFee;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] calldata input = maxInputs[i];
             uint256 tokenId = input[0];
@@ -367,7 +368,6 @@ contract CompactSettler is BaseSettler, Ownable {
             Component[] memory components;
 
             // If the governance fee is set, we need to add a governance fee split.
-            uint64 fee = governanceFee;
             if (fee != 0) {
                 uint256 governanceShare = _calcFee(allocatedAmount, fee);
                 if (governanceShare != 0) {

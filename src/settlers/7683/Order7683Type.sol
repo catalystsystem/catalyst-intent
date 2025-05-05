@@ -10,8 +10,6 @@ import { CatalystCompactOrder } from "../compact/TheCompactOrderType.sol";
 /** @notice The signed witness / mandate used for the permit2 transaction. */
 struct MandateERC7683 {
     uint32 expiry;
-    address user;
-    uint256 nonce;
     address localOracle;
     uint256[2][] inputs; // [address, amount]
     OutputDescription[] outputs;
@@ -100,9 +98,11 @@ library Order7683Type {
         });
     }
 
-    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked("MandateERC7683(address user,uint256 nonce,address localOracle,uint256[2][] inputs,MandateOutput[] outputs)");
+    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked("MandateERC7683(uint32 expiry,address localOracle,uint256[2][] inputs,MandateOutput[] outputs)");
 
     bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.MANDATE_OUTPUT_TYPE_STUB);
+
+    bytes32 constant CATALYST_WITNESS_TYPE_HASH = keccak256(CATALYST_WITNESS_TYPE);
 
     bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_PARTIAL = abi.encodePacked(
         "GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint256 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType"
@@ -114,6 +114,11 @@ library Order7683Type {
 
     bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER = abi.encodePacked(
         ERC7683_GASLESS_CROSS_CHAIN_ORDER_STUB, CATALYST_WITNESS_TYPE
+    );
+
+    bytes constant PERMIT2_ERC7683_GASLESS_CROSS_CHAIN_ORDER = abi.encodePacked(
+        "GaslessCrossChainOrder witness)",
+        ERC7683_GASLESS_CROSS_CHAIN_ORDER, "TokenPermissions(address token,uint256 amount)"
     );
 
     bytes32 constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_TYPE_HASH = keccak256(ERC7683_GASLESS_CROSS_CHAIN_ORDER);
@@ -142,13 +147,11 @@ library Order7683Type {
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                CATALYST_WITNESS_TYPE,
+                CATALYST_WITNESS_TYPE_HASH,
                 order.expires,
-                order.user,
-                order.nonce,
                 order.localOracle,
                 toIdsAndAmountsHashMemory(order.inputs),
-                order.outputs
+                OutputDescriptionType.hashOutputsM(order.outputs)
             )
         );
     }

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { ISignatureTransfer } from "permit2/src/interfaces/ISignatureTransfer.sol";
@@ -11,15 +10,14 @@ import { BaseSettler } from "../BaseSettler.sol";
 import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
+import { IOriginSettler, Open, Output, OnchainCrossChainOrder, GaslessCrossChainOrder, ResolvedCrossChainOrder, FillInstruction } from "src/interfaces/IERC7683.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { BytesLib } from "src/libs/BytesLib.sol";
 import { IsContractLib } from "src/libs/IsContractLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+import { GovernanceFee } from "src/libs/GovernanceFee.sol";
 
-import { IOriginSettler, Open, Output } from "src/interfaces/IERC7683.sol";
 import { CatalystCompactOrder, Order7683Type, MandateERC7683 } from "./Order7683Type.sol";
-
-import { OnchainCrossChainOrder, GaslessCrossChainOrder, ResolvedCrossChainOrder, FillInstruction } from "src/interfaces/IERC7683.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -29,8 +27,10 @@ import { OnchainCrossChainOrder, GaslessCrossChainOrder, ResolvedCrossChainOrder
  * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
  * They then needs to either register or sign a supported claim with the intent as the witness.
  * Without the deposit extension, this contract does not have a way to emit on-chain orders.
+ *
+ * This contract does not support fee on transfer tokens.
  */
-contract Settler7683 is BaseSettler, ReentrancyGuard {
+contract Settler7683 is BaseSettler, GovernanceFee {
     error NotImplemented();
     error NotOrderOwner();
     error DeadlinePassed();
@@ -50,6 +50,10 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
 
     // Address of the Permit2 contract.
     ISignatureTransfer constant PERMIT2 = ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+
+    constructor(address initialOwner) {
+        _initializeOwner(initialOwner);
+    }
 
     function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
         name = "CatalystEscrow7683";
@@ -119,16 +123,10 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
         // Collect input tokens. 
         uint256[2][] memory inputs = compactOrder.inputs;
         uint256 numInputs = inputs.length;
-        for (uint256 i = 0; i < numInputs; ++i) {
-            uint256[2] memory input = inputs[i];
+        for (uint256 i = 0; i < numInputs; ++i) {            uint256[2] memory input = inputs[i];
             address token = EfficiencyLib.asSanitizedAddress(input[0]);
             uint256 amount = input[1];
-
-            uint256 initialBalance = SafeTransferLib.balanceOf(token, address(this));
             SafeTransferLib.safeTransferFrom(token, msg.sender, address(this), amount);
-            uint256 postBalance = SafeTransferLib.balanceOf(token, address(this));
-            uint256 deposited = postBalance - initialBalance;
-            // TODO: update inputs and emit modified order.
         }
 
         emit Open(orderId, _resolve(uint32(0), orderId, compactOrder));
@@ -158,10 +156,9 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
             transferDetails[i] =
                 ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
         }
-
         ISignatureTransfer.PermitBatchTransferFrom memory permitBatch =
             ISignatureTransfer.PermitBatchTransferFrom({ permitted: permitted, nonce: compactOrder.nonce, deadline: order.openDeadline });
-        PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, order.user, Order7683Type.witnessHash(order, compactOrder), string(Order7683Type.ERC7683_GASLESS_CROSS_CHAIN_ORDER), signature);
+        PERMIT2.permitWitnessTransferFrom(permitBatch, transferDetails, order.user, Order7683Type.witnessHash(order, compactOrder), string(Order7683Type.PERMIT2_ERC7683_GASLESS_CROSS_CHAIN_ORDER), signature);
 
         emit Open(orderId, _resolve(order.openDeadline, orderId, compactOrder));
     }
@@ -207,6 +204,7 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
 
 
         // Send input tokens to the provided destination so the tokens can be used for secondary purposes.
+        // TODO: collect governance fee.
         _openFor(order, signature, orderId, compactOrder, destination);
         // Call the destination (if needed) so the caller can inject logic into our call.
         if (call.length > 0) ICatalystCallback(destination).inputsFilled(compactOrder.inputs, call);
@@ -242,7 +240,7 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
         Output[] memory outputs = new Output[](numOutputs);
         // Set instructions
         FillInstruction[] memory instructions = new FillInstruction[](numOutputs);
-        for (uint256 i; i < numInputs; ++i) {
+        for (uint256 i; i < numOutputs; ++i) {
             OutputDescription memory orderOutput = orderOutputs[i];
 
             outputs[i] = Output({
@@ -255,7 +253,7 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
             instructions[i] = FillInstruction({
                 destinationChainId: uint64(orderOutput.chainId),
                 destinationSettler: orderOutput.remoteFiller,
-                originData: hex"" // TODO: 
+                originData: abi.encode(orderOutput)
             });
         }
 
@@ -524,12 +522,21 @@ contract Settler7683 is BaseSettler, ReentrancyGuard {
         // revert and it will unmark it. This acts as a reentry check.
         _deposited[orderId] = OrderStatus.Claimed;
 
+        uint256 fee = governanceFee;
         // We have now ensured that this point can only be reached once. We can now process the asset delivery.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] memory input = inputs[i];
             address token = EfficiencyLib.asSanitizedAddress(input[0]);
             uint256 amount = input[1];
+
+            uint256 calculatedFee = _calcFee(amount, fee);
+            if (calculatedFee > 0) {
+                SafeTransferLib.safeTransfer(token, solvedBy, calculatedFee);
+                unchecked {
+                    amount = amount - calculatedFee;
+                }
+            }
 
             SafeTransferLib.safeTransfer(token, solvedBy, amount);
         }

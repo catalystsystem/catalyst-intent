@@ -70,7 +70,6 @@ contract TestCompactSettler is Test {
     MockDepositCompactSettler compactSettler;
     CoinFiller coinFiller;
 
-    // Oracles
     address alwaysYesOracle;
 
     address owner;
@@ -122,8 +121,6 @@ contract TestCompactSettler is Test {
         token.approve(address(theCompact), type(uint256).max);
         vm.prank(solver);
         anotherToken.approve(address(coinFiller), type(uint256).max);
-
-        // Oracles
     }
 
     function witnessHash(

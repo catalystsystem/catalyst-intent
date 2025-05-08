@@ -37,9 +37,15 @@ contract MockERC7683Settler is Settler7683 {
     constructor(address initialOwner) Settler7683(initialOwner) { }
 
     function validateFills(
-        address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions
+        address localOracle, bytes32 orderId, uint32 fillDeadline, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions
     ) external view {
-        _validateFills(localOracle, orderId, solvers, timestamps, outputDescriptions);
+        _validateFills(localOracle, orderId, fillDeadline, solvers, timestamps, outputDescriptions);
+    }
+
+    function validateFills(
+        address localOracle, bytes32 orderId, uint32 fillDeadline, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions
+    ) external view {
+        _validateFills(localOracle, orderId, fillDeadline, solver, timestamps, outputDescriptions);
     }
 
     function validateFills(
@@ -47,12 +53,7 @@ contract MockERC7683Settler is Settler7683 {
     ) external view {
         _validateFills(localOracle, orderId, outputDescriptions);
     }
-
-    function validateFills(
-        address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions
-    ) external view {
-        _validateFills(localOracle, orderId, solver, timestamps, outputDescriptions);
-    }
+    
 }
 
 contract TestERC7683Base is Permit2Test {

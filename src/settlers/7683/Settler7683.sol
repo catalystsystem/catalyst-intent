@@ -34,10 +34,11 @@ contract Settler7683 is BaseSettler, GovernanceFee {
     error NotImplemented();
     error NotOrderOwner();
     error DeadlinePassed();
+    error InvalidOrderStatus();
     error InvalidTimestampLength();
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
+    error FilledTooLate(uint32 expected, uint32 actual);
     error WrongChain(uint256 expected, uint256 actual);
-    error InvalidOrderStatus();
 
     enum OrderStatus {
         None,
@@ -269,7 +270,6 @@ contract Settler7683 is BaseSettler, GovernanceFee {
         });
     }
 
-
     function resolveFor(GaslessCrossChainOrder calldata order, bytes calldata /* originFillerData */) external view returns (ResolvedCrossChainOrder memory) {
         CatalystCompactOrder memory compactOrder = Order7683Type.convertToCompactOrder(order);
         bytes32 orderId = Order7683Type.orderIdentifierMemory(compactOrder);
@@ -327,18 +327,20 @@ contract Settler7683 is BaseSettler, GovernanceFee {
      * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
      * if someone filled one of the outputs.
      */
-    function _validateFills(address localOracle, bytes32 orderId, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, uint32 fillDeadline, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
+            uint32 outputFilledAt = timestamps[i];
+            if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], timestamps[i], output);
+            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], outputFilledAt, output);
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
@@ -357,18 +359,20 @@ contract Settler7683 is BaseSettler, GovernanceFee {
      * This function returns true if the order contains no outputs.
      * That means any order that has no outputs specified can be claimed with no issues.
      */
-    function _validateFills(address localOracle, bytes32 orderId, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
+    function _validateFills(address localOracle, bytes32 orderId, uint32 fillDeadline, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions) internal view {
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
+            uint32 outputFilledAt = timestamps[i];
+            if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
             OutputDescription calldata output = outputDescriptions[i];
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solver, timestamps[i], output);
+            bytes32 payloadHash = _proofPayloadHash(orderId, solver, outputFilledAt, output);
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
@@ -399,6 +403,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
     }
 
     function finaliseSelf(CatalystCompactOrder calldata order, uint32[] calldata timestamps, bytes32 solver) external {
+        _validateDeadline(order.fillDeadline);
         bytes32 orderId = Order7683Type.orderIdentifier(order);
 
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
@@ -408,7 +413,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, order.fillDeadline, solver, timestamps, order.outputs);
 
     }
 
@@ -423,7 +428,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, order.fillDeadline, solver, timestamps, order.outputs);
 
     }
 
@@ -454,7 +459,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solver, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, order.fillDeadline, solver, timestamps, order.outputs);
 
     }
 
@@ -477,7 +482,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, order.fillDeadline, solvers, timestamps, order.outputs);
 
     }
 
@@ -507,7 +512,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, solvers, timestamps, order.outputs);
+        _validateFills(order.localOracle, orderId, order.fillDeadline, solvers, timestamps, order.outputs);
     }
 
     //--- The Compact & Resource Locks ---//
@@ -532,7 +537,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
             uint256 calculatedFee = _calcFee(amount, fee);
             if (calculatedFee > 0) {
-                SafeTransferLib.safeTransfer(token, solvedBy, calculatedFee);
+                SafeTransferLib.safeTransfer(token, owner(), calculatedFee);
                 unchecked {
                     amount = amount - calculatedFee;
                 }

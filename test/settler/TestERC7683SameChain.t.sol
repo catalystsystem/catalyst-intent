@@ -137,10 +137,10 @@ contract TestERC20Settler is TestERC7683Base {
         assertEq(token.balanceOf(address(swapper2)), amount1);
     }
 
-    bool alreadyCalled;
+    bool alreadyCalled = false;
 
     function inputsFilled(uint256[2][] calldata /* inputs */, bytes calldata dataToForward) external virtual override {
-        if (!alreadyCalled) {
+        if (alreadyCalled == false) {
             alreadyCalled = true;
             (bytes memory signature2, , , , GaslessCrossChainOrder memory order2) = abi.decode(dataToForward, (bytes, bytes32, GaslessCrossChainOrder, bytes32, GaslessCrossChainOrder));
 

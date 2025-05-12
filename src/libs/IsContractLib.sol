@@ -11,6 +11,7 @@ library IsContractLib {
      * suddenly deployed to the address.
      * @param addr is the token contract address needs to be checked against.
      */
+
     function checkCodeSize(
         address addr
     ) internal view {

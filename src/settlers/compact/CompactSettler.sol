@@ -19,8 +19,9 @@ import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { BytesLib } from "src/libs/BytesLib.sol";
-import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+
 import { GovernanceFee } from "src/libs/GovernanceFee.sol";
+import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -371,7 +372,8 @@ contract CompactSettler is BaseSettler, GovernanceFee {
                     uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
                     components = new Component[](2);
                     // For the user
-                    components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
+                    components[0] =
+                        Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
                     // For governance
                     components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
                     batchClaimComponents[i] = BatchClaimComponent({
@@ -382,7 +384,7 @@ contract CompactSettler is BaseSettler, GovernanceFee {
                     continue;
                 }
             }
-            
+
             components = new Component[](1);
             components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
             batchClaimComponents[i] = BatchClaimComponent({

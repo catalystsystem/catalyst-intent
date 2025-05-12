@@ -5,7 +5,8 @@ import { Ownable } from "solady/auth/Ownable.sol";
 
 /**
  * @notice Governance fee timelock
- * Allows for safely setting and changing a governance fee through a built in time-lock. Also provides a generic function to compute the the impact of the governance fee on an amount.
+ * Allows for safely setting and changing a governance fee through a built in time-lock. Also provides a generic
+ * function to compute the the impact of the governance fee on an amount.
  */
 abstract contract GovernanceFee is Ownable {
     error GovernanceFeeTooHigh();

@@ -112,7 +112,11 @@ interface IOriginSettler {
     /// @param order The GaslessCrossChainOrder definition
     /// @param signature The user's signature over the order
     /// @param originFillerData Any filler-defined data required by the settler
-    function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata originFillerData) external;
+    function openFor(
+        GaslessCrossChainOrder calldata order,
+        bytes calldata signature,
+        bytes calldata originFillerData
+    ) external;
 
     /// @notice Opens a cross-chain order
     /// @dev To be called by the user
@@ -127,7 +131,10 @@ interface IOriginSettler {
     /// @param order The GaslessCrossChainOrder definition
     /// @param originFillerData Any filler-defined data required by the settler
     /// @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
-    function resolveFor(GaslessCrossChainOrder calldata order, bytes calldata originFillerData) external view returns (ResolvedCrossChainOrder memory);
+    function resolveFor(
+        GaslessCrossChainOrder calldata order,
+        bytes calldata originFillerData
+    ) external view returns (ResolvedCrossChainOrder memory);
 
     /// @notice Resolves a specific OnchainCrossChainOrder into a generic ResolvedCrossChainOrder
     /// @dev Intended to improve standardized integration of various order types and settlement contracts

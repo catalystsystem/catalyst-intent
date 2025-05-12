@@ -15,8 +15,8 @@ import { OrderPurchase, OrderPurchaseType } from "src/settlers/types/OrderPurcha
 import { AlwaysYesOracle } from "../mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 
-import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { MandateERC7683 } from "src/settlers/7683/Order7683Type.sol";
+import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
 
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
@@ -34,26 +34,39 @@ interface EIP712 {
 }
 
 contract MockERC7683Settler is Settler7683 {
-    constructor(address initialOwner) Settler7683(initialOwner) { }
+    constructor(
+        address initialOwner
+    ) Settler7683(initialOwner) { }
 
     function validateFills(
-        address localOracle, bytes32 orderId, uint32 fillDeadline, bytes32[] calldata solvers, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions
+        address localOracle,
+        bytes32 orderId,
+        uint32 fillDeadline,
+        bytes32[] calldata solvers,
+        uint32[] calldata timestamps,
+        OutputDescription[] calldata outputDescriptions
     ) external view {
         _validateFills(localOracle, orderId, fillDeadline, solvers, timestamps, outputDescriptions);
     }
 
     function validateFills(
-        address localOracle, bytes32 orderId, uint32 fillDeadline, bytes32 solver, uint32[] calldata timestamps, OutputDescription[] calldata outputDescriptions
+        address localOracle,
+        bytes32 orderId,
+        uint32 fillDeadline,
+        bytes32 solver,
+        uint32[] calldata timestamps,
+        OutputDescription[] calldata outputDescriptions
     ) external view {
         _validateFills(localOracle, orderId, fillDeadline, solver, timestamps, outputDescriptions);
     }
 
     function validateFills(
-        address localOracle, bytes32 orderId, OutputDescription[] memory outputDescriptions
+        address localOracle,
+        bytes32 orderId,
+        OutputDescription[] memory outputDescriptions
     ) external view {
         _validateFills(localOracle, orderId, outputDescriptions);
     }
-    
 }
 
 contract TestERC7683Base is Permit2Test {
@@ -89,7 +102,7 @@ contract TestERC7683Base is Permit2Test {
 
     bytes expectedCalldata;
 
-    function inputsFilled(uint256[2][] calldata /* inputs */, bytes calldata cdat) external virtual {
+    function inputsFilled(uint256[2][] calldata, /* inputs */ bytes calldata cdat) external virtual {
         assertEq(expectedCalldata, cdat, "Calldata does not match");
     }
 
@@ -211,15 +224,7 @@ contract TestERC7683Base is Permit2Test {
             uint256 amount = input[1];
             tokenPermissionsHashes = abi.encodePacked(
                 tokenPermissionsHashes,
-                keccak256(
-                    abi.encode(
-                        keccak256(
-                            "TokenPermissions(address token,uint256 amount)"
-                        ),
-                        inputToken,
-                        amount
-                    )
-                )
+                keccak256(abi.encode(keccak256("TokenPermissions(address token,uint256 amount)"), inputToken, amount))
             );
         }
         bytes32 domainSeparator = EIP712(permit2).DOMAIN_SEPARATOR();

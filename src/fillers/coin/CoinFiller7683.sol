@@ -17,7 +17,7 @@ import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib
 contract CoinFiller7683 is BaseFiller, IDestinationSettler {
     error NotImplemented();
 
-    function _fill(bytes32, OutputDescription calldata, bytes32) pure internal override returns (bytes32) {
+    function _fill(bytes32, OutputDescription calldata, bytes32) internal pure override returns (bytes32) {
         revert NotImplemented();
     }
 
@@ -30,7 +30,7 @@ contract CoinFiller7683 is BaseFiller, IDestinationSettler {
         OutputDescription memory output = abi.decode(originData, (OutputDescription));
 
         uint256 amount = _getAmountMemory(output);
-        bytes32 recordedSolver =_fillMemory(orderId, output, amount, proposedSolver);
+        bytes32 recordedSolver = _fillMemory(orderId, output, amount, proposedSolver);
         if (recordedSolver != proposedSolver) revert FilledBySomeoneElse(recordedSolver);
     }
 
@@ -44,7 +44,12 @@ contract CoinFiller7683 is BaseFiller, IDestinationSettler {
         revert NotImplemented();
     }
 
-    function _fillMemory(bytes32 orderId, OutputDescription memory output, uint256 outputAmount, bytes32 proposedSolver) internal returns (bytes32) {
+    function _fillMemory(
+        bytes32 orderId,
+        OutputDescription memory output,
+        uint256 outputAmount,
+        bytes32 proposedSolver
+    ) internal returns (bytes32) {
         if (proposedSolver == bytes32(0)) revert ZeroValue();
         // Validate order context. This lets us ensure that this filler is the correct filler for the output.
         _validateChain(output.chainId);
@@ -66,8 +71,9 @@ contract CoinFiller7683 is BaseFiller, IDestinationSettler {
         // Set the associated attestation as true. This allows the filler to act as an oracle and check whether payload
         // hashes have been filled. Note that within the payload we set the current timestamp. This
         // timestamp needs to be collected from the event (or tx) to be able to reproduce the payload(hash)
-        bytes32 dataHash =
-            keccak256(OutputEncodingLib.encodeFillDescriptionM(proposedSolver, orderId, uint32(block.timestamp), output));
+        bytes32 dataHash = keccak256(
+            OutputEncodingLib.encodeFillDescriptionM(proposedSolver, orderId, uint32(block.timestamp), output)
+        );
         _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][dataHash]
         = true;
 

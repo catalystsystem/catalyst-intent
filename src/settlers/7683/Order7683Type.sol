@@ -4,10 +4,14 @@ pragma solidity ^0.8.26;
 import { OutputDescription, OutputDescriptionType } from "../types/OutputDescriptionType.sol";
 import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "src/interfaces/IERC7683.sol";
 
-/** @dev The ERC7683 order uses the same order type as TheCompact orders. However, we have a different witness. */
+/**
+ * @dev The ERC7683 order uses the same order type as TheCompact orders. However, we have a different witness.
+ */
 import { CatalystCompactOrder } from "../compact/TheCompactOrderType.sol";
 
-/** @notice The signed witness / mandate used for the permit2 transaction. */
+/**
+ * @notice The signed witness / mandate used for the permit2 transaction.
+ */
 struct MandateERC7683 {
     uint32 expiry;
     address localOracle;
@@ -64,7 +68,6 @@ library Order7683Type {
         );
     }
 
-
     function convertToCompactOrder(
         GaslessCrossChainOrder calldata gaslessOrder
     ) internal pure returns (CatalystCompactOrder memory compactOrder) {
@@ -98,9 +101,12 @@ library Order7683Type {
         });
     }
 
-    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked("MandateERC7683(uint32 expiry,address localOracle,uint256[2][] inputs,MandateOutput[] outputs)");
+    bytes constant CATALYST_WITNESS_TYPE_STUB = abi.encodePacked(
+        "MandateERC7683(uint32 expiry,address localOracle,uint256[2][] inputs,MandateOutput[] outputs)"
+    );
 
-    bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.MANDATE_OUTPUT_TYPE_STUB);
+    bytes constant CATALYST_WITNESS_TYPE =
+        abi.encodePacked(CATALYST_WITNESS_TYPE_STUB, OutputDescriptionType.MANDATE_OUTPUT_TYPE_STUB);
 
     bytes32 constant CATALYST_WITNESS_TYPE_HASH = keccak256(CATALYST_WITNESS_TYPE);
 
@@ -108,17 +114,16 @@ library Order7683Type {
         "GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint256 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType"
     );
 
-    bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_STUB = abi.encodePacked(
-        ERC7683_GASLESS_CROSS_CHAIN_ORDER_PARTIAL, ",MandateERC7683 orderData)"
-    );
+    bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_STUB =
+        abi.encodePacked(ERC7683_GASLESS_CROSS_CHAIN_ORDER_PARTIAL, ",MandateERC7683 orderData)");
 
-    bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER = abi.encodePacked(
-        ERC7683_GASLESS_CROSS_CHAIN_ORDER_STUB, CATALYST_WITNESS_TYPE
-    );
+    bytes constant ERC7683_GASLESS_CROSS_CHAIN_ORDER =
+        abi.encodePacked(ERC7683_GASLESS_CROSS_CHAIN_ORDER_STUB, CATALYST_WITNESS_TYPE);
 
     bytes constant PERMIT2_ERC7683_GASLESS_CROSS_CHAIN_ORDER = abi.encodePacked(
         "GaslessCrossChainOrder witness)",
-        ERC7683_GASLESS_CROSS_CHAIN_ORDER, "TokenPermissions(address token,uint256 amount)"
+        ERC7683_GASLESS_CROSS_CHAIN_ORDER,
+        "TokenPermissions(address token,uint256 amount)"
     );
 
     bytes32 constant ERC7683_GASLESS_CROSS_CHAIN_ORDER_TYPE_HASH = keccak256(ERC7683_GASLESS_CROSS_CHAIN_ORDER);
@@ -156,7 +161,6 @@ library Order7683Type {
         );
     }
 
-
     function toIdsAndAmountsHashMemory(
         uint256[2][] memory inputs
     ) internal pure returns (bytes32) {
@@ -172,11 +176,9 @@ library Order7683Type {
      * checked elsewhere; using it without this check occurring elsewhere can result in
      * erroneous hash values.
      */
-    function toIdsAndAmountsHash(uint256[2][] calldata idsAndAmounts)
-        internal
-        pure
-        returns (bytes32 idsAndAmountsHash)
-    {
+    function toIdsAndAmountsHash(
+        uint256[2][] calldata idsAndAmounts
+    ) internal pure returns (bytes32 idsAndAmountsHash) {
         assembly ("memory-safe") {
             // Retrieve the free memory pointer; memory will be left dirtied.
             let ptr := mload(0x40)

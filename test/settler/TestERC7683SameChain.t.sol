@@ -9,12 +9,11 @@ import { TestERC7683Base } from "./TestERC7683Base.t.sol";
 
 import { GaslessCrossChainOrder } from "src/interfaces/IERC7683.sol";
 
-import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { MandateERC7683 } from "src/settlers/7683/Order7683Type.sol";
+import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
 
 contract TestERC20Settler is TestERC7683Base {
-
     address swapper2;
     uint256 swapper2PrivateKey;
 
@@ -139,10 +138,11 @@ contract TestERC20Settler is TestERC7683Base {
 
     bool alreadyCalled = false;
 
-    function inputsFilled(uint256[2][] calldata /* inputs */, bytes calldata dataToForward) external virtual override {
+    function inputsFilled(uint256[2][] calldata, /* inputs */ bytes calldata dataToForward) external virtual override {
         if (alreadyCalled == false) {
             alreadyCalled = true;
-            (bytes memory signature2, , , , GaslessCrossChainOrder memory order2) = abi.decode(dataToForward, (bytes, bytes32, GaslessCrossChainOrder, bytes32, GaslessCrossChainOrder));
+            (bytes memory signature2,,,, GaslessCrossChainOrder memory order2) =
+                abi.decode(dataToForward, (bytes, bytes32, GaslessCrossChainOrder, bytes32, GaslessCrossChainOrder));
 
             // Check that we got the first token.
             assertEq(token.balanceOf(address(this)), amount1);
@@ -153,7 +153,13 @@ contract TestERC20Settler is TestERC7683Base {
             // Notice! The test will continue after "} else {"
             settler7683.openForAndFinalise(order2, signature2, address(this), dataToForward);
         } else {
-            (, bytes32 orderid1, GaslessCrossChainOrder memory order1, bytes32 orderid2, GaslessCrossChainOrder memory order2) = abi.decode(dataToForward, (bytes, bytes32, GaslessCrossChainOrder, bytes32, GaslessCrossChainOrder));
+            (
+                ,
+                bytes32 orderid1,
+                GaslessCrossChainOrder memory order1,
+                bytes32 orderid2,
+                GaslessCrossChainOrder memory order2
+            ) = abi.decode(dataToForward, (bytes, bytes32, GaslessCrossChainOrder, bytes32, GaslessCrossChainOrder));
 
             // Check that we got the second token. (and the first from the above section of the test).
             assertEq(token.balanceOf(address(this)), amount1);

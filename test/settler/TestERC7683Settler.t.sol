@@ -13,8 +13,8 @@ import { OrderPurchase, OrderPurchaseType } from "src/settlers/types/OrderPurcha
 
 import { MockERC20 } from "../mocks/MockERC20.sol";
 
-import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { MandateERC7683 } from "src/settlers/7683/Order7683Type.sol";
+import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
 
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
@@ -23,7 +23,6 @@ import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
 
 contract TestERC20Settler is TestERC7683Base {
-
     struct OrderFulfillmentDescription {
         uint32 timestamp;
         OutputDescription outputDescription;
@@ -44,12 +43,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), 1e18];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: address(0),
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: address(0), inputs: inputs, outputs: outputs });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: type(uint32).max,
@@ -120,11 +115,7 @@ contract TestERC20Settler is TestERC7683Base {
         _validProofSeries[expectedProofPayload] = true;
 
         vm.prank(callerOfContract);
-        settler7683.validateFills(
-            address(this),
-            orderId,
-            outputDescriptions
-        );
+        settler7683.validateFills(address(this), orderId, outputDescriptions);
     }
 
     function test_validate_fills_one_solver(
@@ -156,12 +147,7 @@ contract TestERC20Settler is TestERC7683Base {
         _validProofSeries[expectedProofPayload] = true;
 
         settler7683.validateFills(
-            address(this),
-            orderId,
-            type(uint32).max,
-            solverIdentifier,
-            timestamps,
-            outputDescriptions
+            address(this), orderId, type(uint32).max, solverIdentifier, timestamps, outputDescriptions
         );
     }
 
@@ -199,21 +185,10 @@ contract TestERC20Settler is TestERC7683Base {
         }
         _validProofSeries[expectedProofPayload] = true;
 
-        settler7683.validateFills(
-            address(this),
-            orderId,
-            type(uint32).max,
-            solvers,
-            timestamps,
-            outputDescriptions
-        );
+        settler7683.validateFills(address(this), orderId, type(uint32).max, solvers, timestamps, outputDescriptions);
     }
 
-    function test_open(
-        uint32 fillDeadline,
-        uint128 amount,
-        address user
-    ) external {
+    function test_open(uint32 fillDeadline, uint128 amount, address user) external {
         vm.assume(fillDeadline > block.timestamp);
         vm.assume(token.balanceOf(user) == 0);
 
@@ -226,12 +201,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: address(0),
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: address(0), inputs: inputs, outputs: outputs });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: fillDeadline,
@@ -248,10 +219,7 @@ contract TestERC20Settler is TestERC7683Base {
         assertEq(token.balanceOf(address(settler7683)), amount);
     }
 
-    function test_open_for(
-        uint128 amountMint,
-        uint256 nonce
-    ) external {
+    function test_open_for(uint128 amountMint, uint256 nonce) external {
         token.mint(swapper, amountMint);
 
         uint256 amount = token.balanceOf(swapper);
@@ -259,7 +227,6 @@ contract TestERC20Settler is TestERC7683Base {
         uint32 openDeadline = type(uint32).max;
         uint32 fillDeadline = type(uint32).max;
         bytes32 orderDataType = bytes32(0);
-
 
         vm.prank(swapper);
         token.approve(address(permit2), amount);
@@ -269,12 +236,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: address(0),
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: address(0), inputs: inputs, outputs: outputs });
 
         GaslessCrossChainOrder memory order = GaslessCrossChainOrder({
             originSettler: address(settler7683),
@@ -286,7 +249,7 @@ contract TestERC20Settler is TestERC7683Base {
             orderDataType: orderDataType,
             orderData: abi.encode(mandate)
         });
-        
+
         bytes memory signature = getPermit2Signature(swapperPrivateKey, order);
 
         assertEq(token.balanceOf(address(swapper)), amount);
@@ -298,11 +261,7 @@ contract TestERC20Settler is TestERC7683Base {
         assertEq(token.balanceOf(address(settler7683)), amount);
     }
 
-    function test_open_for_and_finalise(
-        uint128 amountMint,
-        uint256 nonce,
-        bytes calldata cdat
-    ) external {
+    function test_open_for_and_finalise(uint128 amountMint, uint256 nonce, bytes calldata cdat) external {
         token.mint(swapper, amountMint);
 
         uint256 amount = token.balanceOf(swapper);
@@ -310,7 +269,6 @@ contract TestERC20Settler is TestERC7683Base {
         uint32 openDeadline = type(uint32).max;
         uint32 fillDeadline = type(uint32).max;
         bytes32 orderDataType = bytes32(0);
-
 
         vm.prank(swapper);
         token.approve(address(permit2), amount);
@@ -320,12 +278,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: alwaysYesOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
 
         GaslessCrossChainOrder memory order = GaslessCrossChainOrder({
             originSettler: address(settler7683),
@@ -337,7 +291,7 @@ contract TestERC20Settler is TestERC7683Base {
             orderDataType: orderDataType,
             orderData: abi.encode(mandate)
         });
-        
+
         bytes memory signature = getPermit2Signature(swapperPrivateKey, order);
 
         assertEq(token.balanceOf(address(swapper)), amount);
@@ -375,12 +329,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: localOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: type(uint32).max,
@@ -409,7 +359,6 @@ contract TestERC20Settler is TestERC7683Base {
             outputs: mandate.outputs
         });
 
-
         // Other callers are disallowed:
         vm.prank(non_solver);
 
@@ -419,8 +368,9 @@ contract TestERC20Settler is TestERC7683Base {
         assertEq(token.balanceOf(solver), 0);
 
         bytes32 orderId = settler7683.orderIdentifier(compactOrder);
-        bytes memory payload =
-            OutputEncodingLib.encodeFillDescriptionM(bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]);
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(
+            bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]
+        );
         bytes32 payloadHash = keccak256(payload);
 
         vm.expectCall(
@@ -428,7 +378,10 @@ contract TestERC20Settler is TestERC7683Base {
             abi.encodeWithSignature(
                 "efficientRequireProven(bytes)",
                 abi.encodePacked(
-                    mandate.outputs[0].chainId, mandate.outputs[0].remoteOracle, mandate.outputs[0].remoteFiller, payloadHash
+                    mandate.outputs[0].chainId,
+                    mandate.outputs[0].remoteOracle,
+                    mandate.outputs[0].remoteFiller,
+                    payloadHash
                 )
             )
         );
@@ -462,13 +415,9 @@ contract TestERC20Settler is TestERC7683Base {
         });
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
-        
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: address(0),
-            inputs: inputs,
-            outputs: outputs
-        });
+
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: address(0), inputs: inputs, outputs: outputs });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: fillDeadline,
@@ -495,7 +444,6 @@ contract TestERC20Settler is TestERC7683Base {
             inputs: mandate.inputs,
             outputs: mandate.outputs
         });
-
 
         vm.prank(solver);
         vm.expectRevert(abi.encodeWithSignature("FilledTooLate(uint32,uint32)", fillDeadline, filledAt));
@@ -524,12 +472,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: localOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: type(uint32).max,
@@ -560,8 +504,9 @@ contract TestERC20Settler is TestERC7683Base {
 
         bytes32 orderId = settler7683.orderIdentifier(compactOrder);
 
-        bytes memory payload =
-            OutputEncodingLib.encodeFillDescriptionM(bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]);
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(
+            bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]
+        );
         bytes32 payloadHash = keccak256(payload);
 
         vm.expectCall(
@@ -569,22 +514,28 @@ contract TestERC20Settler is TestERC7683Base {
             abi.encodeWithSignature(
                 "efficientRequireProven(bytes)",
                 abi.encodePacked(
-                    mandate.outputs[0].chainId, mandate.outputs[0].remoteOracle, mandate.outputs[0].remoteFiller, payloadHash
+                    mandate.outputs[0].chainId,
+                    mandate.outputs[0].remoteOracle,
+                    mandate.outputs[0].remoteFiller,
+                    payloadHash
                 )
             )
         );
 
         vm.prank(solver);
-        settler7683.finaliseTo(compactOrder, timestamps, bytes32(uint256(uint160((solver)))), bytes32(uint256(uint160((destination)))), hex"");
+        settler7683.finaliseTo(
+            compactOrder,
+            timestamps,
+            bytes32(uint256(uint160((solver)))),
+            bytes32(uint256(uint160((destination)))),
+            hex""
+        );
         vm.snapshotGasLastCall("finaliseTo7683");
 
         assertEq(token.balanceOf(destination), amount);
     }
 
-    function test_finalise_for(
-        address destination,
-        address caller
-    ) external {
+    function test_finalise_for(address destination, address caller) external {
         vm.assume(token.balanceOf(destination) == 0);
 
         uint256 amount = 1e18 / 10;
@@ -604,12 +555,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: localOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: type(uint32).max,
@@ -640,11 +587,12 @@ contract TestERC20Settler is TestERC7683Base {
 
         bytes32 orderId = settler7683.orderIdentifier(compactOrder);
 
-        bytes memory orderOwnerSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, bytes32(uint256(uint160(destination))), hex"");
+        bytes memory orderOwnerSignature =
+            this.getOrderOpenSignature(solverPrivateKey, orderId, bytes32(uint256(uint160(destination))), hex"");
 
-
-        bytes memory payload =
-            OutputEncodingLib.encodeFillDescriptionM(bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]);
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(
+            bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]
+        );
         bytes32 payloadHash = keccak256(payload);
 
         vm.expectCall(
@@ -652,13 +600,23 @@ contract TestERC20Settler is TestERC7683Base {
             abi.encodeWithSignature(
                 "efficientRequireProven(bytes)",
                 abi.encodePacked(
-                    mandate.outputs[0].chainId, mandate.outputs[0].remoteOracle, mandate.outputs[0].remoteFiller, payloadHash
+                    mandate.outputs[0].chainId,
+                    mandate.outputs[0].remoteOracle,
+                    mandate.outputs[0].remoteFiller,
+                    payloadHash
                 )
             )
         );
 
         vm.prank(caller);
-        settler7683.finaliseFor(compactOrder, timestamps, bytes32(uint256(uint160((solver)))), bytes32(uint256(uint160((destination)))), hex"", orderOwnerSignature);
+        settler7683.finaliseFor(
+            compactOrder,
+            timestamps,
+            bytes32(uint256(uint160((solver)))),
+            bytes32(uint256(uint160((destination)))),
+            hex"",
+            orderOwnerSignature
+        );
         vm.snapshotGasLastCall("finaliseFor7683");
 
         assertEq(token.balanceOf(destination), amount);
@@ -726,12 +684,8 @@ contract TestERC20Settler is TestERC7683Base {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate = MandateERC7683({
-            expiry: type(uint32).max,
-            localOracle: localOracle,
-            inputs: inputs,
-            outputs: outputs
-        });
+        MandateERC7683 memory mandate =
+            MandateERC7683({ expiry: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: type(uint32).max,
@@ -761,8 +715,9 @@ contract TestERC20Settler is TestERC7683Base {
         });
 
         bytes32 orderId = settler7683.orderIdentifier(compactOrder);
-        bytes memory payload =
-            OutputEncodingLib.encodeFillDescriptionM(bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]);
+        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(
+            bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]
+        );
         bytes32 payloadHash = keccak256(payload);
 
         vm.expectCall(
@@ -770,7 +725,10 @@ contract TestERC20Settler is TestERC7683Base {
             abi.encodeWithSignature(
                 "efficientRequireProven(bytes)",
                 abi.encodePacked(
-                    mandate.outputs[0].chainId, mandate.outputs[0].remoteOracle, mandate.outputs[0].remoteFiller, payloadHash
+                    mandate.outputs[0].chainId,
+                    mandate.outputs[0].remoteOracle,
+                    mandate.outputs[0].remoteFiller,
+                    payloadHash
                 )
             )
         );

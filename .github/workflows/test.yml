@@ -22,9 +22,18 @@ jobs:
         with:
           version: nightly
 
-      - name: Run Forge build
+      - name: Run Forge version
         run: |
           forge --version
+        id: version
+
+      - name: Run Forge fmt
+        run: |
+          forge fmt --check
+        id: fmt
+
+      - name: Run Forge build
+        run: |
           forge build
         id: build
 

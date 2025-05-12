@@ -531,7 +531,8 @@ contract BitcoinOracle is BaseOracle {
 
     /**
      * @notice Dispute an order.
-     * @param output TODO:
+     * @param orderId Order Identifier
+     * @param output Output description of the order to dispute.
      */
     function dispute(bytes32 orderId, OutputDescription calldata output) external {
         bytes32 outputId = _outputIdentifier(output);

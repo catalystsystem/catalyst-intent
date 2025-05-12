@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
-import { Ownable } from "solady/auth/Ownable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
@@ -21,6 +20,7 @@ import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
 import { BytesLib } from "src/libs/BytesLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
+import { GovernanceFee } from "src/libs/GovernanceFee.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -33,55 +33,16 @@ import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
  *
  * The ownable component of the smart contract is only used for fees.
  */
-contract CompactSettler is BaseSettler, Ownable {
+contract CompactSettler is BaseSettler, GovernanceFee {
     error NotImplemented();
     error NotOrderOwner();
     error InitiateDeadlinePassed();
     error InvalidTimestampLength();
     error OrderIdMismatch(bytes32 provided, bytes32 computed);
     error FilledTooLate(uint32 expected, uint32 actual);
-    error GovernanceFeeTooHigh();
-    error GovernanceFeeChangeNotReady();
     error WrongChain(uint256 expected, uint256 actual);
 
-    /**
-     * @notice Governance fee will be changed shortly.
-     */
-    event NextGovernanceFee(uint64 nextGovernanceFee, uint64 nextGovernanceFeeTime);
-
-    /**
-     * @notice Governance fee changed. This fee is taken of the inputs.
-     */
-    event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
-
     TheCompact public immutable COMPACT;
-
-    /**
-     * @notice When a new governance fee is set, when will it be applicable.
-     * @dev Is used to prevent changing governance from changing the fee mid-flight.
-     */
-    uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
-    /**
-     * @dev Resolution of the governance fee. Need to fit in uint64.
-     */
-    uint256 constant GOVERNANCE_FEE_DENOM = 10 ** 18;
-    /**
-     * @dev Max possible fee.
-     */
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 5%
-
-    /**
-     * @notice Current applied governance fee.
-     */
-    uint64 public governanceFee = 0;
-    /**
-     * @notice Next governance fee. Will be applied: nextGovernanceFeeTime < block.timestamp
-     */
-    uint64 public nextGovernanceFee = 0;
-    /**
-     * @notice When the next governance fee will be applied. Is type(uint64).max when no change is scheduled.
-     */
-    uint64 public nextGovernanceFeeTime = type(uint64).max;
 
     constructor(address compact, address initialOwner) {
         COMPACT = TheCompact(compact);
@@ -100,56 +61,6 @@ contract CompactSettler is BaseSettler, Ownable {
     {
         name = "CatalystSettler";
         version = "Compact1";
-    }
-
-    // Governance Fees
-    // Governance fees are applied through the split functionality of TheCompact. If governanceFee > 0, another
-    // component will be added to the claim to send the governance fee to owner().
-
-    /**
-     * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
-     * @param _nextGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
-     */
-    function setGovernanceFee(
-        uint64 _nextGovernanceFee
-    ) external onlyOwner {
-        if (_nextGovernanceFee > MAX_GOVERNANCE_FEE) revert GovernanceFeeTooHigh();
-        nextGovernanceFee = _nextGovernanceFee;
-        nextGovernanceFeeTime = uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY;
-
-        emit NextGovernanceFee(nextGovernanceFee, nextGovernanceFeeTime);
-    }
-
-    /**
-     * @notice Applies a scheduled governace fee change.
-     */
-    function applyGovernanceFee() external {
-        if (block.timestamp < nextGovernanceFeeTime) revert GovernanceFeeChangeNotReady();
-        // Load the previous governance fee.
-        uint64 oldGovernanceFee = governanceFee;
-        // Set the next governanceFee.
-        governanceFee = nextGovernanceFee;
-        // Ensure this function can't be called again.
-        nextGovernanceFeeTime = type(uint64).max;
-
-        // Emit associated event.
-        emit GovernanceFeeChanged(oldGovernanceFee, nextGovernanceFee);
-    }
-
-    /**
-     * @notice Helper function to compute the fee.
-     * @param amount To compute fee of.
-     * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENOM based.
-     * @return amountFee Fee
-     */
-    function _calcFee(uint256 amount, uint256 fee) internal pure returns (uint256 amountFee) {
-        unchecked {
-            // Check if amount * fee overflows. If it does, don't take the fee.
-            if (fee == 0 || amount >= type(uint256).max / fee) return amountFee = 0;
-            // The above check ensures that amount * fee < type(uint256).max.
-            // amount >= amount * fee / GOVERNANCE_FEE_DENOM since fee < GOVERNANCE_FEE_DENOM
-            return amountFee = amount * fee / GOVERNANCE_FEE_DENOM;
-        }
     }
 
     // Generic order identifier
@@ -449,30 +360,29 @@ contract CompactSettler is BaseSettler, Ownable {
             Component[] memory components;
 
             // If the governance fee is set, we need to add a governance fee split.
-            if (fee != 0) {
-                uint256 governanceShare = _calcFee(allocatedAmount, fee);
-                if (governanceShare != 0) {
-                    unchecked {
-                        // To reduce the cost associated with the governance fee,
-                        // we want to do a 6909 transfer instead of burn and mint.
-                        // Note: While this function is called with replaced token, it
-                        // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
-                        // and places it infront of the current vault owner.
-                        uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
-                        components = new Component[](2);
-                        // For the user
-                        components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
-                        // For governance
-                        components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
-                        batchClaimComponents[i] = BatchClaimComponent({
-                            id: tokenId, // The token ID of the ERC6909 token to allocate.
-                            allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
-                            portions: components
-                        });
-                        continue;
-                    }
+            uint256 governanceShare = _calcFee(allocatedAmount, fee);
+            if (governanceShare != 0) {
+                unchecked {
+                    // To reduce the cost associated with the governance fee,
+                    // we want to do a 6909 transfer instead of burn and mint.
+                    // Note: While this function is called with replaced token, it
+                    // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
+                    // and places it infront of the current vault owner.
+                    uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
+                    components = new Component[](2);
+                    // For the user
+                    components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
+                    // For governance
+                    components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
+                    batchClaimComponents[i] = BatchClaimComponent({
+                        id: tokenId, // The token ID of the ERC6909 token to allocate.
+                        allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
+                        portions: components
+                    });
+                    continue;
                 }
             }
+            
             components = new Component[](1);
             components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
             batchClaimComponents[i] = BatchClaimComponent({

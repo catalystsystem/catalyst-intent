@@ -56,4 +56,39 @@ library OutputDescriptionType {
             return keccak256(currentHash);
         }
     }
+
+    // Memory copy of the above:
+    function hashOutputM(
+        OutputDescription memory output
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                MANDATE_OUTPUT_TYPE_HASH,
+                output.remoteOracle,
+                output.remoteFiller,
+                output.chainId,
+                output.token,
+                output.amount,
+                output.recipient,
+                keccak256(output.remoteCall),
+                keccak256(output.fulfillmentContext)
+            )
+        );
+    }
+
+    function hashOutputsM(
+        OutputDescription[] memory outputs
+    ) internal pure returns (bytes32) {
+        unchecked {
+            bytes memory currentHash = new bytes(32 * outputs.length);
+
+            for (uint256 i = 0; i < outputs.length; ++i) {
+                bytes32 outputHash = hashOutputM(outputs[i]);
+                assembly {
+                    mstore(add(add(currentHash, 0x20), mul(i, 0x20)), outputHash)
+                }
+            }
+            return keccak256(currentHash);
+        }
+    }
 }

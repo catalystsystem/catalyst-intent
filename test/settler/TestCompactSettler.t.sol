@@ -65,12 +65,11 @@ contract TestCompactSettler is Test {
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
     uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.1; // 10%
+    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 10%
 
     MockDepositCompactSettler compactSettler;
     CoinFiller coinFiller;
 
-    // Oracles
     address alwaysYesOracle;
 
     address owner;
@@ -122,8 +121,6 @@ contract TestCompactSettler is Test {
         token.approve(address(theCompact), type(uint256).max);
         vm.prank(solver);
         anotherToken.approve(address(coinFiller), type(uint256).max);
-
-        // Oracles
     }
 
     function witnessHash(
@@ -957,10 +954,6 @@ contract TestCompactSettler is Test {
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
-
-        bytes32 orderId = compactSettler.orderIdentifier(order);
-
-        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
 
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = uint32(block.timestamp);

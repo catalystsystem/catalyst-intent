@@ -9,8 +9,8 @@ import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 import { AllowOpenType } from "./types/AllowOpenType.sol";
-import { OrderPurchaseType } from "./types/OrderPurchaseType.sol";
 import { OutputDescription } from "./types/OutputDescriptionType.sol";
+import { OrderPurchase, OrderPurchaseType } from "./types/OrderPurchaseType.sol";
 
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
@@ -83,7 +83,7 @@ abstract contract BaseSettler is EIP712 {
      * @dev See AllowOpenType.sol
      */
     function _allowExternalClaimant(bytes32 orderId, address orderOwner, bytes32 nextDestination, bytes calldata call, bytes calldata orderOwnerSignature) internal view {
-        bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));
+        bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, nextDestination, call));
         bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, orderOwnerSignature);
         if (!isValid) revert InvalidSigner();
     }
@@ -126,27 +126,24 @@ abstract contract BaseSettler is EIP712 {
      * up purchasing an order that you cannot prove OR is not within the timeToBuy window.
      */
     function _purchaseOrder(
-        bytes32 orderId,
+        OrderPurchase calldata orderPurchase,
         uint256[2][] calldata inputs,
         bytes32 orderSolvedByIdentifier,
         bytes32 purchaser,
         uint256 expiryTimestamp,
-        address newDestination,
-        bytes calldata call,
-        uint64 discount,
-        uint32 timeToBuy,
         bytes calldata solverSignature
     ) internal {
         if (purchaser == bytes32(0)) revert InvalidPurchaser();
         if (expiryTimestamp < block.timestamp) revert Expired();
 
         // Check if the order has already been purchased.
-        Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderId];
+        Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderPurchase.orderId];
         if (purchased.purchaser != bytes32(0)) revert AlreadyPurchased();
 
         // Reentry protection. Ensure that you can't reenter this contract.
         unchecked {
             // unchecked: uint32(block.timestamp) > timeToBuy => uint32(block.timestamp) - timeToBuy > 0.
+            uint32 timeToBuy = orderPurchase.timeToBuy;
             purchased.lastOrderTimestamp = timeToBuy < uint32(block.timestamp) ? uint32(block.timestamp) - timeToBuy : 0;
             purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0)
         }
@@ -155,11 +152,13 @@ abstract contract BaseSettler is EIP712 {
         // We need to validate that the solver has approved someone else to purchase their order.
         address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
 
-        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderId, address(this), newDestination, call, discount, timeToBuy));
+        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderPurchase));
         bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderSolvedByAddress, digest, solverSignature);
         if (!isValid) revert InvalidSigner();
 
         // Pay the input tokens to the solver.
+        uint256 discount = orderPurchase.discount;
+        address newDestination = orderPurchase.destination;
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] calldata input = inputs[i];
@@ -169,8 +168,9 @@ abstract contract BaseSettler is EIP712 {
             SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount);
         }
 
-        emit OrderPurchased(orderId, orderSolvedByIdentifier, purchaser);
+        emit OrderPurchased(orderPurchase.orderId, orderSolvedByIdentifier, purchaser);
 
+        bytes calldata call = orderPurchase.call;
         if (call.length > 0) ICatalystCallback(newDestination).inputsFilled(inputs, call);
     }
 }

@@ -9,6 +9,6 @@ contract DeployCompactSettler is Script {
         address theCompact
     ) external {
         vm.broadcast();
-        address(new CompactSettlerWithDeposit{ salt: bytes32(0) }(theCompact));
+        address(new CompactSettlerWithDeposit{ salt: bytes32(0) }(theCompact, address(0)));
     }
 }

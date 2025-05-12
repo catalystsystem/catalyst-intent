@@ -179,7 +179,7 @@ contract TestCatalyst is Test {
 
         DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
-        compactSettler = new CompactSettlerWithDeposit(address(theCompact));
+        compactSettler = new CompactSettlerWithDeposit(address(theCompact), address(0));
         coinFiller = new CoinFiller();
         alwaysYesOracle = address(new AlwaysYesOracle());
 
@@ -459,15 +459,15 @@ contract TestCatalyst is Test {
 
         vm.revertTo(snapshotId);
 
-        bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, address(compactSettler), solverIdentifier, hex"");
+        bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, solverIdentifier, hex"");
 
         vm.prank(solver);
         compactSettler.finaliseFor(order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"", solverSignature);
     }
 
-    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, bytes32 destination, bytes calldata call) external view returns (bytes memory sig) {
+    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, bytes32 destination, bytes calldata call) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
-        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, originSettler, destination, call)));
+        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, destination, call)));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));

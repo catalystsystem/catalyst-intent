@@ -284,22 +284,23 @@ contract BitcoinOracle is BaseOracle {
      * have been verified (incase the settler is on another chain than the light client).
      */
     function _isPayloadValid(
-        bytes calldata payload
+        bytes32 payloadHash
     ) internal view returns (bool) {
-        return _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][keccak256(payload)];
+        return _attestations[block.chainid][bytes32(uint256(uint160(address(this))))][bytes32(uint256(uint160(address(this))))][payloadHash];
     }
 
     /**
      * @dev Allows oracles to verify we have confirmed payloads.
      */
     function arePayloadsValid(
-        bytes[] calldata payloads
+        bytes32[] calldata payloadHashes
     ) external view returns (bool) {
-        uint256 numPayloads = payloads.length;
+        uint256 numPayloads = payloadHashes.length;
+        bool accumulator = true;
         for (uint256 i; i < numPayloads; ++i) {
-            if (!_isPayloadValid(payloads[i])) return false;
+            accumulator = accumulator && _isPayloadValid(payloadHashes[i]);
         }
-        return true;
+        return accumulator;
     }
 
     // --- Validation --- //

@@ -630,7 +630,6 @@ contract TestCompactSettler is Test {
         timestamps[0] = filledAt;
 
         vm.prank(solver);
-
         vm.expectRevert(abi.encodeWithSignature("FilledTooLate(uint32,uint32)", fillDeadline, filledAt));
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
     }

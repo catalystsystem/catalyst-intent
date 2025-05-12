@@ -38,11 +38,7 @@ contract TestBaseOracle is Test {
         if (lengthOfProofSeriesIn32Chunks != proofSeries.length) {
             vm.expectRevert(abi.encodeWithSignature("NotDivisible(uint256,uint256)", proofSeries.length, 32 * 4));
         } else {
-            uint256 remoteChainId = uint256(bytes32(proofSeries[0:32]));
-            bytes32 remoteOracle = bytes32(proofSeries[32:64]);
-            bytes32 application = bytes32(proofSeries[64:96]);
-            bytes32 dataHash = bytes32(proofSeries[96:128]);
-            vm.expectRevert(abi.encodeWithSignature("NotProven(uint256,bytes32,bytes32,bytes32)", remoteChainId, remoteOracle, application, dataHash));
+            vm.expectRevert(abi.encodeWithSignature("NotProven()"));
         }
         baseOracle.efficientRequireProven(proofSeries);
     }

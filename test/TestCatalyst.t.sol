@@ -438,11 +438,7 @@ contract TestCatalyst is Test {
 
         vm.expectRevert(
             abi.encodeWithSignature(
-                "NotProven(uint256,bytes32,bytes32,bytes32)",
-                outputs[1].chainId,
-                outputs[1].remoteOracle,
-                outputs[1].remoteFiller,
-                keccak256(OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[1]))
+                "NotProven()"
             )
         );
         vm.prank(solver);

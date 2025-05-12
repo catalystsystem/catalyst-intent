@@ -35,12 +35,25 @@ library TheCompactOrderType {
     function orderIdentifier(
         CatalystCompactOrder calldata order
     ) internal view returns (bytes32) {
-        return keccak256(abi.encodePacked(block.chainid, address(this), order.user, order.nonce, order.fillDeadline, order.localOracle, order.inputs, abi.encode(order.outputs)));
+        return keccak256(
+            abi.encodePacked(
+                block.chainid,
+                address(this),
+                order.user,
+                order.nonce,
+                order.fillDeadline,
+                order.localOracle,
+                order.inputs,
+                abi.encode(order.outputs)
+            )
+        );
     }
 
     // TheCompact reqquires that our signed struct is provided as a struct named Mandate. However
-    bytes constant CATALYST_WITNESS_TYPE_COMPACT_STUB = bytes("uint32 fillDeadline,address localOracle,MandateOutput[] outputs)");
-    bytes constant BATCH_COMPACT_SUB_TYPES = abi.encodePacked(CATALYST_WITNESS_TYPE_COMPACT_STUB, OutputDescriptionType.MANDATE_OUTPUT_COMPACT_TYPE_STUB);
+    bytes constant CATALYST_WITNESS_TYPE_COMPACT_STUB =
+        bytes("uint32 fillDeadline,address localOracle,MandateOutput[] outputs)");
+    bytes constant BATCH_COMPACT_SUB_TYPES =
+        abi.encodePacked(CATALYST_WITNESS_TYPE_COMPACT_STUB, OutputDescriptionType.MANDATE_OUTPUT_COMPACT_TYPE_STUB);
 
     // For hashing of our subtypes, we need proper types.
     bytes constant CATALYST_WITNESS_TYPE = abi.encodePacked("Mandate(", BATCH_COMPACT_SUB_TYPES, ")");
@@ -49,15 +62,40 @@ library TheCompactOrderType {
     function witnessHash(
         CatalystCompactOrder calldata order
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(CATALYST_WITNESS_TYPE_HASH, order.fillDeadline, order.localOracle, OutputDescriptionType.hashOutputs(order.outputs)));
+        return keccak256(
+            abi.encode(
+                CATALYST_WITNESS_TYPE_HASH,
+                order.fillDeadline,
+                order.localOracle,
+                OutputDescriptionType.hashOutputs(order.outputs)
+            )
+        );
     }
 
-    bytes constant BATCH_COMPACT_TYPE_STUB = bytes("BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,uint256[2][] idsAndAmounts,Mandate mandate)");
+    bytes constant BATCH_COMPACT_TYPE_STUB = bytes(
+        "BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,uint256[2][] idsAndAmounts,Mandate mandate)"
+    );
     bytes constant BATCH_COMPACT_TYPE = abi.encodePacked(BATCH_COMPACT_TYPE_STUB, CATALYST_WITNESS_TYPE);
     bytes32 constant BATCH_COMPACT_TYPE_HASH = keccak256(BATCH_COMPACT_TYPE);
 
-    function compactHash(address arbiter, address sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order) internal pure returns (bytes32) {
-        return keccak256(abi.encode(BATCH_COMPACT_TYPE_HASH, arbiter, sponsor, nonce, expires, hashIdsAndAmounts(order.inputs), witnessHash(order)));
+    function compactHash(
+        address arbiter,
+        address sponsor,
+        uint256 nonce,
+        uint256 expires,
+        CatalystCompactOrder calldata order
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                BATCH_COMPACT_TYPE_HASH,
+                arbiter,
+                sponsor,
+                nonce,
+                expires,
+                hashIdsAndAmounts(order.inputs),
+                witnessHash(order)
+            )
+        );
     }
 
     function hashIdsAndAmounts(

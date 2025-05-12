@@ -123,7 +123,12 @@ library OutputEncodingLib {
      * output hash and the common payload have a shared chunk of data. It only has to be enhanced with
      * remoteOracle and chain id and then hashed.
      */
-    function getOutputDescriptionHash(bytes32 remoteOracle, bytes32 remoteFiller, uint256 chainId, bytes calldata commonPayload) internal pure returns (bytes32) {
+    function getOutputDescriptionHash(
+        bytes32 remoteOracle,
+        bytes32 remoteFiller,
+        uint256 chainId,
+        bytes calldata commonPayload
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(remoteOracle, remoteFiller, chainId, commonPayload));
     }
 
@@ -166,14 +171,40 @@ library OutputEncodingLib {
      * because these are attached to the package. Instead the fill description describes
      * how the order was filled. These have to be collected externally.
      */
-    function encodeFillDescription(bytes32 solver, bytes32 orderId, uint32 timestamp, OutputDescription calldata outputDescription) internal pure returns (bytes memory encodedOutput) {
-        return encodedOutput =
-            encodeFillDescription(solver, orderId, timestamp, outputDescription.token, outputDescription.amount, outputDescription.recipient, outputDescription.remoteCall, outputDescription.fulfillmentContext);
+    function encodeFillDescription(
+        bytes32 solver,
+        bytes32 orderId,
+        uint32 timestamp,
+        OutputDescription calldata outputDescription
+    ) internal pure returns (bytes memory encodedOutput) {
+        return encodedOutput = encodeFillDescription(
+            solver,
+            orderId,
+            timestamp,
+            outputDescription.token,
+            outputDescription.amount,
+            outputDescription.recipient,
+            outputDescription.remoteCall,
+            outputDescription.fulfillmentContext
+        );
     }
 
-    function encodeFillDescriptionM(bytes32 solver, bytes32 orderId, uint32 timestamp, OutputDescription memory outputDescription) internal pure returns (bytes memory encodedOutput) {
-        return encodedOutput =
-            encodeFillDescription(solver, orderId, timestamp, outputDescription.token, outputDescription.amount, outputDescription.recipient, outputDescription.remoteCall, outputDescription.fulfillmentContext);
+    function encodeFillDescriptionM(
+        bytes32 solver,
+        bytes32 orderId,
+        uint32 timestamp,
+        OutputDescription memory outputDescription
+    ) internal pure returns (bytes memory encodedOutput) {
+        return encodedOutput = encodeFillDescription(
+            solver,
+            orderId,
+            timestamp,
+            outputDescription.token,
+            outputDescription.amount,
+            outputDescription.recipient,
+            outputDescription.remoteCall,
+            outputDescription.fulfillmentContext
+        );
     }
 
     // -- FillDescription Decoding Helpers -- //

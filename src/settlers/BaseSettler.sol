@@ -9,8 +9,9 @@ import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 import { AllowOpenType } from "./types/AllowOpenType.sol";
-import { OutputDescription } from "./types/OutputDescriptionType.sol";
+
 import { OrderPurchase, OrderPurchaseType } from "./types/OrderPurchaseType.sol";
+import { OutputDescription } from "./types/OutputDescriptionType.sol";
 
 import { ICatalystCallback } from "src/interfaces/ICatalystCallback.sol";
 import { IOracle } from "src/interfaces/IOracle.sol";
@@ -82,7 +83,13 @@ abstract contract BaseSettler is EIP712 {
      * @notice Check for a signed message by an order owner to allow someone else to redeem an order.
      * @dev See AllowOpenType.sol
      */
-    function _allowExternalClaimant(bytes32 orderId, address orderOwner, bytes32 nextDestination, bytes calldata call, bytes calldata orderOwnerSignature) internal view {
+    function _allowExternalClaimant(
+        bytes32 orderId,
+        address orderOwner,
+        bytes32 nextDestination,
+        bytes calldata call,
+        bytes calldata orderOwnerSignature
+    ) internal view {
         bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, nextDestination, call));
         bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, orderOwnerSignature);
         if (!isValid) revert InvalidSigner();
@@ -95,7 +102,11 @@ abstract contract BaseSettler is EIP712 {
      * In case an order has been bought, and bought in time, the owner will be set to
      * the purchaser. Otherwise it will be set to the solver.
      */
-    function _purchaseGetOrderOwner(bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal returns (bytes32 orderOwner) {
+    function _purchaseGetOrderOwner(
+        bytes32 orderId,
+        bytes32 solver,
+        uint32[] calldata timestamps
+    ) internal returns (bytes32 orderOwner) {
         // Check if the order has been purchased.
         Purchased storage purchaseDetails = purchasedOrders[solver][orderId];
         uint32 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
@@ -105,7 +116,8 @@ abstract contract BaseSettler is EIP712 {
             // Check if the order has been correctly purchased. We use the fill of the last timestamp
             // to gauge the result towards the purchaser
             uint256 orderTimestamp = _maxTimestamp(timestamps);
-            // If the timestamp of the order is less than or equal to lastOrderTimestamp, the order was purchased in time.
+            // If the timestamp of the order is less than or equal to lastOrderTimestamp, the order was purchased in
+            // time.
             if (lastOrderTimestamp <= orderTimestamp) {
                 delete purchaseDetails.lastOrderTimestamp;
                 delete purchaseDetails.purchaser;
@@ -164,8 +176,11 @@ abstract contract BaseSettler is EIP712 {
             uint256[2] calldata input = inputs[i];
             uint256 tokenId = input[0];
             uint256 allocatedAmount = input[1];
-            uint256 amountAfterDiscount = allocatedAmount * (DISCOUNT_DENOM - discount) / DISCOUNT_DENOM; // If discount > DISCOUNT_DENOM the subtraction will throw an exception
-            SafeTransferLib.safeTransferFrom(EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount);
+            uint256 amountAfterDiscount = allocatedAmount * (DISCOUNT_DENOM - discount) / DISCOUNT_DENOM; // If discount
+                // > DISCOUNT_DENOM the subtraction will throw an exception
+            SafeTransferLib.safeTransferFrom(
+                EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount
+            );
         }
 
         emit OrderPurchased(orderPurchase.orderId, orderSolvedByIdentifier, purchaser);

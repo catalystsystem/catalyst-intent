@@ -45,15 +45,20 @@ contract TestWormholeCallWorm is Test {
     function makeValidVM(
         bytes memory message
     ) internal view returns (bytes memory validVM) {
-        bytes memory postvalidVM = abi.encodePacked(buildPreMessage(0x000d, bytes32(uint256(0xdeadbeefbeefdead))), message);
+        bytes memory postvalidVM =
+            abi.encodePacked(buildPreMessage(0x000d, bytes32(uint256(0xdeadbeefbeefdead))), message);
         bytes32 vmHash = keccak256(abi.encodePacked(keccak256(postvalidVM)));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(testGuardian, vmHash);
 
         validVM = abi.encodePacked(prevalidVM, uint8(0), r, s, v - 27, postvalidVM);
     }
 
-    function buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns (bytes memory preMessage) {
-        return abi.encodePacked(hex"000003e8" hex"00000001", emitterChainId, emitterAddress, hex"0000000000000539" hex"0f");
+    function buildPreMessage(
+        uint16 emitterChainId,
+        bytes32 emitterAddress
+    ) internal pure returns (bytes memory preMessage) {
+        return
+            abi.encodePacked(hex"000003e8" hex"00000001", emitterChainId, emitterAddress, hex"0000000000000539" hex"0f");
     }
 
     // This test checks the possibility of getting a unsigned message verified through verifyVM
@@ -64,7 +69,8 @@ contract TestWormholeCallWorm is Test {
         // Confirm that the test VM is valid
         (Structs.VM memory parsedValidVm, bool valid, string memory reason) = messages.parseAndVerifyVM(validVM);
 
-        (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes memory collectedMessage) = verifier.parseAndVerifyVM(validVM);
+        (uint16 remoteMessagingProtocolChainIdentifier, bytes32 remoteSenderIdentifier, bytes memory collectedMessage) =
+            verifier.parseAndVerifyVM(validVM);
 
         require(valid, reason);
         assertEq(valid, true);

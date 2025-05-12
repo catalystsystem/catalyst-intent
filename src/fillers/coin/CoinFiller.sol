@@ -13,7 +13,12 @@ contract CoinFiller is BaseFiller {
     error SlopeStopped();
     error ExclusiveTo(bytes32 solver);
 
-    function _dutchAuctionSlope(uint256 amount, uint256 slope, uint32 startTime, uint32 stopTime) internal view returns (uint256 currentAmount) {
+    function _dutchAuctionSlope(
+        uint256 amount,
+        uint256 slope,
+        uint32 startTime,
+        uint32 stopTime
+    ) internal view returns (uint256 currentAmount) {
         // Select the largest of block.timestamp and start time
         uint32 currentTime = block.timestamp < uint256(startTime) ? startTime : uint32(block.timestamp);
         // If currentTime is past the stopTime then we return the minimum (amount)
@@ -26,9 +31,10 @@ contract CoinFiller is BaseFiller {
      * @notice Computes the amount of an order. Allows limit orders and dutch auctions.
      * @dev Uses the fulfillmentContext of the output to determine order type.
      * 0x00 is limit order.             Requires output.fulfillmentContext == 0x00
-     * 0x01 is dutch auction.           Requires output.fulfillmentContext == 0x01 | startTime | stopTime | slope 
+     * 0x01 is dutch auction.           Requires output.fulfillmentContext == 0x01 | startTime | stopTime | slope
      * 0xe0 is exclusive limit order.   Requires output.fulfillmentContext == 0xe0 | exclusiveFor | startTime
-     * 0xe1 is exclusive dutch auction. Requires output.fulfillmentContext == 0x01 | exclusiveFor | startTime | stopTime | slope
+     * 0xe1 is exclusive dutch auction. Requires output.fulfillmentContext == 0x01 | exclusiveFor | startTime | stopTime
+     * | slope
      */
     function _getAmount(
         OutputDescription calldata output,
@@ -53,7 +59,7 @@ contract CoinFiller is BaseFiller {
             return _dutchAuctionSlope(output.amount, slope, startTime, stopTime);
         }
 
-        if (orderType == 0xe0  && fulfillmentLength == 37) {
+        if (orderType == 0xe0 && fulfillmentLength == 37) {
             bytes calldata fulfillmentContext = output.fulfillmentContext;
             bytes32 exclusiveFor; // = bytes32(bytes32(output.fulfillmentContext[1:33]));
             uint32 startTime; // = uint32(bytes4(output.fulfillmentContext[33:37]));
@@ -85,8 +91,11 @@ contract CoinFiller is BaseFiller {
         revert NotImplemented();
     }
 
-
-    function _fill(bytes32 orderId, OutputDescription calldata output, bytes32 proposedSolver) internal override returns (bytes32) {
+    function _fill(
+        bytes32 orderId,
+        OutputDescription calldata output,
+        bytes32 proposedSolver
+    ) internal override returns (bytes32) {
         uint256 amount = _getAmount(output, proposedSolver);
         return _fill(orderId, output, amount, proposedSolver);
     }

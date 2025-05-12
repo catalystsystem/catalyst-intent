@@ -35,7 +35,10 @@ interface EIP712 {
 }
 
 interface ImmutableCreate2Factory {
-    function safeCreate2(bytes32 salt, bytes calldata initializationCode) external payable returns (address deploymentAddress);
+    function safeCreate2(
+        bytes32 salt,
+        bytes calldata initializationCode
+    ) external payable returns (address deploymentAddress);
 }
 
 event PackagePublished(uint32 nonce, bytes payload, uint8 consistencyLevel);
@@ -45,7 +48,11 @@ contract ExportedMessages is Messages, Setters {
         return super.storeGuardianSet(set, index);
     }
 
-    function publishMessage(uint32 nonce, bytes calldata payload, uint8 consistencyLevel) external payable returns (uint64) {
+    function publishMessage(
+        uint32 nonce,
+        bytes calldata payload,
+        uint8 consistencyLevel
+    ) external payable returns (uint64) {
         emit PackagePublished(nonce, payload, consistencyLevel);
         return 0;
     }
@@ -139,7 +146,11 @@ contract TestCatalyst is Test {
             OutputDescription memory output = outputs[i];
             hashes[i] = keccak256(
                 abi.encode(
-                    keccak256(bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)")),
+                    keccak256(
+                        bytes(
+                            "MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+                        )
+                    ),
                     output.remoteOracle,
                     output.remoteFiller,
                     output.chainId,
@@ -258,7 +269,9 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(
+            swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
+        );
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -269,11 +282,19 @@ contract TestCatalyst is Test {
         compactSettler.finaliseSelf(order, signature, timestamps, bytes32(uint256(uint160((solver)))));
     }
 
-    function _buildPreMessage(uint16 emitterChainId, bytes32 emitterAddress) internal pure returns (bytes memory preMessage) {
-        return abi.encodePacked(hex"000003e8" hex"00000001", emitterChainId, emitterAddress, hex"0000000000000539" hex"0f");
+    function _buildPreMessage(
+        uint16 emitterChainId,
+        bytes32 emitterAddress
+    ) internal pure returns (bytes memory preMessage) {
+        return
+            abi.encodePacked(hex"000003e8" hex"00000001", emitterChainId, emitterAddress, hex"0000000000000539" hex"0f");
     }
 
-    function makeValidVAA(uint16 emitterChainId, bytes32 emitterAddress, bytes memory message) internal view returns (bytes memory validVM) {
+    function makeValidVAA(
+        uint16 emitterChainId,
+        bytes32 emitterAddress,
+        bytes memory message
+    ) internal view returns (bytes memory validVM) {
         bytes memory postvalidVM = abi.encodePacked(_buildPreMessage(emitterChainId, emitterAddress), message);
         bytes32 vmHash = keccak256(abi.encodePacked(keccak256(postvalidVM)));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(testGuardianPrivateKey, vmHash);
@@ -316,8 +337,18 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
-        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(
+            swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
+        );
+        bytes memory allocatorSig = getCompactBatchWitnessSignature(
+            allocatorPrivateKey,
+            address(compactSettler),
+            swapper,
+            0,
+            type(uint32).max,
+            idsAndAmounts,
+            witnessHash(order)
+        );
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 
@@ -332,7 +363,8 @@ contract TestCatalyst is Test {
         vm.snapshotGasLastCall("fillThrow");
 
         bytes[] memory payloads = new bytes[](1);
-        payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
+        payloads[0] =
+            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
 
         bytes memory expectedMessageEmitted = this.encodeMessage(outputs[0].remoteFiller, payloads);
 
@@ -341,7 +373,9 @@ contract TestCatalyst is Test {
         wormholeOracle.submit(address(coinFiller), payloads);
         vm.snapshotGasLastCall("submit");
 
-        bytes memory vaa = makeValidVAA(uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted);
+        bytes memory vaa = makeValidVAA(
+            uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted
+        );
 
         wormholeOracle.receiveMessage(vaa);
         vm.snapshotGasLastCall("receiveMessage");
@@ -403,7 +437,9 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(
+            swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
+        );
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -419,8 +455,10 @@ contract TestCatalyst is Test {
         coinFiller.fill(type(uint32).max, orderId, outputs[1], solverIdentifier2);
 
         bytes[] memory payloads = new bytes[](2);
-        payloads[0] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
-        payloads[1] = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier2, orderId, uint32(block.timestamp), outputs[1]);
+        payloads[0] =
+            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
+        payloads[1] =
+            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier2, orderId, uint32(block.timestamp), outputs[1]);
 
         bytes memory expectedMessageEmitted = this.encodeMessage(outputs[0].remoteFiller, payloads);
 
@@ -428,7 +466,9 @@ contract TestCatalyst is Test {
         emit PackagePublished(0, expectedMessageEmitted, 15);
         wormholeOracle.submit(address(coinFiller), payloads);
 
-        bytes memory vaa = makeValidVAA(uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted);
+        bytes memory vaa = makeValidVAA(
+            uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted
+        );
 
         wormholeOracle.receiveMessage(vaa);
 
@@ -436,11 +476,7 @@ contract TestCatalyst is Test {
         timestamps[0] = uint32(block.timestamp);
         timestamps[1] = uint32(block.timestamp);
 
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "NotProven()"
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("NotProven()"));
         vm.prank(solver);
         compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, solverIdentifier, hex"");
 
@@ -458,12 +494,21 @@ contract TestCatalyst is Test {
         bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, solverIdentifier, hex"");
 
         vm.prank(solver);
-        compactSettler.finaliseFor(order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"", solverSignature);
+        compactSettler.finaliseFor(
+            order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"", solverSignature
+        );
     }
 
-    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, bytes32 destination, bytes calldata call) external view returns (bytes memory sig) {
+    function getOrderOpenSignature(
+        uint256 privateKey,
+        bytes32 orderId,
+        bytes32 destination,
+        bytes calldata call
+    ) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
-        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, destination, call)));
+        bytes32 msgHash = keccak256(
+            abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, destination, call))
+        );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));

@@ -15,6 +15,5 @@ optimizer_runs = 100000000
 sort_imports = true
 bracket_spacing = true
 multiline_func_header = "params_first"
-line_length = 210
 wrap_comments = true
 tab_width = 4

@@ -20,11 +20,23 @@ struct OrderPurchase {
  * TYPE: Is complete including sub-types.
  */
 library OrderPurchaseType {
-    bytes constant ORDER_PURCHASE_TYPE_STUB = bytes("OrderPurchase(bytes32 orderId,address destination,bytes call,uint64 discount,uint32 timeToBuy)");
+    bytes constant ORDER_PURCHASE_TYPE_STUB =
+        bytes("OrderPurchase(bytes32 orderId,address destination,bytes call,uint64 discount,uint32 timeToBuy)");
 
     bytes32 constant ORDER_PURCHASE_TYPE_HASH = keccak256(ORDER_PURCHASE_TYPE_STUB);
 
-    function hashOrderPurchase(OrderPurchase calldata orderPurchase) internal pure returns (bytes32) {
-        return keccak256(abi.encode(ORDER_PURCHASE_TYPE_HASH, orderPurchase.orderId, orderPurchase.destination, keccak256(orderPurchase.call), orderPurchase.discount, orderPurchase.timeToBuy));
+    function hashOrderPurchase(
+        OrderPurchase calldata orderPurchase
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                ORDER_PURCHASE_TYPE_HASH,
+                orderPurchase.orderId,
+                orderPurchase.destination,
+                keccak256(orderPurchase.call),
+                orderPurchase.discount,
+                orderPurchase.timeToBuy
+            )
+        );
     }
 }

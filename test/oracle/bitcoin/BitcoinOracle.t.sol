@@ -116,7 +116,8 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.claim(solver, orderId, output);
         vm.snapshotGasLastCall("bitcoinOutputClaim");
 
-        (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_,) = bitcoinOracle._claimedOrder(orderId, outputId);
+        (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_,) =
+            bitcoinOracle._claimedOrder(orderId, outputId);
 
         assertEq(solver, solver_);
         assertEq(block.timestamp, claimTimestamp_);
@@ -253,7 +254,14 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.dispute(orderId, output);
         vm.snapshotGasLastCall("bitcoinOutputDispute");
 
-        (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_, uint32 disputeTimestamp_) = bitcoinOracle._claimedOrder(orderId, outputId);
+        (
+            bytes32 solver_,
+            uint32 claimTimestamp_,
+            uint64 multiplier_,
+            address sponsor_,
+            address disputer_,
+            uint32 disputeTimestamp_
+        ) = bitcoinOracle._claimedOrder(orderId, outputId);
 
         assertEq(solver, solver_);
         assertEq(block.timestamp, claimTimestamp_);
@@ -263,7 +271,13 @@ contract TestBitcoinOracle is Test {
         assertEq(block.timestamp + 93 minutes, disputeTimestamp_);
     }
 
-    function test_revert_dispute_too_late(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_dispute_too_late(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -307,7 +321,13 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.dispute(orderId, output);
     }
 
-    function test_revert_dispute_no_collateral(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_dispute_no_collateral(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -345,7 +365,12 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.dispute(orderId, output);
     }
 
-    function test_revert_dispute_not_claimed(bytes32 solver, bytes32 orderId, uint64 amount, address disputer) external {
+    function test_revert_dispute_not_claimed(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(orderId != bytes32(0));
@@ -375,7 +400,13 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.dispute(orderId, output);
     }
 
-    function test_revert_dispute_twice(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_dispute_twice(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -421,7 +452,13 @@ contract TestBitcoinOracle is Test {
 
     //-- Optimistic Verification
 
-    function test_optimistically_verify(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_optimistically_verify(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -459,7 +496,14 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.optimisticallyVerify(orderId, output);
         vm.snapshotGasLastCall("bitcoinOPVerify");
 
-        (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_, uint32 disputeTimestamp_) = bitcoinOracle._claimedOrder(orderId, outputId);
+        (
+            bytes32 solver_,
+            uint32 claimTimestamp_,
+            uint64 multiplier_,
+            address sponsor_,
+            address disputer_,
+            uint32 disputeTimestamp_
+        ) = bitcoinOracle._claimedOrder(orderId, outputId);
 
         assertEq(bytes32(0), solver_);
         assertEq(0, claimTimestamp_);
@@ -469,7 +513,13 @@ contract TestBitcoinOracle is Test {
         assertEq(0, disputeTimestamp_);
     }
 
-    function test_revert_op_verify_disputed(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_op_verify_disputed(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -515,7 +565,13 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.optimisticallyVerify(orderId, output);
     }
 
-    function test_revert_op_verify_not_claimed(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_op_verify_not_claimed(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -544,7 +600,13 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.optimisticallyVerify(orderId, output);
     }
 
-    function test_revert_op_verify_too_early(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_op_verify_too_early(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -584,7 +646,13 @@ contract TestBitcoinOracle is Test {
 
     //-- Finalise Dispute
 
-    function test_finalise_dispute(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_finalise_dispute(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -624,7 +692,14 @@ contract TestBitcoinOracle is Test {
         vm.prank(disputer);
         bitcoinOracle.dispute(orderId, output);
 
-        (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_, uint32 disputeTimestamp_) = bitcoinOracle._claimedOrder(orderId, outputId);
+        (
+            bytes32 solver_,
+            uint32 claimTimestamp_,
+            uint64 multiplier_,
+            address sponsor_,
+            address disputer_,
+            uint32 disputeTimestamp_
+        ) = bitcoinOracle._claimedOrder(orderId, outputId);
 
         assertEq(solver, solver_);
         assertEq(block.timestamp, claimTimestamp_);
@@ -637,7 +712,8 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.finaliseDispute(orderId, output);
         vm.snapshotGasLastCall("bitcoinFinaliseDispute");
 
-        (solver_, claimTimestamp_, multiplier_, sponsor_, disputer_, disputeTimestamp_) = bitcoinOracle._claimedOrder(orderId, outputId);
+        (solver_, claimTimestamp_, multiplier_, sponsor_, disputer_, disputeTimestamp_) =
+            bitcoinOracle._claimedOrder(orderId, outputId);
 
         assertEq(bytes32(0), solver_);
         assertEq(0, claimTimestamp_);
@@ -647,7 +723,13 @@ contract TestBitcoinOracle is Test {
         assertEq(0, disputeTimestamp_);
     }
 
-    function test_revert_finalise_dispute_too_early(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_finalise_dispute_too_early(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -692,7 +774,13 @@ contract TestBitcoinOracle is Test {
         bitcoinOracle.finaliseDispute(orderId, output);
     }
 
-    function test_revert_finalise_dispute_not_disputed(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_revert_finalise_dispute_not_disputed(
+        bytes32 solver,
+        bytes32 orderId,
+        uint64 amount,
+        address caller,
+        address disputer
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -768,7 +856,13 @@ contract TestBitcoinOracle is Test {
         assertEq(token.balanceOf(address(bitcoinOracle)), collateralAmount);
         assertEq(token.balanceOf(caller), 0);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
         vm.snapshotGasLastCall("bitcoinVerify");
@@ -784,7 +878,8 @@ contract TestBitcoinOracle is Test {
 
         // Local oracle (as oracle)
 
-        bool oracleValid = bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
+        bool oracleValid =
+            bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
         assertEq(oracleValid, true);
 
         // Check for a refund of collateral.
@@ -792,7 +887,8 @@ contract TestBitcoinOracle is Test {
         assertEq(token.balanceOf(address(bitcoinOracle)), 0);
 
         // Check that storage has been correctly updated.
-        (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_,) = bitcoinOracle._claimedOrder(orderId, outputId);
+        (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_,) =
+            bitcoinOracle._claimedOrder(orderId, outputId);
 
         assertEq(bytes32(0), solver_);
         assertEq(0, claimTimestamp_);
@@ -801,7 +897,12 @@ contract TestBitcoinOracle is Test {
         assertEq(address(0), disputer_);
     }
 
-    function test_verify_custom_multiplier(bytes32 solver, bytes32 orderId, address caller, uint8 custom_multiplier) external {
+    function test_verify_custom_multiplier(
+        bytes32 solver,
+        bytes32 orderId,
+        address caller,
+        uint8 custom_multiplier
+    ) external {
         vm.assume(custom_multiplier != 0);
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
@@ -843,7 +944,13 @@ contract TestBitcoinOracle is Test {
         assertEq(token.balanceOf(address(bitcoinOracle)), collateralAmount);
         assertEq(token.balanceOf(caller), 0);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
 
@@ -858,7 +965,8 @@ contract TestBitcoinOracle is Test {
 
         // Local oracle (as oracle)
 
-        bool oracleValid = bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
+        bool oracleValid =
+            bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
         assertEq(oracleValid, true);
     }
 
@@ -902,7 +1010,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(disputer);
         bitcoinOracle.dispute(orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
@@ -927,7 +1041,13 @@ contract TestBitcoinOracle is Test {
             fulfillmentContext: hex""
         });
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert(abi.encodeWithSignature("NotClaimed()"));
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
@@ -945,7 +1065,9 @@ contract TestBitcoinOracle is Test {
         OutputDescription memory output = OutputDescription({
             remoteOracle: bitcoinOracleBytes32,
             remoteFiller: bitcoinOracleBytes32,
-            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", EMBED_UTXO_TYPE)),
+            token: bytes32(
+                bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", EMBED_UTXO_TYPE)
+            ),
             recipient: bytes32(EMBED_PHASH),
             amount: EMBED_SATS_AMOUNT,
             chainId: uint32(block.chainid),
@@ -964,7 +1086,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: EMBED_TX_ID, txIndex: EMBED_TX_INDEX, txMerkleProof: EMBED_TX_MERKLE_PROOF, rawTx: EMBED_RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: EMBED_TX_ID,
+            txIndex: EMBED_TX_INDEX,
+            txMerkleProof: EMBED_TX_MERKLE_PROOF,
+            rawTx: EMBED_RAW_TX
+        });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, EMBED_TX_OUTPUT_INDEX);
         vm.snapshotGasLastCall("bitcoinVerifyWithEmbed");
@@ -980,11 +1108,17 @@ contract TestBitcoinOracle is Test {
 
         // Local oracle (as oracle)
 
-        bool oracleValid = bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
+        bool oracleValid =
+            bitcoinOracle.isProven(block.chainid, bitcoinOracleBytes32, bitcoinOracleBytes32, keccak256(payload));
         assertEq(oracleValid, true);
     }
 
-    function test_revert_script_mismatch_verify_embed(bytes32 solver, bytes32 orderId, address caller, bytes calldata remoteCall) external {
+    function test_revert_script_mismatch_verify_embed(
+        bytes32 solver,
+        bytes32 orderId,
+        address caller,
+        bytes calldata remoteCall
+    ) external {
         vm.assume(keccak256(EMBEDDED_DATA_RETURN) != keccak256(remoteCall));
         vm.assume(remoteCall.length <= type(uint32).max);
         vm.assume(remoteCall.length > 0);
@@ -999,7 +1133,9 @@ contract TestBitcoinOracle is Test {
         OutputDescription memory output = OutputDescription({
             remoteOracle: bitcoinOracleBytes32,
             remoteFiller: bitcoinOracleBytes32,
-            token: bytes32(bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", EMBED_UTXO_TYPE)),
+            token: bytes32(
+                bytes.concat(hex"000000000000000000000000BC000000000000000000000000000000000000", EMBED_UTXO_TYPE)
+            ),
             recipient: bytes32(EMBED_PHASH),
             amount: EMBED_SATS_AMOUNT,
             chainId: uint32(block.chainid),
@@ -1015,13 +1151,28 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: EMBED_TX_ID, txIndex: EMBED_TX_INDEX, txMerkleProof: EMBED_TX_MERKLE_PROOF, rawTx: EMBED_RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: EMBED_TX_ID,
+            txIndex: EMBED_TX_INDEX,
+            txMerkleProof: EMBED_TX_MERKLE_PROOF,
+            rawTx: EMBED_RAW_TX
+        });
 
-        vm.expectRevert(abi.encodeWithSignature("ScriptMismatch(bytes,bytes)", BtcScript.embedOpReturn(remoteCall), EMBEDDED_DATA_OP_RETURN_SCRIPT));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ScriptMismatch(bytes,bytes)", BtcScript.embedOpReturn(remoteCall), EMBEDDED_DATA_OP_RETURN_SCRIPT
+            )
+        );
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, EMBED_TX_OUTPUT_INDEX);
     }
 
-    function test_revert_txo_mismatch_verify_embed(bytes32 solver, bytes32 orderId, address caller, bytes calldata remoteCall) external {
+    function test_revert_txo_mismatch_verify_embed(
+        bytes32 solver,
+        bytes32 orderId,
+        address caller,
+        bytes calldata remoteCall
+    ) external {
         vm.assume(keccak256(EMBEDDED_DATA_RETURN) != keccak256(remoteCall));
         vm.assume(remoteCall.length <= type(uint32).max);
         vm.assume(remoteCall.length > 0);
@@ -1052,7 +1203,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: EMBED_TX_ID, txIndex: EMBED_TX_INDEX, txMerkleProof: EMBED_TX_MERKLE_PROOF, rawTx: EMBED_RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: EMBED_TX_ID,
+            txIndex: EMBED_TX_INDEX,
+            txMerkleProof: EMBED_TX_MERKLE_PROOF,
+            rawTx: EMBED_RAW_TX
+        });
 
         vm.expectRevert();
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, EMBED_TX_OUTPUT_INDEX);
@@ -1085,19 +1242,30 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX, PREV_BLOCK_HEADER);
 
         // Remote oracle (as filler)
-        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(PREV_BLOCK_TIME), output);
+        bytes memory payload =
+            OutputEncodingLib.encodeFillDescriptionM(solver, orderId, uint32(PREV_BLOCK_TIME), output);
         bytes32[] memory payloadHashes = new bytes32[](1);
         payloadHashes[0] = keccak256(payload);
         bool fillerValid = bitcoinOracle.arePayloadsValid(payloadHashes);
         assertEq(fillerValid, true);
     }
 
-    function test_revert_verify_with_broken_previous_block_header(bytes32 solver, bytes32 orderId, address caller) external {
+    function test_revert_verify_with_broken_previous_block_header(
+        bytes32 solver,
+        bytes32 orderId,
+        address caller
+    ) external {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
         vm.assume(caller != address(0));
@@ -1124,10 +1292,23 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert();
-        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX, abi.encodePacked(PREV_BLOCK_HEADER, bytes1(0x01)));
+        bitcoinOracle.verify(
+            orderId,
+            output,
+            BLOCK_HEIGHT,
+            inclusionProof,
+            TX_OUTPUT_INDEX,
+            abi.encodePacked(PREV_BLOCK_HEADER, bytes1(0x01))
+        );
     }
 
     function test_verify_after_block_sumbission(bytes32 solver, bytes32 orderId, address caller) public {
@@ -1159,7 +1340,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
 
@@ -1203,7 +1390,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert(abi.encodeWithSignature("TooLate()"));
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
@@ -1240,7 +1433,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert(abi.encodeWithSignature("BadAmount()"));
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
@@ -1273,15 +1472,28 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         bytes32 expectedBlockHash = this._getBlockHashFromHeader(NEXT_BLOCK_HEADER);
         bytes32 actualBlockHash = this._getPreviousBlockHashFromHeader(inclusionProof.blockHeader);
-        vm.expectRevert(abi.encodeWithSignature("BlockhashMismatch(bytes32,bytes32)", actualBlockHash, expectedBlockHash));
+        vm.expectRevert(
+            abi.encodeWithSignature("BlockhashMismatch(bytes32,bytes32)", actualBlockHash, expectedBlockHash)
+        );
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX, NEXT_BLOCK_HEADER);
     }
 
-    function test_revert_bad_token(bytes32 solver, bytes32 orderId, address caller, bytes32 badTokenIdentifier) public {
+    function test_revert_bad_token(
+        bytes32 solver,
+        bytes32 orderId,
+        address caller,
+        bytes32 badTokenIdentifier
+    ) public {
         vm.assume(bytes30(badTokenIdentifier) != 0x000000000000000000000000BC0000000000000000000000000000000000);
 
         vm.assume(solver != bytes32(0));
@@ -1310,13 +1522,24 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert(abi.encodeWithSignature("BadTokenFormat()"));
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 
-    function test_revert_wrong_utxo_type(bytes32 solver, bytes32 orderId, address caller, bytes1 wrongUTXOType) public {
+    function test_revert_wrong_utxo_type(
+        bytes32 solver,
+        bytes32 orderId,
+        address caller,
+        bytes1 wrongUTXOType
+    ) public {
         vm.assume(wrongUTXOType != UTXO_TYPE);
 
         vm.assume(solver != bytes32(0));
@@ -1345,7 +1568,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert();
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
@@ -1380,7 +1609,13 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert();
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
@@ -1415,13 +1650,24 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
         vm.expectRevert(abi.encodeWithSignature("NoBlock(uint256,uint256)", BLOCK_HEIGHT, blockHeight));
         bitcoinOracle.verify(orderId, output, blockHeight, inclusionProof, TX_OUTPUT_INDEX);
     }
 
-    function test_revert_not_enough_confirmations(bytes32 solver, bytes32 orderId, address caller, bytes1 confirmations) public {
+    function test_revert_not_enough_confirmations(
+        bytes32 solver,
+        bytes32 orderId,
+        address caller,
+        bytes1 confirmations
+    ) public {
         vm.assume(uint8(confirmations) > 1);
 
         vm.assume(solver != bytes32(0));
@@ -1434,7 +1680,9 @@ contract TestBitcoinOracle is Test {
         OutputDescription memory output = OutputDescription({
             remoteOracle: bitcoinOracleBytes32,
             remoteFiller: bitcoinOracleBytes32,
-            token: bytes32(bytes.concat(hex"000000000000000000000000BC0000000000000000000000000000000000", confirmations, UTXO_TYPE)),
+            token: bytes32(
+                bytes.concat(hex"000000000000000000000000BC0000000000000000000000000000000000", confirmations, UTXO_TYPE)
+            ),
             recipient: bytes32(PHASH),
             amount: SATS_AMOUNT,
             chainId: uint32(block.chainid),
@@ -1450,9 +1698,17 @@ contract TestBitcoinOracle is Test {
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
 
-        BtcTxProof memory inclusionProof = BtcTxProof({ blockHeader: BLOCK_HEADER, txId: TX_ID, txIndex: TX_INDEX, txMerkleProof: TX_MERKLE_PROOF, rawTx: RAW_TX });
+        BtcTxProof memory inclusionProof = BtcTxProof({
+            blockHeader: BLOCK_HEADER,
+            txId: TX_ID,
+            txIndex: TX_INDEX,
+            txMerkleProof: TX_MERKLE_PROOF,
+            rawTx: RAW_TX
+        });
 
-        vm.expectRevert(abi.encodeWithSignature("TooFewConfirmations(uint256,uint256)", 1, uint256(uint8(confirmations))));
+        vm.expectRevert(
+            abi.encodeWithSignature("TooFewConfirmations(uint256,uint256)", 1, uint256(uint8(confirmations)))
+        );
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 

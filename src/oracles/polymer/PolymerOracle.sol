@@ -74,19 +74,27 @@ contract PolymerOracle is BaseOracle, Ownable {
         return _blockChainIdToChainIdentifier[chainId];
     }
 
-    function _proofPayloadHash(bytes32 orderId, bytes32 solver, uint32 timestamp, OutputDescription memory outputDescription) internal pure returns (bytes32 outputHash) {
-        return outputHash = keccak256(OutputEncodingLib.encodeFillDescriptionM(solver, orderId, timestamp, outputDescription));
+    function _proofPayloadHash(
+        bytes32 orderId,
+        bytes32 solver,
+        uint32 timestamp,
+        OutputDescription memory outputDescription
+    ) internal pure returns (bytes32 outputHash) {
+        return outputHash =
+            keccak256(OutputEncodingLib.encodeFillDescriptionM(solver, orderId, timestamp, outputDescription));
     }
 
     function _processMessage(
         bytes calldata proof
     ) internal {
-        (uint32 chainId, address emittingContract, bytes memory topics, bytes memory unindexedData) = CROSS_L2_PROVER.validateEvent(proof);
+        (uint32 chainId, address emittingContract, bytes memory topics, bytes memory unindexedData) =
+            CROSS_L2_PROVER.validateEvent(proof);
 
         // OrderId is topic[1] which is 32 to 64 bytes.
         bytes32 orderId = bytes32(LibBytes.slice(topics, 32, 64));
 
-        (bytes32 solver, uint32 timestamp, OutputDescription memory output) = abi.decode(unindexedData, (bytes32, uint32, OutputDescription));
+        (bytes32 solver, uint32 timestamp, OutputDescription memory output) =
+            abi.decode(unindexedData, (bytes32, uint32, OutputDescription));
 
         bytes32 payloadHash = _proofPayloadHash(orderId, solver, timestamp, output);
 

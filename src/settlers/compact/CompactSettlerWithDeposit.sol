@@ -20,17 +20,56 @@ import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType
 contract CompactSettlerWithDeposit is CompactSettler {
     event Deposited(bytes32 orderId, CatalystCompactOrder order);
 
-    constructor(
-        address compact,
-        address initialOwner
-    ) CompactSettler(compact, initialOwner) { }
+    constructor(address compact, address initialOwner) CompactSettler(compact, initialOwner) { }
 
-    function _domainNameAndVersion() internal pure virtual override returns (string memory name, string memory version) {
+    /**
+     * @notice EIP712
+     */
+    function _domainNameAndVersion()
+        internal
+        pure
+        virtual
+        override
+        returns (string memory name, string memory version)
+    {
         name = "CatalystSettlerWithDeposit";
         version = "Compact1d";
     }
 
-    function _deposit(address user, uint256 nonce, uint256 fillDeadline, CatalystCompactOrder calldata order) internal {
+    function _validateChain(
+        CatalystCompactOrder calldata order
+    ) internal view {
+        // Check that this is the right originChain
+        if (block.chainid != order.originChainId) revert WrongChain(block.chainid, order.originChainId);
+    }
+
+    function _validateExpiry(
+        CatalystCompactOrder calldata order
+    ) internal view {
+        // Check if the fill deadline has been passed
+        if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
+        // Check if expiry has been passed
+        if (block.timestamp > order.expires) revert InitiateDeadlinePassed();
+    }
+
+    function depositFor(
+        CatalystCompactOrder calldata order
+    ) external {
+        _validateChain(order);
+        _validateExpiry(order);
+
+        _deposit(order.user, order.nonce, order.fillDeadline, order);
+
+        bytes32 orderId = _orderIdentifier(order);
+        emit Deposited(orderId, order);
+    }
+
+    function _deposit(
+        address user,
+        uint256 nonce,
+        uint256 fillDeadline,
+        CatalystCompactOrder calldata order
+    ) internal {
         uint256[2][] memory idsAndAmounts = order.inputs;
         uint256 numInputs = idsAndAmounts.length;
         // We need to collect the tokens from msg.sender.
@@ -43,17 +82,14 @@ contract CompactSettlerWithDeposit is CompactSettler {
             SafeTransferLib.safeApproveWithRetry(token, address(COMPACT), amount);
         }
 
-        COMPACT.batchDepositAndRegisterFor(user, idsAndAmounts, address(this), nonce, fillDeadline, TheCompactOrderType.BATCH_COMPACT_TYPE_HASH, TheCompactOrderType.witnessHash(order));
-    }
-
-    function depositFor(
-        CatalystCompactOrder calldata order
-    ) external {
-        _validateOrder(order);
-
-        _deposit(order.user, order.nonce, order.fillDeadline, order);
-
-        bytes32 orderId = _orderIdentifier(order);
-        emit Deposited(orderId, order);
+        COMPACT.batchDepositAndRegisterFor(
+            user,
+            idsAndAmounts,
+            address(this),
+            nonce,
+            fillDeadline,
+            TheCompactOrderType.BATCH_COMPACT_TYPE_HASH,
+            TheCompactOrderType.witnessHash(order)
+        );
     }
 }

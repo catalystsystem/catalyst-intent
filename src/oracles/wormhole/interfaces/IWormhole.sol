@@ -67,11 +67,17 @@ interface IWormhole {
         uint16 newChainId;
     }
 
-    event LogMessagePublished(address indexed sender, uint64 sequence, uint32 nonce, bytes payload, uint8 consistencyLevel);
+    event LogMessagePublished(
+        address indexed sender, uint64 sequence, uint32 nonce, bytes payload, uint8 consistencyLevel
+    );
     event ContractUpgraded(address indexed oldContract, address indexed newContract);
     event GuardianSetAdded(uint32 indexed index);
 
-    function publishMessage(uint32 nonce, bytes memory payload, uint8 consistencyLevel) external payable returns (uint64 sequence);
+    function publishMessage(
+        uint32 nonce,
+        bytes memory payload,
+        uint8 consistencyLevel
+    ) external payable returns (uint64 sequence);
 
     function initialize() external;
 
@@ -83,7 +89,11 @@ interface IWormhole {
         VM memory vm
     ) external view returns (bool valid, string memory reason);
 
-    function verifySignatures(bytes32 hash, Signature[] memory signatures, GuardianSet memory guardianSet) external pure returns (bool valid, string memory reason);
+    function verifySignatures(
+        bytes32 hash,
+        Signature[] memory signatures,
+        GuardianSet memory guardianSet
+    ) external pure returns (bool valid, string memory reason);
 
     function parseVM(
         bytes memory encodedVM

@@ -41,7 +41,10 @@ contract Messages is Getters {
      * in the case that the vm is securely parsed and the hash field can be trusted, checkHash can be set to false
      * as the check would be redundant
      */
-    function verifyVMInternal(Structs.VM memory vm, bool checkHash) internal view returns (bool valid, string memory reason) {
+    function verifyVMInternal(
+        Structs.VM memory vm,
+        bool checkHash
+    ) internal view returns (bool valid, string memory reason) {
         /// @dev Obtain the current guardianSet for the guardianSetIndex provided
         Structs.GuardianSet memory guardianSet = getGuardianSet(vm.guardianSetIndex);
 
@@ -52,7 +55,15 @@ contract Messages is Getters {
          * but the body of the vm could be completely different from what was actually signed by the guardians
          */
         if (checkHash) {
-            bytes memory body = abi.encodePacked(vm.timestamp, vm.nonce, vm.emitterChainId, vm.emitterAddress, vm.sequence, vm.consistencyLevel, vm.payload);
+            bytes memory body = abi.encodePacked(
+                vm.timestamp,
+                vm.nonce,
+                vm.emitterChainId,
+                vm.emitterAddress,
+                vm.sequence,
+                vm.consistencyLevel,
+                vm.payload
+            );
 
             bytes32 vmHash = keccak256(abi.encodePacked(keccak256(body)));
 
@@ -106,7 +117,11 @@ contract Messages is Getters {
      *  - it intentionally returns true when signatures is an empty set (you should use verifyVM if you need these
      * protections)
      */
-    function verifySignatures(bytes32 hash, Structs.Signature[] memory signatures, Structs.GuardianSet memory guardianSet) public pure returns (bool valid, string memory reason) {
+    function verifySignatures(
+        bytes32 hash,
+        Structs.Signature[] memory signatures,
+        Structs.GuardianSet memory guardianSet
+    ) public pure returns (bool valid, string memory reason) {
         uint8 lastIndex = 0;
         uint256 guardianCount = guardianSet.keys.length;
         for (uint256 i = 0; i < signatures.length; i++) {

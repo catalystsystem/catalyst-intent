@@ -27,7 +27,10 @@ library MessageEncodingLib {
     /**
      * @notice Encodes a number of payloads into a single message prepended as reported by an application.
      */
-    function encodeMessage(bytes32 application, bytes[] calldata payloads) internal pure returns (bytes memory encodedPayload) {
+    function encodeMessage(
+        bytes32 application,
+        bytes[] calldata payloads
+    ) internal pure returns (bytes memory encodedPayload) {
         uint256 numPayloads = payloads.length;
         if (numPayloads > type(uint16).max) revert TooManyPayloads(numPayloads);
 

@@ -23,6 +23,7 @@ import { Structs } from "src/oracles/wormhole/external/wormhole/Structs.sol";
 
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 
+import { SimpleAllocator } from "the-compact/src/examples/allocator/SimpleAllocator.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
@@ -68,17 +69,18 @@ contract TestCatalyst is Test {
 
     uint256 allocatorPrivateKey;
     address allocator;
+    bytes12 signAllocatorLockTag;
 
     MockERC20 token;
     MockERC20 anotherToken;
 
     TheCompact public theCompact;
     address alwaysOKAllocator;
+    bytes12 alwaysOkAllocatorLockTag;
     bytes32 DOMAIN_SEPARATOR;
 
     function getCompactBatchWitnessSignature(
         uint256 privateKey,
-        bytes32 typeHash,
         address arbiter,
         address sponsor,
         uint256 nonce,
@@ -86,16 +88,70 @@ contract TestCatalyst is Test {
         uint256[2][] memory idsAndAmounts,
         bytes32 witness
     ) internal view returns (bytes memory sig) {
-        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, keccak256(abi.encode(typeHash, arbiter, sponsor, nonce, expires, keccak256(abi.encodePacked(idsAndAmounts)), witness))));
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            bytes(
+                                "BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,uint256[2][] idsAndAmounts,Mandate mandate)Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+                            )
+                        ),
+                        arbiter,
+                        sponsor,
+                        nonce,
+                        expires,
+                        keccak256(abi.encodePacked(idsAndAmounts)),
+                        witness
+                    )
+                )
+            )
+        );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
     }
 
-    function orderHash(
-        CatalystCompactOrder calldata order
-    ) external pure returns (bytes32) {
-        return TheCompactOrderType.orderHash(order);
+    function witnessHash(
+        CatalystCompactOrder memory order
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    bytes(
+                        "Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+                    )
+                ),
+                order.fillDeadline,
+                order.localOracle,
+                outputsHash(order.outputs)
+            )
+        );
+    }
+
+    function outputsHash(
+        OutputDescription[] memory outputs
+    ) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](outputs.length);
+        for (uint256 i = 0; i < outputs.length; ++i) {
+            OutputDescription memory output = outputs[i];
+            hashes[i] = keccak256(
+                abi.encode(
+                    keccak256(bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)")),
+                    output.remoteOracle,
+                    output.remoteFiller,
+                    output.chainId,
+                    output.token,
+                    output.amount,
+                    output.recipient,
+                    keccak256(output.remoteCall),
+                    keccak256(output.fulfillmentContext)
+                )
+            );
+        }
+        return keccak256(abi.encodePacked(hashes));
     }
 
     function encodeMessage(bytes32 remoteIdentifier, bytes[] calldata payloads) external pure returns (bytes memory) {
@@ -107,12 +163,19 @@ contract TestCatalyst is Test {
 
         alwaysOKAllocator = address(new AlwaysOKAllocator());
 
-        theCompact.__registerAllocator(alwaysOKAllocator, "");
+        uint96 alwaysOkAllocatorId = theCompact.__registerAllocator(alwaysOKAllocator, "");
+
+        // use scope 0 and reset period 0. This is okay as long as we don't use anything time based.
+        alwaysOkAllocatorLockTag = bytes12(alwaysOkAllocatorId);
 
         (allocator, allocatorPrivateKey) = makeAddrAndKey("allocator");
 
+        SimpleAllocator simpleAllocator = new SimpleAllocator(allocator, address(theCompact));
+
         vm.prank(allocator);
-        theCompact.__registerAllocator(allocator, "");
+        uint96 signAllocatorId = theCompact.__registerAllocator(address(simpleAllocator), "");
+
+        signAllocatorLockTag = bytes12(signAllocatorId);
 
         DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
@@ -159,13 +222,13 @@ contract TestCatalyst is Test {
 
     function test_deposit_compact() external {
         vm.prank(swapper);
-        theCompact.deposit(address(token), alwaysOKAllocator, 1e18 / 10);
+        theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, 1e18 / 10, swapper);
     }
 
     function test_deposit_and_claim() external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, amount];
@@ -180,15 +243,22 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -214,7 +284,7 @@ contract TestCatalyst is Test {
     function test_entire_flow() external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), allocator, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), signAllocatorLockTag, amount, swapper);
 
         address localOracle = address(wormholeOracle);
 
@@ -231,24 +301,30 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: localOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes32 _orderHash = this.orderHash(order);
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
-        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, _orderHash);
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
+        bytes memory allocatorSig = getCompactBatchWitnessSignature(allocatorPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 
         // Initiation is over. We need to fill the order.
 
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
-        
+
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
         vm.prank(solver);
@@ -285,7 +361,7 @@ contract TestCatalyst is Test {
         vm.assume(solverIdentifier != solverIdentifier2);
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(wormholeOracle);
 
@@ -312,21 +388,27 @@ contract TestCatalyst is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: localOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
 
         // Initiation is over. We need to fill the order.
-
 
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
@@ -364,7 +446,7 @@ contract TestCatalyst is Test {
             )
         );
         vm.prank(solver);
-        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, solver, hex"");
+        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, solverIdentifier, hex"");
 
         bytes32[] memory solverIdentifierList = new bytes32[](2);
         solverIdentifierList[0] = solverIdentifier;
@@ -373,17 +455,17 @@ contract TestCatalyst is Test {
         uint256 snapshotId = vm.snapshot();
 
         vm.prank(solver);
-        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifierList, solver, hex"");
+        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"");
 
         vm.revertTo(snapshotId);
 
-        bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, address(compactSettler), solver, hex"");
+        bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, address(compactSettler), solverIdentifier, hex"");
 
         vm.prank(solver);
-        compactSettler.finaliseFor(order, signature, timestamps, solverIdentifierList, solver, hex"", solverSignature);
+        compactSettler.finaliseFor(order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"", solverSignature);
     }
 
-    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, address destination, bytes calldata call) external view returns (bytes memory sig) {
+    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, bytes32 destination, bytes calldata call) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
         bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, originSettler, destination, call)));
 

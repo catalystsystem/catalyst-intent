@@ -7,6 +7,7 @@ pragma solidity ^0.8.26;
 struct OrderPurchase {
     bytes32 orderId;
     address originSettler;
+    /// @dev unlike other destinations, this needs to be an external address
     address destination;
     bytes call;
     uint64 discount;
@@ -20,7 +21,7 @@ struct OrderPurchase {
  * TYPE: Is complete including sub-types.
  */
 library OrderPurchaseType {
-    bytes constant ORDER_PURCHASE_TYPE_STUB = abi.encodePacked("OrderPurchase(" "bytes32 orderId," "address originSettler," "address destination," "bytes call," "uint64 discount," "uint32 timeToBuy" ")");
+    bytes constant ORDER_PURCHASE_TYPE_STUB = bytes("OrderPurchase(bytes32 orderId,address originSettler,address destination,bytes call,uint64 discount,uint32 timeToBuy)");
 
     bytes32 constant ORDER_PURCHASE_TYPE_HASH = keccak256(ORDER_PURCHASE_TYPE_STUB);
 

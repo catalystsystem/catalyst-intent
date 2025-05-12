@@ -12,18 +12,21 @@ import { OutputDescription } from "src/libs/OutputEncodingLib.sol";
 library OutputDescriptionType {
     //--- Inputs & Outputs Types ---//
 
-    bytes constant OUTPUT_DESCRIPTION_TYPE_STUB = abi.encodePacked(
-        "OutputDescription(" "bytes32 remoteOracle," "bytes32 remoteFiller," "uint256 chainId," "bytes32 token," "uint256 amount," "bytes32 recipient," "bytes remoteCall," "bytes fulfillmentContext" ")"
-    );
+    // TheCompact needs the type without the last ")"
+    bytes constant MANDATE_OUTPUT_COMPACT_TYPE_STUB =
+        bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext");
 
-    bytes32 constant OUTPUT_DESCRIPTION_TYPE_HASH = keccak256(OUTPUT_DESCRIPTION_TYPE_STUB);
+    bytes constant MANDATE_OUTPUT_TYPE_STUB =
+        bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)");
+
+    bytes32 constant MANDATE_OUTPUT_TYPE_HASH = keccak256(MANDATE_OUTPUT_TYPE_STUB);
 
     function hashOutput(
-        OutputDescription memory output
+        OutputDescription calldata output
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                OUTPUT_DESCRIPTION_TYPE_HASH,
+                MANDATE_OUTPUT_TYPE_HASH,
                 output.remoteOracle,
                 output.remoteFiller,
                 output.chainId,
@@ -37,7 +40,7 @@ library OutputDescriptionType {
     }
 
     function hashOutputs(
-        OutputDescription[] memory outputs
+        OutputDescription[] calldata outputs
     ) internal pure returns (bytes32) {
         unchecked {
             bytes memory currentHash = new bytes(32 * outputs.length);

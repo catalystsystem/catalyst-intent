@@ -7,7 +7,7 @@ pragma solidity ^0.8.26;
 struct AllowOpen {
     bytes32 orderId;
     address originSettler;
-    address destination;
+    bytes32 destination;
     bytes call;
 }
 
@@ -18,11 +18,11 @@ struct AllowOpen {
  * TYPE: Is complete including sub-types.
  */
 library AllowOpenType {
-    bytes constant ALLOW_OPEN_TYPE_STUB = abi.encodePacked("AllowOpen(" "bytes32 orderId," "address originSettler," "address destination," "bytes call" ")");
+    bytes constant ALLOW_OPEN_TYPE_STUB = bytes("AllowOpen(bytes32 orderId,bytes32 originSettler,address destination,bytes call)");
 
     bytes32 constant ALLOW_OPEN_TYPE_HASH = keccak256(ALLOW_OPEN_TYPE_STUB);
 
-    function hashAllowOpen(bytes32 orderId, address originSettler, address destination, bytes calldata call) internal pure returns (bytes32) {
+    function hashAllowOpen(bytes32 orderId, address originSettler, bytes32 destination, bytes calldata call) internal pure returns (bytes32) {
         return keccak256(abi.encode(ALLOW_OPEN_TYPE_HASH, orderId, originSettler, destination, keccak256(call)));
     }
 }

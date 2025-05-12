@@ -28,14 +28,14 @@ abstract contract BaseSettler is EIP712 {
     error InvalidPurchaser();
     error InvalidSigner();
 
-    event Finalised(bytes32 indexed orderId, bytes32 solver, address destination);
-    event OrderPurchased(bytes32 indexed orderId, bytes32 solver, address purchaser);
+    event Finalised(bytes32 indexed orderId, bytes32 solver, bytes32 destination);
+    event OrderPurchased(bytes32 indexed orderId, bytes32 solver, bytes32 purchaser);
 
     uint256 constant DISCOUNT_DENOM = 10 ** 18;
 
     struct Purchased {
         uint32 lastOrderTimestamp;
-        address purchaser;
+        bytes32 purchaser;
     }
 
     mapping(bytes32 solver => mapping(bytes32 orderId => Purchased)) public purchasedOrders;
@@ -82,7 +82,7 @@ abstract contract BaseSettler is EIP712 {
      * @notice Check for a signed message by an order owner to allow someone else to redeem an order.
      * @dev See AllowOpenType.sol
      */
-    function _allowExternalClaimant(bytes32 orderId, address orderOwner, address nextDestination, bytes calldata call, bytes calldata orderOwnerSignature) internal view {
+    function _allowExternalClaimant(bytes32 orderId, address orderOwner, bytes32 nextDestination, bytes calldata call, bytes calldata orderOwnerSignature) internal view {
         bytes32 digest = _hashTypedData(AllowOpenType.hashAllowOpen(orderId, address(this), nextDestination, call));
         bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderOwner, digest, orderOwnerSignature);
         if (!isValid) revert InvalidSigner();
@@ -95,13 +95,13 @@ abstract contract BaseSettler is EIP712 {
      * In case an order has been bought, and bought in time, the owner will be set to
      * the purchaser. Otherwise it will be set to the solver.
      */
-    function _purchaseGetOrderOwner(bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal returns (address orderOwner) {
+    function _purchaseGetOrderOwner(bytes32 orderId, bytes32 solver, uint32[] calldata timestamps) internal returns (bytes32 orderOwner) {
         // Check if the order has been purchased.
         Purchased storage purchaseDetails = purchasedOrders[solver][orderId];
         uint32 lastOrderTimestamp = purchaseDetails.lastOrderTimestamp;
-        address purchaser = purchaseDetails.purchaser;
+        bytes32 purchaser = purchaseDetails.purchaser;
 
-        if (purchaser != address(0)) {
+        if (purchaser != bytes32(0)) {
             // Check if the order has been correctly purchased. We use the fill of the last timestamp
             // to gauge the result towards the purchaser
             uint256 orderTimestamp = _maxTimestamp(timestamps);
@@ -114,7 +114,7 @@ abstract contract BaseSettler is EIP712 {
             delete purchaseDetails.lastOrderTimestamp;
             delete purchaseDetails.purchaser;
         }
-        return address(uint160(uint256(solver)));
+        return solver;
     }
 
     /**
@@ -129,7 +129,7 @@ abstract contract BaseSettler is EIP712 {
         bytes32 orderId,
         uint256[2][] calldata inputs,
         bytes32 orderSolvedByIdentifier,
-        address purchaser,
+        bytes32 purchaser,
         uint256 expiryTimestamp,
         address newDestination,
         bytes calldata call,
@@ -137,12 +137,12 @@ abstract contract BaseSettler is EIP712 {
         uint32 timeToBuy,
         bytes calldata solverSignature
     ) internal {
-        if (purchaser == address(0)) revert InvalidPurchaser();
+        if (purchaser == bytes32(0)) revert InvalidPurchaser();
         if (expiryTimestamp < block.timestamp) revert Expired();
 
         // Check if the order has already been purchased.
         Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderId];
-        if (purchased.purchaser != address(0)) revert AlreadyPurchased();
+        if (purchased.purchaser != bytes32(0)) revert AlreadyPurchased();
 
         // Reentry protection. Ensure that you can't reenter this contract.
         unchecked {

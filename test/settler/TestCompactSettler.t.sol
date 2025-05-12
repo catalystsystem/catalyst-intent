@@ -52,7 +52,7 @@ contract MockDepositCompactSettler is CompactSettlerWithDeposit {
 contract TestCompactSettler is Test {
     event Transfer(address from, address to, uint256 amount);
     event Transfer(address by, address from, address to, uint256 id, uint256 amount);
-    event CompactRegistered(address indexed sponsor, bytes32 claimHash, bytes32 typehash, uint256 expires);
+    event CompactRegistered(address indexed sponsor, bytes32 claimHash, bytes32 typehash);
 
     MockDepositCompactSettler compactSettler;
     CoinFiller coinFiller;
@@ -72,6 +72,7 @@ contract TestCompactSettler is Test {
 
     TheCompact public theCompact;
     address alwaysOKAllocator;
+    bytes12 alwaysOkAllocatorLockTag;
     bytes32 DOMAIN_SEPARATOR;
 
     function setUp() public virtual {
@@ -79,7 +80,10 @@ contract TestCompactSettler is Test {
 
         alwaysOKAllocator = address(new AlwaysOKAllocator());
 
-        theCompact.__registerAllocator(alwaysOKAllocator, "");
+        uint96 alwaysOkAllocatorId = theCompact.__registerAllocator(alwaysOKAllocator, "");
+
+        // use scope 0 and reset period 0. This is okay as long as we don't use anything time based.
+        alwaysOkAllocatorLockTag = bytes12(alwaysOkAllocatorId);
 
         DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
 
@@ -105,10 +109,44 @@ contract TestCompactSettler is Test {
         // Oracles
     }
 
-    function orderHash(
-        CatalystCompactOrder calldata order
-    ) external pure returns (bytes32) {
-        return TheCompactOrderType.orderHash(order);
+    function witnessHash(
+        CatalystCompactOrder memory order
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    bytes(
+                        "Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+                    )
+                ),
+                order.fillDeadline,
+                order.localOracle,
+                outputsHash(order.outputs)
+            )
+        );
+    }
+
+    function outputsHash(
+        OutputDescription[] memory outputs
+    ) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](outputs.length);
+        for (uint256 i = 0; i < outputs.length; ++i) {
+            OutputDescription memory output = outputs[i];
+            hashes[i] = keccak256(
+                abi.encode(
+                    keccak256(bytes("MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)")),
+                    output.remoteOracle,
+                    output.remoteFiller,
+                    output.chainId,
+                    output.token,
+                    output.amount,
+                    output.recipient,
+                    keccak256(output.remoteCall),
+                    keccak256(output.fulfillmentContext)
+                )
+            );
+        }
+        return keccak256(abi.encodePacked(hashes));
     }
 
     function compactHash(address arbiter, address sponsor, uint256 nonce, uint256 expires, CatalystCompactOrder calldata order) external pure returns (bytes32) {
@@ -131,7 +169,7 @@ contract TestCompactSettler is Test {
         return bytes.concat(r, s, bytes1(v));
     }
 
-    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, address destination, bytes calldata call) external view returns (bytes memory sig) {
+    function getOrderOpenSignature(uint256 privateKey, bytes32 orderId, address originSettler, bytes32 destination, bytes calldata call) external view returns (bytes memory sig) {
         bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
         bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, originSettler, destination, call)));
 
@@ -141,7 +179,6 @@ contract TestCompactSettler is Test {
 
     function getCompactBatchWitnessSignature(
         uint256 privateKey,
-        bytes32 typeHash,
         address arbiter,
         address sponsor,
         uint256 nonce,
@@ -150,7 +187,27 @@ contract TestCompactSettler is Test {
         bytes32 witness
     ) internal view returns (bytes memory sig) {
         bytes32 domainSeparator = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
-        bytes32 msgHash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, keccak256(abi.encode(typeHash, arbiter, sponsor, nonce, expires, keccak256(abi.encodePacked(idsAndAmounts)), witness))));
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                domainSeparator,
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            bytes(
+                                "BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,uint256[2][] idsAndAmounts,Mandate mandate)Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 remoteOracle,bytes32 remoteFiller,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes remoteCall,bytes fulfillmentContext)"
+                            )
+                        ),
+                        arbiter,
+                        sponsor,
+                        nonce,
+                        expires,
+                        keccak256(abi.encodePacked(idsAndAmounts)),
+                        witness
+                    )
+                )
+            )
+        );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
         return bytes.concat(r, s, bytes1(v));
@@ -188,20 +245,28 @@ contract TestCompactSettler is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(target), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: localOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(target),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: localOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         vm.prank(swapper);
         token.approve(address(compactSettler), amount);
 
         bytes32 claimHash = this.compactHash(address(compactSettler), order.user, order.nonce, order.fillDeadline, order);
-        bytes32 typehash = 0x3bf5e03b33f9a0f3a5f54719ee043a9f9b34f4de44765c1b5afb7e0de6b8a6b0;
+        bytes32 typehash = 0x3df4b6efdfbd05bc0129a40c10b9e80a519127db6100fb77877a4ac4ac191af7;
 
         vm.expectEmit();
-        emit CompactRegistered(target, claimHash, typehash, block.timestamp + 65 * 60);
+        emit CompactRegistered(target, claimHash, typehash);
 
         vm.prank(swapper);
-        compactSettler.depositFor(order, resetPeriod);
+        compactSettler.depositFor(order);
     }
 
     function hashOrderPurchase(bytes32 orderId, address originSettler, address destination, bytes calldata call, uint64 discount, uint32 timeToBuy) external pure returns (bytes32) {
@@ -232,11 +297,18 @@ contract TestCompactSettler is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(target), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(target),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         bytes32 orderSolvedByIdentifier = bytes32(uint256(uint160(solver)));
-        console.logBytes32(orderSolvedByIdentifier);
 
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
@@ -256,11 +328,11 @@ contract TestCompactSettler is Test {
         anotherToken.approve(address(compactSettler), amount);
 
         vm.prank(purchaser);
-        compactSettler.purchaseOrder(orderId, order, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
+        compactSettler.purchaseOrder(orderId, order, orderSolvedByIdentifier, bytes32(uint256(uint160(purchaser))), expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
 
-        (uint32 storageLastOrderTimestamp, address storagePurchaser) = compactSettler.purchasedOrders(orderSolvedByIdentifier, orderId);
+        (uint32 storageLastOrderTimestamp, bytes32 storagePurchaser) = compactSettler.purchasedOrders(orderSolvedByIdentifier, orderId);
         assertEq(storageLastOrderTimestamp, currentTime - timeToBuy);
-        assertEq(storagePurchaser, purchaser);
+        assertEq(storagePurchaser, bytes32(uint256(uint160(purchaser))));
     }
 
     function test_revert_purchase_order_invalid_order_id(address purchaser, address target) external {
@@ -287,11 +359,18 @@ contract TestCompactSettler is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(target), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(target),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         bytes32 orderSolvedByIdentifier = bytes32(uint256(uint160(solver)));
-        console.logBytes32(orderSolvedByIdentifier);
 
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
@@ -317,7 +396,7 @@ contract TestCompactSettler is Test {
         bytes32 badOrderId = compactSettler.orderIdentifier(order);
 
         vm.expectRevert(abi.encodeWithSignature("OrderIdMismatch(bytes32,bytes32)", orderId, badOrderId));
-        compactSettler.purchaseOrder(orderId, order, orderSolvedByIdentifier, purchaser, expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
+        compactSettler.purchaseOrder(orderId, order, orderSolvedByIdentifier, bytes32(uint256(uint160(purchaser))), expiryTimestamp, newDestination, call, discount, timeToBuy, solverSignature);
     }
 
     // -- Units Tests -- //
@@ -403,7 +482,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -420,15 +499,22 @@ contract TestCompactSettler is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -464,17 +550,13 @@ contract TestCompactSettler is Test {
         assertEq(token.balanceOf(solver), amount);
     }
 
-    function test_revert_finalise_self_too_late(
-        address non_solver,
-        uint32 fillDeadline,
-        uint32 filledAt
-    ) external {
+    function test_revert_finalise_self_too_late(address non_solver, uint32 fillDeadline, uint32 filledAt) external {
         vm.assume(non_solver != solver);
         vm.assume(fillDeadline < filledAt);
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -491,15 +573,22 @@ contract TestCompactSettler is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: fillDeadline, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: fillDeadline,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -509,7 +598,6 @@ contract TestCompactSettler is Test {
         bytes32 orderId = compactSettler.orderIdentifier(order);
 
         bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, filledAt, outputs[0]);
-        bytes32 payloadHash = keccak256(payload);
 
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = filledAt;
@@ -528,7 +616,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -545,15 +633,22 @@ contract TestCompactSettler is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -568,12 +663,12 @@ contract TestCompactSettler is Test {
         vm.prank(non_solver);
 
         vm.expectRevert(abi.encodeWithSignature("NotOrderOwner()"));
-        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, destination, hex"");
+        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, bytes32(uint256(uint160(destination))), hex"");
 
         assertEq(token.balanceOf(destination), 0);
 
         vm.prank(solver);
-        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, destination, hex"");
+        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifier, bytes32(uint256(uint160(destination))), hex"");
         vm.snapshotGasLastCall("finaliseTo");
 
         assertEq(token.balanceOf(destination), amount);
@@ -588,7 +683,7 @@ contract TestCompactSettler is Test {
 
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
-        uint256 tokenId = theCompact.deposit(address(token), alwaysOKAllocator, amount);
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         address localOracle = address(alwaysYesOracle);
 
@@ -605,15 +700,22 @@ contract TestCompactSettler is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
-        CatalystCompactOrder memory order =
-            CatalystCompactOrder({ user: address(swapper), nonce: 0, originChainId: block.chainid, fillDeadline: type(uint32).max, expires: type(uint32).max, localOracle: alwaysYesOracle, inputs: inputs, outputs: outputs });
+        CatalystCompactOrder memory order = CatalystCompactOrder({
+            user: address(swapper),
+            nonce: 0,
+            originChainId: block.chainid,
+            fillDeadline: type(uint32).max,
+            expires: type(uint32).max,
+            localOracle: alwaysYesOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
 
         // Make Compact
-        bytes32 typeHash = TheCompactOrderType.BATCH_COMPACT_TYPE_HASH;
         uint256[2][] memory idsAndAmounts = new uint256[2][](1);
         idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, typeHash, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, this.orderHash(order));
+        bytes memory sponsorSig = getCompactBatchWitnessSignature(swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order));
         bytes memory allocatorSig = hex"";
 
         bytes memory signature = abi.encode(sponsorSig, allocatorSig);
@@ -631,15 +733,15 @@ contract TestCompactSettler is Test {
 
         vm.prank(non_solver);
         vm.expectRevert(abi.encodeWithSignature("InvalidSigner()"));
-        compactSettler.finaliseFor(order, signature, timestamps, solverIdentifier, destination, hex"", orderOwnerSignature);
+        compactSettler.finaliseFor(order, signature, timestamps, solverIdentifier, bytes32(uint256(uint160(destination))), hex"", orderOwnerSignature);
 
         assertEq(token.balanceOf(destination), 0);
 
-        orderOwnerSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, address(compactSettler), destination, hex"");
+        orderOwnerSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, address(compactSettler), bytes32(uint256(uint160(destination))), hex"");
 
         vm.prank(non_solver);
-        compactSettler.finaliseFor(order, signature, timestamps, solverIdentifier, destination, hex"", orderOwnerSignature);
-        vm.snapshotGasLastCall("finaliseTo");
+        compactSettler.finaliseFor(order, signature, timestamps, solverIdentifier, bytes32(uint256(uint160(destination))), hex"", orderOwnerSignature);
+        vm.snapshotGasLastCall("finaliseFor");
 
         assertEq(token.balanceOf(destination), amount);
     }

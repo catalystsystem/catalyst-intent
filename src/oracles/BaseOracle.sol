@@ -55,7 +55,6 @@ abstract contract BaseOracle is IOracle {
             uint256 proofBytes = proofSeries.length;
             uint256 series = proofBytes / (32 * 4);
             if (series * (32 * 4) != proofBytes) revert NotDivisible(proofBytes, 32 * 4);
-            
 
             uint256 offset;
             uint256 end;

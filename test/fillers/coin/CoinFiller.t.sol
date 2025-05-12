@@ -49,7 +49,6 @@ contract TestCoinFiller is Test {
         vm.prank(sender);
         outputToken.approve(coinFillerAddress, amount);
 
-
         OutputDescription memory output = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
             remoteOracle: bytes32(0),
@@ -60,7 +59,7 @@ contract TestCoinFiller is Test {
             remoteCall: bytes(""),
             fulfillmentContext: bytes("")
         });
-    
+
         vm.prank(sender);
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), output);
@@ -79,7 +78,6 @@ contract TestCoinFiller is Test {
         outputToken.mint(sender, uint256(amount) + uint256(amount2));
         vm.prank(sender);
         outputToken.approve(coinFillerAddress, uint256(amount) + uint256(amount2));
-
 
         OutputDescription[] memory outputs = new OutputDescription[](2);
         outputs[0] = OutputDescription({
@@ -103,7 +101,7 @@ contract TestCoinFiller is Test {
             remoteCall: bytes(""),
             fulfillmentContext: bytes("")
         });
-    
+
         vm.expectEmit();
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
         emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[1]);
@@ -265,7 +263,7 @@ contract TestCoinFiller is Test {
     function test_revert_fill_deadline_passed(address sender, bytes32 filler, bytes32 orderId, uint32 fillDeadline, uint32 filledAt) public {
         vm.assume(filler != bytes32(0));
         vm.assume(fillDeadline < filledAt);
-        
+
         vm.warp(filledAt);
 
         OutputDescription[] memory outputs = new OutputDescription[](1);

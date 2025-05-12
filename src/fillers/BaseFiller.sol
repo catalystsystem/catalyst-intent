@@ -32,8 +32,6 @@ abstract contract BaseFiller is IPayloadCreator {
 
     uint32 public immutable CHAIN_ID = uint32(block.chainid);
 
-    function _preDeliveryHook(address recipient, address token, uint256 outputAmount) internal virtual returns (uint256);
-
     /**
      * @notice Verifies & Fills an order.
      * If an order has already been filled given the output & fillDeadline, then this function
@@ -73,14 +71,13 @@ abstract contract BaseFiller is IPayloadCreator {
         address recipient = address(uint160(uint256(output.recipient)));
         address token = address(uint160(uint256(output.token)));
 
-        uint256 deliveryAmount = _preDeliveryHook(recipient, token, outputAmount);
         // Collect tokens from the user. If this fails, then the call reverts and
         // the proof is not set to true.
-        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, deliveryAmount);
+        SafeTransferLib.safeTransferFrom(token, msg.sender, recipient, outputAmount);
 
         // If there is an external call associated with the fill, execute it.
         uint256 remoteCallLength = output.remoteCall.length;
-        if (remoteCallLength > 0) ICatalystCallback(recipient).outputFilled(output.token, deliveryAmount, output.remoteCall);
+        if (remoteCallLength > 0) ICatalystCallback(recipient).outputFilled(output.token, outputAmount, output.remoteCall);
 
         emit OutputFilled(orderId, proposedSolver, uint32(block.timestamp), output);
 

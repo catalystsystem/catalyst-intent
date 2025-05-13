@@ -184,6 +184,7 @@ contract Settler7683Test is Settler7683TestBase {
     function test_open(uint32 fillDeadline, uint128 amount, address user) external {
         vm.assume(fillDeadline > block.timestamp);
         vm.assume(token.balanceOf(user) == 0);
+        vm.assume(user != address(settler7683));
 
         token.mint(user, amount);
         vm.prank(user);
@@ -620,19 +621,27 @@ contract Settler7683Test is Settler7683TestBase {
 
     // --- Fee tests --- //
 
-    function test_invalid_governance_fee(
-        uint64 fee
-    ) public {
-        vm.assume(fee > MAX_GOVERNANCE_FEE);
+    function test_invalid_governance_fee() public {
+
+        vm.prank(owner);
+        settler7683.setGovernanceFee(MAX_GOVERNANCE_FEE);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
-        settler7683.setGovernanceFee(fee);
+        settler7683.setGovernanceFee(MAX_GOVERNANCE_FEE+1);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
+        settler7683.setGovernanceFee(MAX_GOVERNANCE_FEE + 123123123);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
+        settler7683.setGovernanceFee(type(uint64).max);
     }
 
     function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
-        vm.assume(timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY + 1);
+        vm.assume(timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
 
         vm.prank(owner);
         vm.expectEmit();

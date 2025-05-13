@@ -66,7 +66,7 @@ contract Settler7683TestBase is Permit2Test {
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
     uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 10%
+    uint64 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 10%
 
     Settler7683Harness settler7683;
     CoinFiller coinFiller;

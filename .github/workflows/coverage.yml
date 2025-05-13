@@ -4,6 +4,7 @@ on: push
 
 env:
   FOUNDRY_PROFILE: ci
+  FOUNDRY_INVARIANT_RUNS: 256
 
 jobs:
   check:

@@ -34,7 +34,7 @@ abstract contract GovernanceFee is Ownable {
     /**
      * @dev Max possible fee.
      */
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 5%
+    uint64 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 5%
 
     /**
      * @notice Current applied governance fee.

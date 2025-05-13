@@ -45,7 +45,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
     event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
 
     uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
-    uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 10%
+    uint64 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 10%
 
     address owner;
 
@@ -326,6 +326,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
     function test_finalise_to(address non_solver, address destination) external {
         vm.assume(destination != address(compactSettler));
         vm.assume(destination != address(theCompact));
+        vm.assume(destination != swapper);
         vm.assume(token.balanceOf(destination) == 0);
         vm.assume(non_solver != solver);
 
@@ -503,13 +504,21 @@ contract CompactSettlerTest is CompactSettlerTestBase {
     // --- Fee tests --- //
 
     function test_invalid_governance_fee(
-        uint64 fee
     ) public {
-        vm.assume(fee > MAX_GOVERNANCE_FEE);
+        vm.prank(owner);
+        compactSettler.setGovernanceFee(MAX_GOVERNANCE_FEE);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
-        compactSettler.setGovernanceFee(fee);
+        compactSettler.setGovernanceFee(MAX_GOVERNANCE_FEE+1);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
+        compactSettler.setGovernanceFee(MAX_GOVERNANCE_FEE + 123123123);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
+        compactSettler.setGovernanceFee(type(uint64).max);
     }
 
     function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {

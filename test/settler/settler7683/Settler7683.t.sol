@@ -3,26 +3,18 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { TestERC7683Base } from "./TestERC7683Base.t.sol";
+import { Settler7683TestBase } from "./Settler7683.base.t.sol";
 import { Settler7683 } from "src/settlers/7683/Settler7683.sol";
 
 import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "src/interfaces/IERC7683.sol";
-
-import { AllowOpenType } from "src/settlers/types/AllowOpenType.sol";
-import { OrderPurchase, OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
-
-import { MockERC20 } from "../mocks/MockERC20.sol";
 
 import { MandateERC7683 } from "src/settlers/7683/Order7683Type.sol";
 import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
 
-import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
 
-import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
-
-contract TestERC20Settler is TestERC7683Base {
+contract Settler7683Test is Settler7683TestBase {
     struct OrderFulfillmentDescription {
         uint32 timestamp;
         OutputDescription outputDescription;
@@ -388,7 +380,7 @@ contract TestERC20Settler is TestERC7683Base {
 
         vm.prank(solver);
         settler7683.finaliseSelf(compactOrder, timestamps, bytes32(uint256(uint160((solver)))));
-        vm.snapshotGasLastCall("finaliseSelf7683");
+        vm.snapshotGasLastCall("7683FinaliseSelf");
 
         assertEq(token.balanceOf(solver), amount);
     }
@@ -530,7 +522,7 @@ contract TestERC20Settler is TestERC7683Base {
             bytes32(uint256(uint160((destination)))),
             hex""
         );
-        vm.snapshotGasLastCall("finaliseTo7683");
+        vm.snapshotGasLastCall("7683FinaliseTo");
 
         assertEq(token.balanceOf(destination), amount);
     }
@@ -617,7 +609,7 @@ contract TestERC20Settler is TestERC7683Base {
             hex"",
             orderOwnerSignature
         );
-        vm.snapshotGasLastCall("finaliseFor7683");
+        vm.snapshotGasLastCall("7683FinaliseFor");
 
         assertEq(token.balanceOf(destination), amount);
     }

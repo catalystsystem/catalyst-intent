@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { MockERC20 } from "../mocks/MockERC20.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 import { BaseSettler } from "src/settlers/BaseSettler.sol";
 import { OrderPurchase, OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
@@ -22,18 +22,6 @@ contract MockSettler is BaseSettler {
     {
         name = "MockSettler";
         version = "-1";
-    }
-
-    function maxTimestamp(
-        uint32[] calldata timestamps
-    ) external pure returns (uint256 timestamp) {
-        return _maxTimestamp(timestamps);
-    }
-
-    function minTimestamp(
-        uint32[] calldata timestamps
-    ) external pure returns (uint256 timestamp) {
-        return _minTimestamp(timestamps);
     }
 
     function purchaseGetOrderOwner(
@@ -56,7 +44,7 @@ contract MockSettler is BaseSettler {
     }
 }
 
-contract TestBaseSettler is Test {
+contract BaseSettlerTest is Test {
     MockSettler settler;
     bytes32 DOMAIN_SEPARATOR;
 
@@ -89,54 +77,6 @@ contract TestBaseSettler is Test {
 
         (purchaser, purchaserPrivateKey) = makeAddrAndKey("purchaser");
         (solver, solverPrivateKey) = makeAddrAndKey("swapper");
-    }
-
-    //--- Testing Utility functions ---//
-
-    function test_max_timestamp() external {
-        uint32[] memory timestamp_1 = new uint32[](1);
-        timestamp_1[0] = 100;
-
-        assertEq(settler.maxTimestamp(timestamp_1), 100);
-        vm.snapshotGasLastCall("maxTimestamp1");
-
-        uint32[] memory timestamp_5 = new uint32[](5);
-        timestamp_5[0] = 1;
-        timestamp_5[1] = 5;
-        timestamp_5[2] = 1;
-        timestamp_5[3] = 5;
-        timestamp_5[4] = 6;
-
-        assertEq(settler.maxTimestamp(timestamp_5), 6);
-
-        timestamp_5[0] = 7;
-        assertEq(settler.maxTimestamp(timestamp_5), 7);
-
-        timestamp_5[2] = 3;
-        assertEq(settler.maxTimestamp(timestamp_5), 7);
-    }
-
-    function test_min_timestamp() external {
-        uint32[] memory timestamp_1 = new uint32[](1);
-        timestamp_1[0] = 100;
-
-        assertEq(settler.minTimestamp(timestamp_1), 100);
-        vm.snapshotGasLastCall("minTimestamp1");
-
-        uint32[] memory timestamp_5 = new uint32[](5);
-        timestamp_5[0] = 1;
-        timestamp_5[1] = 5;
-        timestamp_5[2] = 1;
-        timestamp_5[3] = 5;
-        timestamp_5[4] = 6;
-
-        assertEq(settler.minTimestamp(timestamp_5), 1);
-
-        timestamp_5[0] = 7;
-        assertEq(settler.minTimestamp(timestamp_5), 1);
-
-        timestamp_5[1] = 0;
-        assertEq(settler.minTimestamp(timestamp_5), 0);
     }
 
     //--- Order Purchase ---//
@@ -197,7 +137,7 @@ contract TestBaseSettler is Test {
             expiryTimestamp,
             solverSignature
         );
-        vm.snapshotGasLastCall("purchaseOrder");
+        vm.snapshotGasLastCall("BasePurchaseOrder");
 
         // Check storage and balances.
         assertEq(token.balanceOf(solver), amount);

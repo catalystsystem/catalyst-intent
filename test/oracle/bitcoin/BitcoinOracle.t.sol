@@ -17,7 +17,7 @@ import { Test } from "forge-std/Test.sol";
 import { BitcoinOracle } from "src/oracles/bitcoin/BitcoinOracle.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 
-contract BitcoinOracleMock is BitcoinOracle {
+contract BitcoinOracleHarness is BitcoinOracle {
     constructor(
         address _lightClient,
         address disputedOrderFeeDestination,
@@ -32,7 +32,7 @@ contract BitcoinOracleMock is BitcoinOracle {
     }
 }
 
-contract TestBitcoinOracle is Test {
+contract BitcoinOracleTest is Test {
     event OutputClaimed(bytes32 indexed orderId, bytes32 outputId);
 
     uint32 maxTimeIncrement = 1 days - 1;
@@ -42,7 +42,7 @@ contract TestBitcoinOracle is Test {
     WormholeOracle wormholeOracle;
 
     BtcPrism btcPrism;
-    BitcoinOracleMock bitcoinOracle;
+    BitcoinOracleHarness bitcoinOracle;
 
     uint256 multiplier = 1e10 * 100;
 
@@ -54,7 +54,7 @@ contract TestBitcoinOracle is Test {
 
         btcPrism = new BtcPrism(BLOCK_HEIGHT, BLOCK_HASH, BLOCK_TIME, EXPECTED_TARGET, false);
 
-        bitcoinOracle = new BitcoinOracleMock(address(btcPrism), address(0), address(token), uint64(multiplier));
+        bitcoinOracle = new BitcoinOracleHarness(address(btcPrism), address(0), address(token), uint64(multiplier));
     }
 
     // --- Time To Confirmation --- //

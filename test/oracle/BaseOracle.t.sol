@@ -17,7 +17,7 @@ contract MockBaseOracle is BaseOracle {
     }
 }
 
-contract TestBaseOracle is Test {
+contract BaseOracleTest is Test {
     MockBaseOracle baseOracle;
 
     function setUp() external {

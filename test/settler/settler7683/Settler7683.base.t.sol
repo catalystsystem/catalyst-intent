@@ -3,29 +3,20 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { Permit2Test } from "../Permit2.t.sol";
+import { Permit2Test } from "./Permit2.t.sol";
 import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
 import { Settler7683 } from "src/settlers/7683/Settler7683.sol";
 
-import { GaslessCrossChainOrder, OnchainCrossChainOrder } from "src/interfaces/IERC7683.sol";
+import { GaslessCrossChainOrder } from "src/interfaces/IERC7683.sol";
 
 import { AllowOpenType } from "src/settlers/types/AllowOpenType.sol";
-import { OrderPurchase, OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
+import { OrderPurchase } from "src/settlers/types/OrderPurchaseType.sol";
 
-import { AlwaysYesOracle } from "../mocks/AlwaysYesOracle.sol";
-import { MockERC20 } from "../mocks/MockERC20.sol";
+import { AlwaysYesOracle } from "test/mocks/AlwaysYesOracle.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 import { MandateERC7683 } from "src/settlers/7683/Order7683Type.sol";
-import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
-import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
-
-import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
-import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";
-
-import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
-import { Messages } from "src/oracles/wormhole/external/wormhole/Messages.sol";
-import { Setters } from "src/oracles/wormhole/external/wormhole/Setters.sol";
-import { Structs } from "src/oracles/wormhole/external/wormhole/Structs.sol";
+import { OutputDescription } from "src/settlers/types/OutputDescriptionType.sol";
 
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
@@ -33,7 +24,7 @@ interface EIP712 {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 }
 
-contract MockERC7683Settler is Settler7683 {
+contract Settler7683Harness is Settler7683 {
     constructor(
         address initialOwner
     ) Settler7683(initialOwner) { }
@@ -69,7 +60,7 @@ contract MockERC7683Settler is Settler7683 {
     }
 }
 
-contract TestERC7683Base is Permit2Test {
+contract Settler7683TestBase is Permit2Test {
     event Transfer(address from, address to, uint256 amount);
     event Transfer(address by, address from, address to, uint256 id, uint256 amount);
     event CompactRegistered(address indexed sponsor, bytes32 claimHash, bytes32 typehash);
@@ -79,7 +70,7 @@ contract TestERC7683Base is Permit2Test {
     uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
     uint256 constant MAX_GOVERNANCE_FEE = 10 ** 18 * 0.05; // 10%
 
-    MockERC7683Settler settler7683;
+    Settler7683Harness settler7683;
     CoinFiller coinFiller;
 
     address alwaysYesOracle;
@@ -109,7 +100,7 @@ contract TestERC7683Base is Permit2Test {
     function setUp() public virtual override {
         super.setUp();
         owner = makeAddr("owner");
-        settler7683 = new MockERC7683Settler(owner);
+        settler7683 = new Settler7683Harness(owner);
 
         DOMAIN_SEPARATOR = EIP712(address(settler7683)).DOMAIN_SEPARATOR();
 

@@ -3,17 +3,16 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import { CoinFiller } from "../../../src/fillers/coin/CoinFiller.sol";
+import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
+import { OutputDescription } from "src/libs/OutputEncodingLib.sol";
 
-import { OutputDescription } from "../../../src/libs/OutputEncodingLib.sol";
-import { MockCallbackExecutor } from "../../mocks/MockCallbackExecutor.sol";
-import { MockERC20 } from "../../mocks/MockERC20.sol";
+import { MockCallbackExecutor } from "test/mocks/MockCallbackExecutor.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
-contract TestCoinFiller is Test {
+contract CoinFillerTestFill is Test {
     error ZeroValue();
     error WrongChain(uint256 expected, uint256 actual);
     error WrongRemoteFiller(bytes32 addressThis, bytes32 expected);
-    error FilledBySomeoneElse(bytes32 solver);
     error NotImplemented();
     error SlopeStopped();
 
@@ -108,86 +107,6 @@ contract TestCoinFiller is Test {
             vm.expectRevert(abi.encodeWithSignature("ExclusiveTo(bytes32)", exclusiveFor));
         }
         coinFiller.fill(type(uint32).max, orderId, output, solverIdentifier);
-    }
-
-    function test_fill_batch(
-        bytes32 orderId,
-        address sender,
-        bytes32 filler,
-        bytes32 nextFiller,
-        uint128 amount,
-        uint128 amount2
-    ) public {
-        vm.assume(
-            filler != bytes32(0) && swapper != sender && nextFiller != filler && nextFiller != bytes32(0)
-                && amount != amount2
-        );
-
-        outputToken.mint(sender, uint256(amount) + uint256(amount2));
-        vm.prank(sender);
-        outputToken.approve(coinFillerAddress, uint256(amount) + uint256(amount2));
-
-        OutputDescription[] memory outputs = new OutputDescription[](2);
-        outputs[0] = OutputDescription({
-            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
-            remoteOracle: bytes32(0),
-            chainId: block.chainid,
-            token: bytes32(uint256(uint160(outputTokenAddress))),
-            amount: amount,
-            recipient: bytes32(uint256(uint160(swapper))),
-            remoteCall: bytes(""),
-            fulfillmentContext: bytes("")
-        });
-
-        outputs[1] = OutputDescription({
-            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
-            remoteOracle: bytes32(0),
-            chainId: block.chainid,
-            token: bytes32(uint256(uint160(outputTokenAddress))),
-            amount: amount2,
-            recipient: bytes32(uint256(uint160(swapper))),
-            remoteCall: bytes(""),
-            fulfillmentContext: bytes("")
-        });
-
-        vm.expectEmit();
-        emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[0]);
-        emit OutputFilled(orderId, filler, uint32(block.timestamp), outputs[1]);
-
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount)
-        );
-        vm.expectCall(
-            outputTokenAddress,
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, amount2)
-        );
-
-        uint256 prefillSnapshot = vm.snapshot();
-
-        vm.prank(sender);
-        coinFiller.fillBatch(type(uint32).max, orderId, outputs, filler);
-
-        assertEq(outputToken.balanceOf(swapper), uint256(amount) + uint256(amount2));
-        assertEq(outputToken.balanceOf(sender), 0);
-
-        vm.revertTo(prefillSnapshot);
-        // Fill the first output by someone else. The other outputs won't be filled.
-        vm.prank(sender);
-        coinFiller.fill(type(uint32).max, orderId, outputs[0], nextFiller);
-
-        vm.expectRevert(abi.encodeWithSignature("FilledBySomeoneElse(bytes32)", (nextFiller)));
-        vm.prank(sender);
-        coinFiller.fillBatch(type(uint32).max, orderId, outputs, filler);
-
-        vm.revertTo(prefillSnapshot);
-        // Fill the second output by someone else. The first output will be filled.
-
-        vm.prank(sender);
-        coinFiller.fill(type(uint32).max, orderId, outputs[1], nextFiller);
-
-        vm.prank(sender);
-        coinFiller.fillBatch(type(uint32).max, orderId, outputs, filler);
     }
 
     function test_mock_callback_executor(
@@ -537,25 +456,6 @@ contract TestCoinFiller is Test {
 
         assertNotEq(alreadyFilledBy, differentFiller);
         assertEq(alreadyFilledBy, filler);
-    }
-
-    function test_call_with_real_address(address sender, uint256 amount) public {
-        vm.assume(sender != address(0));
-
-        OutputDescription memory output = OutputDescription({
-            remoteFiller: bytes32(uint256(uint160(address(coinFiller)))), // TODO: 0?
-            remoteOracle: bytes32(0),
-            chainId: block.chainid,
-            token: bytes32(uint256(uint160(outputTokenAddress))),
-            amount: amount,
-            recipient: bytes32(uint256(uint160(swapper))),
-            remoteCall: bytes(""),
-            fulfillmentContext: bytes("")
-        });
-
-        vm.prank(sender);
-        vm.expectRevert();
-        coinFiller.call(amount, output);
     }
 
     function test_invalid_fulfillment_context(

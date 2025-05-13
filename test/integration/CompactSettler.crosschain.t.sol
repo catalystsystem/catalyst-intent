@@ -7,8 +7,8 @@ import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
 import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWithDeposit.sol";
 import { AllowOpenType } from "src/settlers/types/AllowOpenType.sol";
 
-import { AlwaysYesOracle } from "./mocks/AlwaysYesOracle.sol";
-import { MockERC20 } from "./mocks/MockERC20.sol";
+import { AlwaysYesOracle } from "test/mocks/AlwaysYesOracle.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 import { CatalystCompactOrder, TheCompactOrderType } from "src/settlers/compact/TheCompactOrderType.sol";
 import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
@@ -58,7 +58,7 @@ contract ExportedMessages is Messages, Setters {
     }
 }
 
-contract TestCatalyst is Test {
+contract CompactSettlerTestCrossChain is Test {
     CompactSettlerWithDeposit compactSettler;
     CoinFiller coinFiller;
 
@@ -85,6 +85,68 @@ contract TestCatalyst is Test {
     address alwaysOKAllocator;
     bytes12 alwaysOkAllocatorLockTag;
     bytes32 DOMAIN_SEPARATOR;
+
+    function setUp() public virtual {
+        theCompact = new TheCompact();
+
+        alwaysOKAllocator = address(new AlwaysOKAllocator());
+
+        uint96 alwaysOkAllocatorId = theCompact.__registerAllocator(alwaysOKAllocator, "");
+
+        // use scope 0 and reset period 0. This is okay as long as we don't use anything time based.
+        alwaysOkAllocatorLockTag = bytes12(alwaysOkAllocatorId);
+
+        (allocator, allocatorPrivateKey) = makeAddrAndKey("allocator");
+
+        SimpleAllocator simpleAllocator = new SimpleAllocator(allocator, address(theCompact));
+
+        vm.prank(allocator);
+        uint96 signAllocatorId = theCompact.__registerAllocator(address(simpleAllocator), "");
+
+        signAllocatorLockTag = bytes12(signAllocatorId);
+
+        DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
+
+        compactSettler = new CompactSettlerWithDeposit(address(theCompact), address(0));
+        coinFiller = new CoinFiller();
+        alwaysYesOracle = address(new AlwaysYesOracle());
+
+        token = new MockERC20("Mock ERC20", "MOCK", 18);
+        anotherToken = new MockERC20("Mock2 ERC20", "MOCK2", 18);
+
+        (swapper, swapperPrivateKey) = makeAddrAndKey("swapper");
+        (solver, solverPrivateKey) = makeAddrAndKey("swapper");
+
+        token.mint(swapper, 1e18);
+
+        token.mint(solver, 1e18);
+        anotherToken.mint(solver, 1e18);
+
+        vm.prank(swapper);
+        token.approve(address(theCompact), type(uint256).max);
+        vm.prank(solver);
+        anotherToken.approve(address(coinFiller), type(uint256).max);
+        vm.prank(solver);
+        token.approve(address(coinFiller), type(uint256).max);
+
+        // Oracles
+
+        messages = new ExportedMessages();
+        address wormholeDeployment = makeAddr("wormholeOracle");
+        deployCodeTo("WormholeOracle.sol", abi.encode(address(this), address(messages)), wormholeDeployment);
+        wormholeOracle = WormholeOracle(wormholeDeployment);
+
+        wormholeOracle.setChainMap(uint16(block.chainid), block.chainid);
+
+        (testGuardian, testGuardianPrivateKey) = makeAddrAndKey("testGuardian");
+        // initialize guardian set with one guardian
+        address[] memory keys = new address[](1);
+        keys[0] = testGuardian;
+        Structs.GuardianSet memory guardianSet = Structs.GuardianSet(keys, 0);
+        require(messages.quorum(guardianSet.keys.length) == 1, "Quorum should be 1");
+
+        messages.storeGuardianSetPub(guardianSet, uint32(0));
+    }
 
     function getCompactBatchWitnessSignature(
         uint256 privateKey,
@@ -169,66 +231,19 @@ contract TestCatalyst is Test {
         return MessageEncodingLib.encodeMessage(remoteIdentifier, payloads);
     }
 
-    function setUp() public virtual {
-        theCompact = new TheCompact();
+    function getOrderOpenSignature(
+        uint256 privateKey,
+        bytes32 orderId,
+        bytes32 destination,
+        bytes calldata call
+    ) external view returns (bytes memory sig) {
+        bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
+        bytes32 msgHash = keccak256(
+            abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, destination, call))
+        );
 
-        alwaysOKAllocator = address(new AlwaysOKAllocator());
-
-        uint96 alwaysOkAllocatorId = theCompact.__registerAllocator(alwaysOKAllocator, "");
-
-        // use scope 0 and reset period 0. This is okay as long as we don't use anything time based.
-        alwaysOkAllocatorLockTag = bytes12(alwaysOkAllocatorId);
-
-        (allocator, allocatorPrivateKey) = makeAddrAndKey("allocator");
-
-        SimpleAllocator simpleAllocator = new SimpleAllocator(allocator, address(theCompact));
-
-        vm.prank(allocator);
-        uint96 signAllocatorId = theCompact.__registerAllocator(address(simpleAllocator), "");
-
-        signAllocatorLockTag = bytes12(signAllocatorId);
-
-        DOMAIN_SEPARATOR = EIP712(address(theCompact)).DOMAIN_SEPARATOR();
-
-        compactSettler = new CompactSettlerWithDeposit(address(theCompact), address(0));
-        coinFiller = new CoinFiller();
-        alwaysYesOracle = address(new AlwaysYesOracle());
-
-        token = new MockERC20("Mock ERC20", "MOCK", 18);
-        anotherToken = new MockERC20("Mock2 ERC20", "MOCK2", 18);
-
-        (swapper, swapperPrivateKey) = makeAddrAndKey("swapper");
-        (solver, solverPrivateKey) = makeAddrAndKey("swapper");
-
-        token.mint(swapper, 1e18);
-
-        token.mint(solver, 1e18);
-        anotherToken.mint(solver, 1e18);
-
-        vm.prank(swapper);
-        token.approve(address(theCompact), type(uint256).max);
-        vm.prank(solver);
-        anotherToken.approve(address(coinFiller), type(uint256).max);
-        vm.prank(solver);
-        token.approve(address(coinFiller), type(uint256).max);
-
-        // Oracles
-
-        messages = new ExportedMessages();
-        address wormholeDeployment = makeAddr("wormholeOracle");
-        deployCodeTo("WormholeOracle.sol", abi.encode(address(this), address(messages)), wormholeDeployment);
-        wormholeOracle = WormholeOracle(wormholeDeployment);
-
-        wormholeOracle.setChainMap(uint16(block.chainid), block.chainid);
-
-        (testGuardian, testGuardianPrivateKey) = makeAddrAndKey("testGuardian");
-        // initialize guardian set with one guardian
-        address[] memory keys = new address[](1);
-        keys[0] = testGuardian;
-        Structs.GuardianSet memory guardianSet = Structs.GuardianSet(keys, 0);
-        require(messages.quorum(guardianSet.keys.length) == 1, "Quorum should be 1");
-
-        messages.storeGuardianSetPub(guardianSet, uint32(0));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
+        return bytes.concat(r, s, bytes1(v));
     }
 
     function test_deposit_compact() external {
@@ -360,7 +375,7 @@ contract TestCatalyst is Test {
 
         vm.prank(solver);
         coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
-        vm.snapshotGasLastCall("fillThrow");
+        vm.snapshotGasLastCall("IntegrationCoinFill");
 
         bytes[] memory payloads = new bytes[](1);
         payloads[0] =
@@ -371,21 +386,21 @@ contract TestCatalyst is Test {
         vm.expectEmit();
         emit PackagePublished(0, expectedMessageEmitted, 15);
         wormholeOracle.submit(address(coinFiller), payloads);
-        vm.snapshotGasLastCall("submit");
+        vm.snapshotGasLastCall("IntegrationWormholeSubmit");
 
         bytes memory vaa = makeValidVAA(
             uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted
         );
 
         wormholeOracle.receiveMessage(vaa);
-        vm.snapshotGasLastCall("receiveMessage");
+        vm.snapshotGasLastCall("IntegrationWormholeReceiveMessage");
 
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = uint32(block.timestamp);
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
-        vm.snapshotGasLastCall("finaliseSelf");
+        vm.snapshotGasLastCall("IntegrationCompactFinaliseSelf");
     }
 
     function test_entire_flow_different_solvers(
@@ -393,6 +408,7 @@ contract TestCatalyst is Test {
     ) external {
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
         vm.assume(solverIdentifier != solverIdentifier2);
+        vm.assume(bytes32(0) != solverIdentifier2);
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
         uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
@@ -497,20 +513,5 @@ contract TestCatalyst is Test {
         compactSettler.finaliseFor(
             order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"", solverSignature
         );
-    }
-
-    function getOrderOpenSignature(
-        uint256 privateKey,
-        bytes32 orderId,
-        bytes32 destination,
-        bytes calldata call
-    ) external view returns (bytes memory sig) {
-        bytes32 domainSeparator = compactSettler.DOMAIN_SEPARATOR();
-        bytes32 msgHash = keccak256(
-            abi.encodePacked("\x19\x01", domainSeparator, AllowOpenType.hashAllowOpen(orderId, destination, call))
-        );
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
-        return bytes.concat(r, s, bytes1(v));
     }
 }

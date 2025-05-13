@@ -97,7 +97,7 @@ contract CompactSettler is BaseSettler, GovernanceFee {
     function _validateFills(
         CatalystCompactOrder calldata order,
         bytes32 orderId,
-        bytes32[] calldata solvers,
+        bytes32[] memory solvers,
         uint32[] calldata timestamps
     ) internal view {
         OutputDescription[] calldata outputDescriptions = order.outputs;
@@ -285,7 +285,7 @@ contract CompactSettler is BaseSettler, GovernanceFee {
         CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
-        bytes32[] calldata solvers,
+        bytes32[] memory solvers,
         bytes32 destination,
         bytes calldata call
     ) external {
@@ -318,24 +318,25 @@ contract CompactSettler is BaseSettler, GovernanceFee {
         CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
-        bytes32[] calldata solvers,
+        bytes32[] memory solvers,
         bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
     ) external {
         bytes32 orderId = _orderIdentifier(order);
 
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
-        _allowExternalClaimant(
-            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
-        );
+        {
+            bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+            _allowExternalClaimant(
+                orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+            );
 
-        // Deliver outputs before the order has been finalised.
-        _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) {
-            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            // Deliver outputs before the order has been finalised.
+            _finalise(order, signatures, orderId, solvers[0], destination);
+            if (call.length > 0) {
+                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            }
         }
-
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _validateFills(order, orderId, solvers, timestamps);

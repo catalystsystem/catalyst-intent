@@ -1,0 +1,71 @@
+name: test
+
+on: push
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  check:
+    strategy:
+      fail-fast: true
+
+    name: Foundry project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run Forge version
+        run: |
+          forge --version
+        id: version
+
+      - name: Run Forge build
+        run: |
+          forge build
+        id: build
+
+      - name: Run Forge Coverage
+        run: |
+          forge coverage --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" --report lcov
+        id: test
+
+      - name: Setup .NET Core # Required to execute ReportGenerator
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.x
+          dotnet-quality: 'ga'
+
+      - name: ReportGenerator
+        uses: danielpalme/ReportGenerator-GitHub-Action@5.4.7
+        with:
+          reports: lcov.info
+          targetdir: coveragereport
+          reporttypes: MarkdownSummaryGithub
+    
+      - name: Attach test coverage report to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            var fileContents = fs.readFileSync('./coveragereport/SummaryGithub.md').toString()
+
+            if (fileContents.length > 60000) {
+              const contentLines = fileContents.split(/\r?\n/)
+              const filteredLines = contentLines.filter(item => !item.startsWith("xxxxx"))
+              fileContents = filteredLines.join("\n")
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: fileContents
+            })

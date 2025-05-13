@@ -290,11 +290,10 @@ contract CoinFillerTestFill is Test {
         vm.assume(solverIdentifier != exclusiveFor);
         vm.warp(currentTime);
 
-        uint256 minAmount = amount;
         uint256 maxAmount = amount + uint256(slope) * uint256(stopTime - startTime);
         uint256 finalAmount = startTime > currentTime
             ? maxAmount
-            : (stopTime < currentTime ? minAmount : (amount + uint256(slope) * uint256(stopTime - currentTime)));
+            : (stopTime < currentTime ? amount : (amount + uint256(slope) * uint256(stopTime - currentTime)));
 
         outputToken.mint(sender, finalAmount);
         vm.prank(sender);

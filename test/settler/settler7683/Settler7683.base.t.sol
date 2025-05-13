@@ -7,6 +7,8 @@ import { Permit2Test } from "./Permit2.t.sol";
 import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
 import { Settler7683 } from "src/settlers/7683/Settler7683.sol";
 
+import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
+
 import { GaslessCrossChainOrder } from "src/interfaces/IERC7683.sol";
 
 import { AllowOpenType } from "src/settlers/types/AllowOpenType.sol";
@@ -30,25 +32,21 @@ contract Settler7683Harness is Settler7683 {
     ) Settler7683(initialOwner) { }
 
     function validateFills(
-        address localOracle,
+        CatalystCompactOrder calldata order,
         bytes32 orderId,
-        uint32 fillDeadline,
         bytes32[] calldata solvers,
-        uint32[] calldata timestamps,
-        OutputDescription[] calldata outputDescriptions
+        uint32[] calldata timestamps
     ) external view {
-        _validateFills(localOracle, orderId, fillDeadline, solvers, timestamps, outputDescriptions);
+        _validateFills(order, orderId, solvers, timestamps);
     }
 
     function validateFills(
-        address localOracle,
+        CatalystCompactOrder calldata order,
         bytes32 orderId,
-        uint32 fillDeadline,
         bytes32 solver,
-        uint32[] calldata timestamps,
-        OutputDescription[] calldata outputDescriptions
+        uint32[] calldata timestamps
     ) external view {
-        _validateFills(localOracle, orderId, fillDeadline, solver, timestamps, outputDescriptions);
+        _validateFills(order, orderId, solver, timestamps);
     }
 
     function validateFills(

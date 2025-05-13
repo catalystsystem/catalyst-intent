@@ -1,4 +1,4 @@
-# Catalyst Intent: Intent based cross-chain swaps
+****# Catalyst Intent: Intent based cross-chain swaps
 
 Catalyst is an intent based cross-chain swap protocol. Users sign intents: What asset they want, how they want etc, etc. which is claimed and then delivered by solvers.
 
@@ -124,5 +124,5 @@ forge test --gas-report
 ### Coverage
 
 ```shell
-forge coverage --ir-minimum --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" [--report lcov]
+forge coverage --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" [--report lcov]
 ```

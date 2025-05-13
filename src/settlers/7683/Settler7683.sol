@@ -154,26 +154,30 @@ contract Settler7683 is BaseSettler, GovernanceFee {
         CatalystCompactOrder memory compactOrder,
         address to
     ) internal {
-        uint256[2][] memory orderInputs = compactOrder.inputs;
-        // Load the number of inputs. We need them to set the array size & convert each
-        // input struct into a transferDetails struct.
-        uint256 numInputs = orderInputs.length;
-        ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](numInputs);
-        ISignatureTransfer.SignatureTransferDetails[] memory transferDetails =
-            new ISignatureTransfer.SignatureTransferDetails[](numInputs);
-        // Iterate through each input.
-        for (uint256 i; i < numInputs; ++i) {
-            uint256[2] memory orderInput = orderInputs[i];
-            address token = EfficiencyLib.asSanitizedAddress(orderInput[0]);
-            uint256 amount = orderInput[1];
+        ISignatureTransfer.TokenPermissions[] memory permitted;
+        ISignatureTransfer.SignatureTransferDetails[] memory transferDetails;
+        
+        {
+            uint256[2][] memory orderInputs = compactOrder.inputs;
+            // Load the number of inputs. We need them to set the array size & convert each
+            // input struct into a transferDetails struct.
+            uint256 numInputs = orderInputs.length;
+            permitted = new ISignatureTransfer.TokenPermissions[](numInputs);
+            transferDetails = new ISignatureTransfer.SignatureTransferDetails[](numInputs);
+            // Iterate through each input.
+            for (uint256 i; i < numInputs; ++i) {
+                uint256[2] memory orderInput = orderInputs[i];
+                address token = EfficiencyLib.asSanitizedAddress(orderInput[0]);
+                uint256 amount = orderInput[1];
 
-            // Check if input tokens are contracts.
-            IsContractLib.checkCodeSize(token);
+                // Check if input tokens are contracts.
+                IsContractLib.checkCodeSize(token);
 
-            // Set the allowance. This is the explicit max allowed amount approved by the user.
-            permitted[i] = ISignatureTransfer.TokenPermissions({ token: token, amount: amount });
-            // Set our requested transfer. This has to be less than or equal to the allowance
-            transferDetails[i] = ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
+                // Set the allowance. This is the explicit max allowed amount approved by the user.
+                permitted[i] = ISignatureTransfer.TokenPermissions({ token: token, amount: amount });
+                // Set our requested transfer. This has to be less than or equal to the allowance
+                transferDetails[i] = ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
+            }
         }
         ISignatureTransfer.PermitBatchTransferFrom memory permitBatch = ISignatureTransfer.PermitBatchTransferFrom({
             permitted: permitted,
@@ -188,7 +192,6 @@ contract Settler7683 is BaseSettler, GovernanceFee {
             string(Order7683Type.PERMIT2_ERC7683_GASLESS_CROSS_CHAIN_ORDER),
             signature
         );
-
         emit Open(orderId, _resolve(order.openDeadline, orderId, compactOrder));
     }
 
@@ -377,27 +380,27 @@ contract Settler7683 is BaseSettler, GovernanceFee {
      * if someone filled one of the outputs.
      */
     function _validateFills(
-        address localOracle,
+        CatalystCompactOrder calldata order,
         bytes32 orderId,
-        uint32 fillDeadline,
         bytes32[] calldata solvers,
-        uint32[] calldata timestamps,
-        OutputDescription[] calldata outputDescriptions
+        uint32[] calldata timestamps
     ) internal view {
+        OutputDescription[] calldata outputDescriptions = order.outputs;
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
+        uint32 fillDeadline = order.fillDeadline;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             uint32 outputFilledAt = timestamps[i];
             if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
             OutputDescription calldata output = outputDescriptions[i];
+            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], outputFilledAt, output);
+
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], outputFilledAt, output);
-
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
                 mstore(offset, chainId)
@@ -406,7 +409,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
                 mstore(add(offset, 0x60), payloadHash)
             }
         }
-        IOracle(localOracle).efficientRequireProven(proofSeries);
+        IOracle(order.localOracle).efficientRequireProven(proofSeries);
     }
 
     /**
@@ -416,27 +419,27 @@ contract Settler7683 is BaseSettler, GovernanceFee {
      * That means any order that has no outputs specified can be claimed with no issues.
      */
     function _validateFills(
-        address localOracle,
+        CatalystCompactOrder calldata order,
         bytes32 orderId,
-        uint32 fillDeadline,
         bytes32 solver,
-        uint32[] calldata timestamps,
-        OutputDescription[] calldata outputDescriptions
+        uint32[] calldata timestamps
     ) internal view {
+        OutputDescription[] calldata outputDescriptions = order.outputs;
         uint256 numOutputs = outputDescriptions.length;
         uint256 numTimestamps = timestamps.length;
         if (numTimestamps != numOutputs) revert InvalidTimestampLength();
 
+        uint32 fillDeadline = order.fillDeadline;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             uint32 outputFilledAt = timestamps[i];
             if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
             OutputDescription calldata output = outputDescriptions[i];
+            bytes32 payloadHash = _proofPayloadHash(orderId, solver, outputFilledAt, output);
+
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solver, outputFilledAt, output);
-
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
                 mstore(offset, chainId)
@@ -445,7 +448,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
                 mstore(add(offset, 0x60), payloadHash)
             }
         }
-        IOracle(localOracle).efficientRequireProven(proofSeries);
+        IOracle(order.localOracle).efficientRequireProven(proofSeries);
     }
 
     // --- Finalise Orders --- //
@@ -481,7 +484,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, order.fillDeadline, solver, timestamps, order.outputs);
+        _validateFills(order, orderId, solver, timestamps);
     }
 
     function finaliseTo(
@@ -503,7 +506,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, order.fillDeadline, solver, timestamps, order.outputs);
+        _validateFills(order, orderId, solver, timestamps);
     }
 
     /**
@@ -537,7 +540,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, order.fillDeadline, solver, timestamps, order.outputs);
+        _validateFills(order, orderId, solver, timestamps);
     }
 
     // -- Fallback Finalise Functions -- //
@@ -567,7 +570,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, order.fillDeadline, solvers, timestamps, order.outputs);
+        _validateFills(order, orderId, solvers, timestamps);
     }
 
     /**
@@ -587,20 +590,21 @@ contract Settler7683 is BaseSettler, GovernanceFee {
         bytes calldata orderOwnerSignature
     ) external {
         bytes32 orderId = Order7683Type.orderIdentifier(order);
+        {
+            bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+            _allowExternalClaimant(
+                orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+            );
 
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
-        _allowExternalClaimant(
-            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
-        );
-
-        _finalise(order, orderId, solvers[0], destination);
-        if (call.length > 0) {
-            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            _finalise(order, orderId, solvers[0], destination);
+            if (call.length > 0) {
+                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            }
         }
 
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
-        _validateFills(order.localOracle, orderId, order.fillDeadline, solvers, timestamps, order.outputs);
+        _validateFills(order, orderId, solvers, timestamps);
     }
 
     //--- The Compact & Resource Locks ---//

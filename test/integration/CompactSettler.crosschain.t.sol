@@ -409,18 +409,17 @@ contract CompactSettlerTestCrossChain is Test {
         bytes32 solverIdentifier = bytes32(uint256(uint160((solver))));
         vm.assume(solverIdentifier != solverIdentifier2);
         vm.assume(bytes32(0) != solverIdentifier2);
+
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;
         uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
-
-        address localOracle = address(wormholeOracle);
 
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, amount];
         OutputDescription[] memory outputs = new OutputDescription[](2);
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(address(coinFiller)))),
-            remoteOracle: bytes32(uint256(uint160(localOracle))),
+            remoteOracle: bytes32(uint256(uint160(address(wormholeOracle)))),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount,
@@ -430,7 +429,7 @@ contract CompactSettlerTestCrossChain is Test {
         });
         outputs[1] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(address(coinFiller)))),
-            remoteOracle: bytes32(uint256(uint160(localOracle))),
+            remoteOracle: bytes32(uint256(uint160(address(wormholeOracle)))),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(token)))),
             amount: amount,
@@ -444,50 +443,52 @@ contract CompactSettlerTestCrossChain is Test {
             originChainId: block.chainid,
             fillDeadline: type(uint32).max,
             expires: type(uint32).max,
-            localOracle: localOracle,
+            localOracle: address(wormholeOracle),
             inputs: inputs,
             outputs: outputs
         });
 
+        bytes memory signature;
         // Make Compact
-        uint256[2][] memory idsAndAmounts = new uint256[2][](1);
-        idsAndAmounts[0] = [tokenId, amount];
+        {
+            uint256[2][] memory idsAndAmounts = new uint256[2][](1);
+            idsAndAmounts[0] = [tokenId, amount];
 
-        bytes memory sponsorSig = getCompactBatchWitnessSignature(
-            swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
-        );
-        bytes memory allocatorSig = hex"";
+            bytes memory sponsorSig = getCompactBatchWitnessSignature(
+                swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
+            );
 
-        bytes memory signature = abi.encode(sponsorSig, allocatorSig);
-
+            signature = abi.encode(sponsorSig, hex"");
+        }
         // Initiation is over. We need to fill the order.
 
-        bytes32 orderId = compactSettler.orderIdentifier(order);
+        {
+            bytes32 orderId = compactSettler.orderIdentifier(order);
 
-        vm.prank(solver);
-        coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
+            vm.prank(solver);
+            coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
 
-        vm.prank(solver);
-        coinFiller.fill(type(uint32).max, orderId, outputs[1], solverIdentifier2);
+            vm.prank(solver);
+            coinFiller.fill(type(uint32).max, orderId, outputs[1], solverIdentifier2);
 
-        bytes[] memory payloads = new bytes[](2);
-        payloads[0] =
-            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
-        payloads[1] =
-            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier2, orderId, uint32(block.timestamp), outputs[1]);
+            bytes[] memory payloads = new bytes[](2);
+            payloads[0] =
+                OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
+            payloads[1] =
+                OutputEncodingLib.encodeFillDescriptionM(solverIdentifier2, orderId, uint32(block.timestamp), outputs[1]);
 
-        bytes memory expectedMessageEmitted = this.encodeMessage(outputs[0].remoteFiller, payloads);
+            bytes memory expectedMessageEmitted = this.encodeMessage(outputs[0].remoteFiller, payloads);
 
-        vm.expectEmit();
-        emit PackagePublished(0, expectedMessageEmitted, 15);
-        wormholeOracle.submit(address(coinFiller), payloads);
+            vm.expectEmit();
+            emit PackagePublished(0, expectedMessageEmitted, 15);
+            wormholeOracle.submit(address(coinFiller), payloads);
+        
+            bytes memory vaa = makeValidVAA(
+                uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted
+            );
 
-        bytes memory vaa = makeValidVAA(
-            uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted
-        );
-
-        wormholeOracle.receiveMessage(vaa);
-
+            wormholeOracle.receiveMessage(vaa);
+        }
         uint32[] memory timestamps = new uint32[](2);
         timestamps[0] = uint32(block.timestamp);
         timestamps[1] = uint32(block.timestamp);
@@ -499,15 +500,15 @@ contract CompactSettlerTestCrossChain is Test {
         bytes32[] memory solverIdentifierList = new bytes32[](2);
         solverIdentifierList[0] = solverIdentifier;
         solverIdentifierList[1] = solverIdentifier2;
+        {
+            uint256 snapshotId = vm.snapshot();
 
-        uint256 snapshotId = vm.snapshot();
+            vm.prank(solver);
+            compactSettler.finaliseTo(order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"");
 
-        vm.prank(solver);
-        compactSettler.finaliseTo(order, signature, timestamps, solverIdentifierList, solverIdentifier, hex"");
-
-        vm.revertTo(snapshotId);
-
-        bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, orderId, solverIdentifier, hex"");
+            vm.revertTo(snapshotId);
+        }
+        bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, compactSettler.orderIdentifier(order), solverIdentifier, hex"");
 
         vm.prank(solver);
         compactSettler.finaliseFor(

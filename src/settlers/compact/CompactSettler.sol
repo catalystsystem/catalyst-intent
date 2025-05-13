@@ -97,7 +97,7 @@ contract CompactSettler is BaseSettler, GovernanceFee {
     function _validateFills(
         CatalystCompactOrder calldata order,
         bytes32 orderId,
-        bytes32[] calldata solvers,
+        bytes32[] memory solvers,
         uint32[] calldata timestamps
     ) internal view {
         OutputDescription[] calldata outputDescriptions = order.outputs;
@@ -113,11 +113,11 @@ contract CompactSettler is BaseSettler, GovernanceFee {
             if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
 
             OutputDescription calldata output = outputDescriptions[i];
+            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], outputFilledAt, output);
+
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solvers[i], outputFilledAt, output);
-
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
                 mstore(offset, chainId)
@@ -153,11 +153,11 @@ contract CompactSettler is BaseSettler, GovernanceFee {
             if (fillDeadline < outputFilledAt) revert FilledTooLate(fillDeadline, outputFilledAt);
 
             OutputDescription calldata output = outputDescriptions[i];
+            bytes32 payloadHash = _proofPayloadHash(orderId, solver, outputFilledAt, output);
+
             uint256 chainId = output.chainId;
             bytes32 remoteOracle = output.remoteOracle;
             bytes32 remoteFiller = output.remoteFiller;
-            bytes32 payloadHash = _proofPayloadHash(orderId, solver, outputFilledAt, output);
-
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
                 mstore(offset, chainId)
@@ -285,7 +285,7 @@ contract CompactSettler is BaseSettler, GovernanceFee {
         CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
-        bytes32[] calldata solvers,
+        bytes32[] memory solvers,
         bytes32 destination,
         bytes calldata call
     ) external {
@@ -318,24 +318,27 @@ contract CompactSettler is BaseSettler, GovernanceFee {
         CatalystCompactOrder calldata order,
         bytes calldata signatures,
         uint32[] calldata timestamps,
-        bytes32[] calldata solvers,
+        bytes32[] memory solvers,
         bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
     ) external {
         bytes32 orderId = _orderIdentifier(order);
 
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
-        _allowExternalClaimant(
-            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
-        );
+        {
+            bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+            _allowExternalClaimant(
+                orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+            );
 
-        // Deliver outputs before the order has been finalised.
-        _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) {
-            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            // Deliver outputs before the order has been finalised.
+            _finalise(order, signatures, orderId, solvers[0], destination);
+            if (call.length > 0) {
+                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(
+                    order.inputs, call
+                );
+            }
         }
-
         // Check if the outputs have been proven according to the oracles.
         // This call will revert if not.
         _validateFills(order, orderId, solvers, timestamps);
@@ -349,49 +352,52 @@ contract CompactSettler is BaseSettler, GovernanceFee {
         bytes calldata allocatorData,
         bytes32 claimant
     ) internal virtual {
-        uint256 numInputs = order.inputs.length;
-        BatchClaimComponent[] memory batchClaimComponents = new BatchClaimComponent[](numInputs);
-        uint256[2][] calldata maxInputs = order.inputs;
-        uint64 fee = governanceFee;
-        for (uint256 i; i < numInputs; ++i) {
-            uint256[2] calldata input = maxInputs[i];
-            uint256 tokenId = input[0];
-            uint256 allocatedAmount = input[1];
+        BatchClaimComponent[] memory batchClaimComponents;
+        {
+            uint256 numInputs = order.inputs.length;
+            batchClaimComponents = new BatchClaimComponent[](numInputs);
+            uint256[2][] calldata maxInputs = order.inputs;
+            uint64 fee = governanceFee;
+            for (uint256 i; i < numInputs; ++i) {
+                uint256[2] calldata input = maxInputs[i];
+                uint256 tokenId = input[0];
+                uint256 allocatedAmount = input[1];
 
-            Component[] memory components;
+                Component[] memory components;
 
-            // If the governance fee is set, we need to add a governance fee split.
-            uint256 governanceShare = _calcFee(allocatedAmount, fee);
-            if (governanceShare != 0) {
-                unchecked {
-                    // To reduce the cost associated with the governance fee,
-                    // we want to do a 6909 transfer instead of burn and mint.
-                    // Note: While this function is called with replaced token, it
-                    // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
-                    // and places it infront of the current vault owner.
-                    uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
-                    components = new Component[](2);
-                    // For the user
-                    components[0] =
-                        Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
-                    // For governance
-                    components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
-                    batchClaimComponents[i] = BatchClaimComponent({
-                        id: tokenId, // The token ID of the ERC6909 token to allocate.
-                        allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
-                        portions: components
-                    });
-                    continue;
+                // If the governance fee is set, we need to add a governance fee split.
+                uint256 governanceShare = _calcFee(allocatedAmount, fee);
+                if (governanceShare != 0) {
+                    unchecked {
+                        // To reduce the cost associated with the governance fee,
+                        // we want to do a 6909 transfer instead of burn and mint.
+                        // Note: While this function is called with replaced token, it
+                        // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
+                        // and places it infront of the current vault owner.
+                        uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
+                        components = new Component[](2);
+                        // For the user
+                        components[0] =
+                            Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
+                        // For governance
+                        components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
+                        batchClaimComponents[i] = BatchClaimComponent({
+                            id: tokenId, // The token ID of the ERC6909 token to allocate.
+                            allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
+                            portions: components
+                        });
+                        continue;
+                    }
                 }
-            }
 
-            components = new Component[](1);
-            components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
-            batchClaimComponents[i] = BatchClaimComponent({
-                id: tokenId, // The token ID of the ERC6909 token to allocate.
-                allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
-                portions: components
-            });
+                components = new Component[](1);
+                components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
+                batchClaimComponents[i] = BatchClaimComponent({
+                    id: tokenId, // The token ID of the ERC6909 token to allocate.
+                    allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
+                    portions: components
+                });
+            }
         }
 
         require(

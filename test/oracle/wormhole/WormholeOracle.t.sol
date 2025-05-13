@@ -5,7 +5,7 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 
-contract TestWormholeOracle is Test {
+contract WormholeOracleTest is Test {
     WormholeOracle wormholeOracle;
 
     function setUp() public {

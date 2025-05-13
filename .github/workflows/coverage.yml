@@ -1,4 +1,4 @@
-name: Foundry Test
+name: Foundry Code Coverage
 
 on: push
 
@@ -27,18 +27,17 @@ jobs:
           forge --version
         id: version
 
-      - name: Run Forge fmt
-        run: |
-          forge fmt --check
-        id: fmt
-
       - name: Run Forge build
         run: |
           forge build
         id: build
 
-      - name: Run Forge tests
+      - name: Run Forge Coverage
         run: |
-          forge test -vvv
-        id: test
-      
+          forge coverage --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" --report lcov
+        id: coverage
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

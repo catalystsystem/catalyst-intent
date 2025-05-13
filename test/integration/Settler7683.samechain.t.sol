@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import { CoinFiller7683 } from "src/fillers/coin/CoinFiller7683.sol";
 
-import { TestERC7683Base } from "./TestERC7683Base.t.sol";
+import { Settler7683TestBase } from "test/settler/settler7683/Settler7683.base.t.sol";
 
 import { GaslessCrossChainOrder } from "src/interfaces/IERC7683.sol";
 
@@ -13,7 +13,8 @@ import { MandateERC7683 } from "src/settlers/7683/Order7683Type.sol";
 import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
 import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
 
-contract TestERC20Settler is TestERC7683Base {
+/// @notice This test showcases how to take 2 intents and fill them together.
+contract Settler7683SameChainSwapTest is Settler7683TestBase {
     address swapper2;
     uint256 swapper2PrivateKey;
 

@@ -208,7 +208,7 @@ contract CreateOrder is Script {
         CoinFiller(COIN_FILLER).fill(orderId, outputs[0], solverIdentifier);
     }
 
-    function fillOutputNonEVM(bytes32 orderId, address token, uint256 amount, bytes32 recipient, bytes32 proposedSolver) external {
+    function fillOutputNonEVM(bytes32 orderId, address token, uint256 amount, address recipient, bytes32 proposedSolver) external {
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
@@ -216,7 +216,7 @@ contract CreateOrder is Script {
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(token)))),
             amount: amount,
-            recipient: recipient,
+            recipient: bytes32(uint256(uint160(recipient))),
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
@@ -249,7 +249,7 @@ contract CreateOrder is Script {
         WormholeOracle(WORMHOLE_ORACLE[block.chainid]).submit(COIN_FILLER, payloads);
     }
 
-    function submitOutputNonEVM(bytes32 orderId, address token, uint256 amount, bytes32 recipient, uint32 timestamp, bytes32 proposedSolver) external {
+    function submitOutputNonEVM(bytes32 orderId, address token, uint256 amount, address recipient, uint32 timestamp, bytes32 proposedSolver) external {
         OutputDescription[] memory outputs = new OutputDescription[](1);
         outputs[0] = OutputDescription({
             remoteFiller: bytes32(uint256(uint160(address(COIN_FILLER)))),
@@ -257,7 +257,7 @@ contract CreateOrder is Script {
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(token)))),
             amount: amount,
-            recipient: recipient,
+            recipient: bytes32(uint256(uint160(recipient))),
             remoteCall: hex"",
             fulfillmentContext: hex""
         });

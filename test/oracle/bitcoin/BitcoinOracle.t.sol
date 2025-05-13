@@ -855,18 +855,18 @@ contract BitcoinOracleTest is Test {
         // Check for a refund of collateral.
         assertEq(token.balanceOf(address(bitcoinOracle)), collateralAmount);
         assertEq(token.balanceOf(caller), 0);
-{
-        BtcTxProof memory inclusionProof = BtcTxProof({
-            blockHeader: BLOCK_HEADER,
-            txId: TX_ID,
-            txIndex: TX_INDEX,
-            txMerkleProof: TX_MERKLE_PROOF,
-            rawTx: RAW_TX
-        });
+        {
+            BtcTxProof memory inclusionProof = BtcTxProof({
+                blockHeader: BLOCK_HEADER,
+                txId: TX_ID,
+                txIndex: TX_INDEX,
+                txMerkleProof: TX_MERKLE_PROOF,
+                rawTx: RAW_TX
+            });
 
-        bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
-        vm.snapshotGasLastCall("bitcoinVerify");
-}
+            bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
+            vm.snapshotGasLastCall("bitcoinVerify");
+        }
         // Check if the payload has been correctly stored for both a local oracle and remote oracle.
 
         // Remote oracle (as filler)

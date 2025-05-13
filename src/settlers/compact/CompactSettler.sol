@@ -334,7 +334,9 @@ contract CompactSettler is BaseSettler, GovernanceFee {
             // Deliver outputs before the order has been finalised.
             _finalise(order, signatures, orderId, solvers[0], destination);
             if (call.length > 0) {
-                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(
+                    order.inputs, call
+                );
             }
         }
         // Check if the outputs have been proven according to the oracles.

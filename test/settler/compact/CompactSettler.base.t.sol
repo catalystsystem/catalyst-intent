@@ -11,8 +11,9 @@ import { AlwaysYesOracle } from "test/mocks/AlwaysYesOracle.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 import { CatalystCompactOrder, TheCompactOrderType } from "src/settlers/compact/TheCompactOrderType.sol";
+
+import { OrderPurchase, OrderPurchaseType } from "src/settlers/types/OrderPurchaseType.sol";
 import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
-import {OrderPurchaseType, OrderPurchase} from "src/settlers/types/OrderPurchaseType.sol";
 
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 import { OutputEncodingLib } from "src/libs/OutputEncodingLib.sol";

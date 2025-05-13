@@ -156,7 +156,7 @@ contract Settler7683 is BaseSettler, GovernanceFee {
     ) internal {
         ISignatureTransfer.TokenPermissions[] memory permitted;
         ISignatureTransfer.SignatureTransferDetails[] memory transferDetails;
-        
+
         {
             uint256[2][] memory orderInputs = compactOrder.inputs;
             // Load the number of inputs. We need them to set the array size & convert each
@@ -598,7 +598,9 @@ contract Settler7683 is BaseSettler, GovernanceFee {
 
             _finalise(order, orderId, solvers[0], destination);
             if (call.length > 0) {
-                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(
+                    order.inputs, call
+                );
             }
         }
 

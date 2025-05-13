@@ -171,7 +171,8 @@ contract Settler7683Test is Settler7683TestBase {
     //             outputDescriptions[i].remoteOracle,
     //             outputDescriptions[i].remoteFiller,
     //             keccak256(
-    //                 OutputEncodingLib.encodeFillDescriptionM(solvers[i], orderId, timestamps[i], outputDescriptions[i])
+    //                 OutputEncodingLib.encodeFillDescriptionM(solvers[i], orderId, timestamps[i],
+    // outputDescriptions[i])
     //             )
     //         );
     //     }
@@ -546,8 +547,12 @@ contract Settler7683Test is Settler7683TestBase {
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(address(token))), amount];
 
-        MandateERC7683 memory mandate =
-            MandateERC7683({ expiry: type(uint32).max, localOracle: address(alwaysYesOracle), inputs: inputs, outputs: outputs });
+        MandateERC7683 memory mandate = MandateERC7683({
+            expiry: type(uint32).max,
+            localOracle: address(alwaysYesOracle),
+            inputs: inputs,
+            outputs: outputs
+        });
 
         OnchainCrossChainOrder memory order = OnchainCrossChainOrder({
             fillDeadline: type(uint32).max,
@@ -580,25 +585,25 @@ contract Settler7683Test is Settler7683TestBase {
 
         bytes memory orderOwnerSignature =
             this.getOrderOpenSignature(solverPrivateKey, orderId, bytes32(uint256(uint160(destination))), hex"");
-{
-        bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(
-            bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]
-        );
-        bytes32 payloadHash = keccak256(payload);
+        {
+            bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(
+                bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]
+            );
+            bytes32 payloadHash = keccak256(payload);
 
-        vm.expectCall(
-            address(alwaysYesOracle),
-            abi.encodeWithSignature(
-                "efficientRequireProven(bytes)",
-                abi.encodePacked(
-                    mandate.outputs[0].chainId,
-                    mandate.outputs[0].remoteOracle,
-                    mandate.outputs[0].remoteFiller,
-                    payloadHash
+            vm.expectCall(
+                address(alwaysYesOracle),
+                abi.encodeWithSignature(
+                    "efficientRequireProven(bytes)",
+                    abi.encodePacked(
+                        mandate.outputs[0].chainId,
+                        mandate.outputs[0].remoteOracle,
+                        mandate.outputs[0].remoteFiller,
+                        payloadHash
+                    )
                 )
-            )
-        );
-}
+            );
+        }
         vm.prank(caller);
         settler7683.finaliseFor(
             compactOrder,

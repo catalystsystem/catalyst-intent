@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.22;
 
-import { MockERC20 } from "test/mocks/MockERC20.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
 import "src/oracles/wormhole/external/wormhole/Messages.sol";
 import "src/oracles/wormhole/external/wormhole/Setters.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
 

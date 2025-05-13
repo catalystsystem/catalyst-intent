@@ -147,7 +147,7 @@ abstract contract BaseSettler is EIP712 {
     ) internal {
         if (purchaser == bytes32(0)) revert InvalidPurchaser();
         if (expiryTimestamp < block.timestamp) revert Expired();
-        
+
         {
             // Check if the order has already been purchased.
             Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderPurchase.orderId];
@@ -157,7 +157,8 @@ abstract contract BaseSettler is EIP712 {
             unchecked {
                 // unchecked: uint32(block.timestamp) > timeToBuy => uint32(block.timestamp) - timeToBuy > 0.
                 uint32 timeToBuy = orderPurchase.timeToBuy;
-                purchased.lastOrderTimestamp = timeToBuy < uint32(block.timestamp) ? uint32(block.timestamp) - timeToBuy : 0;
+                purchased.lastOrderTimestamp =
+                    timeToBuy < uint32(block.timestamp) ? uint32(block.timestamp) - timeToBuy : 0;
                 purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0)
             }
             // We can now make external calls without allowing local reentries into this call.
@@ -167,7 +168,8 @@ abstract contract BaseSettler is EIP712 {
             // We need to validate that the solver has approved someone else to purchase their order.
             address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
             bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderPurchase));
-            bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderSolvedByAddress, digest, solverSignature);
+            bool isValid =
+                SignatureCheckerLib.isValidSignatureNowCalldata(orderSolvedByAddress, digest, solverSignature);
             if (!isValid) revert InvalidSigner();
         }
 
@@ -180,7 +182,8 @@ abstract contract BaseSettler is EIP712 {
                 uint256[2] calldata input = inputs[i];
                 uint256 tokenId = input[0];
                 uint256 allocatedAmount = input[1];
-                uint256 amountAfterDiscount = allocatedAmount * (DISCOUNT_DENOM - discount) / DISCOUNT_DENOM; // If discount
+                uint256 amountAfterDiscount = allocatedAmount * (DISCOUNT_DENOM - discount) / DISCOUNT_DENOM; // If
+                    // discount
                     // > DISCOUNT_DENOM the subtraction will throw an exception
                 SafeTransferLib.safeTransferFrom(
                     EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount

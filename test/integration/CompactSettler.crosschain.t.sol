@@ -455,7 +455,13 @@ contract CompactSettlerTestCrossChain is Test {
             idsAndAmounts[0] = [tokenId, amount];
 
             bytes memory sponsorSig = getCompactBatchWitnessSignature(
-                swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
+                swapperPrivateKey,
+                address(compactSettler),
+                swapper,
+                0,
+                type(uint32).max,
+                idsAndAmounts,
+                witnessHash(order)
             );
 
             signature = abi.encode(sponsorSig, hex"");
@@ -474,15 +480,16 @@ contract CompactSettlerTestCrossChain is Test {
             bytes[] memory payloads = new bytes[](2);
             payloads[0] =
                 OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), outputs[0]);
-            payloads[1] =
-                OutputEncodingLib.encodeFillDescriptionM(solverIdentifier2, orderId, uint32(block.timestamp), outputs[1]);
+            payloads[1] = OutputEncodingLib.encodeFillDescriptionM(
+                solverIdentifier2, orderId, uint32(block.timestamp), outputs[1]
+            );
 
             bytes memory expectedMessageEmitted = this.encodeMessage(outputs[0].remoteFiller, payloads);
 
             vm.expectEmit();
             emit PackagePublished(0, expectedMessageEmitted, 15);
             wormholeOracle.submit(address(coinFiller), payloads);
-        
+
             bytes memory vaa = makeValidVAA(
                 uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted
             );
@@ -508,7 +515,8 @@ contract CompactSettlerTestCrossChain is Test {
 
             vm.revertTo(snapshotId);
         }
-        bytes memory solverSignature = this.getOrderOpenSignature(solverPrivateKey, compactSettler.orderIdentifier(order), solverIdentifier, hex"");
+        bytes memory solverSignature =
+            this.getOrderOpenSignature(solverPrivateKey, compactSettler.orderIdentifier(order), solverIdentifier, hex"");
 
         vm.prank(solver);
         compactSettler.finaliseFor(

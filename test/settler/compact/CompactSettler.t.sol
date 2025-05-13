@@ -237,8 +237,9 @@ contract CompactSettlerTest is CompactSettlerTestBase {
         assertEq(token.balanceOf(solver), 0);
 
         {
-            bytes memory payload =
-                OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, compactSettler.orderIdentifier(order), uint32(block.timestamp), outputs[0]);
+            bytes memory payload = OutputEncodingLib.encodeFillDescriptionM(
+                solverIdentifier, compactSettler.orderIdentifier(order), uint32(block.timestamp), outputs[0]
+            );
             bytes32 payloadHash = keccak256(payload);
 
             vm.expectCall(
@@ -246,7 +247,10 @@ contract CompactSettlerTest is CompactSettlerTestBase {
                 abi.encodeWithSignature(
                     "efficientRequireProven(bytes)",
                     abi.encodePacked(
-                        order.outputs[0].chainId, order.outputs[0].remoteOracle, order.outputs[0].remoteFiller, payloadHash
+                        order.outputs[0].chainId,
+                        order.outputs[0].remoteOracle,
+                        order.outputs[0].remoteFiller,
+                        payloadHash
                     )
                 )
             );
@@ -376,14 +380,24 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
         vm.expectRevert(abi.encodeWithSignature("NotOrderOwner()"));
         compactSettler.finaliseTo(
-            order, signature, timestamps, bytes32(uint256(uint160((solver)))), bytes32(uint256(uint160(destination))), hex""
+            order,
+            signature,
+            timestamps,
+            bytes32(uint256(uint160((solver)))),
+            bytes32(uint256(uint160(destination))),
+            hex""
         );
 
         assertEq(token.balanceOf(destination), 0);
 
         vm.prank(solver);
         compactSettler.finaliseTo(
-            order, signature, timestamps, bytes32(uint256(uint160((solver)))), bytes32(uint256(uint160(destination))), hex""
+            order,
+            signature,
+            timestamps,
+            bytes32(uint256(uint160((solver)))),
+            bytes32(uint256(uint160(destination))),
+            hex""
         );
         vm.snapshotGasLastCall("CompactFinaliseTo");
 
@@ -436,7 +450,13 @@ contract CompactSettlerTest is CompactSettlerTestBase {
             idsAndAmounts[0] = [tokenId, amount];
 
             bytes memory sponsorSig = getCompactBatchWitnessSignature(
-                swapperPrivateKey, address(compactSettler), swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
+                swapperPrivateKey,
+                address(compactSettler),
+                swapper,
+                0,
+                type(uint32).max,
+                idsAndAmounts,
+                witnessHash(order)
             );
             signature = abi.encode(sponsorSig, hex"");
         }
@@ -461,8 +481,9 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
         assertEq(token.balanceOf(destination), 0);
 
-        orderOwnerSignature =
-            this.getOrderOpenSignature(solverPrivateKey, compactSettler.orderIdentifier(order), bytes32(uint256(uint160(destination))), hex"");
+        orderOwnerSignature = this.getOrderOpenSignature(
+            solverPrivateKey, compactSettler.orderIdentifier(order), bytes32(uint256(uint160(destination))), hex""
+        );
 
         vm.prank(non_solver);
         compactSettler.finaliseFor(
@@ -523,7 +544,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
         compactSettler.setGovernanceFee(fee);
         vm.warp(uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY + 1);
         compactSettler.applyGovernanceFee();
-        
+
         uint256 amount = 1e18 / 10;
 
         token.mint(swapper, amount);

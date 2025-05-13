@@ -503,14 +503,13 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
     // --- Fee tests --- //
 
-    function test_invalid_governance_fee(
-    ) public {
+    function test_invalid_governance_fee() public {
         vm.prank(owner);
         compactSettler.setGovernanceFee(MAX_GOVERNANCE_FEE);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
-        compactSettler.setGovernanceFee(MAX_GOVERNANCE_FEE+1);
+        compactSettler.setGovernanceFee(MAX_GOVERNANCE_FEE + 1);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));

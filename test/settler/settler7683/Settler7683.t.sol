@@ -622,13 +622,12 @@ contract Settler7683Test is Settler7683TestBase {
     // --- Fee tests --- //
 
     function test_invalid_governance_fee() public {
-
         vm.prank(owner);
         settler7683.setGovernanceFee(MAX_GOVERNANCE_FEE);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
-        settler7683.setGovernanceFee(MAX_GOVERNANCE_FEE+1);
+        settler7683.setGovernanceFee(MAX_GOVERNANCE_FEE + 1);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));

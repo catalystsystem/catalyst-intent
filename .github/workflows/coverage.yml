@@ -1,4 +1,4 @@
-name: test
+name: Foundry Code Coverage
 
 on: pull_request
 
@@ -49,23 +49,21 @@ jobs:
           reports: lcov.info
           targetdir: coveragereport
           reporttypes: MarkdownSummaryGithub
-    
-      - name: Attach test coverage report to PR
-        uses: actions/github-script@v7
+
+      - name: Add coverage summary to GitHub PR
+        run: |
+          cat coveragereport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Read Markdown summary into variable
+        id: coverage_summary
+        run: |
+          echo 'summary<<EOF' >> $GITHUB_OUTPUT
+          cat coveragereport/SummaryGithub.md >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+      
+      - name: Post coverage comment to PR
+        uses: peter-evans/create-or-update-comment@v4
         with:
-          script: |
-            const fs = require('fs')
-            var fileContents = fs.readFileSync('./coveragereport/SummaryGithub.md').toString()
-
-            if (fileContents.length > 60000) {
-              const contentLines = fileContents.split(/\r?\n/)
-              const filteredLines = contentLines.filter(item => !item.startsWith("xxxxx"))
-              fileContents = filteredLines.join("\n")
-            }
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: fileContents
-            })
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: ${{ steps.coverage_summary.outputs.summary }}

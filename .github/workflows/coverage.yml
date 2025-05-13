@@ -27,11 +27,6 @@ jobs:
           forge --version
         id: version
 
-      - name: Run Forge build
-        run: |
-          forge build
-        id: build
-
       - name: Run Forge Coverage
         run: |
           forge coverage --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" --report lcov

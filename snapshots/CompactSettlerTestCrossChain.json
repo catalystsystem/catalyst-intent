@@ -1,6 +1,6 @@
 {
   "IntegrationCoinFill": "65564",
-  "IntegrationCompactFinaliseSelf": "80425",
+  "IntegrationCompactFinaliseSelf": "80428",
   "IntegrationWormholeReceiveMessage": "45678",
   "IntegrationWormholeSubmit": "14128"
 }

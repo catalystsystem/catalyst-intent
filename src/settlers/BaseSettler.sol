@@ -147,45 +147,51 @@ abstract contract BaseSettler is EIP712 {
     ) internal {
         if (purchaser == bytes32(0)) revert InvalidPurchaser();
         if (expiryTimestamp < block.timestamp) revert Expired();
+        
+        {
+            // Check if the order has already been purchased.
+            Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderPurchase.orderId];
+            if (purchased.purchaser != bytes32(0)) revert AlreadyPurchased();
 
-        // Check if the order has already been purchased.
-        Purchased storage purchased = purchasedOrders[orderSolvedByIdentifier][orderPurchase.orderId];
-        if (purchased.purchaser != bytes32(0)) revert AlreadyPurchased();
-
-        // Reentry protection. Ensure that you can't reenter this contract.
-        unchecked {
-            // unchecked: uint32(block.timestamp) > timeToBuy => uint32(block.timestamp) - timeToBuy > 0.
-            uint32 timeToBuy = orderPurchase.timeToBuy;
-            purchased.lastOrderTimestamp = timeToBuy < uint32(block.timestamp) ? uint32(block.timestamp) - timeToBuy : 0;
-            purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0)
+            // Reentry protection. Ensure that you can't reenter this contract.
+            unchecked {
+                // unchecked: uint32(block.timestamp) > timeToBuy => uint32(block.timestamp) - timeToBuy > 0.
+                uint32 timeToBuy = orderPurchase.timeToBuy;
+                purchased.lastOrderTimestamp = timeToBuy < uint32(block.timestamp) ? uint32(block.timestamp) - timeToBuy : 0;
+                purchased.purchaser = purchaser; // This disallows reentries through purchased.purchaser != address(0)
+            }
+            // We can now make external calls without allowing local reentries into this call.
         }
-        // We can now make external calls without allowing local reentries into this call.
 
-        // We need to validate that the solver has approved someone else to purchase their order.
-        address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
-
-        bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderPurchase));
-        bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderSolvedByAddress, digest, solverSignature);
-        if (!isValid) revert InvalidSigner();
+        {
+            // We need to validate that the solver has approved someone else to purchase their order.
+            address orderSolvedByAddress = address(uint160(uint256(orderSolvedByIdentifier)));
+            bytes32 digest = _hashTypedData(OrderPurchaseType.hashOrderPurchase(orderPurchase));
+            bool isValid = SignatureCheckerLib.isValidSignatureNowCalldata(orderSolvedByAddress, digest, solverSignature);
+            if (!isValid) revert InvalidSigner();
+        }
 
         // Pay the input tokens to the solver.
-        uint256 discount = orderPurchase.discount;
         address newDestination = orderPurchase.destination;
-        uint256 numInputs = inputs.length;
-        for (uint256 i; i < numInputs; ++i) {
-            uint256[2] calldata input = inputs[i];
-            uint256 tokenId = input[0];
-            uint256 allocatedAmount = input[1];
-            uint256 amountAfterDiscount = allocatedAmount * (DISCOUNT_DENOM - discount) / DISCOUNT_DENOM; // If discount
-                // > DISCOUNT_DENOM the subtraction will throw an exception
-            SafeTransferLib.safeTransferFrom(
-                EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount
-            );
+        {
+            uint256 discount = orderPurchase.discount;
+            uint256 numInputs = inputs.length;
+            for (uint256 i; i < numInputs; ++i) {
+                uint256[2] calldata input = inputs[i];
+                uint256 tokenId = input[0];
+                uint256 allocatedAmount = input[1];
+                uint256 amountAfterDiscount = allocatedAmount * (DISCOUNT_DENOM - discount) / DISCOUNT_DENOM; // If discount
+                    // > DISCOUNT_DENOM the subtraction will throw an exception
+                SafeTransferLib.safeTransferFrom(
+                    EfficiencyLib.asSanitizedAddress(tokenId), msg.sender, newDestination, amountAfterDiscount
+                );
+            }
+
+            emit OrderPurchased(orderPurchase.orderId, orderSolvedByIdentifier, purchaser);
         }
-
-        emit OrderPurchased(orderPurchase.orderId, orderSolvedByIdentifier, purchaser);
-
-        bytes calldata call = orderPurchase.call;
-        if (call.length > 0) ICatalystCallback(newDestination).inputsFilled(inputs, call);
+        {
+            bytes calldata call = orderPurchase.call;
+            if (call.length > 0) ICatalystCallback(newDestination).inputsFilled(inputs, call);
+        }
     }
 }

@@ -1,6 +1,6 @@
 name: Foundry Code Coverage
 
-on: pull_request
+on: push
 
 env:
   FOUNDRY_PROFILE: ci

@@ -67,9 +67,7 @@ contract Messages is Getters {
 
             bytes32 vmHash = keccak256(abi.encodePacked(keccak256(body)));
 
-            if (vmHash != vm.hash) {
-                return (false, "vm.hash doesn't match body");
-            }
+            if (vmHash != vm.hash) return (false, "vm.hash doesn't match body");
         }
 
         /**
@@ -79,9 +77,7 @@ contract Messages is Getters {
          * key length is 0 and vm.signatures length is 0, this could compromise the integrity of both vm and
          * signature verification.
          */
-        if (guardianSet.keys.length == 0) {
-            return (false, "invalid guardian set");
-        }
+        if (guardianSet.keys.length == 0) return (false, "invalid guardian set");
 
         /// @dev Checks if VM guardian set index matches the current index (unless the current set is expired).
         if (vm.guardianSetIndex != getCurrentGuardianSetIndex() && guardianSet.expirationTime < block.timestamp) {
@@ -95,15 +91,11 @@ contract Messages is Getters {
          *   if making any changes to this, obtain additional peer review. If guardianSet key length is 0 and
          *   vm.signatures length is 0, this could compromise the integrity of both vm and signature verification.
          */
-        if (vm.signatures.length < quorum(guardianSet.keys.length)) {
-            return (false, "no quorum");
-        }
+        if (vm.signatures.length < quorum(guardianSet.keys.length)) return (false, "no quorum");
 
         /// @dev Verify the proposed vm.signatures against the guardianSet
         (bool signaturesValid, string memory invalidReason) = verifySignatures(vm.hash, vm.signatures, guardianSet);
-        if (!signaturesValid) {
-            return (false, invalidReason);
-        }
+        if (!signaturesValid) return (false, invalidReason);
 
         /// If we are here, we've validated the VM is a valid multi-sig that matches the guardianSet.
         return (true, "");
@@ -144,9 +136,7 @@ contract Messages is Getters {
             require(sig.guardianIndex < guardianCount, "guardian index out of bounds");
 
             /// Check to see if the signer of the signature does not match a specific Guardian key at the provided index
-            if (signatory != guardianSet.keys[sig.guardianIndex]) {
-                return (false, "VM signature invalid");
-            }
+            if (signatory != guardianSet.keys[sig.guardianIndex]) return (false, "VM signature invalid");
         }
 
         /// If we are here, we've validated that the provided signatures are valid for the provided guardianSet

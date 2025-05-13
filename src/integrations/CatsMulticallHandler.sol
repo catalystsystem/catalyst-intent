@@ -181,9 +181,7 @@ contract CatsMulticallHandler is ICatalystCallback, ReentrancyGuard {
         } else {
             // Send native token
             uint256 amount = address(this).balance;
-            if (amount > 0) {
-                SafeTransferLib.safeTransferETH(destination, amount);
-            }
+            if (amount > 0) SafeTransferLib.safeTransferETH(destination, amount);
         }
     }
 
@@ -204,9 +202,7 @@ contract CatsMulticallHandler is ICatalystCallback, ReentrancyGuard {
             Call memory call = calls[i];
 
             // If we are calling an EOA with calldata, assume target was incorrectly specified and revert.
-            if (call.callData.length > 0 && call.target.code.length == 0) {
-                revert InvalidCall(i, calls);
-            }
+            if (call.callData.length > 0 && call.target.code.length == 0) revert InvalidCall(i, calls);
 
             // wake-disable-next-line reentrancy
             (bool success,) = call.target.call{ value: call.value }(call.callData);

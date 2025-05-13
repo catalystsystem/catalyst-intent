@@ -1,0 +1,8 @@
+{
+  "bitcoinFinaliseDispute": "32766",
+  "bitcoinOPVerify": "58728",
+  "bitcoinOutputClaim": "72560",
+  "bitcoinOutputDispute": "29644",
+  "bitcoinVerify": "94522",
+  "bitcoinVerifyWithEmbed": "94851"
+}

@@ -80,7 +80,11 @@ contract BitcoinOracleTest is Test {
 
     //-- Claim
 
-    function test_claim(bytes32 solver, bytes32 orderId, uint64 amount, address caller) external {
+    function test_claim_gas() external {
+        test_claim(keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"));
+    }
+
+    function test_claim(bytes32 solver, bytes32 orderId, uint64 amount, address caller) public {
         vm.assume(caller != address(bitcoinOracle));
         vm.assume(caller != address(token));
 
@@ -212,7 +216,13 @@ contract BitcoinOracleTest is Test {
 
     //-- Dispute
 
-    function test_dispute(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    function test_dispute_gas() external {
+        test_dispute(
+            keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
+        );
+    }
+
+    function test_dispute(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) public {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -452,13 +462,19 @@ contract BitcoinOracleTest is Test {
 
     //-- Optimistic Verification
 
+    function test_optimistically_verify_gas() external {
+        test_optimistically_verify(
+            keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
+        );
+    }
+
     function test_optimistically_verify(
         bytes32 solver,
         bytes32 orderId,
         uint64 amount,
         address caller,
         address disputer
-    ) external {
+    ) public {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -646,13 +662,19 @@ contract BitcoinOracleTest is Test {
 
     //-- Finalise Dispute
 
+    function test_finalise_dispute_gas() external {
+        test_finalise_dispute(
+            keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
+        );
+    }
+
     function test_finalise_dispute(
         bytes32 solver,
         bytes32 orderId,
         uint64 amount,
         address caller,
         address disputer
-    ) external {
+    ) public {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -819,7 +841,11 @@ contract BitcoinOracleTest is Test {
 
     // --- Transaction Verification --- //
 
-    function test_verify(bytes32 solver, bytes32 orderId, address caller) external {
+    function test_verify_gas() external {
+        test_verify(keccak256(bytes("solver")), keccak256(bytes("orderId")), makeAddr("caller"));
+    }
+
+    function test_verify(bytes32 solver, bytes32 orderId, address caller) public {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
         vm.assume(caller != address(0));
@@ -1054,7 +1080,11 @@ contract BitcoinOracleTest is Test {
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 
-    function test_verify_embed(bytes32 solver, bytes32 orderId, address caller) external {
+    function test_verify_embed_gas() external {
+        test_verify_embed(keccak256(bytes("solver")), keccak256(bytes("orderId")), makeAddr("caller"));
+    }
+
+    function test_verify_embed(bytes32 solver, bytes32 orderId, address caller) public {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
         vm.assume(caller != address(0));

@@ -81,9 +81,13 @@ contract BaseSettlerTest is Test {
 
     //--- Order Purchase ---//
 
+    function test_purchase_order() external {
+        test_purchase_order(keccak256(bytes("orderId")));
+    }
+
     function test_purchase_order(
         bytes32 orderId
-    ) external {
+    ) public {
         uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);

@@ -301,9 +301,13 @@ contract Settler7683Test is Settler7683TestBase {
 
     // -- Larger Integration tests -- //
 
+    function test_finalise_self_gas() public {
+        test_finalise_self(makeAddr("non_solver"));
+    }
+
     function test_finalise_self(
         address non_solver
-    ) external {
+    ) public {
         vm.assume(non_solver != solver);
 
         uint256 amount = 1e18 / 10;
@@ -444,9 +448,13 @@ contract Settler7683Test is Settler7683TestBase {
         settler7683.finaliseSelf(compactOrder, timestamps, bytes32(uint256(uint160(solver))));
     }
 
+    function test_finalise_to_gas() external {
+        test_finalise_to(makeAddr("destination"));
+    }
+
     function test_finalise_to(
         address destination
-    ) external {
+    ) public {
         vm.assume(token.balanceOf(destination) == 0);
 
         uint256 amount = 1e18 / 10;
@@ -529,7 +537,11 @@ contract Settler7683Test is Settler7683TestBase {
         assertEq(token.balanceOf(destination), amount);
     }
 
-    function test_finalise_for(address destination, address caller) external {
+    function test_finalise_for() external {
+        test_finalise_for(makeAddr("destination"), makeAddr("caller"));
+    }
+
+    function test_finalise_for(address destination, address caller) public {
         vm.assume(token.balanceOf(destination) == 0);
 
         uint256 amount = 1e18 / 10;
@@ -662,9 +674,13 @@ contract Settler7683Test is Settler7683TestBase {
         assertEq(settler7683.governanceFee(), fee);
     }
 
-    function test_finalise_self(
+    function test_finalise_self_with_fee_gas() public {
+        test_finalise_self_with_fee(MAX_GOVERNANCE_FEE / 3);
+    }
+
+    function test_finalise_self_with_fee(
         uint64 fee
-    ) external {
+    ) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
         vm.prank(owner);
         settler7683.setGovernanceFee(fee);
@@ -739,6 +755,7 @@ contract Settler7683Test is Settler7683TestBase {
 
         vm.prank(solver);
         settler7683.finaliseSelf(compactOrder, timestamps, bytes32(uint256(uint160((solver)))));
+        vm.snapshotGasLastCall("7683FinaliseSelfWithFee");
 
         uint256 govFeeAmount = amount * fee / 10 ** 18;
         uint256 amountPostFee = amount - govFeeAmount;

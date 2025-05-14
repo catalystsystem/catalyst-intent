@@ -80,6 +80,7 @@ contract BitcoinOracleTest is Test {
 
     //-- Claim
 
+    /// forge-config: default.isolate = true
     function test_claim_gas() external {
         test_claim(keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"));
     }
@@ -216,6 +217,7 @@ contract BitcoinOracleTest is Test {
 
     //-- Dispute
 
+    /// forge-config: default.isolate = true
     function test_dispute_gas() external {
         test_dispute(
             keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
@@ -462,6 +464,7 @@ contract BitcoinOracleTest is Test {
 
     //-- Optimistic Verification
 
+    /// forge-config: default.isolate = true
     function test_optimistically_verify_gas() external {
         test_optimistically_verify(
             keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
@@ -662,6 +665,7 @@ contract BitcoinOracleTest is Test {
 
     //-- Finalise Dispute
 
+    /// forge-config: default.isolate = true
     function test_finalise_dispute_gas() external {
         test_finalise_dispute(
             keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
@@ -841,6 +845,7 @@ contract BitcoinOracleTest is Test {
 
     // --- Transaction Verification --- //
 
+    /// forge-config: default.isolate = true
     function test_verify_gas() external {
         test_verify(keccak256(bytes("solver")), keccak256(bytes("orderId")), makeAddr("caller"));
     }
@@ -1080,6 +1085,7 @@ contract BitcoinOracleTest is Test {
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 
+    /// forge-config: default.isolate = true
     function test_verify_embed_gas() external {
         test_verify_embed(keccak256(bytes("solver")), keccak256(bytes("orderId")), makeAddr("caller"));
     }

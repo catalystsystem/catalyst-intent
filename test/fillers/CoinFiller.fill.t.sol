@@ -41,6 +41,7 @@ contract CoinFillerTestFill is Test {
 
     // --- VALID CASES --- //
 
+    /// forge-config: default.isolate = true
     function test_fill_gas() external {
         test_fill(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), 10**18);
     }
@@ -79,6 +80,7 @@ contract CoinFillerTestFill is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
+    /// forge-config: default.isolate = true
     function test_fill_exclusive_gas() external {
         test_fill_exclusive(keccak256(bytes("orderId")), makeAddr("sender"), 10**18, keccak256(bytes("exclusiveFor")), keccak256(bytes("exclusiveFor")), 100000, 1000000);
     }
@@ -170,6 +172,7 @@ contract CoinFillerTestFill is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
+    /// forge-config: default.isolate = true
     function test_fill_dutch_auction_gas() external {
         test_fill_dutch_auction(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), 10**18, 1000, 500, 251251, 1250);
     }
@@ -229,6 +232,7 @@ contract CoinFillerTestFill is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
+    /// forge-config: default.isolate = true
     function test_fill_exclusive_dutch_auction_gas() external {
         test_fill_exclusive_dutch_auction(keccak256(bytes("orderId")), makeAddr("sender"), 10**18, 1000, 500, 251251, 1250, keccak256(bytes("exclusiveFor")));
     }

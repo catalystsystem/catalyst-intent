@@ -177,7 +177,8 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
     // -- Larger Integration tests -- //
 
-    function test_finalise_self() external {
+    /// forge-config: default.isolate = true
+    function test_finalise_self_gas() external {
         test_finalise_self(makeAddr("non_solver"));
     }
 
@@ -327,6 +328,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
     }
 
+    /// forge-config: default.isolate = true
     function test_finalise_to_gas() external {
         test_finalise_to(makeAddr("non_solver"), makeAddr("destination"));
     }
@@ -413,6 +415,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
         assertEq(token.balanceOf(destination), amount);
     }
 
+    /// forge-config: default.isolate = true
     function test_finalise_for_gas() external {
         test_finalise_for(makeAddr("non_solver"), makeAddr("destination"));
     }
@@ -556,6 +559,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
         assertEq(compactSettler.governanceFee(), fee);
     }
 
+    /// forge-config: default.isolate = true
     function test_finalise_self_with_fee_gas() external {
         test_finalise_self_with_fee(MAX_GOVERNANCE_FEE / 3);
     }

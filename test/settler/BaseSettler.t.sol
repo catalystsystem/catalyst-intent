@@ -81,7 +81,8 @@ contract BaseSettlerTest is Test {
 
     //--- Order Purchase ---//
 
-    function test_purchase_order() external {
+    /// forge-config: default.isolate = true
+    function test_purchase_order_gas() external {
         test_purchase_order(keccak256(bytes("orderId")));
     }
 

@@ -40,4 +40,30 @@ contract CoinFillerTestCall is Test {
         vm.expectRevert();
         coinFiller.call(amount, output);
     }
+
+    uint256 storedAmount;
+
+    function test_call_with_real_address(uint256 amount) public {
+        storedAmount = amount;
+
+        OutputDescription memory output = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(address(coinFiller)))),
+            remoteOracle: bytes32(0),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(address(outputToken)))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(address(this)))),
+            remoteCall: bytes("hello"),
+            fulfillmentContext: bytes("")
+        });
+
+        vm.prank(address(0));
+        coinFiller.call(amount, output);
+    }
+
+    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external {
+        assertEq(token, bytes32(uint256(uint160(address(outputToken)))));
+        assertEq(amount, storedAmount);
+        assertEq(executionData, bytes("hello"));
+    }
 }

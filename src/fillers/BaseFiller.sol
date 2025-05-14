@@ -13,8 +13,6 @@ import { OutputDescription, OutputEncodingLib } from "src/libs/OutputEncodingLib
  * @notice Base Filler implementation that implements common and shared logic between filler implementations.
  */
 abstract contract BaseFiller is IPayloadCreator, BaseOracle {
-    error DifferentRemoteOracles();
-    error NotEnoughGasExecution();
     error FillDeadline();
     error FilledBySomeoneElse(bytes32 solver);
     error WrongChain(uint256 expected, uint256 actual);

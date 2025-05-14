@@ -39,6 +39,7 @@ contract BaseSettlerTestTimestamps is Test {
 
     //--- Testing Utility functions ---//
 
+    /// forge-config: default.isolate = true
     function test_max_timestamp() external {
         uint32[] memory timestamp_1 = new uint32[](1);
         timestamp_1[0] = 100;
@@ -62,6 +63,7 @@ contract BaseSettlerTestTimestamps is Test {
         assertEq(settler.maxTimestamp(timestamp_5), 7);
     }
 
+    /// forge-config: default.isolate = true
     function test_min_timestamp() external {
         uint32[] memory timestamp_1 = new uint32[](1);
         timestamp_1[0] = 100;

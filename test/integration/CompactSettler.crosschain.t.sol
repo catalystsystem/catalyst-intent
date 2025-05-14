@@ -317,6 +317,7 @@ contract CompactSettlerTestCrossChain is Test {
         validVM = abi.encodePacked(hex"01" hex"00000000" hex"01", uint8(0), r, s, v - 27, postvalidVM);
     }
 
+    /// forge-config: default.isolate = true
     function test_entire_flow() external {
         vm.prank(swapper);
         uint256 amount = 1e18 / 10;

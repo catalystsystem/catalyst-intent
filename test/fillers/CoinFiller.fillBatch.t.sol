@@ -30,6 +30,7 @@ contract CoinFillerTestFillBatch is Test {
         outputTokenAddress = address(outputToken);
     }
 
+    /// forge-config: default.isolate = true
     function test_fill_batch_gas() external {
         test_fill_batch(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), keccak256(bytes("nextFiller")), 10**18, 10**12);
     }
@@ -113,5 +114,39 @@ contract CoinFillerTestFillBatch is Test {
 
         vm.prank(sender);
         coinFiller.fillBatch(type(uint32).max, orderId, outputs, filler);
+    }
+
+    function test_revert_fill_batch_fillDeadline(
+        uint24 fillDeadline,
+        uint24 excess
+    ) public {
+        bytes32 orderId = keccak256(bytes("orderId"));
+        address sender = makeAddr("sender");
+        bytes32 filler = keccak256(bytes("filler"));
+        uint128 amount = 10**18;
+
+
+        outputToken.mint(sender, uint256(amount));
+        vm.prank(sender);
+        outputToken.approve(coinFillerAddress, uint256(amount));
+
+        OutputDescription[] memory outputs = new OutputDescription[](1);
+        outputs[0] = OutputDescription({
+            remoteFiller: bytes32(uint256(uint160(coinFillerAddress))),
+            remoteOracle: bytes32(0),
+            chainId: block.chainid,
+            token: bytes32(uint256(uint160(outputTokenAddress))),
+            amount: amount,
+            recipient: bytes32(uint256(uint160(swapper))),
+            remoteCall: bytes(""),
+            fulfillmentContext: bytes("")
+        });
+
+        uint32 warpTo = uint32(excess) + uint32(fillDeadline);
+        vm.warp(warpTo);
+
+        if (excess != 0) vm.expectRevert(abi.encodeWithSignature("FillDeadline()"));
+        vm.prank(sender);
+        coinFiller.fillBatch(fillDeadline, orderId, outputs, filler);
     }
 }

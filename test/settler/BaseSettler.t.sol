@@ -81,9 +81,14 @@ contract BaseSettlerTest is Test {
 
     //--- Order Purchase ---//
 
+    /// forge-config: default.isolate = true
+    function test_purchase_order_gas() external {
+        test_purchase_order(keccak256(bytes("orderId")));
+    }
+
     function test_purchase_order(
         bytes32 orderId
-    ) external {
+    ) public {
         uint256 amount = 10 ** 18;
 
         token.mint(purchaser, amount);
@@ -137,7 +142,7 @@ contract BaseSettlerTest is Test {
             expiryTimestamp,
             solverSignature
         );
-        vm.snapshotGasLastCall("BasePurchaseOrder");
+        vm.snapshotGasLastCall("settler", "BasePurchaseOrder");
 
         // Check storage and balances.
         assertEq(token.balanceOf(solver), amount);

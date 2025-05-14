@@ -41,4 +41,21 @@ jobs:
         run: |
           forge test -vvv
         id: test
+
+      - name: Run Forge Snapshots
+        run: |
+          FOUNDRY_FUZZ_RUNS=10 forge test --gas-snapshot-check true
+        id: snapshot
+    
+      - name: Run Forge Coverage
+        run: |
+          FOUNDRY_FUZZ_RUNS=256 forge coverage --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" --report lcov
+        id: coverage
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./lcov.info
+          fail_ci_if_error: true
       

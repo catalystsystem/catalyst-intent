@@ -39,12 +39,13 @@ contract BaseSettlerTestTimestamps is Test {
 
     //--- Testing Utility functions ---//
 
+    /// forge-config: default.isolate = true
     function test_max_timestamp() external {
         uint32[] memory timestamp_1 = new uint32[](1);
         timestamp_1[0] = 100;
 
         assertEq(settler.maxTimestamp(timestamp_1), 100);
-        vm.snapshotGasLastCall("maxTimestamp1");
+        vm.snapshotGasLastCall("settler", "maxTimestamp1");
 
         uint32[] memory timestamp_5 = new uint32[](5);
         timestamp_5[0] = 1;
@@ -62,12 +63,13 @@ contract BaseSettlerTestTimestamps is Test {
         assertEq(settler.maxTimestamp(timestamp_5), 7);
     }
 
+    /// forge-config: default.isolate = true
     function test_min_timestamp() external {
         uint32[] memory timestamp_1 = new uint32[](1);
         timestamp_1[0] = 100;
 
         assertEq(settler.minTimestamp(timestamp_1), 100);
-        vm.snapshotGasLastCall("minTimestamp1");
+        vm.snapshotGasLastCall("settler", "minTimestamp1");
 
         uint32[] memory timestamp_5 = new uint32[](5);
         timestamp_5[0] = 1;

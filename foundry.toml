@@ -15,6 +15,7 @@ fuzz.runs = 10_000
 [fmt]
 sort_imports = true
 bracket_spacing = true
+single_line_statement_blocks = "single"
 multiline_func_header = "params_first"
 wrap_comments = true
 tab_width = 4

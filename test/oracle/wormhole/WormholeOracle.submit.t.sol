@@ -32,11 +32,14 @@ contract ExportedMessages is Messages, Setters {
     }
 }
 
-contract SubmitWormholeOracleProofsTest is Test {
+contract WormholeOracleTestSubmit is Test {
     WormholeOracle oracle;
     ExportedMessages messages;
     CoinFiller filler;
     MockERC20 token;
+
+    uint256 expectedValueOnCall;
+    bool revertFallback = false;
 
     function setUp() external {
         messages = new ExportedMessages();
@@ -53,13 +56,23 @@ contract SubmitWormholeOracleProofsTest is Test {
         return MessageEncodingLib.encodeMessage(identifier, payloads);
     }
 
-    function test_fill_then_submit_W(
+    function test_fill_then_submit_w() external {
+        test_fill_then_submit(
+            makeAddr("sender"),
+            10 ** 18,
+            makeAddr("recipient"),
+            keccak256(bytes("orderId")),
+            keccak256(bytes("solverIdentifier"))
+        );
+    }
+
+    function test_fill_then_submit(
         address sender,
         uint256 amount,
         address recipient,
         bytes32 orderId,
         bytes32 solverIdentifier
-    ) external {
+    ) public {
         vm.assume(solverIdentifier != bytes32(0));
 
         token.mint(sender, amount);
@@ -76,6 +89,14 @@ contract SubmitWormholeOracleProofsTest is Test {
             remoteCall: hex"",
             fulfillmentContext: hex""
         });
+        bytes memory payload =
+            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), output);
+        bytes[] memory payloads = new bytes[](1);
+        payloads[0] = payload;
+
+        // Fill without submitting
+        vm.expectRevert(abi.encodeWithSignature("NotAllPayloadsValid()"));
+        oracle.submit(address(filler), payloads);
 
         vm.expectCall(
             address(token),
@@ -85,15 +106,35 @@ contract SubmitWormholeOracleProofsTest is Test {
         vm.prank(sender);
         filler.fill(type(uint32).max, orderId, output, solverIdentifier);
 
-        bytes memory payload =
-            OutputEncodingLib.encodeFillDescriptionM(solverIdentifier, orderId, uint32(block.timestamp), output);
-        bytes[] memory payloads = new bytes[](1);
-        payloads[0] = payload;
-
         bytes memory expectedPayload = this.encodeMessageCalldata(output.remoteFiller, payloads);
 
         vm.expectEmit();
         emit PackagePublished(0, expectedPayload, 15);
         oracle.submit(address(filler), payloads);
+        vm.snapshotGasLastCall("oracle", "wormholeOracleSubmit");
+    }
+
+    function test_submit_excess_value(uint64 val, bytes[] calldata payloads) external {
+        expectedValueOnCall = val;
+        oracle.submit{ value: val }(address(this), payloads);
+    }
+
+    function test_revert_submit_excess_value(uint64 val, bytes[] calldata payloads) external {
+        revertFallback = true;
+        expectedValueOnCall = val;
+
+        if (val > 0) vm.expectRevert();
+        oracle.submit{ value: val }(address(this), payloads);
+    }
+
+    function arePayloadsValid(
+        bytes32[] calldata
+    ) external pure returns (bool) {
+        return true;
+    }
+
+    receive() external payable {
+        assertEq(msg.value, expectedValueOnCall);
+        require(!revertFallback);
     }
 }

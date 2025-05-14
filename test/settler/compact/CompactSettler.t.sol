@@ -177,9 +177,14 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
     // -- Larger Integration tests -- //
 
+    /// forge-config: default.isolate = true
+    function test_finalise_self_gas() external {
+        test_finalise_self(makeAddr("non_solver"));
+    }
+
     function test_finalise_self(
         address non_solver
-    ) external {
+    ) public {
         vm.assume(non_solver != solver);
 
         uint256 amount = 1e18 / 10;
@@ -258,7 +263,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
-        vm.snapshotGasLastCall("CompactFinaliseSelf");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseSelf");
 
         assertEq(token.balanceOf(solver), amount);
     }
@@ -323,7 +328,12 @@ contract CompactSettlerTest is CompactSettlerTestBase {
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
     }
 
-    function test_finalise_to(address non_solver, address destination) external {
+    /// forge-config: default.isolate = true
+    function test_finalise_to_gas() external {
+        test_finalise_to(makeAddr("non_solver"), makeAddr("destination"));
+    }
+
+    function test_finalise_to(address non_solver, address destination) public {
         vm.assume(destination != address(compactSettler));
         vm.assume(destination != address(theCompact));
         vm.assume(destination != swapper);
@@ -400,12 +410,17 @@ contract CompactSettlerTest is CompactSettlerTestBase {
             bytes32(uint256(uint160(destination))),
             hex""
         );
-        vm.snapshotGasLastCall("CompactFinaliseTo");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseTo");
 
         assertEq(token.balanceOf(destination), amount);
     }
 
-    function test_finalise_for(address non_solver, address destination) external {
+    /// forge-config: default.isolate = true
+    function test_finalise_for_gas() external {
+        test_finalise_for(makeAddr("non_solver"), makeAddr("destination"));
+    }
+
+    function test_finalise_for(address non_solver, address destination) public {
         vm.assume(destination != address(compactSettler));
         vm.assume(destination != address(theCompact));
         vm.assume(destination != address(swapper));
@@ -496,7 +511,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
             hex"",
             orderOwnerSignature
         );
-        vm.snapshotGasLastCall("CompactFinaliseFor");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseFor");
 
         assertEq(token.balanceOf(destination), amount);
     }
@@ -544,9 +559,14 @@ contract CompactSettlerTest is CompactSettlerTestBase {
         assertEq(compactSettler.governanceFee(), fee);
     }
 
+    /// forge-config: default.isolate = true
+    function test_finalise_self_with_fee_gas() external {
+        test_finalise_self_with_fee(MAX_GOVERNANCE_FEE / 3);
+    }
+
     function test_finalise_self_with_fee(
         uint64 fee
-    ) external {
+    ) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
         vm.prank(owner);
         compactSettler.setGovernanceFee(fee);
@@ -604,7 +624,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, bytes32(uint256(uint160((solver)))));
-        vm.snapshotGasLastCall("CompactFinaliseSelfWithFee");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseSelfWithFee");
 
         assertEq(token.balanceOf(solver), amountPostFee);
         assertEq(theCompact.balanceOf(owner, tokenId), govFeeAmount);

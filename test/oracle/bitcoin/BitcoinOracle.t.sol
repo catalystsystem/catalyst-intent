@@ -12,7 +12,7 @@ import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
-import { ExportedMessages } from "../wormhole/submit.t.sol";
+import { ExportedMessages } from "../wormhole/WormholeOracle.submit.t.sol";
 import { Test } from "forge-std/Test.sol";
 import { BitcoinOracle } from "src/oracles/bitcoin/BitcoinOracle.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
@@ -80,7 +80,12 @@ contract BitcoinOracleTest is Test {
 
     //-- Claim
 
-    function test_claim(bytes32 solver, bytes32 orderId, uint64 amount, address caller) external {
+    /// forge-config: default.isolate = true
+    function test_claim_gas() external {
+        test_claim(keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"));
+    }
+
+    function test_claim(bytes32 solver, bytes32 orderId, uint64 amount, address caller) public {
         vm.assume(caller != address(bitcoinOracle));
         vm.assume(caller != address(token));
 
@@ -114,7 +119,7 @@ contract BitcoinOracleTest is Test {
 
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
-        vm.snapshotGasLastCall("bitcoinOutputClaim");
+        vm.snapshotGasLastCall("oracle", "bitcoinOutputClaim");
 
         (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_,) =
             bitcoinOracle._claimedOrder(orderId, outputId);
@@ -212,7 +217,14 @@ contract BitcoinOracleTest is Test {
 
     //-- Dispute
 
-    function test_dispute(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) external {
+    /// forge-config: default.isolate = true
+    function test_dispute_gas() external {
+        test_dispute(
+            keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
+        );
+    }
+
+    function test_dispute(bytes32 solver, bytes32 orderId, uint64 amount, address caller, address disputer) public {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -252,7 +264,7 @@ contract BitcoinOracleTest is Test {
 
         vm.prank(disputer);
         bitcoinOracle.dispute(orderId, output);
-        vm.snapshotGasLastCall("bitcoinOutputDispute");
+        vm.snapshotGasLastCall("oracle", "bitcoinOutputDispute");
 
         (
             bytes32 solver_,
@@ -452,13 +464,20 @@ contract BitcoinOracleTest is Test {
 
     //-- Optimistic Verification
 
+    /// forge-config: default.isolate = true
+    function test_optimistically_verify_gas() external {
+        test_optimistically_verify(
+            keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
+        );
+    }
+
     function test_optimistically_verify(
         bytes32 solver,
         bytes32 orderId,
         uint64 amount,
         address caller,
         address disputer
-    ) external {
+    ) public {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -494,7 +513,7 @@ contract BitcoinOracleTest is Test {
         vm.warp(block.timestamp + 131 minutes + 1);
 
         bitcoinOracle.optimisticallyVerify(orderId, output);
-        vm.snapshotGasLastCall("bitcoinOPVerify");
+        vm.snapshotGasLastCall("oracle", "bitcoinOPVerify");
 
         (
             bytes32 solver_,
@@ -646,13 +665,20 @@ contract BitcoinOracleTest is Test {
 
     //-- Finalise Dispute
 
+    /// forge-config: default.isolate = true
+    function test_finalise_dispute_gas() external {
+        test_finalise_dispute(
+            keccak256(bytes("solver")), keccak256(bytes("orderId")), 10 ** 18, makeAddr("caller"), makeAddr("disputer")
+        );
+    }
+
     function test_finalise_dispute(
         bytes32 solver,
         bytes32 orderId,
         uint64 amount,
         address caller,
         address disputer
-    ) external {
+    ) public {
         vm.assume(solver != bytes32(0));
         vm.assume(disputer != address(0));
         vm.assume(caller != address(0));
@@ -710,7 +736,7 @@ contract BitcoinOracleTest is Test {
 
         vm.warp(block.timestamp + 1 days);
         bitcoinOracle.finaliseDispute(orderId, output);
-        vm.snapshotGasLastCall("bitcoinFinaliseDispute");
+        vm.snapshotGasLastCall("oracle", "bitcoinFinaliseDispute");
 
         (solver_, claimTimestamp_, multiplier_, sponsor_, disputer_, disputeTimestamp_) =
             bitcoinOracle._claimedOrder(orderId, outputId);
@@ -819,7 +845,12 @@ contract BitcoinOracleTest is Test {
 
     // --- Transaction Verification --- //
 
-    function test_verify(bytes32 solver, bytes32 orderId, address caller) external {
+    /// forge-config: default.isolate = true
+    function test_verify_gas() external {
+        test_verify(keccak256(bytes("solver")), keccak256(bytes("orderId")), makeAddr("caller"));
+    }
+
+    function test_verify(bytes32 solver, bytes32 orderId, address caller) public {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
         vm.assume(caller != address(0));
@@ -844,8 +875,6 @@ contract BitcoinOracleTest is Test {
         vm.prank(caller);
         token.approve(address(bitcoinOracle), collateralAmount);
 
-        bytes32 outputId = bitcoinOracle.outputIdentifier(output);
-
         vm.expectEmit();
         emit OutputClaimed(orderId, bitcoinOracle.outputIdentifier(output));
 
@@ -865,7 +894,7 @@ contract BitcoinOracleTest is Test {
             });
 
             bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
-            vm.snapshotGasLastCall("bitcoinVerify");
+            vm.snapshotGasLastCall("oracle", "bitcoinVerify");
         }
         // Check if the payload has been correctly stored for both a local oracle and remote oracle.
 
@@ -1054,7 +1083,12 @@ contract BitcoinOracleTest is Test {
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
     }
 
-    function test_verify_embed(bytes32 solver, bytes32 orderId, address caller) external {
+    /// forge-config: default.isolate = true
+    function test_verify_embed_gas() external {
+        test_verify_embed(keccak256(bytes("solver")), keccak256(bytes("orderId")), makeAddr("caller"));
+    }
+
+    function test_verify_embed(bytes32 solver, bytes32 orderId, address caller) public {
         vm.assume(solver != bytes32(0));
         vm.assume(orderId != bytes32(0));
         vm.assume(caller != address(0));
@@ -1096,7 +1130,7 @@ contract BitcoinOracleTest is Test {
         });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, EMBED_TX_OUTPUT_INDEX);
-        vm.snapshotGasLastCall("bitcoinVerifyWithEmbed");
+        vm.snapshotGasLastCall("oracle", "bitcoinVerifyWithEmbed");
 
         // Check if the payload has been correctly stored for both a local oracle and remote oracle.
 

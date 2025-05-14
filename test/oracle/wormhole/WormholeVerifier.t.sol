@@ -14,7 +14,7 @@ contract ExportedMessages is Messages, Setters {
     }
 }
 
-contract WormholeCallWormTest is Test {
+contract WormholeVerifierTest is Test {
     bytes prevalidVM = hex"01" hex"00000000" hex"01";
 
     address testGuardianPub;

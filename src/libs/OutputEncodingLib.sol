@@ -147,20 +147,6 @@ library OutputEncodingLib {
         return keccak256(encodeOutputDescriptionMemory(output));
     }
 
-    /**
-     * @notice Converts a common payload slice into an output hash. This is possible because both the
-     * output hash and the common payload have a shared chunk of data. It only has to be enhanced with
-     * remoteOracle and chain id and then hashed.
-     */
-    function getOutputDescriptionHash(
-        bytes32 remoteOracle,
-        bytes32 remoteFiller,
-        uint256 chainId,
-        bytes calldata commonPayload
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(remoteOracle, remoteFiller, chainId, commonPayload));
-    }
-
     // --- FillDescription Encoding --- //
 
     /**
@@ -234,42 +220,5 @@ library OutputEncodingLib {
             outputDescription.remoteCall,
             outputDescription.fulfillmentContext
         );
-    }
-
-    // -- FillDescription Decoding Helpers -- //
-
-    function decodeFillDescriptionSolver(
-        bytes calldata payload
-    ) internal pure returns (bytes32 solver) {
-        assembly ("memory-safe") {
-            // solver = bytes32(payload[0:32]);
-            solver := calldataload(payload.offset)
-        }
-    }
-
-    function decodeFillDescriptionOrderId(
-        bytes calldata payload
-    ) internal pure returns (bytes32 orderId) {
-        assembly ("memory-safe") {
-            // orderId = bytes32(payload[32:64]);
-            orderId := calldataload(add(payload.offset, 32))
-        }
-    }
-
-    function decodeFillDescriptionTimestamp(
-        bytes calldata payload
-    ) internal pure returns (uint32) {
-        bytes4 payloadTimestamp;
-        assembly ("memory-safe") {
-            // payloadTimestamp = bytes4(payload[64:68]);
-            payloadTimestamp := calldataload(add(payload.offset, 64))
-        }
-        return uint32(payloadTimestamp);
-    }
-
-    function decodeFillDescriptionCommonPayload(
-        bytes calldata payload
-    ) internal pure returns (bytes calldata remainingPayload) {
-        return remainingPayload = payload[68:];
     }
 }

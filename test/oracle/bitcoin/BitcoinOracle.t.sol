@@ -12,7 +12,7 @@ import { IBtcPrism } from "bitcoinprism-evm/src/interfaces/IBtcPrism.sol";
 import { BtcProof, BtcTxProof, ScriptMismatch } from "bitcoinprism-evm/src/library/BtcProof.sol";
 import { BtcScript } from "bitcoinprism-evm/src/library/BtcScript.sol";
 
-import { ExportedMessages } from "../wormhole/submit.t.sol";
+import { ExportedMessages } from "../wormhole/WormholeOracle.submit.t.sol";
 import { Test } from "forge-std/Test.sol";
 import { BitcoinOracle } from "src/oracles/bitcoin/BitcoinOracle.sol";
 import { WormholeOracle } from "src/oracles/wormhole/WormholeOracle.sol";
@@ -874,8 +874,6 @@ contract BitcoinOracleTest is Test {
         token.mint(caller, collateralAmount);
         vm.prank(caller);
         token.approve(address(bitcoinOracle), collateralAmount);
-
-        bytes32 outputId = bitcoinOracle.outputIdentifier(output);
 
         vm.expectEmit();
         emit OutputClaimed(orderId, bitcoinOracle.outputIdentifier(output));

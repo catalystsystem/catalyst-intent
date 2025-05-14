@@ -63,7 +63,7 @@ contract CoinFillerTestCall is Test {
         coinFiller.call(amount, output);
     }
 
-    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external {
+    function outputFilled(bytes32 token, uint256 amount, bytes calldata executionData) external view {
         assertEq(token, bytes32(uint256(uint160(address(outputToken)))));
         assertEq(amount, storedAmount);
         assertEq(executionData, bytes("hello"));

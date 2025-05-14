@@ -43,7 +43,9 @@ contract CoinFillerTestCall is Test {
 
     uint256 storedAmount;
 
-    function test_call_with_real_address(uint256 amount) public {
+    function test_call_with_real_address(
+        uint256 amount
+    ) public {
         storedAmount = amount;
 
         OutputDescription memory output = OutputDescription({

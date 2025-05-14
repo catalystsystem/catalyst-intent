@@ -4,21 +4,23 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 
 import { CoinFiller } from "src/fillers/coin/CoinFiller.sol";
-import { MockERC20 } from "test/mocks/MockERC20.sol";
+
 import { CompactSettlerWithDeposit } from "src/settlers/compact/CompactSettlerWithDeposit.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 import { IsContractLib } from "src/libs/IsContractLib.sol";
 
 /// @dev harness is used to place the revert at a lower call depth than our current.
 contract IsContractLibHarness {
-    function checkCodeSize(address addr) view external {
+    function checkCodeSize(
+        address addr
+    ) external view {
         IsContractLib.checkCodeSize(addr);
     }
 }
 
 contract IsContractLibTest is Test {
-
-    address coinFiller; 
+    address coinFiller;
     address outputToken;
     address compactSettler;
 
@@ -49,5 +51,4 @@ contract IsContractLibTest is Test {
         vm.expectRevert(abi.encodeWithSignature("CodeSize0()"));
         isContractLib.checkCodeSize(makeAddr("swapper"));
     }
-
 }

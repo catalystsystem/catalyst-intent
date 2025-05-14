@@ -6,12 +6,16 @@ import "forge-std/Test.sol";
 import { MessageEncodingLib } from "src/libs/MessageEncodingLib.sol";
 
 contract MessageEncodingLibTest is Test {
-
-    function encodeMemoryToCalldata(bytes32 application, bytes[] calldata payloads) pure external returns (bytes memory encodedPayload) {
+    function encodeMemoryToCalldata(
+        bytes32 application,
+        bytes[] calldata payloads
+    ) external pure returns (bytes memory encodedPayload) {
         return encodedPayload = MessageEncodingLib.encodeMessage(application, payloads);
     }
 
-    function decodeMemoryToCalldata(bytes calldata encodedPayloads) pure external returns (bytes32 decodedApplication, bytes32[] memory decodedPayloadHashes) {
+    function decodeMemoryToCalldata(
+        bytes calldata encodedPayloads
+    ) external pure returns (bytes32 decodedApplication, bytes32[] memory decodedPayloadHashes) {
         return MessageEncodingLib.decodeMessage(encodedPayloads);
     }
 
@@ -41,7 +45,7 @@ contract MessageEncodingLibTest is Test {
         this.encodeMemoryToCalldata(application, payloads);
     }
 
-    function test_encode_decode_messages(bytes32 application, bytes[] calldata payloads) view external {
+    function test_encode_decode_messages(bytes32 application, bytes[] calldata payloads) external view {
         vm.assume(payloads.length < type(uint16).max);
         for (uint256 i; i < payloads.length; ++i) {
             vm.assume(payloads[i].length < type(uint16).max);
@@ -49,7 +53,8 @@ contract MessageEncodingLibTest is Test {
 
         bytes memory encodedPayloads = MessageEncodingLib.encodeMessage(application, payloads);
 
-        (bytes32 decodedApplication, bytes32[] memory decodedPayloadHashes) = this.decodeMemoryToCalldata(encodedPayloads);
+        (bytes32 decodedApplication, bytes32[] memory decodedPayloadHashes) =
+            this.decodeMemoryToCalldata(encodedPayloads);
 
         assertEq(decodedApplication, application);
         assertEq(decodedPayloadHashes.length, payloads.length);
@@ -57,5 +62,4 @@ contract MessageEncodingLibTest is Test {
             assertEq(decodedPayloadHashes[i], keccak256(payloads[i]));
         }
     }
-
 }

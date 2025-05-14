@@ -43,7 +43,7 @@ contract CoinFillerTestFill is Test {
 
     /// forge-config: default.isolate = true
     function test_fill_gas() external {
-        test_fill(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), 10**18);
+        test_fill(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), 10 ** 18);
     }
 
     function test_fill(bytes32 orderId, address sender, bytes32 filler, uint256 amount) public {
@@ -82,7 +82,15 @@ contract CoinFillerTestFill is Test {
 
     /// forge-config: default.isolate = true
     function test_fill_exclusive_gas() external {
-        test_fill_exclusive(keccak256(bytes("orderId")), makeAddr("sender"), 10**18, keccak256(bytes("exclusiveFor")), keccak256(bytes("exclusiveFor")), 100000, 1000000);
+        test_fill_exclusive(
+            keccak256(bytes("orderId")),
+            makeAddr("sender"),
+            10 ** 18,
+            keccak256(bytes("exclusiveFor")),
+            keccak256(bytes("exclusiveFor")),
+            100000,
+            1000000
+        );
     }
 
     function test_fill_exclusive(
@@ -174,7 +182,16 @@ contract CoinFillerTestFill is Test {
 
     /// forge-config: default.isolate = true
     function test_fill_dutch_auction_gas() external {
-        test_fill_dutch_auction(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), 10**18, 1000, 500, 251251, 1250);
+        test_fill_dutch_auction(
+            keccak256(bytes("orderId")),
+            makeAddr("sender"),
+            keccak256(bytes("filler")),
+            10 ** 18,
+            1000,
+            500,
+            251251,
+            1250
+        );
     }
 
     function test_fill_dutch_auction(
@@ -234,7 +251,16 @@ contract CoinFillerTestFill is Test {
 
     /// forge-config: default.isolate = true
     function test_fill_exclusive_dutch_auction_gas() external {
-        test_fill_exclusive_dutch_auction(keccak256(bytes("orderId")), makeAddr("sender"), 10**18, 1000, 500, 251251, 1250, keccak256(bytes("exclusiveFor")));
+        test_fill_exclusive_dutch_auction(
+            keccak256(bytes("orderId")),
+            makeAddr("sender"),
+            10 ** 18,
+            1000,
+            500,
+            251251,
+            1250,
+            keccak256(bytes("exclusiveFor"))
+        );
     }
 
     function test_fill_exclusive_dutch_auction(

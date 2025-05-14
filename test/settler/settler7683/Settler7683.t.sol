@@ -120,7 +120,7 @@ contract Settler7683Test is Settler7683TestBase {
                 remoteFiller: keccak256(bytes("remoteFiller")),
                 chainId: 123,
                 token: keccak256(bytes("token")),
-                amount: 10**18,
+                amount: 10 ** 18,
                 recipient: keccak256(bytes("recipient")),
                 remoteCall: hex"",
                 fulfillmentContext: hex""
@@ -133,7 +133,7 @@ contract Settler7683Test is Settler7683TestBase {
                 remoteFiller: keccak256(bytes("remoteFiller")),
                 chainId: 321,
                 token: keccak256(bytes("token1")),
-                amount: 10**12,
+                amount: 10 ** 12,
                 recipient: keccak256(bytes("recipient")),
                 remoteCall: hex"",
                 fulfillmentContext: hex""
@@ -182,9 +182,7 @@ contract Settler7683Test is Settler7683TestBase {
             outputs: outputDescriptions
         });
 
-        settler7683.validateFills(
-            order, orderId, solverIdentifier, timestamps
-        );
+        settler7683.validateFills(order, orderId, solverIdentifier, timestamps);
         vm.snapshotGasLastCall("settler", "7683Validate2Fills");
     }
 
@@ -205,7 +203,7 @@ contract Settler7683Test is Settler7683TestBase {
                 remoteFiller: keccak256(bytes("remoteFiller")),
                 chainId: 123,
                 token: keccak256(bytes("token")),
-                amount: 10**18,
+                amount: 10 ** 18,
                 recipient: keccak256(bytes("recipient")),
                 remoteCall: hex"",
                 fulfillmentContext: hex""
@@ -219,7 +217,7 @@ contract Settler7683Test is Settler7683TestBase {
                 remoteFiller: keccak256(bytes("remoteFiller")),
                 chainId: 321,
                 token: keccak256(bytes("token1")),
-                amount: 10**12,
+                amount: 10 ** 12,
                 recipient: keccak256(bytes("recipient")),
                 remoteCall: hex"",
                 fulfillmentContext: hex""
@@ -251,8 +249,7 @@ contract Settler7683Test is Settler7683TestBase {
                 outputDescriptions[i].remoteOracle,
                 outputDescriptions[i].remoteFiller,
                 keccak256(
-                    OutputEncodingLib.encodeFillDescriptionM(solvers[i], orderId, timestamps[i],
-    outputDescriptions[i])
+                    OutputEncodingLib.encodeFillDescriptionM(solvers[i], orderId, timestamps[i], outputDescriptions[i])
                 )
             );
         }
@@ -275,7 +272,7 @@ contract Settler7683Test is Settler7683TestBase {
 
     /// forge-config: default.isolate = true
     function test_open_gas() external {
-        test_open(10000, 10**18, makeAddr("user"));
+        test_open(10000, 10 ** 18, makeAddr("user"));
     }
 
     function test_open(uint32 fillDeadline, uint128 amount, address user) public {
@@ -313,7 +310,7 @@ contract Settler7683Test is Settler7683TestBase {
 
     /// forge-config: default.isolate = true
     function test_open_for_gas() external {
-        test_open_for(10**18, 251251);
+        test_open_for(10 ** 18, 251251);
     }
 
     function test_open_for(uint128 amountMint, uint256 nonce) public {
@@ -361,7 +358,7 @@ contract Settler7683Test is Settler7683TestBase {
 
     /// forge-config: default.isolate = true
     function test_open_for_and_finalise_gas() external {
-        test_open_for_and_finalise(10**18, 2512511, hex"");
+        test_open_for_and_finalise(10 ** 18, 2512511, hex"");
     }
 
     function test_open_for_and_finalise(uint128 amountMint, uint256 nonce, bytes memory cdat) public {

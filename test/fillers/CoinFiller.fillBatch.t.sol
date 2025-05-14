@@ -32,7 +32,14 @@ contract CoinFillerTestFillBatch is Test {
 
     /// forge-config: default.isolate = true
     function test_fill_batch_gas() external {
-        test_fill_batch(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), keccak256(bytes("nextFiller")), 10**18, 10**12);
+        test_fill_batch(
+            keccak256(bytes("orderId")),
+            makeAddr("sender"),
+            keccak256(bytes("filler")),
+            keccak256(bytes("nextFiller")),
+            10 ** 18,
+            10 ** 12
+        );
     }
 
     function test_fill_batch(
@@ -116,15 +123,11 @@ contract CoinFillerTestFillBatch is Test {
         coinFiller.fillBatch(type(uint32).max, orderId, outputs, filler);
     }
 
-    function test_revert_fill_batch_fillDeadline(
-        uint24 fillDeadline,
-        uint24 excess
-    ) public {
+    function test_revert_fill_batch_fillDeadline(uint24 fillDeadline, uint24 excess) public {
         bytes32 orderId = keccak256(bytes("orderId"));
         address sender = makeAddr("sender");
         bytes32 filler = keccak256(bytes("filler"));
-        uint128 amount = 10**18;
-
+        uint128 amount = 10 ** 18;
 
         outputToken.mint(sender, uint256(amount));
         vm.prank(sender);

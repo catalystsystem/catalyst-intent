@@ -141,7 +141,7 @@ contract BaseSettlerTest is Test {
             expiryTimestamp,
             solverSignature
         );
-        vm.snapshotGasLastCall("BasePurchaseOrder");
+        vm.snapshotGasLastCall("settler", "BasePurchaseOrder");
 
         // Check storage and balances.
         assertEq(token.balanceOf(solver), amount);

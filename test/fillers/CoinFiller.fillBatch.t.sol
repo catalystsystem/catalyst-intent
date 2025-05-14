@@ -30,6 +30,10 @@ contract CoinFillerTestFillBatch is Test {
         outputTokenAddress = address(outputToken);
     }
 
+    function test_fill_batch_gas() external {
+        test_fill_batch(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), keccak256(bytes("nextFiller")), 10**18, 10**12);
+    }
+
     function test_fill_batch(
         bytes32 orderId,
         address sender,
@@ -87,6 +91,7 @@ contract CoinFillerTestFillBatch is Test {
 
         vm.prank(sender);
         coinFiller.fillBatch(type(uint32).max, orderId, outputs, filler);
+        vm.snapshotGasLastCall("filler", "coinFillerFillBatch");
 
         assertEq(outputToken.balanceOf(swapper), uint256(amount) + uint256(amount2));
         assertEq(outputToken.balanceOf(sender), 0);

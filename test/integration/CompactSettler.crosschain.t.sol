@@ -375,7 +375,7 @@ contract CompactSettlerTestCrossChain is Test {
 
         vm.prank(solver);
         coinFiller.fill(type(uint32).max, orderId, outputs[0], solverIdentifier);
-        vm.snapshotGasLastCall("IntegrationCoinFill");
+        vm.snapshotGasLastCall("settler", "IntegrationCoinFill");
 
         bytes[] memory payloads = new bytes[](1);
         payloads[0] =
@@ -386,21 +386,21 @@ contract CompactSettlerTestCrossChain is Test {
         vm.expectEmit();
         emit PackagePublished(0, expectedMessageEmitted, 15);
         wormholeOracle.submit(address(coinFiller), payloads);
-        vm.snapshotGasLastCall("IntegrationWormholeSubmit");
+        vm.snapshotGasLastCall("settler", "IntegrationWormholeSubmit");
 
         bytes memory vaa = makeValidVAA(
             uint16(block.chainid), bytes32(uint256(uint160(address(wormholeOracle)))), expectedMessageEmitted
         );
 
         wormholeOracle.receiveMessage(vaa);
-        vm.snapshotGasLastCall("IntegrationWormholeReceiveMessage");
+        vm.snapshotGasLastCall("settler", "IntegrationWormholeReceiveMessage");
 
         uint32[] memory timestamps = new uint32[](1);
         timestamps[0] = uint32(block.timestamp);
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
-        vm.snapshotGasLastCall("IntegrationCompactFinaliseSelf");
+        vm.snapshotGasLastCall("settler", "IntegrationCompactFinaliseSelf");
     }
 
     function test_entire_flow_different_solvers(

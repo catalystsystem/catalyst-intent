@@ -262,7 +262,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, solverIdentifier);
-        vm.snapshotGasLastCall("CompactFinaliseSelf");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseSelf");
 
         assertEq(token.balanceOf(solver), amount);
     }
@@ -408,7 +408,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
             bytes32(uint256(uint160(destination))),
             hex""
         );
-        vm.snapshotGasLastCall("CompactFinaliseTo");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseTo");
 
         assertEq(token.balanceOf(destination), amount);
     }
@@ -508,7 +508,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
             hex"",
             orderOwnerSignature
         );
-        vm.snapshotGasLastCall("CompactFinaliseFor");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseFor");
 
         assertEq(token.balanceOf(destination), amount);
     }
@@ -620,7 +620,7 @@ contract CompactSettlerTest is CompactSettlerTestBase {
 
         vm.prank(solver);
         compactSettler.finaliseSelf(order, signature, timestamps, bytes32(uint256(uint160((solver)))));
-        vm.snapshotGasLastCall("CompactFinaliseSelfWithFee");
+        vm.snapshotGasLastCall("settler", "CompactFinaliseSelfWithFee");
 
         assertEq(token.balanceOf(solver), amountPostFee);
         assertEq(theCompact.balanceOf(owner, tokenId), govFeeAmount);

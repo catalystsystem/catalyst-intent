@@ -41,6 +41,10 @@ contract CoinFillerTestFill is Test {
 
     // --- VALID CASES --- //
 
+    function test_fill_gas() external {
+        test_fill(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), 10**18);
+    }
+
     function test_fill(bytes32 orderId, address sender, bytes32 filler, uint256 amount) public {
         vm.assume(filler != bytes32(0) && swapper != sender);
 
@@ -69,12 +73,17 @@ contract CoinFillerTestFill is Test {
         );
 
         coinFiller.fill(type(uint32).max, orderId, output, filler);
+        vm.snapshotGasLastCall("filler", "coinFillerFill");
 
         assertEq(outputToken.balanceOf(swapper), amount);
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
-    function test_exclusive_fill(
+    function test_fill_exclusive_gas() external {
+        test_fill_exclusive(keccak256(bytes("orderId")), makeAddr("sender"), 10**18, keccak256(bytes("exclusiveFor")), keccak256(bytes("exclusiveFor")), 100000, 1000000);
+    }
+
+    function test_fill_exclusive(
         bytes32 orderId,
         address sender,
         uint256 amount,
@@ -107,9 +116,10 @@ contract CoinFillerTestFill is Test {
             vm.expectRevert(abi.encodeWithSignature("ExclusiveTo(bytes32)", exclusiveFor));
         }
         coinFiller.fill(type(uint32).max, orderId, output, solverIdentifier);
+        vm.snapshotGasLastCall("filler", "coinFillerFillExclusive");
     }
 
-    function test_mock_callback_executor(
+    function test_fill_mock_callback_executor(
         address sender,
         bytes32 orderId,
         uint256 amount,
@@ -160,7 +170,11 @@ contract CoinFillerTestFill is Test {
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
-    function test_dutch_auction(
+    function test_fill_dutch_auction_gas() external {
+        test_fill_dutch_auction(keccak256(bytes("orderId")), makeAddr("sender"), keccak256(bytes("filler")), 10**18, 1000, 500, 251251, 1250);
+    }
+
+    function test_fill_dutch_auction(
         bytes32 orderId,
         address sender,
         bytes32 filler,
@@ -208,14 +222,18 @@ contract CoinFillerTestFill is Test {
             outputTokenAddress,
             abi.encodeWithSignature("transferFrom(address,address,uint256)", sender, swapper, finalAmount)
         );
-
         coinFiller.fill(type(uint32).max, orderId, outputs[0], filler);
+        vm.snapshotGasLastCall("filler", "coinFillerFillDutchAuction");
 
         assertEq(outputToken.balanceOf(swapper), finalAmount);
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
-    function test_exclusive_dutch_auction(
+    function test_fill_exclusive_dutch_auction_gas() external {
+        test_fill_exclusive_dutch_auction(keccak256(bytes("orderId")), makeAddr("sender"), 10**18, 1000, 500, 251251, 1250, keccak256(bytes("exclusiveFor")));
+    }
+
+    function test_fill_exclusive_dutch_auction(
         bytes32 orderId,
         address sender,
         uint128 amount,
@@ -269,12 +287,13 @@ contract CoinFillerTestFill is Test {
         );
 
         coinFiller.fill(type(uint32).max, orderId, outputs[0], exclusiveFor);
+        vm.snapshotGasLastCall("filler", "coinFillerFillExclusiveDutchAuction");
 
         assertEq(outputToken.balanceOf(swapper), finalAmount);
         assertEq(outputToken.balanceOf(sender), 0);
     }
 
-    function test_revert_exclusive_for_another_dutch_auction(
+    function test_fill_revert_exclusive_for_another_dutch_auction(
         bytes32 orderId,
         address sender,
         uint128 amount,

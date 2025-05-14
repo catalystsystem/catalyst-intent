@@ -181,7 +181,11 @@ contract Settler7683Test is Settler7683TestBase {
     //     settler7683.validateFills(address(this), orderId, type(uint32).max, solvers, timestamps, outputDescriptions);
     // }
 
-    function test_open(uint32 fillDeadline, uint128 amount, address user) external {
+    function test_open_gas() external {
+        test_open(10000, 10**18, makeAddr("user"));
+    }
+
+    function test_open(uint32 fillDeadline, uint128 amount, address user) public {
         vm.assume(fillDeadline > block.timestamp);
         vm.assume(token.balanceOf(user) == 0);
         vm.assume(user != address(settler7683));
@@ -208,12 +212,17 @@ contract Settler7683Test is Settler7683TestBase {
 
         vm.prank(user);
         settler7683.open(order);
+        vm.snapshotGasLastCall("settler", "7683open");
 
         assertEq(token.balanceOf(address(user)), 0);
         assertEq(token.balanceOf(address(settler7683)), amount);
     }
 
-    function test_open_for(uint128 amountMint, uint256 nonce) external {
+    function test_open_for_gas() external {
+        test_open_for(10**18, 251251);
+    }
+
+    function test_open_for(uint128 amountMint, uint256 nonce) public {
         token.mint(swapper, amountMint);
 
         uint256 amount = token.balanceOf(swapper);
@@ -250,6 +259,7 @@ contract Settler7683Test is Settler7683TestBase {
 
         vm.prank(swapper);
         settler7683.openFor(order, signature, hex"");
+        vm.snapshotGasLastCall("settler", "7683openFor");
 
         assertEq(token.balanceOf(address(swapper)), 0);
         assertEq(token.balanceOf(address(settler7683)), amount);
@@ -386,7 +396,7 @@ contract Settler7683Test is Settler7683TestBase {
 
         vm.prank(solver);
         settler7683.finaliseSelf(compactOrder, timestamps, bytes32(uint256(uint160((solver)))));
-        vm.snapshotGasLastCall("7683FinaliseSelf");
+        vm.snapshotGasLastCall("settler", "7683FinaliseSelf");
 
         assertEq(token.balanceOf(solver), amount);
     }
@@ -532,7 +542,7 @@ contract Settler7683Test is Settler7683TestBase {
             bytes32(uint256(uint160((destination)))),
             hex""
         );
-        vm.snapshotGasLastCall("7683FinaliseTo");
+        vm.snapshotGasLastCall("settler", "7683FinaliseTo");
 
         assertEq(token.balanceOf(destination), amount);
     }
@@ -626,7 +636,7 @@ contract Settler7683Test is Settler7683TestBase {
             hex"",
             orderOwnerSignature
         );
-        vm.snapshotGasLastCall("7683FinaliseFor");
+        vm.snapshotGasLastCall("settler", "7683FinaliseFor");
 
         assertEq(token.balanceOf(destination), amount);
     }
@@ -755,7 +765,7 @@ contract Settler7683Test is Settler7683TestBase {
 
         vm.prank(solver);
         settler7683.finaliseSelf(compactOrder, timestamps, bytes32(uint256(uint160((solver)))));
-        vm.snapshotGasLastCall("7683FinaliseSelfWithFee");
+        vm.snapshotGasLastCall("settler", "7683FinaliseSelfWithFee");
 
         uint256 govFeeAmount = amount * fee / 10 ** 18;
         uint256 amountPostFee = amount - govFeeAmount;

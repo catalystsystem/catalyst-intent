@@ -118,7 +118,7 @@ contract BitcoinOracleTest is Test {
 
         vm.prank(caller);
         bitcoinOracle.claim(solver, orderId, output);
-        vm.snapshotGasLastCall("bitcoinOutputClaim");
+        vm.snapshotGasLastCall("oracle", "bitcoinOutputClaim");
 
         (bytes32 solver_, uint32 claimTimestamp_, uint64 multiplier_, address sponsor_, address disputer_,) =
             bitcoinOracle._claimedOrder(orderId, outputId);
@@ -262,7 +262,7 @@ contract BitcoinOracleTest is Test {
 
         vm.prank(disputer);
         bitcoinOracle.dispute(orderId, output);
-        vm.snapshotGasLastCall("bitcoinOutputDispute");
+        vm.snapshotGasLastCall("oracle", "bitcoinOutputDispute");
 
         (
             bytes32 solver_,
@@ -510,7 +510,7 @@ contract BitcoinOracleTest is Test {
         vm.warp(block.timestamp + 131 minutes + 1);
 
         bitcoinOracle.optimisticallyVerify(orderId, output);
-        vm.snapshotGasLastCall("bitcoinOPVerify");
+        vm.snapshotGasLastCall("oracle", "bitcoinOPVerify");
 
         (
             bytes32 solver_,
@@ -732,7 +732,7 @@ contract BitcoinOracleTest is Test {
 
         vm.warp(block.timestamp + 1 days);
         bitcoinOracle.finaliseDispute(orderId, output);
-        vm.snapshotGasLastCall("bitcoinFinaliseDispute");
+        vm.snapshotGasLastCall("oracle", "bitcoinFinaliseDispute");
 
         (solver_, claimTimestamp_, multiplier_, sponsor_, disputer_, disputeTimestamp_) =
             bitcoinOracle._claimedOrder(orderId, outputId);
@@ -891,7 +891,7 @@ contract BitcoinOracleTest is Test {
             });
 
             bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, TX_OUTPUT_INDEX);
-            vm.snapshotGasLastCall("bitcoinVerify");
+            vm.snapshotGasLastCall("oracle", "bitcoinVerify");
         }
         // Check if the payload has been correctly stored for both a local oracle and remote oracle.
 
@@ -1126,7 +1126,7 @@ contract BitcoinOracleTest is Test {
         });
 
         bitcoinOracle.verify(orderId, output, BLOCK_HEIGHT, inclusionProof, EMBED_TX_OUTPUT_INDEX);
-        vm.snapshotGasLastCall("bitcoinVerifyWithEmbed");
+        vm.snapshotGasLastCall("oracle", "bitcoinVerifyWithEmbed");
 
         // Check if the payload has been correctly stored for both a local oracle and remote oracle.
 

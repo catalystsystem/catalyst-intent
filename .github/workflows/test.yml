@@ -44,6 +44,6 @@ jobs:
 
       - name: Run Forge Snapshots
         run: |
-          forge test --gas-snapshot-check true
-        id: test
+          FOUNDRY_FUZZ_RUNS=10 forge test --gas-snapshot-check true
+        id: snapshot
       

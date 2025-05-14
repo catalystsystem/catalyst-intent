@@ -53,7 +53,7 @@ contract OutputEncodingLibTest is Test {
 
     function test_encodeOutputDescription() external view {
         // The goal of this output is to fill all bytes such that no bytes are left empty.
-        // This allows for better comparision to other vm implementations incase something is wrong.
+        // This allows for better comparison to other vm implementations incase something is wrong.
         OutputDescription memory outputDescription = OutputDescription({
             remoteOracle: keccak256(bytes("remoteOracle")),
             remoteFiller: keccak256(bytes("remoteFiller")),
@@ -135,7 +135,7 @@ contract OutputEncodingLibTest is Test {
 
     function test_encodeFillDescription() external view {
         // The goal of this output is to fill all bytes such that no bytes are left empty.
-        // This allows for better comparision to other vm implementations incase something is wrong.
+        // This allows for better comparison to other vm implementations incase something is wrong.
         bytes32 solver = keccak256(bytes("solver"));
         bytes32 orderId = keccak256(bytes("orderId"));
         uint32 timestamp = uint32(uint256(keccak256(bytes("timestamp"))));

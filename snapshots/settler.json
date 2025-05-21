@@ -17,6 +17,7 @@
   "IntegrationCompactFinaliseSelf": "127052",
   "IntegrationWormholeReceiveMessage": "73498",
   "IntegrationWormholeSubmit": "42564",
+  "compactDepositFor": "246190",
   "maxTimestamp1": "505",
   "minTimestamp1": "461"
 }

@@ -8,8 +8,8 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
 import { Scope } from "the-compact/src/types/Scope.sol";
 
-import { CompactSettler } from "./CompactSettler.sol";
-import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType.sol";
+import { LIFISettlerCompact } from "./LIFISettlerCompact.sol";
+import { StandardOrder, StandardOrderType } from "OIF/src/settlers/types/StandardOrderType.sol";
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact
@@ -17,10 +17,10 @@ import { CatalystCompactOrder, TheCompactOrderType } from "./TheCompactOrderType
  * @dev Using the Deposit for function, it is possible to convert an order into an associated
  * deposit in the Compact and emitting the order for consumption by solvers. Tokens are collected from msg.sender.
  */
-contract CompactSettlerWithDeposit is CompactSettler {
-    event Deposited(bytes32 orderId, CatalystCompactOrder order);
+contract LIFISettlerCompactWithDeposit is LIFISettlerCompact {
+    event Deposited(bytes32 orderId, StandardOrder order);
 
-    constructor(address compact, address initialOwner) CompactSettler(compact, initialOwner) { }
+    constructor(address compact, address initialOwner) LIFISettlerCompact(compact, initialOwner) { }
 
     /**
      * @notice EIP712
@@ -32,19 +32,19 @@ contract CompactSettlerWithDeposit is CompactSettler {
         override
         returns (string memory name, string memory version)
     {
-        name = "CatalystSettlerWithDeposit";
-        version = "Compact1d";
+        name = "LIFISettlerCompactWithDeposit";
+        version = "CompactLIFI1";
     }
 
     function _validateChain(
-        CatalystCompactOrder calldata order
+        StandardOrder calldata order
     ) internal view {
         // Check that this is the right originChain
         if (block.chainid != order.originChainId) revert WrongChain(block.chainid, order.originChainId);
     }
 
     function _validateExpiry(
-        CatalystCompactOrder calldata order
+        StandardOrder calldata order
     ) internal view {
         // Check if the fill deadline has been passed
         if (block.timestamp > order.fillDeadline) revert InitiateDeadlinePassed();
@@ -53,7 +53,7 @@ contract CompactSettlerWithDeposit is CompactSettler {
     }
 
     function depositFor(
-        CatalystCompactOrder calldata order
+        StandardOrder calldata order
     ) external {
         _validateChain(order);
         _validateExpiry(order);
@@ -64,12 +64,7 @@ contract CompactSettlerWithDeposit is CompactSettler {
         emit Deposited(orderId, order);
     }
 
-    function _deposit(
-        address user,
-        uint256 nonce,
-        uint256 fillDeadline,
-        CatalystCompactOrder calldata order
-    ) internal {
+    function _deposit(address user, uint256 nonce, uint256 fillDeadline, StandardOrder calldata order) internal {
         uint256[2][] memory idsAndAmounts = order.inputs;
         uint256 numInputs = idsAndAmounts.length;
         // We need to collect the tokens from msg.sender.
@@ -88,8 +83,8 @@ contract CompactSettlerWithDeposit is CompactSettler {
             address(this),
             nonce,
             fillDeadline,
-            TheCompactOrderType.BATCH_COMPACT_TYPE_HASH,
-            TheCompactOrderType.witnessHash(order)
+            StandardOrderType.BATCH_COMPACT_TYPE_HASH,
+            StandardOrderType.witnessHash(order)
         );
     }
 }

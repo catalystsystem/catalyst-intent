@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
-import "forge-std/Test.sol";
+import { CoinFiller7683 } from "OIF/src/fillers/coin/CoinFiller7683.sol";
 
-import { CoinFiller7683 } from "src/fillers/coin/CoinFiller7683.sol";
+import { GaslessCrossChainOrder } from "OIF/src/interfaces/IERC7683.sol";
+import { MandateERC7683 } from "OIF/src/settlers/7683/Order7683Type.sol";
 
-import { Settler7683TestBase } from "test/settler/settler7683/Settler7683.base.t.sol";
+import { MandateOutput, MandateOutputType } from "OIF/src/settlers/types/MandateOutputType.sol";
+import { StandardOrder } from "OIF/src/settlers/types/StandardOrderType.sol";
+import { Settler7683TestBase } from "OIF/test/settler/settler7683/Settler7683.base.t.sol";
 
-import { GaslessCrossChainOrder } from "src/interfaces/IERC7683.sol";
-
-import { MandateERC7683 } from "src/settlers/7683/Order7683Type.sol";
-import { CatalystCompactOrder } from "src/settlers/compact/TheCompactOrderType.sol";
-import { OutputDescription, OutputDescriptionType } from "src/settlers/types/OutputDescriptionType.sol";
+import { LIFISettler7683 } from "../../src/settlers/7683/LIFISettler7683.sol";
 
 /// @notice This test showcases how to take 2 intents and fill them together.
 contract Settler7683SameChainSwapTest is Settler7683TestBase {
@@ -26,6 +25,9 @@ contract Settler7683SameChainSwapTest is Settler7683TestBase {
     function setUp() public virtual override {
         super.setUp();
         coinFiller7683 = new CoinFiller7683();
+
+        address owner = makeAddr("owner");
+        settler7683 = address(new LIFISettler7683(owner));
     }
 
     /// @notice This test shows how to use 2 opposite swaps to fill each other.
@@ -51,8 +53,8 @@ contract Settler7683SameChainSwapTest is Settler7683TestBase {
         bytes32 coinFillerIdentifier = bytes32(uint256(uint160(address(coinFiller7683))));
 
         // Define order 1.
-        OutputDescription[] memory outputs1 = new OutputDescription[](1);
-        outputs1[0] = OutputDescription({
+        MandateOutput[] memory outputs1 = new MandateOutput[](1);
+        outputs1[0] = MandateOutput({
             remoteFiller: coinFillerIdentifier,
             remoteOracle: coinFillerIdentifier,
             chainId: block.chainid,
@@ -72,7 +74,7 @@ contract Settler7683SameChainSwapTest is Settler7683TestBase {
             outputs: outputs1
         });
         GaslessCrossChainOrder memory order1 = GaslessCrossChainOrder({
-            originSettler: address(settler7683),
+            originSettler: settler7683,
             user: swapper,
             nonce: 0,
             originChainId: block.chainid,
@@ -83,8 +85,8 @@ contract Settler7683SameChainSwapTest is Settler7683TestBase {
         });
 
         // Define order 2.
-        OutputDescription[] memory outputs2 = new OutputDescription[](1);
-        outputs2[0] = OutputDescription({
+        MandateOutput[] memory outputs2 = new MandateOutput[](1);
+        outputs2[0] = MandateOutput({
             remoteFiller: coinFillerIdentifier,
             remoteOracle: coinFillerIdentifier,
             chainId: block.chainid,
@@ -104,7 +106,7 @@ contract Settler7683SameChainSwapTest is Settler7683TestBase {
             outputs: outputs2
         });
         GaslessCrossChainOrder memory order2 = GaslessCrossChainOrder({
-            originSettler: address(settler7683),
+            originSettler: settler7683,
             user: swapper2,
             nonce: 0,
             originChainId: block.chainid,
@@ -123,13 +125,13 @@ contract Settler7683SameChainSwapTest is Settler7683TestBase {
         assertEq(anotherToken.balanceOf(address(swapper)), 0);
         assertEq(token.balanceOf(address(swapper2)), 0);
 
-        bytes32 orderid1 = settler7683.orderIdentifier(order1);
-        bytes32 orderid2 = settler7683.orderIdentifier(order2);
+        bytes32 orderid1 = LIFISettler7683(settler7683).orderIdentifier(order1);
+        bytes32 orderid2 = LIFISettler7683(settler7683).orderIdentifier(order2);
 
         bytes memory dataToForward = abi.encode(signature2, orderid1, order1, orderid2, order2);
 
         // Notice! This test will continue in inputs filled.
-        settler7683.openForAndFinalise(order1, signature1, address(this), dataToForward);
+        LIFISettler7683(settler7683).openForAndFinalise(order1, signature1, address(this), dataToForward);
 
         assertEq(token.balanceOf(address(swapper)), 0);
         assertEq(anotherToken.balanceOf(address(swapper2)), 0);
@@ -152,7 +154,7 @@ contract Settler7683SameChainSwapTest is Settler7683TestBase {
             assertEq(anotherToken.balanceOf(address(swapper2)), amount2);
 
             // Notice! The test will continue after "} else {"
-            settler7683.openForAndFinalise(order2, signature2, address(this), dataToForward);
+            LIFISettler7683(settler7683).openForAndFinalise(order2, signature2, address(this), dataToForward);
         } else {
             (
                 ,

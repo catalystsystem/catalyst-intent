@@ -1,0 +1,38 @@
+{
+  "implementation": {
+    "sepolia": {
+      "wormhole": "0x4a8bc80Ed5a4067f1CCf107057b8270E0cC11A78",
+      "oracle": "0x069cfFa455b2eFFd8adc9531d1fCd55fd32B04Cb"
+    },
+    "basesepolia": {
+      "wormhole": "0x79A1027a6A159502049F10906D333EC57E95F083",
+      "oracle": "0xb2477079b498594192837fa3EC4Ebc97153eaA65"
+    },
+    "arbitrumsepolia": {
+      "wormhole": "0x6b9C8671cdDC8dEab9c719bB87cBd3e782bA6a35",
+      "oracle": "0x46080096B5970d26634479f2F40e9e264B8D439b"
+    },
+    "optimismsepolia": {
+      "wormhole": "0x31377888146f3253211EFEf5c676D41ECe7D58Fe",
+      "oracle": "0xb516aD609f9609C914F5292084398B44fBE84A0C"
+    }
+  },
+  "chainids": [
+    [
+      11155111,
+      10002
+    ],
+    [
+      421614,
+      10003
+    ],
+    [
+      84532,
+      10004
+    ],
+    [
+      11155420,
+      10005
+    ]
+  ]
+}

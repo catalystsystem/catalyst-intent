@@ -1,1 +1,0 @@
-This is an alternative implementation of the wormhole message verification with the purpose of significantly reducing gas cost but also simplify integration by decoding the message as a calldata slice.

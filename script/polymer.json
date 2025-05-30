@@ -1,0 +1,38 @@
+{
+  "implementation": {
+    "sepolia": {
+      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
+      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+    },
+    "basesepolia": {
+      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
+      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+    },
+    "arbitrumsepolia": {
+      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
+      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+    },
+    "optimismsepolia": {
+      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
+      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+    }
+  },
+  "chainids": [
+    [
+      11155111,
+      11155111
+    ],
+    [
+      421614,
+      421614
+    ],
+    [
+      84532,
+      84532
+    ],
+    [
+      11155420,
+      11155420
+    ]
+  ]
+}

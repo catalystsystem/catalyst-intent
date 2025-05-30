@@ -7,11 +7,12 @@ import { Script, console } from "forge-std/Script.sol";
  * @notice Easily deploy contracts across multiple chains.
  */
 contract multichain is Script {
-
     string public chain;
     string private constant RPC_URL_PREFIX = "RPC_URL_";
 
-    function getChainRpcEnvKey(string memory chain_) private pure returns (string memory) {
+    function getChainRpcEnvKey(
+        string memory chain_
+    ) private pure returns (string memory) {
         return string(abi.encodePacked(RPC_URL_PREFIX, vm.toUppercase(chain_)));
     }
 
@@ -24,11 +25,15 @@ contract multichain is Script {
         return chain;
     }
 
-    function selectFork(string memory chain_) internal {
+    function selectFork(
+        string memory chain_
+    ) internal {
         vm.createSelectFork(vm.envString(getChainRpcEnvKey(chain_)));
     }
 
-    modifier iter_chains(string[] memory chains) {
+    modifier iter_chains(
+        string[] memory chains
+    ) {
         for (uint256 chainIndex = 0; chainIndex < chains.length; ++chainIndex) {
             chain = chains[chainIndex];
             selectFork(chain);
@@ -46,7 +51,11 @@ contract multichain is Script {
     }
 
     // --- Deployment helpers for ---//
-    function getExpectedCreate2Address(bytes32 salt, bytes memory creationCode, bytes memory initArgs) public pure returns (address) {
+    function getExpectedCreate2Address(
+        bytes32 salt,
+        bytes memory creationCode,
+        bytes memory initArgs
+    ) public pure returns (address) {
         return address(
             uint160(
                 uint256(
@@ -55,12 +64,7 @@ contract multichain is Script {
                             bytes1(0xff),
                             address(CREATE2_FACTORY),
                             salt, // salt
-                            keccak256(
-                                abi.encodePacked(
-                                    creationCode,
-                                    initArgs
-                                )
-                            )
+                            keccak256(abi.encodePacked(creationCode, initArgs))
                         )
                     )
                 )
@@ -68,4 +72,3 @@ contract multichain is Script {
         );
     }
 }
-

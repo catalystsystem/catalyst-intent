@@ -11,7 +11,7 @@ import { AlwaysYesOracle } from "OIF/test/mocks/AlwaysYesOracle.sol";
 
 import { multichain } from "./multichain.s.sol";
 
-import { InputSettlerCompactLIFIWithDeposit } from "../src/input/compact/InputSettlerCompactLIFIWithDeposit.sol";
+import { InputSettlerCompactLIFI } from "../src/input/compact/InputSettlerCompactLIFI.sol";
 
 contract deploy is multichain {
     error NotExpectedAddress(string name, address expected, address actual);
@@ -21,17 +21,14 @@ contract deploy is multichain {
 
     function run(
         string[] calldata chains
-    ) public returns (InputSettlerCompactLIFIWithDeposit settler) {
+    ) public returns (InputSettlerCompactLIFI settler) {
         return run(chains, getSender());
     }
 
-    function run(
-        string[] calldata chains,
-        address initialOwner
-    ) public returns (InputSettlerCompactLIFIWithDeposit settler) {
+    function run(string[] calldata chains, address initialOwner) public returns (InputSettlerCompactLIFI settler) {
         address expectedSettlerAddress = getExpectedCreate2Address(
             0, // salt
-            type(InputSettlerCompactLIFIWithDeposit).creationCode,
+            type(InputSettlerCompactLIFI).creationCode,
             abi.encode(COMPACT, initialOwner)
         );
         return run(chains, initialOwner, expectedSettlerAddress);
@@ -41,7 +38,7 @@ contract deploy is multichain {
         string[] calldata chains,
         address initialOwner,
         address expectedSettlerAddress
-    ) public iter_chains(chains) broadcast returns (InputSettlerCompactLIFIWithDeposit settler) {
+    ) public iter_chains(chains) broadcast returns (InputSettlerCompactLIFI settler) {
         deployCompact();
         settler = deploySettler(initialOwner, expectedSettlerAddress);
 
@@ -53,18 +50,18 @@ contract deploy is multichain {
     function deploySettler(
         address initialOwner,
         address expectedSettlerAddress
-    ) internal returns (InputSettlerCompactLIFIWithDeposit settler) {
+    ) internal returns (InputSettlerCompactLIFI settler) {
         bool isSettlerDeployed = address(expectedSettlerAddress).code.length != 0;
 
         if (!isSettlerDeployed) {
-            settler = new InputSettlerCompactLIFIWithDeposit{ salt: 0 }(COMPACT, initialOwner);
+            settler = new InputSettlerCompactLIFI{ salt: 0 }(COMPACT, initialOwner);
 
             if (expectedSettlerAddress != address(settler)) {
                 revert NotExpectedAddress("settler", expectedSettlerAddress, address(settler));
             }
             return settler;
         }
-        return InputSettlerCompactLIFIWithDeposit(expectedSettlerAddress);
+        return InputSettlerCompactLIFI(expectedSettlerAddress);
     }
 
     function deployCompact() internal {

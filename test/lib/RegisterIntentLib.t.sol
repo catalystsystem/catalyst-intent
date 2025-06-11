@@ -8,21 +8,25 @@ import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
 import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
 import { InputSettlerCompactTestBase } from "OIF/test/input/compact/InputSettlerCompact.base.t.sol";
 
-import { InputSettlerCompactLIFIWithDeposit } from "../../../src/input/compact/InputSettlerCompactLIFIWithDeposit.sol";
+import { InputSettlerCompactLIFI } from "../../src/input/compact/InputSettlerCompactLIFI.sol";
 
-contract InputSettlerCompactTestWithDeposit is InputSettlerCompactTestBase {
+import { RegisterIntentLib } from "../../src/libs/RegisterIntentLib.sol";
+
+contract RegisterIntentLibTest is InputSettlerCompactTestBase {
     address owner;
 
     function setUp() public override {
         super.setUp();
 
         owner = makeAddr("owner");
-        inputSettlerCompact = address(new InputSettlerCompactLIFIWithDeposit(address(theCompact), owner));
+        inputSettlerCompact = address(new InputSettlerCompactLIFI(address(theCompact), owner));
     }
 
     function test_depositFor_gas() external {
         test_depositFor(makeAddr("depositor"), makeAddr("user"));
     }
+
+    event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
     function test_depositFor(address depositor, address user) public {
         vm.assume(depositor != address(0));
@@ -56,19 +60,16 @@ contract InputSettlerCompactTestWithDeposit is InputSettlerCompactTestBase {
         // Mint tokens and set approvals
         token.mint(depositor, amount1);
         anotherToken.mint(depositor, amount2);
-        vm.prank(depositor);
-        token.approve(inputSettlerCompact, type(uint256).max);
-        vm.prank(depositor);
-        anotherToken.approve(inputSettlerCompact, type(uint256).max);
 
         assertEq(token.balanceOf(depositor), amount1);
         assertEq(anotherToken.balanceOf(depositor), amount2);
         assertEq(token.balanceOf(address(theCompact)), 0);
         assertEq(anotherToken.balanceOf(address(theCompact)), 0);
 
-        vm.prank(depositor);
-        InputSettlerCompactLIFIWithDeposit(inputSettlerCompact).depositFor(order);
-        vm.snapshotGasLastCall("inputSettler", "compactDepositFor");
+        vm.startPrank(depositor);
+        RegisterIntentLib.depositAndRegisterIntentFor(address(theCompact), inputSettlerCompact, order, true);
+        vm.snapshotGasLastCall("inputSettler", "depositAndRegisterFor");
+        vm.stopPrank();
 
         assertEq(token.balanceOf(depositor), 0);
         assertEq(anotherToken.balanceOf(depositor), 0);
@@ -77,6 +78,13 @@ contract InputSettlerCompactTestWithDeposit is InputSettlerCompactTestBase {
         assertEq(theCompact.balanceOf(user, inputs[0][0]), amount1);
         assertEq(theCompact.balanceOf(user, inputs[1][0]), amount2);
 
-        // Try to claim the inputs to check if we correctly registered the claim.
+        // Try to broadcast order.
+        bytes32 orderId = InputSettlerCompactLIFI(inputSettlerCompact).orderIdentifier(order);
+
+        vm.expectEmit();
+        emit IntentRegistered(orderId, order);
+
+        InputSettlerCompactLIFI(inputSettlerCompact).broadcast(order);
+        vm.snapshotGasLastCall("inputSettler", "broadcast");
     }
 }

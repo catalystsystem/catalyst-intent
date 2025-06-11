@@ -11,6 +11,7 @@ import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOr
 import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
 
 import { GovernanceFee } from "../../libs/GovernanceFee.sol";
+import { RegisterIntentLib } from "../../libs/RegisterIntentLib.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -24,6 +25,10 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
  * The ownable component of the smart contract is only used for fees.
  */
 contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
+    error NotRegistered();
+
+    event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
+
     constructor(address compact, address initialOwner) InputSettlerCompact(compact) {
         _initializeOwner(initialOwner);
     }
@@ -38,6 +43,28 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     {
         name = "InputSettlerCompact";
         version = "LIFI_1";
+    }
+
+    /**
+     * @notice Valdiates that an intent has been registered against TheCompact and broadcasts and event for
+     * permissionless consumption.
+     * @param order Order to be broadcasts for consumption by off-chain solvers.
+     */
+    function broadcast(
+        StandardOrder calldata order
+    ) external {
+        RegisterIntentLib._validateChain(order.originChainId);
+        RegisterIntentLib._validateExpiry(order.fillDeadline, order.expires);
+
+        bool registered = COMPACT.isRegistered(
+            order.user,
+            RegisterIntentLib.compactClaimHash(address(this), order),
+            RegisterIntentLib.STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH
+        );
+        if (!registered) revert NotRegistered();
+
+        bytes32 orderId = _orderIdentifier(order);
+        emit IntentRegistered(orderId, order);
     }
 
     /**

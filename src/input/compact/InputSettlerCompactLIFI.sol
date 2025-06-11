@@ -1,0 +1,189 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.26;
+
+import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+import { IdLib } from "the-compact/src/lib/IdLib.sol";
+import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
+import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
+
+import { InputSettlerCompact } from "OIF/src/input/compact/InputSettlerCompact.sol";
+import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
+import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
+
+import { GovernanceFee } from "../../libs/GovernanceFee.sol";
+
+/**
+ * @title Catalyst Settler supporting The Compact
+ * @notice This Catalyst Settler implementation uses The Compact as the deposit scheme.
+ * It is a delivery first, inputs second scheme that allows users with a deposit inside The Compact.
+ *
+ * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
+ * They then need to either register or sign a supported claim with the intent outputs as the witness.
+ * Without the deposit extension, this contract does not have a way to emit on-chain orders.
+ *
+ * The ownable component of the smart contract is only used for fees.
+ */
+contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
+    constructor(address compact, address initialOwner) InputSettlerCompact(compact) {
+        _initializeOwner(initialOwner);
+    }
+
+    /// @notice EIP712
+    function _domainNameAndVersion()
+        internal
+        pure
+        virtual
+        override
+        returns (string memory name, string memory version)
+    {
+        name = "InputSettlerCompact";
+        version = "LIFI_1";
+    }
+
+    /**
+     * @notice Finalises an order when called directly by the solver
+     * @dev The caller must be the address corresponding to the first solver in the solvers array.
+     * If destination is bytes32(0), the order owner will be used as the destination.
+     * @param order StandardOrder signed in conjunction with a Compact to form an order
+     * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
+     * bytes(allocatorData))
+     * @param timestamps Array of timestamps when each output was filled
+     * @param solvers Array of solvers who filled each output (in order). For single solver, pass an array with only one
+     * element
+     * @param destination Where to send the inputs. If the solver wants to send the inputs to themselves, they should
+     * pass their address to this parameter.
+     * @param call Optional callback data. If non-empty, will call orderFinalised on the destination
+     */
+    function finalise(
+        StandardOrder calldata order,
+        bytes calldata signatures,
+        uint32[] calldata timestamps,
+        bytes32[] memory solvers,
+        bytes32 destination,
+        bytes calldata call
+    ) external override {
+        if (destination == bytes32(0)) revert NoDestination();
+
+        bytes32 orderId = _orderIdentifier(order);
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        _orderOwnerIsCaller(orderOwner);
+
+        _finalise(order, signatures, orderId, solvers[0], destination);
+        if (call.length > 0) {
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+        }
+
+        _validateFills(order, orderId, solvers, timestamps);
+    }
+
+    /**
+     * @notice Finalises a cross-chain order on behalf of someone else using their signature
+     * @dev This function serves to finalise intents on the origin chain with proper authorization from the order owner.
+     * @param order StandardOrder signed in conjunction with a Compact to form an order
+     * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
+     * bytes(allocatorData))
+     * @param timestamps Array of timestamps when each output was filled
+     * @param solvers Array of solvers who filled each output (in order). For single solver, pass an array with only
+     * element
+     * @param destination Where to send the inputs
+     * @param call Optional callback data. If non-empty, will call orderFinalised on the destination
+     * @param orderOwnerSignature Signature from the order owner authorizing this external call
+     */
+    function finaliseWithSignature(
+        StandardOrder calldata order,
+        bytes calldata signatures,
+        uint32[] calldata timestamps,
+        bytes32[] memory solvers,
+        bytes32 destination,
+        bytes calldata call,
+        bytes calldata orderOwnerSignature
+    ) external override {
+        if (destination == bytes32(0)) revert NoDestination();
+
+        bytes32 orderId = _orderIdentifier(order);
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        // Validate the external claimant with signature
+        _allowExternalClaimant(
+            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+        );
+
+        _finalise(order, signatures, orderId, solvers[0], destination);
+        if (call.length > 0) {
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+        }
+
+        _validateFills(order, orderId, solvers, timestamps);
+    }
+
+    //--- The Compact & Resource Locks ---//
+
+    function _resolveLock(
+        StandardOrder calldata order,
+        bytes calldata sponsorSignature,
+        bytes calldata allocatorData,
+        bytes32 claimant
+    ) internal override {
+        BatchClaimComponent[] memory batchClaimComponents;
+        {
+            uint256 numInputs = order.inputs.length;
+            batchClaimComponents = new BatchClaimComponent[](numInputs);
+            uint256[2][] calldata maxInputs = order.inputs;
+            uint64 fee = governanceFee;
+            for (uint256 i; i < numInputs; ++i) {
+                uint256[2] calldata input = maxInputs[i];
+                uint256 tokenId = input[0];
+                uint256 allocatedAmount = input[1];
+
+                Component[] memory components;
+
+                // If the governance fee is set, we need to add a governance fee split.
+                uint256 governanceShare = _calcFee(allocatedAmount, fee);
+                if (governanceShare != 0) {
+                    unchecked {
+                        // To reduce the cost associated with the governance fee,
+                        // we want to do a 6909 transfer instead of burn and mint.
+                        // Note: While this function is called with replaced token, it
+                        // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
+                        // and places it infront of the current vault owner.
+                        uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
+                        components = new Component[](2);
+                        // For the user
+                        components[0] =
+                            Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
+                        // For governance
+                        components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
+                        batchClaimComponents[i] = BatchClaimComponent({
+                            id: tokenId, // The token ID of the ERC6909 token to allocate.
+                            allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
+                            portions: components
+                        });
+                        continue;
+                    }
+                }
+
+                components = new Component[](1);
+                components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
+                batchClaimComponents[i] = BatchClaimComponent({
+                    id: tokenId, // The token ID of the ERC6909 token to allocate.
+                    allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
+                    portions: components
+                });
+            }
+        }
+
+        require(
+            COMPACT.batchClaim(
+                BatchClaim({
+                    allocatorData: allocatorData,
+                    sponsorSignature: sponsorSignature,
+                    sponsor: order.user,
+                    nonce: order.nonce,
+                    expires: order.expires,
+                    witness: StandardOrderType.witnessHash(order),
+                    witnessTypestring: string(StandardOrderType.BATCH_COMPACT_SUB_TYPES),
+                    claims: batchClaimComponents
+                })
+            ) != bytes32(0)
+        );
+    }
+}

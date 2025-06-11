@@ -5,13 +5,13 @@ import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
 
-import { CoinFiller } from "OIF/src/fillers/coin/CoinFiller.sol";
 import { WormholeOracle } from "OIF/src/oracles/wormhole/WormholeOracle.sol";
+import { OutputSettlerCoin } from "OIF/src/output/coin/OutputSettlerCoin.sol";
 import { AlwaysYesOracle } from "OIF/test/mocks/AlwaysYesOracle.sol";
 
 import { multichain } from "./multichain.s.sol";
 
-import { LIFISettlerCompactWithDeposit } from "../src/settlers/compact/LIFISettlerCompactWithDeposit.sol";
+import { InputSettlerCompactLIFIWithDeposit } from "../src/input/compact/InputSettlerCompactLIFIWithDeposit.sol";
 
 contract deploy is multichain {
     error NotExpectedAddress(string name, address expected, address actual);
@@ -21,17 +21,17 @@ contract deploy is multichain {
 
     function run(
         string[] calldata chains
-    ) public returns (LIFISettlerCompactWithDeposit settler) {
+    ) public returns (InputSettlerCompactLIFIWithDeposit settler) {
         return run(chains, getSender());
     }
 
     function run(
         string[] calldata chains,
         address initialOwner
-    ) public returns (LIFISettlerCompactWithDeposit settler) {
+    ) public returns (InputSettlerCompactLIFIWithDeposit settler) {
         address expectedSettlerAddress = getExpectedCreate2Address(
             0, // salt
-            type(LIFISettlerCompactWithDeposit).creationCode,
+            type(InputSettlerCompactLIFIWithDeposit).creationCode,
             abi.encode(COMPACT, initialOwner)
         );
         return run(chains, initialOwner, expectedSettlerAddress);
@@ -41,11 +41,11 @@ contract deploy is multichain {
         string[] calldata chains,
         address initialOwner,
         address expectedSettlerAddress
-    ) public iter_chains(chains) broadcast returns (LIFISettlerCompactWithDeposit settler) {
+    ) public iter_chains(chains) broadcast returns (InputSettlerCompactLIFIWithDeposit settler) {
         deployCompact();
         settler = deploySettler(initialOwner, expectedSettlerAddress);
 
-        deployCoinFiller();
+        deployOutputSettlerCoin();
         deployAlwaysOkAllocaor();
         deployAlwaysYesOracle();
     }
@@ -53,18 +53,18 @@ contract deploy is multichain {
     function deploySettler(
         address initialOwner,
         address expectedSettlerAddress
-    ) internal returns (LIFISettlerCompactWithDeposit settler) {
+    ) internal returns (InputSettlerCompactLIFIWithDeposit settler) {
         bool isSettlerDeployed = address(expectedSettlerAddress).code.length != 0;
 
         if (!isSettlerDeployed) {
-            settler = new LIFISettlerCompactWithDeposit{ salt: 0 }(COMPACT, initialOwner);
+            settler = new InputSettlerCompactLIFIWithDeposit{ salt: 0 }(COMPACT, initialOwner);
 
             if (expectedSettlerAddress != address(settler)) {
                 revert NotExpectedAddress("settler", expectedSettlerAddress, address(settler));
             }
             return settler;
         }
-        return LIFISettlerCompactWithDeposit(expectedSettlerAddress);
+        return InputSettlerCompactLIFIWithDeposit(expectedSettlerAddress);
     }
 
     function deployCompact() internal {
@@ -77,16 +77,16 @@ contract deploy is multichain {
         }
     }
 
-    function deployCoinFiller() internal returns (CoinFiller filler) {
+    function deployOutputSettlerCoin() internal returns (OutputSettlerCoin filler) {
         address expectedAddress = getExpectedCreate2Address(
             0, // salt
-            type(CoinFiller).creationCode,
+            type(OutputSettlerCoin).creationCode,
             hex""
         );
         bool isFillerDeployed = address(expectedAddress).code.length != 0;
 
-        if (!isFillerDeployed) return filler = new CoinFiller{ salt: 0 }();
-        return CoinFiller(expectedAddress);
+        if (!isFillerDeployed) return filler = new OutputSettlerCoin{ salt: 0 }();
+        return OutputSettlerCoin(expectedAddress);
     }
 
     function deployAlwaysOkAllocaor() internal returns (AlwaysOKAllocator allocator, uint96 allocatorId) {
@@ -100,7 +100,7 @@ contract deploy is multichain {
         if (!isAllocatorDeployed) allocator = new AlwaysOKAllocator{ salt: 0 }();
         else allocator = AlwaysOKAllocator(expectedAddress);
 
-        allocatorId = IdLib.usingAllocatorId(address(allocator));
+        allocatorId = IdLib.toAllocatorId(address(allocator));
 
         bytes32 storageSlotKey;
         assembly {

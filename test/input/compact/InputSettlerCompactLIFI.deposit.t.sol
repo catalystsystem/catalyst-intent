@@ -4,20 +4,20 @@ pragma solidity ^0.8.22;
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
 
+import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
 import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
-import { StandardOrder } from "OIF/src/settlers/types/StandardOrderType.sol";
-import { SettlerCompactTestBase } from "OIF/test/settler/compact/SettlerCompact.base.t.sol";
+import { InputSettlerCompactTestBase } from "OIF/test/input/compact/InputSettlerCompact.base.t.sol";
 
-import { LIFISettlerCompactWithDeposit } from "../../../src/settlers/compact/LIFISettlerCompactWithDeposit.sol";
+import { InputSettlerCompactLIFIWithDeposit } from "../../../src/input/compact/InputSettlerCompactLIFIWithDeposit.sol";
 
-contract SettlerCompactTestWithDeposit is SettlerCompactTestBase {
+contract InputSettlerCompactTestWithDeposit is InputSettlerCompactTestBase {
     address owner;
 
     function setUp() public override {
         super.setUp();
 
         owner = makeAddr("owner");
-        settlerCompact = address(new LIFISettlerCompactWithDeposit(address(theCompact), owner));
+        inputSettlerCompact = address(new InputSettlerCompactLIFIWithDeposit(address(theCompact), owner));
     }
 
     function test_depositFor_gas() external {
@@ -27,8 +27,8 @@ contract SettlerCompactTestWithDeposit is SettlerCompactTestBase {
     function test_depositFor(address depositor, address user) public {
         vm.assume(depositor != address(0));
         vm.assume(user != address(0));
-        vm.assume(depositor != address(settlerCompact));
-        vm.assume(user != address(settlerCompact));
+        vm.assume(depositor != address(inputSettlerCompact));
+        vm.assume(user != address(inputSettlerCompact));
         vm.assume(depositor != address(theCompact));
         vm.assume(user != address(theCompact));
 
@@ -57,9 +57,9 @@ contract SettlerCompactTestWithDeposit is SettlerCompactTestBase {
         token.mint(depositor, amount1);
         anotherToken.mint(depositor, amount2);
         vm.prank(depositor);
-        token.approve(settlerCompact, type(uint256).max);
+        token.approve(inputSettlerCompact, type(uint256).max);
         vm.prank(depositor);
-        anotherToken.approve(settlerCompact, type(uint256).max);
+        anotherToken.approve(inputSettlerCompact, type(uint256).max);
 
         assertEq(token.balanceOf(depositor), amount1);
         assertEq(anotherToken.balanceOf(depositor), amount2);
@@ -67,8 +67,8 @@ contract SettlerCompactTestWithDeposit is SettlerCompactTestBase {
         assertEq(anotherToken.balanceOf(address(theCompact)), 0);
 
         vm.prank(depositor);
-        LIFISettlerCompactWithDeposit(settlerCompact).depositFor(order);
-        vm.snapshotGasLastCall("settler", "compactDepositFor");
+        InputSettlerCompactLIFIWithDeposit(inputSettlerCompact).depositFor(order);
+        vm.snapshotGasLastCall("inputSettler", "compactDepositFor");
 
         assertEq(token.balanceOf(depositor), 0);
         assertEq(anotherToken.balanceOf(depositor), 0);

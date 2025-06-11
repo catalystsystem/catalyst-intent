@@ -5,13 +5,13 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
-import { ICatalystCallback } from "OIF/src/interfaces/ICatalystCallback.sol";
+import { MandateERC7683, Order7683Type, StandardOrder } from "OIF/src/input/7683/Order7683Type.sol";
 import { GaslessCrossChainOrder } from "OIF/src/interfaces/IERC7683.sol";
+import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
 import { IOracle } from "OIF/src/interfaces/IOracle.sol";
-import { MandateERC7683, Order7683Type, StandardOrder } from "OIF/src/settlers/7683/Order7683Type.sol";
 
-import { Settler7683 } from "OIF/src/settlers/7683/Settler7683.sol";
-import { MandateOutput } from "OIF/src/settlers/types/MandateOutputType.sol";
+import { InputSettler7683 } from "OIF/src/input/7683/InputSettler7683.sol";
+import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
 
 import { GovernanceFee } from "../../libs/GovernanceFee.sol";
 
@@ -26,10 +26,10 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
  *
  * This contract does not support fee on transfer tokens.
  */
-contract LIFISettler7683 is Settler7683, GovernanceFee {
+contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
     constructor(
         address initialOwner
-    ) Settler7683() {
+    ) InputSettler7683() {
         _initializeOwner(initialOwner);
     }
 
@@ -44,7 +44,6 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
         version = "7683LIFI1";
     }
 
-    // TODO:
     /**
      * @dev This function can only be used when the intent described is a same-chain intent.
      * Set the solver as msg.sender (of this call). Timestamp will be collected from block.timestamp.
@@ -56,7 +55,7 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
         bytes calldata call
     ) external {
         // Validate the ERC7683 structure.
-        _validateChain(order.originChainId);
+        _isThisChain(order.originChainId);
         _validateDeadline(order.openDeadline);
         _validateDeadline(order.fillDeadline);
 
@@ -72,7 +71,7 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
         // TODO: collect governance fee.
         _openFor(order, signature, orderId, compactOrder, destination);
         // Call the destination (if needed) so the caller can inject logic into our call.
-        if (call.length > 0) ICatalystCallback(destination).inputsFilled(compactOrder.inputs, call);
+        if (call.length > 0) IOIFCallback(destination).orderFinalised(compactOrder.inputs, call);
 
         // Validate the fill. The solver may use the reentrance of the above line to execute the fill.
         _validateFills(compactOrder.localOracle, orderId, compactOrder.outputs);
@@ -92,16 +91,16 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
         for (uint256 i; i < numOutputs; ++i) {
             MandateOutput memory output = outputs[i];
             uint256 chainId = output.chainId;
-            bytes32 remoteOracle = output.remoteOracle;
-            bytes32 remoteFiller = output.remoteFiller;
+            bytes32 oracle = output.oracle;
+            bytes32 outputSettler = output.settler;
             bytes32 payloadHash =
                 _proofPayloadHashM(orderId, bytes32(uint256(uint160(msg.sender))), uint32(block.timestamp), output);
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
                 mstore(offset, chainId)
-                mstore(add(offset, 0x20), remoteOracle)
-                mstore(add(offset, 0x40), remoteFiller)
+                mstore(add(offset, 0x20), oracle)
+                mstore(add(offset, 0x40), outputSettler)
                 mstore(add(offset, 0x60), payloadHash)
             }
         }
@@ -142,7 +141,7 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
 
         _finalise(order, orderId, solver, destination);
         if (call.length > 0) {
-            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
         // Check if the outputs have been proven according to the oracles.
@@ -176,7 +175,7 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
 
         _finalise(order, orderId, solver, destination);
         if (call.length > 0) {
-            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
         // Check if the outputs have been proven according to the oracles.
@@ -206,7 +205,7 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
 
         _finalise(order, orderId, solvers[0], destination);
         if (call.length > 0) {
-            ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
         // Check if the outputs have been proven according to the oracles.
@@ -239,9 +238,7 @@ contract LIFISettler7683 is Settler7683, GovernanceFee {
 
             _finalise(order, orderId, solvers[0], destination);
             if (call.length > 0) {
-                ICatalystCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).inputsFilled(
-                    order.inputs, call
-                );
+                IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
             }
         }
 

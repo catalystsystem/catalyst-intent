@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.22;
 
+import { ChainMap } from "OIF/src/oracles/ChainMap.sol";
 import { WormholeOracle } from "OIF/src/oracles/wormhole/WormholeOracle.sol";
 
 import { multichain } from "./multichain.s.sol";
@@ -69,15 +70,15 @@ contract deployWormhole is multichain {
         uint256 chainId
     ) internal {
         // Check if map has already been set.
-        uint256 storedBlockChainid = oracle.getChainIdentifierToBlockChainId(messagingProtocolChainIdentifier);
-        uint256 storedChainIdentifier = oracle.getBlockChainIdToChainIdentifier(chainId);
+        uint256 storedBlockChainid = oracle.chainIdMap(messagingProtocolChainIdentifier);
+        uint256 storedChainIdentifier = oracle.reverseChainIdMap(chainId);
         if (storedBlockChainid != 0 || storedChainIdentifier != 0) {
             // Check whether the maps has been set to the expected values:
             if (storedBlockChainid == chainId && storedChainIdentifier == messagingProtocolChainIdentifier) {
                 // Then skip.
                 return;
             }
-            revert WormholeOracle.AlreadySet();
+            revert ChainMap.AlreadySet();
         }
         // Set the map.
         oracle.setChainMap(messagingProtocolChainIdentifier, chainId);

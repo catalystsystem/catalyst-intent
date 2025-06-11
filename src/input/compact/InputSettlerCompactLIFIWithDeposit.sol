@@ -8,8 +8,8 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { ResetPeriod } from "the-compact/src/types/ResetPeriod.sol";
 import { Scope } from "the-compact/src/types/Scope.sol";
 
-import { LIFISettlerCompact } from "./LIFISettlerCompact.sol";
-import { StandardOrder, StandardOrderType } from "OIF/src/settlers/types/StandardOrderType.sol";
+import { InputSettlerCompactLIFI } from "./InputSettlerCompactLIFI.sol";
+import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
 
 /**
  * @notice Extends the Compact Settler with functionality to deposit into TheCompact
@@ -17,14 +17,21 @@ import { StandardOrder, StandardOrderType } from "OIF/src/settlers/types/Standar
  * @dev Using the Deposit for function, it is possible to convert an order into an associated
  * deposit in the Compact and emitting the order for consumption by solvers. Tokens are collected from msg.sender.
  */
-contract LIFISettlerCompactWithDeposit is LIFISettlerCompact {
+contract InputSettlerCompactLIFIWithDeposit is InputSettlerCompactLIFI {
     event Deposited(bytes32 orderId, StandardOrder order);
 
-    constructor(address compact, address initialOwner) LIFISettlerCompact(compact, initialOwner) { }
+    error InitiateDeadlinePassed();
+    error WrongChain(uint256 expected, uint256 provided);
 
-    /**
-     * @notice EIP712
-     */
+    bytes32 constant STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH = keccak256(
+        bytes(
+            "BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,Lock[] commitments,Mandate mandate)Lock(bytes12 lockTag,address token,uint256 amount)Mandate(uint32 fillDeadline,address localOracle,MandateOutput[] outputs)MandateOutput(bytes32 oracle,bytes32 filler,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes call,bytes context)"
+        )
+    );
+
+    constructor(address compact, address initialOwner) InputSettlerCompactLIFI(compact, initialOwner) { }
+
+    /// @notice EIP712
     function _domainNameAndVersion()
         internal
         pure
@@ -32,8 +39,8 @@ contract LIFISettlerCompactWithDeposit is LIFISettlerCompact {
         override
         returns (string memory name, string memory version)
     {
-        name = "LIFISettlerCompactWithDeposit";
-        version = "CompactLIFI1";
+        name = "InputSettlerCompact";
+        version = "LIFI_1D";
     }
 
     function _validateChain(
@@ -83,7 +90,7 @@ contract LIFISettlerCompactWithDeposit is LIFISettlerCompact {
             address(this),
             nonce,
             fillDeadline,
-            StandardOrderType.BATCH_COMPACT_TYPE_HASH,
+            STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH,
             StandardOrderType.witnessHash(order)
         );
     }

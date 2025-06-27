@@ -10,9 +10,8 @@ import { MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
 
 /**
- * @notice Governance fee timelock
- * Allows for safely setting and changing a governance fee through a built in time-lock. Also provides a generic
- * function to compute the the impact of the governance fee on an amount.
+ * @notice Intent Reigstration library. Aids with registration of intents onbehalf of someone else for The Compact.
+ * @dev If the library is not used for registering intents, it contains helpers for validation and intent hashes.
  */
 library RegisterIntentLib {
     error DeadlinePassed();
@@ -95,7 +94,7 @@ library RegisterIntentLib {
     /**
      * @notice Deposits and registerers the intent associated with an OIF StandardOrder.
      * @param setApprovals Whether or not to set approvals for the intents inputs. Set as a constant such that the
-     * Solidity function specialiser either deletes or or inlines the loop.
+     * Solidity function specialiser either deletes or inlines the loop.
      */
     function depositAndRegisterIntentFor(
         address COMPACT,
@@ -109,9 +108,7 @@ library RegisterIntentLib {
         uint256[2][] memory idsAndAmounts = order.inputs;
         if (setApprovals) {
             uint256 numInputs = idsAndAmounts.length;
-            // We need to collect the tokens from msg.sender.
             for (uint256 i; i < numInputs; ++i) {
-                // Collect tokens from sender
                 uint256[2] memory idAndAmount = idsAndAmounts[i];
                 SafeTransferLib.safeApproveWithRetry(
                     EfficiencyLib.asSanitizedAddress(idAndAmount[0]), address(COMPACT), idAndAmount[1]

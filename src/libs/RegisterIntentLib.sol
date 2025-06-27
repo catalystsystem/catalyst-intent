@@ -93,9 +93,9 @@ library RegisterIntentLib {
     }
 
     /**
-     * @notice Deposits and registerers the intent associated with an OIF StandardOrder.
+     * @notice Deposits and registers the intent associated with an OIF StandardOrder.
      * @param setApprovals Whether or not to set approvals for the intents inputs. Set as a constant such that the
-     * Solidity function specialiser either deletes or or inlines the loop.
+     * Solidity function specialiser either deletes or inlines the loop.
      */
     function depositAndRegisterIntentFor(
         address COMPACT,

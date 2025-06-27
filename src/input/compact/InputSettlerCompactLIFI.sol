@@ -155,7 +155,8 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
             uint256 numInputs = order.inputs.length;
             batchClaimComponents = new BatchClaimComponent[](numInputs);
             uint256[2][] calldata maxInputs = order.inputs;
-            uint64 fee = governanceFee;
+            address _owner = owner();
+            uint64 fee = _owner != address(0) ? governanceFee : 0;
             for (uint256 i; i < numInputs; ++i) {
                 uint256[2] calldata input = maxInputs[i];
                 uint256 tokenId = input[0];
@@ -172,7 +173,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
                         // Note: While this function is called with replaced token, it
                         // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
                         // and places it infront of the current vault owner.
-                        uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
+                        uint256 ownerId = IdLib.withReplacedToken(tokenId, _owner);
                         components = new Component[](2);
                         // For the user
                         components[0] =

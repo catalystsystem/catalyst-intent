@@ -10,7 +10,7 @@ import { MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
 
 /**
- * @notice Intent Reigstration library. Aids with registration of intents onbehalf of someone else for The Compact.
+ * @notice Intent Registration library. Aids with registration of intents onbehalf of someone else for The Compact.
  * @dev If the library is not used for registering intents, it contains helpers for validation and intent hashes.
  */
 library RegisterIntentLib {

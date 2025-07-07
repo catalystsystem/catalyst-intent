@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import {Script, console} from "forge-std/Script.sol";
+import { Script, console } from "forge-std/Script.sol";
 
 /**
  * @notice Easily deploy contracts across multiple chains.
@@ -25,11 +25,15 @@ contract multichain is Script {
         return chain;
     }
 
-    function selectFork(string memory chain_) internal {
+    function selectFork(
+        string memory chain_
+    ) internal {
         vm.createSelectFork(vm.envString(getChainRpcEnvKey(chain_)));
     }
 
-    modifier iter_chains(string[] memory chains) {
+    modifier iter_chains(
+        string[] memory chains
+    ) {
         for (uint256 chainIndex = 0; chainIndex < chains.length; ++chainIndex) {
             chain = chains[chainIndex];
             selectFork(chain);
@@ -52,22 +56,19 @@ contract multichain is Script {
         bytes memory creationCode,
         bytes memory initArgs
     ) public pure returns (address) {
-        return
-            address(
-                uint160(
-                    uint256(
-                        keccak256(
-                            abi.encodePacked(
-                                bytes1(0xff),
-                                address(CREATE2_FACTORY),
-                                salt, // salt
-                                keccak256(
-                                    abi.encodePacked(creationCode, initArgs)
-                                )
-                            )
+        return address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff),
+                            address(CREATE2_FACTORY),
+                            salt, // salt
+                            keccak256(abi.encodePacked(creationCode, initArgs))
                         )
                     )
                 )
-            );
+            )
+        );
     }
 }

@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import {TheCompact} from "the-compact/src/TheCompact.sol";
-import {IdLib} from "the-compact/src/lib/IdLib.sol";
-import {AlwaysOKAllocator} from "the-compact/src/test/AlwaysOKAllocator.sol";
+import { TheCompact } from "the-compact/src/TheCompact.sol";
+import { IdLib } from "the-compact/src/lib/IdLib.sol";
+import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
 
-import {WormholeOracle} from "OIF/src/oracles/wormhole/WormholeOracle.sol";
-import {OutputSettlerCoin} from "OIF/src/output/coin/OutputSettlerCoin.sol";
-import {AlwaysYesOracle} from "OIF/test/mocks/AlwaysYesOracle.sol";
+import { WormholeOracle } from "OIF/src/oracles/wormhole/WormholeOracle.sol";
+import { OutputSettlerCoin } from "OIF/src/output/coin/OutputSettlerCoin.sol";
+import { AlwaysYesOracle } from "OIF/test/mocks/AlwaysYesOracle.sol";
 
-import {multichain} from "./multichain.s.sol";
+import { multichain } from "./multichain.s.sol";
 
-import {InputSettlerCompactLIFI} from "../src/input/compact/InputSettlerCompactLIFI.sol";
+import { InputSettlerCompactLIFI } from "../src/input/compact/InputSettlerCompactLIFI.sol";
 
 contract deploy is multichain {
     error NotExpectedAddress(string name, address expected, address actual);
 
-    address public constant COMPACT =
-        address(0x70EEFf73E540C8F68477510F096c0d903D31594a);
-    uint256 private constant _ALLOCATOR_BY_ALLOCATOR_ID_SLOT_SEED =
-        0x000044036fc77deaed2300000000000000000000000;
+    address public constant COMPACT = address(0x70EEFf73E540C8F68477510F096c0d903D31594a);
+    uint256 private constant _ALLOCATOR_BY_ALLOCATOR_ID_SLOT_SEED = 0x000044036fc77deaed2300000000000000000000000;
 
     function run(
         string[] calldata chains
@@ -27,10 +25,7 @@ contract deploy is multichain {
         return run(chains, getSender());
     }
 
-    function run(
-        string[] calldata chains,
-        address initialOwner
-    ) public returns (InputSettlerCompactLIFI settler) {
+    function run(string[] calldata chains, address initialOwner) public returns (InputSettlerCompactLIFI settler) {
         address expectedSettlerAddress = getExpectedCreate2Address(
             0, // salt
             type(InputSettlerCompactLIFI).creationCode,
@@ -43,12 +38,7 @@ contract deploy is multichain {
         string[] calldata chains,
         address initialOwner,
         address expectedSettlerAddress
-    )
-        public
-        iter_chains(chains)
-        broadcast
-        returns (InputSettlerCompactLIFI settler)
-    {
+    ) public iter_chains(chains) broadcast returns (InputSettlerCompactLIFI settler) {
         deployCompact();
         settler = deploySettler(initialOwner, expectedSettlerAddress);
 
@@ -61,21 +51,13 @@ contract deploy is multichain {
         address initialOwner,
         address expectedSettlerAddress
     ) internal returns (InputSettlerCompactLIFI settler) {
-        bool isSettlerDeployed = address(expectedSettlerAddress).code.length !=
-            0;
+        bool isSettlerDeployed = address(expectedSettlerAddress).code.length != 0;
 
         if (!isSettlerDeployed) {
-            settler = new InputSettlerCompactLIFI{salt: 0}(
-                COMPACT,
-                initialOwner
-            );
+            settler = new InputSettlerCompactLIFI{ salt: 0 }(COMPACT, initialOwner);
 
             if (expectedSettlerAddress != address(settler)) {
-                revert NotExpectedAddress(
-                    "settler",
-                    expectedSettlerAddress,
-                    address(settler)
-                );
+                revert NotExpectedAddress("settler", expectedSettlerAddress, address(settler));
             }
             return settler;
         }
@@ -86,17 +68,13 @@ contract deploy is multichain {
         bool isCompactDeployed = COMPACT.code.length != 0;
 
         if (!isCompactDeployed) {
-            address compact = address(new TheCompact{salt: 0}());
+            address compact = address(new TheCompact{ salt: 0 }());
 
-            if (COMPACT != compact)
-                revert NotExpectedAddress("compact", COMPACT, compact);
+            if (COMPACT != compact) revert NotExpectedAddress("compact", COMPACT, compact);
         }
     }
 
-    function deployOutputSettlerCoin()
-        internal
-        returns (OutputSettlerCoin filler)
-    {
+    function deployOutputSettlerCoin() internal returns (OutputSettlerCoin filler) {
         address expectedAddress = getExpectedCreate2Address(
             0, // salt
             type(OutputSettlerCoin).creationCode,
@@ -104,14 +82,11 @@ contract deploy is multichain {
         );
         bool isFillerDeployed = address(expectedAddress).code.length != 0;
 
-        if (!isFillerDeployed) return filler = new OutputSettlerCoin{salt: 0}();
+        if (!isFillerDeployed) return filler = new OutputSettlerCoin{ salt: 0 }();
         return OutputSettlerCoin(expectedAddress);
     }
 
-    function deployAlwaysOkAllocaor()
-        internal
-        returns (AlwaysOKAllocator allocator, uint96 allocatorId)
-    {
+    function deployAlwaysOkAllocaor() internal returns (AlwaysOKAllocator allocator, uint96 allocatorId) {
         address expectedAddress = getExpectedCreate2Address(
             0, // salt
             type(AlwaysOKAllocator).creationCode,
@@ -119,23 +94,19 @@ contract deploy is multichain {
         );
         bool isAllocatorDeployed = address(expectedAddress).code.length != 0;
 
-        if (!isAllocatorDeployed) allocator = new AlwaysOKAllocator{salt: 0}();
+        if (!isAllocatorDeployed) allocator = new AlwaysOKAllocator{ salt: 0 }();
         else allocator = AlwaysOKAllocator(expectedAddress);
 
         allocatorId = IdLib.toAllocatorId(address(allocator));
 
         bytes32 storageSlotKey;
         assembly {
-            storageSlotKey := or(
-                _ALLOCATOR_BY_ALLOCATOR_ID_SLOT_SEED,
-                allocatorId
-            )
+            storageSlotKey := or(_ALLOCATOR_BY_ALLOCATOR_ID_SLOT_SEED, allocatorId)
         }
 
         bytes32 storageSlotValue = vm.load(COMPACT, storageSlotKey);
         if (storageSlotValue == bytes32(0)) {
-            uint96 registeredAllocatorId = TheCompact(COMPACT)
-                .__registerAllocator(address(allocator), "");
+            uint96 registeredAllocatorId = TheCompact(COMPACT).__registerAllocator(address(allocator), "");
             assert(registeredAllocatorId == allocatorId);
         }
     }
@@ -148,7 +119,7 @@ contract deploy is multichain {
         );
         bool isOracleDeployed = address(expectedAddress).code.length != 0;
 
-        if (!isOracleDeployed) return oracle = new AlwaysYesOracle{salt: 0}();
+        if (!isOracleDeployed) return oracle = new AlwaysYesOracle{ salt: 0 }();
         return AlwaysYesOracle(expectedAddress);
     }
 }

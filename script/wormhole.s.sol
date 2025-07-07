@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import {ChainMap} from "OIF/src/oracles/ChainMap.sol";
-import {WormholeOracle} from "OIF/src/oracles/wormhole/WormholeOracle.sol";
+import { ChainMap } from "OIF/src/oracles/ChainMap.sol";
+import { WormholeOracle } from "OIF/src/oracles/wormhole/WormholeOracle.sol";
 
-import {multichain} from "./multichain.s.sol";
+import { multichain } from "./multichain.s.sol";
 
 contract deployWormhole is multichain {
     error NotExpectedAddress(string name, address expected, address actual);
@@ -24,15 +24,11 @@ contract deployWormhole is multichain {
         string memory activeChain = getChain();
         // Load wormhole config.
         string memory pathRoot = vm.projectRoot();
-        string memory pathToWormholeConfig = string(
-            abi.encodePacked(pathRoot, WORMHOLE_CONFIG)
-        );
+        string memory pathToWormholeConfig = string(abi.encodePacked(pathRoot, WORMHOLE_CONFIG));
         string memory wormholeConfig = vm.readFile(pathToWormholeConfig);
 
-        address wormholeImplementation = vm.parseJsonAddress(
-            wormholeConfig,
-            string.concat(".implementation.", activeChain, ".wormhole")
-        );
+        address wormholeImplementation =
+            vm.parseJsonAddress(wormholeConfig, string.concat(".implementation.", activeChain, ".wormhole"));
 
         // Deploy the Wormhole Oracle.
         oracle = deployWormholeOracle(initialOwner, wormholeImplementation);
@@ -43,22 +39,13 @@ contract deployWormhole is multichain {
         );
 
         bytes memory chainIdData = vm.parseJson(wormholeConfig, ".chainids");
-        uint256[][] memory chainIdArray = abi.decode(
-            chainIdData,
-            (uint256[][])
-        );
+        uint256[][] memory chainIdArray = abi.decode(chainIdData, (uint256[][]));
         for (uint256 i = 0; i < chainIdArray.length; i++) {
             assert(chainIdArray[i].length == 2);
             uint256 chainId = chainIdArray[i][0];
-            uint16 messagingProtocolChainIdentifier = uint16(
-                chainIdArray[i][1]
-            );
+            uint16 messagingProtocolChainIdentifier = uint16(chainIdArray[i][1]);
             // Set the chain map for the Wormhole Oracle.
-            setWormholeConfig(
-                oracle,
-                messagingProtocolChainIdentifier,
-                chainId
-            );
+            setWormholeConfig(oracle, messagingProtocolChainIdentifier, chainId);
         }
     }
 
@@ -73,12 +60,7 @@ contract deployWormhole is multichain {
         );
         bool isOracleDeployed = address(expectedAddress).code.length != 0;
 
-        if (!isOracleDeployed)
-            return
-                new WormholeOracle{salt: 0}(
-                    initialOwner,
-                    wormholeImplementation
-                );
+        if (!isOracleDeployed) return new WormholeOracle{ salt: 0 }(initialOwner, wormholeImplementation);
         return WormholeOracle(expectedAddress);
     }
 
@@ -88,16 +70,11 @@ contract deployWormhole is multichain {
         uint256 chainId
     ) internal {
         // Check if map has already been set.
-        uint256 storedBlockChainid = oracle.chainIdMap(
-            messagingProtocolChainIdentifier
-        );
+        uint256 storedBlockChainid = oracle.chainIdMap(messagingProtocolChainIdentifier);
         uint256 storedChainIdentifier = oracle.reverseChainIdMap(chainId);
         if (storedBlockChainid != 0 || storedChainIdentifier != 0) {
             // Check whether the maps has been set to the expected values:
-            if (
-                storedBlockChainid == chainId &&
-                storedChainIdentifier == messagingProtocolChainIdentifier
-            ) {
+            if (storedBlockChainid == chainId && storedChainIdentifier == messagingProtocolChainIdentifier) {
                 // Then skip.
                 return;
             }

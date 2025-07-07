@@ -3,18 +3,15 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Test.sol";
 
-import {InputSettlerCompactLIFI} from "../../../src/input/compact/InputSettlerCompactLIFI.sol";
+import { InputSettlerCompactLIFI } from "../../../src/input/compact/InputSettlerCompactLIFI.sol";
 
-import {InputSettlerCompactTest} from "OIF/test/input/compact/InputSettlerCompact.t.sol";
+import { InputSettlerCompactTest } from "OIF/test/input/compact/InputSettlerCompact.t.sol";
 
-import {StandardOrder} from "OIF/src/input/types/StandardOrderType.sol";
-import {MandateOutput, MandateOutputEncodingLib} from "OIF/src/libs/MandateOutputEncodingLib.sol";
+import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
+import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
 
 contract InputSettlerCompactLIFIHarness is InputSettlerCompactLIFI {
-    constructor(
-        address compact,
-        address initialOwner
-    ) InputSettlerCompactLIFI(compact, initialOwner) {}
+    constructor(address compact, address initialOwner) InputSettlerCompactLIFI(compact, initialOwner) { }
 
     function validateFills(
         StandardOrder calldata order,
@@ -34,80 +31,50 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
         super.setUp();
 
         owner = makeAddr("owner");
-        inputSettlerCompact = address(
-            new InputSettlerCompactLIFIHarness(address(theCompact), owner)
-        );
+        inputSettlerCompact = address(new InputSettlerCompactLIFIHarness(address(theCompact), owner));
     }
 
     // --- Fee tests --- //
 
     function test_invalid_governance_fee() public {
         vm.prank(owner);
-        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(
-            MAX_GOVERNANCE_FEE
-        );
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(MAX_GOVERNANCE_FEE);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
-        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(
-            MAX_GOVERNANCE_FEE + 1
-        );
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(MAX_GOVERNANCE_FEE + 1);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
-        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(
-            MAX_GOVERNANCE_FEE + 123123123
-        );
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(MAX_GOVERNANCE_FEE + 123123123);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("GovernanceFeeTooHigh()"));
-        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(
-            type(uint64).max
-        );
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(type(uint64).max);
     }
 
-    function test_governance_fee_change_not_ready(
-        uint64 fee,
-        uint256 timeDelay
-    ) public {
+    function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
-        vm.assume(
-            timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY
-        );
+        vm.assume(timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
 
         vm.prank(owner);
         vm.expectEmit();
-        emit NextGovernanceFee(
-            fee,
-            uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY
-        );
-        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(
-            fee
-        );
+        emit NextGovernanceFee(fee, uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(fee);
 
         vm.warp(timeDelay);
-        vm.expectRevert(
-            abi.encodeWithSignature("GovernanceFeeChangeNotReady()")
-        );
-        InputSettlerCompactLIFIHarness(inputSettlerCompact)
-            .applyGovernanceFee();
+        vm.expectRevert(abi.encodeWithSignature("GovernanceFeeChangeNotReady()"));
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).applyGovernanceFee();
 
         vm.warp(uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY + 1);
 
-        assertEq(
-            InputSettlerCompactLIFIHarness(inputSettlerCompact).governanceFee(),
-            0
-        );
+        assertEq(InputSettlerCompactLIFIHarness(inputSettlerCompact).governanceFee(), 0);
 
         vm.expectEmit();
         emit GovernanceFeeChanged(0, fee);
-        InputSettlerCompactLIFIHarness(inputSettlerCompact)
-            .applyGovernanceFee();
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).applyGovernanceFee();
 
-        assertEq(
-            InputSettlerCompactLIFIHarness(inputSettlerCompact).governanceFee(),
-            fee
-        );
+        assertEq(InputSettlerCompactLIFIHarness(inputSettlerCompact).governanceFee(), fee);
     }
 
     /// forge-config: default.isolate = true
@@ -115,15 +82,14 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
         test_finalise_self_with_fee(MAX_GOVERNANCE_FEE / 3);
     }
 
-    function test_finalise_self_with_fee(uint64 fee) public {
+    function test_finalise_self_with_fee(
+        uint64 fee
+    ) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
         vm.prank(owner);
-        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(
-            fee
-        );
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).setGovernanceFee(fee);
         vm.warp(uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY + 1);
-        InputSettlerCompactLIFIHarness(inputSettlerCompact)
-            .applyGovernanceFee();
+        InputSettlerCompactLIFIHarness(inputSettlerCompact).applyGovernanceFee();
 
         uint256 amount = 1e18 / 10;
 
@@ -132,12 +98,7 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
         token.approve(address(theCompact), type(uint256).max);
 
         vm.prank(swapper);
-        uint256 tokenId = theCompact.depositERC20(
-            address(token),
-            alwaysOkAllocatorLockTag,
-            amount,
-            swapper
-        );
+        uint256 tokenId = theCompact.depositERC20(address(token), alwaysOkAllocatorLockTag, amount, swapper);
 
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [tokenId, amount];
@@ -168,13 +129,7 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
         idsAndAmounts[0] = [tokenId, amount];
 
         bytes memory sponsorSig = getCompactBatchWitnessSignature(
-            swapperPrivateKey,
-            inputSettlerCompact,
-            swapper,
-            0,
-            type(uint32).max,
-            idsAndAmounts,
-            witnessHash(order)
+            swapperPrivateKey, inputSettlerCompact, swapper, 0, type(uint32).max, idsAndAmounts, witnessHash(order)
         );
 
         bytes memory signature = abi.encode(sponsorSig, hex"");
@@ -189,12 +144,7 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
 
         vm.prank(solver);
         InputSettlerCompactLIFIHarness(inputSettlerCompact).finalise(
-            order,
-            signature,
-            timestamps,
-            solvers,
-            bytes32(uint256(uint160((solver)))),
-            hex""
+            order, signature, timestamps, solvers, bytes32(uint256(uint160((solver)))), hex""
         );
         vm.snapshotGasLastCall("inputSettler", "CompactFinaliseSelfWithFee");
 

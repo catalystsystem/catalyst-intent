@@ -133,8 +133,8 @@ This project is licensed under the **[GNU Lesser General Public License v3.0 onl
 
 It also uses the following third-party libraries:
 
-- **[OIF](/lib/OIF)** – Licensed under the [MIT License](https://opensource.org/licenses/MIT)
-- **[Solady](/lib/solady/)** – Licensed under the [MIT License](https://opensource.org/licenses/MIT)
+- **[OIF](https://github.com/openintentsframework/oif-contracts)** – Licensed under the [MIT License](https://opensource.org/licenses/MIT)
+- **[Solady](https://github.com/Vectorized/solady)** – Licensed under the [MIT License](https://opensource.org/licenses/MIT)
 
 Each library is included under the terms of its respective license. Copies of the license texts can be found in their source files or original repositories.
 

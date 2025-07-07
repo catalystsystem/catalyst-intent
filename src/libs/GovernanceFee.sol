@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.26;
 
-import { Ownable } from "solady/auth/Ownable.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 
 /**
  * @notice Governance fee timelock
@@ -15,12 +15,18 @@ abstract contract GovernanceFee is Ownable {
     /**
      * @notice Governance fee will be changed shortly.
      */
-    event NextGovernanceFee(uint64 nextGovernanceFee, uint64 nextGovernanceFeeTime);
+    event NextGovernanceFee(
+        uint64 nextGovernanceFee,
+        uint64 nextGovernanceFeeTime
+    );
 
     /**
      * @notice Governance fee changed. This fee is taken of the inputs.
      */
-    event GovernanceFeeChanged(uint64 oldGovernanceFee, uint64 newGovernanceFee);
+    event GovernanceFeeChanged(
+        uint64 oldGovernanceFee,
+        uint64 newGovernanceFee
+    );
 
     /**
      * @notice When a new governance fee is set, when will it be applicable.
@@ -53,12 +59,13 @@ abstract contract GovernanceFee is Ownable {
      * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
      * @param _nextGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
      */
-    function setGovernanceFee(
-        uint64 _nextGovernanceFee
-    ) external onlyOwner {
-        if (_nextGovernanceFee > MAX_GOVERNANCE_FEE) revert GovernanceFeeTooHigh();
+    function setGovernanceFee(uint64 _nextGovernanceFee) external onlyOwner {
+        if (_nextGovernanceFee > MAX_GOVERNANCE_FEE)
+            revert GovernanceFeeTooHigh();
         nextGovernanceFee = _nextGovernanceFee;
-        nextGovernanceFeeTime = uint64(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY;
+        nextGovernanceFeeTime =
+            uint64(block.timestamp) +
+            GOVERNANCE_FEE_CHANGE_DELAY;
 
         emit NextGovernanceFee(nextGovernanceFee, nextGovernanceFeeTime);
     }
@@ -67,7 +74,8 @@ abstract contract GovernanceFee is Ownable {
      * @notice Applies a scheduled governace fee change.
      */
     function applyGovernanceFee() external {
-        if (block.timestamp < nextGovernanceFeeTime) revert GovernanceFeeChangeNotReady();
+        if (block.timestamp < nextGovernanceFeeTime)
+            revert GovernanceFeeChangeNotReady();
         // Load the previous governance fee.
         uint64 oldGovernanceFee = governanceFee;
         // Set the next governanceFee.
@@ -85,13 +93,17 @@ abstract contract GovernanceFee is Ownable {
      * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENOM based.
      * @return amountFee Fee
      */
-    function _calcFee(uint256 amount, uint256 fee) internal pure returns (uint256 amountFee) {
+    function _calcFee(
+        uint256 amount,
+        uint256 fee
+    ) internal pure returns (uint256 amountFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
-            if (fee == 0 || amount >= type(uint256).max / fee) return amountFee = 0;
+            if (fee == 0 || amount >= type(uint256).max / fee)
+                return amountFee = 0;
             // The above check ensures that amount * fee < type(uint256).max.
             // amount >= amount * fee / GOVERNANCE_FEE_DENOM since fee < GOVERNANCE_FEE_DENOM
-            return amountFee = amount * fee / GOVERNANCE_FEE_DENOM;
+            return amountFee = (amount * fee) / GOVERNANCE_FEE_DENOM;
         }
     }
 }

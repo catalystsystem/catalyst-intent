@@ -1,17 +1,17 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.26;
 
-import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
-import { IdLib } from "the-compact/src/lib/IdLib.sol";
-import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
-import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
+import {EfficiencyLib} from "the-compact/src/lib/EfficiencyLib.sol";
+import {IdLib} from "the-compact/src/lib/IdLib.sol";
+import {BatchClaim} from "the-compact/src/types/BatchClaims.sol";
+import {BatchClaimComponent, Component} from "the-compact/src/types/Components.sol";
 
-import { InputSettlerCompact } from "OIF/src/input/compact/InputSettlerCompact.sol";
-import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
-import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
+import {InputSettlerCompact} from "OIF/src/input/compact/InputSettlerCompact.sol";
+import {StandardOrder, StandardOrderType} from "OIF/src/input/types/StandardOrderType.sol";
+import {IOIFCallback} from "OIF/src/interfaces/IOIFCallback.sol";
 
-import { GovernanceFee } from "../../libs/GovernanceFee.sol";
-import { RegisterIntentLib } from "../../libs/RegisterIntentLib.sol";
+import {GovernanceFee} from "../../libs/GovernanceFee.sol";
+import {RegisterIntentLib} from "../../libs/RegisterIntentLib.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -29,7 +29,10 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
 
     event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
-    constructor(address compact, address initialOwner) InputSettlerCompact(compact) {
+    constructor(
+        address compact,
+        address initialOwner
+    ) InputSettlerCompact(compact) {
         _initializeOwner(initialOwner);
     }
 
@@ -50,9 +53,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
      * permissionless consumption.
      * @param order Order to be broadcasts for consumption by off-chain solvers.
      */
-    function broadcast(
-        StandardOrder calldata order
-    ) external {
+    function broadcast(StandardOrder calldata order) external {
         RegisterIntentLib._validateChain(order.originChainId);
         RegisterIntentLib._validateExpiry(order.fillDeadline, order.expires);
 
@@ -92,12 +93,17 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         if (destination == bytes32(0)) revert NoDestination();
 
         bytes32 orderId = _orderIdentifier(order);
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(
+            orderId,
+            solvers[0],
+            timestamps
+        );
         _orderOwnerIsCaller(orderOwner);
 
         _finalise(order, signatures, orderId, solvers[0], destination);
         if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination)))
+                .orderFinalised(order.inputs, call);
         }
 
         _validateFills(order, orderId, solvers, timestamps);
@@ -128,15 +134,24 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         if (destination == bytes32(0)) revert NoDestination();
 
         bytes32 orderId = _orderIdentifier(order);
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(
+            orderId,
+            solvers[0],
+            timestamps
+        );
         // Validate the external claimant with signature
         _allowExternalClaimant(
-            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+            orderId,
+            EfficiencyLib.asSanitizedAddress(uint256(orderOwner)),
+            destination,
+            call,
+            orderOwnerSignature
         );
 
         _finalise(order, signatures, orderId, solvers[0], destination);
         if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination)))
+                .orderFinalised(order.inputs, call);
         }
 
         _validateFills(order, orderId, solvers, timestamps);
@@ -172,13 +187,21 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
                         // Note: While this function is called with replaced token, it
                         // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
                         // and places it infront of the current vault owner.
-                        uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
+                        uint256 ownerId = IdLib.withReplacedToken(
+                            tokenId,
+                            owner()
+                        );
                         components = new Component[](2);
                         // For the user
-                        components[0] =
-                            Component({ claimant: uint256(claimant), amount: allocatedAmount - governanceShare });
+                        components[0] = Component({
+                            claimant: uint256(claimant),
+                            amount: allocatedAmount - governanceShare
+                        });
                         // For governance
-                        components[1] = Component({ claimant: uint256(ownerId), amount: governanceShare });
+                        components[1] = Component({
+                            claimant: uint256(ownerId),
+                            amount: governanceShare
+                        });
                         batchClaimComponents[i] = BatchClaimComponent({
                             id: tokenId, // The token ID of the ERC6909 token to allocate.
                             allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
@@ -189,7 +212,10 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
                 }
 
                 components = new Component[](1);
-                components[0] = Component({ claimant: uint256(claimant), amount: allocatedAmount });
+                components[0] = Component({
+                    claimant: uint256(claimant),
+                    amount: allocatedAmount
+                });
                 batchClaimComponents[i] = BatchClaimComponent({
                     id: tokenId, // The token ID of the ERC6909 token to allocate.
                     allocatedAmount: allocatedAmount, // The original allocated amount of ERC6909 tokens.
@@ -207,7 +233,9 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
                     nonce: order.nonce,
                     expires: order.expires,
                     witness: StandardOrderType.witnessHash(order),
-                    witnessTypestring: string(StandardOrderType.BATCH_COMPACT_SUB_TYPES),
+                    witnessTypestring: string(
+                        StandardOrderType.BATCH_COMPACT_SUB_TYPES
+                    ),
                     claims: batchClaimComponents
                 })
             ) != bytes32(0)

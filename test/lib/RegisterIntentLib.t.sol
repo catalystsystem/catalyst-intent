@@ -1,16 +1,16 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import { TheCompact } from "the-compact/src/TheCompact.sol";
-import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
+import {TheCompact} from "the-compact/src/TheCompact.sol";
+import {AlwaysOKAllocator} from "the-compact/src/test/AlwaysOKAllocator.sol";
 
-import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
-import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
-import { InputSettlerCompactTestBase } from "OIF/test/input/compact/InputSettlerCompact.base.t.sol";
+import {StandardOrder} from "OIF/src/input/types/StandardOrderType.sol";
+import {MandateOutput, MandateOutputEncodingLib} from "OIF/src/libs/MandateOutputEncodingLib.sol";
+import {InputSettlerCompactTestBase} from "OIF/test/input/compact/InputSettlerCompact.base.t.sol";
 
-import { InputSettlerCompactLIFI } from "../../src/input/compact/InputSettlerCompactLIFI.sol";
+import {InputSettlerCompactLIFI} from "../../src/input/compact/InputSettlerCompactLIFI.sol";
 
-import { RegisterIntentLib } from "../../src/libs/RegisterIntentLib.sol";
+import {RegisterIntentLib} from "../../src/libs/RegisterIntentLib.sol";
 
 contract RegisterIntentLibTest is InputSettlerCompactTestBase {
     address owner;
@@ -19,7 +19,9 @@ contract RegisterIntentLibTest is InputSettlerCompactTestBase {
         super.setUp();
 
         owner = makeAddr("owner");
-        inputSettlerCompact = address(new InputSettlerCompactLIFI(address(theCompact), owner));
+        inputSettlerCompact = address(
+            new InputSettlerCompactLIFI(address(theCompact), owner)
+        );
     }
 
     function test_depositFor_gas() external {
@@ -43,8 +45,25 @@ contract RegisterIntentLibTest is InputSettlerCompactTestBase {
         MandateOutput[] memory outputs = new MandateOutput[](0);
 
         uint256[2][] memory inputs = new uint256[2][](2);
-        inputs[0] = [uint256(bytes32(abi.encodePacked(alwaysOkAllocatorLockTag, address(token)))), amount1];
-        inputs[1] = [uint256(bytes32(abi.encodePacked(alwaysOkAllocatorLockTag, address(anotherToken)))), amount2];
+        inputs[0] = [
+            uint256(
+                bytes32(
+                    abi.encodePacked(alwaysOkAllocatorLockTag, address(token))
+                )
+            ),
+            amount1
+        ];
+        inputs[1] = [
+            uint256(
+                bytes32(
+                    abi.encodePacked(
+                        alwaysOkAllocatorLockTag,
+                        address(anotherToken)
+                    )
+                )
+            ),
+            amount2
+        ];
 
         StandardOrder memory order = StandardOrder({
             user: user,
@@ -67,7 +86,12 @@ contract RegisterIntentLibTest is InputSettlerCompactTestBase {
         assertEq(anotherToken.balanceOf(address(theCompact)), 0);
 
         vm.startPrank(depositor);
-        RegisterIntentLib.depositAndRegisterIntentFor(address(theCompact), inputSettlerCompact, order, true);
+        RegisterIntentLib.depositAndRegisterIntentFor(
+            address(theCompact),
+            inputSettlerCompact,
+            order,
+            true
+        );
         vm.snapshotGasLastCall("inputSettler", "depositAndRegisterFor");
         vm.stopPrank();
 
@@ -79,7 +103,8 @@ contract RegisterIntentLibTest is InputSettlerCompactTestBase {
         assertEq(theCompact.balanceOf(user, inputs[1][0]), amount2);
 
         // Try to broadcast order.
-        bytes32 orderId = InputSettlerCompactLIFI(inputSettlerCompact).orderIdentifier(order);
+        bytes32 orderId = InputSettlerCompactLIFI(inputSettlerCompact)
+            .orderIdentifier(order);
 
         vm.expectEmit();
         emit IntentRegistered(orderId, order);

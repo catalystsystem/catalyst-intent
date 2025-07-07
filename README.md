@@ -1,4 +1,4 @@
-****# Catalyst Intent: Intent based cross-chain swaps
+# LI.FI Intent based cross-chain swaps
 
 Catalyst is an intent based cross-chain swap protocol. Users sign intents: What asset they want, how they want etc, etc. which is claimed and then delivered by solvers.
 
@@ -126,3 +126,16 @@ forge test --gas-report
 ```shell
 forge coverage --no-match-coverage "(script|test|wormhole/external/wormhole|wormhole/external/callworm/GettersGetter)" [--report lcov]
 ```
+
+## License Notice
+
+This project is licensed under the **[GNU Lesser General Public License v3.0 only (LGPL-3.0-only)](/LICENSE)**.
+
+It also uses the following third-party libraries:
+
+- **[OIF](/lib/OIF)** – Licensed under the [MIT License](https://opensource.org/licenses/MIT)
+- **[Solady](/lib/solady/)** – Licensed under the [MIT License](https://opensource.org/licenses/MIT)
+
+Each library is included under the terms of its respective license. Copies of the license texts can be found in their source files or original repositories.
+
+When distributing this project, please ensure that all relevant license notices are preserved in accordance with their terms.

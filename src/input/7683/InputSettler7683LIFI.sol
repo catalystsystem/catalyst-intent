@@ -1,19 +1,19 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.26;
 
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
+import {EfficiencyLib} from "the-compact/src/lib/EfficiencyLib.sol";
 
-import { MandateERC7683, Order7683Type, StandardOrder } from "OIF/src/input/7683/Order7683Type.sol";
-import { GaslessCrossChainOrder } from "OIF/src/interfaces/IERC7683.sol";
-import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
-import { IOracle } from "OIF/src/interfaces/IOracle.sol";
+import {MandateERC7683, Order7683Type, StandardOrder} from "OIF/src/input/7683/Order7683Type.sol";
+import {GaslessCrossChainOrder} from "OIF/src/interfaces/IERC7683.sol";
+import {IOIFCallback} from "OIF/src/interfaces/IOIFCallback.sol";
+import {IOracle} from "OIF/src/interfaces/IOracle.sol";
 
-import { InputSettler7683 } from "OIF/src/input/7683/InputSettler7683.sol";
-import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
+import {InputSettler7683} from "OIF/src/input/7683/InputSettler7683.sol";
+import {MandateOutput} from "OIF/src/input/types/MandateOutputType.sol";
 
-import { GovernanceFee } from "../../libs/GovernanceFee.sol";
+import {GovernanceFee} from "../../libs/GovernanceFee.sol";
 
 /**
  * @title Catalyst Settler supporting The Compact
@@ -27,9 +27,7 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
  * This contract does not support fee on transfer tokens.
  */
 contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
-    constructor(
-        address initialOwner
-    ) InputSettler7683() {
+    constructor(address initialOwner) InputSettler7683() {
         _initializeOwner(initialOwner);
     }
 
@@ -59,10 +57,13 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
         _validateDeadline(order.openDeadline);
         _validateDeadline(order.fillDeadline);
 
-        StandardOrder memory compactOrder = Order7683Type.convertToCompactOrder(order);
+        StandardOrder memory compactOrder = Order7683Type.convertToCompactOrder(
+            order
+        );
         bytes32 orderId = Order7683Type.orderIdentifierMemory(compactOrder);
 
-        if (_deposited[orderId] != OrderStatus.None) revert InvalidOrderStatus();
+        if (_deposited[orderId] != OrderStatus.None)
+            revert InvalidOrderStatus();
         // Mark order as deposited. If we can't make the deposit, we will
         // revert and it will unmark it. This acts as a reentry check.
         _deposited[orderId] = OrderStatus.Claimed;
@@ -71,7 +72,8 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
         // TODO: collect governance fee.
         _openFor(order, signature, orderId, compactOrder, destination);
         // Call the destination (if needed) so the caller can inject logic into our call.
-        if (call.length > 0) IOIFCallback(destination).orderFinalised(compactOrder.inputs, call);
+        if (call.length > 0)
+            IOIFCallback(destination).orderFinalised(compactOrder.inputs, call);
 
         // Validate the fill. The solver may use the reentrance of the above line to execute the fill.
         _validateFills(compactOrder.localOracle, orderId, compactOrder.outputs);
@@ -84,7 +86,11 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
      * @dev Can take a list of solvers. Should be used as a secure alternative to _validateFills
      * if someone filled one of the outputs.
      */
-    function _validateFills(address localOracle, bytes32 orderId, MandateOutput[] memory outputs) internal view {
+    function _validateFills(
+        address localOracle,
+        bytes32 orderId,
+        MandateOutput[] memory outputs
+    ) internal view {
         uint256 numOutputs = outputs.length;
 
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
@@ -93,8 +99,12 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
             uint256 chainId = output.chainId;
             bytes32 oracle = output.oracle;
             bytes32 outputSettler = output.settler;
-            bytes32 payloadHash =
-                _proofPayloadHashM(orderId, bytes32(uint256(uint160(msg.sender))), uint32(block.timestamp), output);
+            bytes32 payloadHash = _proofPayloadHashM(
+                orderId,
+                bytes32(uint256(uint160(msg.sender))),
+                uint32(block.timestamp),
+                output
+            );
 
             assembly ("memory-safe") {
                 let offset := add(add(proofSeries, 0x20), mul(i, 0x80))
@@ -117,7 +127,11 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
         _validateDeadline(order.fillDeadline);
         bytes32 orderId = Order7683Type.orderIdentifier(order);
 
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(
+            orderId,
+            solver,
+            timestamps
+        );
         _validateOrderOwner(orderOwner);
 
         _finalise(order, orderId, solver, orderOwner);
@@ -136,12 +150,17 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
     ) external override {
         bytes32 orderId = Order7683Type.orderIdentifier(order);
 
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(
+            orderId,
+            solver,
+            timestamps
+        );
         _validateOrderOwner(orderOwner);
 
         _finalise(order, orderId, solver, destination);
         if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination)))
+                .orderFinalised(order.inputs, call);
         }
 
         // Check if the outputs have been proven according to the oracles.
@@ -168,14 +187,23 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
     ) external override {
         bytes32 orderId = Order7683Type.orderIdentifier(order);
 
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solver, timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(
+            orderId,
+            solver,
+            timestamps
+        );
         _allowExternalClaimant(
-            orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+            orderId,
+            EfficiencyLib.asSanitizedAddress(uint256(orderOwner)),
+            destination,
+            call,
+            orderOwnerSignature
         );
 
         _finalise(order, orderId, solver, destination);
         if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination)))
+                .orderFinalised(order.inputs, call);
         }
 
         // Check if the outputs have been proven according to the oracles.
@@ -200,12 +228,17 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
     ) external override {
         bytes32 orderId = Order7683Type.orderIdentifier(order);
 
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(
+            orderId,
+            solvers[0],
+            timestamps
+        );
         _validateOrderOwner(orderOwner);
 
         _finalise(order, orderId, solvers[0], destination);
         if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination)))
+                .orderFinalised(order.inputs, call);
         }
 
         // Check if the outputs have been proven according to the oracles.
@@ -231,14 +264,24 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
     ) external override {
         bytes32 orderId = Order7683Type.orderIdentifier(order);
         {
-            bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+            bytes32 orderOwner = _purchaseGetOrderOwner(
+                orderId,
+                solvers[0],
+                timestamps
+            );
             _allowExternalClaimant(
-                orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
+                orderId,
+                EfficiencyLib.asSanitizedAddress(uint256(orderOwner)),
+                destination,
+                call,
+                orderOwnerSignature
             );
 
             _finalise(order, orderId, solvers[0], destination);
             if (call.length > 0) {
-                IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
+                IOIFCallback(
+                    EfficiencyLib.asSanitizedAddress(uint256(destination))
+                ).orderFinalised(order.inputs, call);
             }
         }
 
@@ -253,9 +296,14 @@ contract InputSettler7683LIFI is InputSettler7683, GovernanceFee {
      * @dev This function employs a local reentry guard: we check the order status and then we update it afterwards. This
      * is an important check as it is indeed to process external ERC20 transfers.
      */
-    function _resolveLock(bytes32 orderId, uint256[2][] memory inputs, address solvedBy) internal virtual override {
+    function _resolveLock(
+        bytes32 orderId,
+        uint256[2][] memory inputs,
+        address solvedBy
+    ) internal virtual override {
         // Check the order status:
-        if (_deposited[orderId] != OrderStatus.Deposited) revert InvalidOrderStatus();
+        if (_deposited[orderId] != OrderStatus.Deposited)
+            revert InvalidOrderStatus();
         // Mark order as deposited. If we can't make the deposit, we will
         // revert and it will unmark it. This acts as a reentry check.
         _deposited[orderId] = OrderStatus.Claimed;

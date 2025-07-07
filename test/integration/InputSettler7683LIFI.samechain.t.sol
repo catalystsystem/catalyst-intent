@@ -1,16 +1,16 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import { OutputSettlerCoin } from "OIF/src/output/coin/OutputSettlerCoin.sol";
+import {OutputSettlerCoin} from "OIF/src/output/coin/OutputSettlerCoin.sol";
 
-import { MandateERC7683 } from "OIF/src/input/7683/Order7683Type.sol";
-import { GaslessCrossChainOrder } from "OIF/src/interfaces/IERC7683.sol";
+import {MandateERC7683} from "OIF/src/input/7683/Order7683Type.sol";
+import {GaslessCrossChainOrder} from "OIF/src/interfaces/IERC7683.sol";
 
-import { MandateOutput, MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
-import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
-import { InputSettler7683TestBase } from "OIF/test/input/7683/InputSettler7683.base.t.sol";
+import {MandateOutput, MandateOutputType} from "OIF/src/input/types/MandateOutputType.sol";
+import {StandardOrder} from "OIF/src/input/types/StandardOrderType.sol";
+import {InputSettler7683TestBase} from "OIF/test/input/7683/InputSettler7683.base.t.sol";
 
-import { InputSettler7683LIFI } from "../../src/input/7683/InputSettler7683LIFI.sol";
+import {InputSettler7683LIFI} from "../../src/input/7683/InputSettler7683LIFI.sol";
 
 /// @notice This test showcases how to take 2 intents and fill them together.
 contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
@@ -48,7 +48,9 @@ contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
         assertEq(token.balanceOf(address(this)), 0);
         assertEq(anotherToken.balanceOf(address(this)), 0);
 
-        bytes32 OutputSettlerCoinIdentifier = bytes32(uint256(uint160(address(outputSettlerCoin))));
+        bytes32 OutputSettlerCoinIdentifier = bytes32(
+            uint256(uint160(address(outputSettlerCoin)))
+        );
 
         // Define order 1.
         MandateOutput[] memory outputs1 = new MandateOutput[](1);
@@ -115,21 +117,40 @@ contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
         });
 
         // Sign the orders
-        bytes memory signature1 = getPermit2Signature(swapperPrivateKey, order1);
-        bytes memory signature2 = getPermit2Signature(swapper2PrivateKey, order2);
+        bytes memory signature1 = getPermit2Signature(
+            swapperPrivateKey,
+            order1
+        );
+        bytes memory signature2 = getPermit2Signature(
+            swapper2PrivateKey,
+            order2
+        );
 
         assertEq(token.balanceOf(address(swapper)), amount1);
         assertEq(anotherToken.balanceOf(address(swapper2)), amount2);
         assertEq(anotherToken.balanceOf(address(swapper)), 0);
         assertEq(token.balanceOf(address(swapper2)), 0);
 
-        bytes32 orderid1 = InputSettler7683LIFI(inputsettler7683).orderIdentifier(order1);
-        bytes32 orderid2 = InputSettler7683LIFI(inputsettler7683).orderIdentifier(order2);
+        bytes32 orderid1 = InputSettler7683LIFI(inputsettler7683)
+            .orderIdentifier(order1);
+        bytes32 orderid2 = InputSettler7683LIFI(inputsettler7683)
+            .orderIdentifier(order2);
 
-        bytes memory dataToForward = abi.encode(signature2, orderid1, order1, orderid2, order2);
+        bytes memory dataToForward = abi.encode(
+            signature2,
+            orderid1,
+            order1,
+            orderid2,
+            order2
+        );
 
         // Notice! This test will continue in inputs filled.
-        InputSettler7683LIFI(inputsettler7683).openForAndFinalise(order1, signature1, address(this), dataToForward);
+        InputSettler7683LIFI(inputsettler7683).openForAndFinalise(
+            order1,
+            signature1,
+            address(this),
+            dataToForward
+        );
 
         assertEq(token.balanceOf(address(swapper)), 0);
         assertEq(anotherToken.balanceOf(address(swapper2)), 0);
@@ -146,8 +167,22 @@ contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
     ) external virtual override {
         if (alreadyCalled == false) {
             alreadyCalled = true;
-            (bytes memory signature2,,,, GaslessCrossChainOrder memory order2) =
-                abi.decode(dataToForward, (bytes, bytes32, GaslessCrossChainOrder, bytes32, GaslessCrossChainOrder));
+            (
+                bytes memory signature2,
+                ,
+                ,
+                ,
+                GaslessCrossChainOrder memory order2
+            ) = abi.decode(
+                    dataToForward,
+                    (
+                        bytes,
+                        bytes32,
+                        GaslessCrossChainOrder,
+                        bytes32,
+                        GaslessCrossChainOrder
+                    )
+                );
 
             // Check that we got the first token.
             assertEq(token.balanceOf(address(this)), amount1);
@@ -156,7 +191,12 @@ contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
             assertEq(anotherToken.balanceOf(address(swapper2)), amount2);
 
             // Notice! The test will continue after "} else {"
-            InputSettler7683LIFI(inputsettler7683).openForAndFinalise(order2, signature2, address(this), dataToForward);
+            InputSettler7683LIFI(inputsettler7683).openForAndFinalise(
+                order2,
+                signature2,
+                address(this),
+                dataToForward
+            );
         } else {
             (
                 ,
@@ -164,7 +204,16 @@ contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
                 GaslessCrossChainOrder memory order1,
                 bytes32 orderid2,
                 GaslessCrossChainOrder memory order2
-            ) = abi.decode(dataToForward, (bytes, bytes32, GaslessCrossChainOrder, bytes32, GaslessCrossChainOrder));
+            ) = abi.decode(
+                    dataToForward,
+                    (
+                        bytes,
+                        bytes32,
+                        GaslessCrossChainOrder,
+                        bytes32,
+                        GaslessCrossChainOrder
+                    )
+                );
 
             // Check that we got the second token. (and the first from the above section of the test).
             assertEq(token.balanceOf(address(this)), amount1);
@@ -172,18 +221,30 @@ contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
             assertEq(token.balanceOf(address(swapper)), 0);
             assertEq(anotherToken.balanceOf(address(swapper2)), 0);
 
-            MandateERC7683 memory mandate1 = abi.decode(order1.orderData, (MandateERC7683));
-            MandateERC7683 memory mandate2 = abi.decode(order2.orderData, (MandateERC7683));
+            MandateERC7683 memory mandate1 = abi.decode(
+                order1.orderData,
+                (MandateERC7683)
+            );
+            MandateERC7683 memory mandate2 = abi.decode(
+                order2.orderData,
+                (MandateERC7683)
+            );
 
             token.approve(address(outputSettlerCoin), amount1);
             anotherToken.approve(address(outputSettlerCoin), amount2);
 
             // Fill the input of orders. Remember, we got tokens from the sequential fills.
             outputSettlerCoin.fill(
-                type(uint32).max, orderid1, mandate1.outputs[0], bytes32(uint256(uint160(address(this))))
+                type(uint32).max,
+                orderid1,
+                mandate1.outputs[0],
+                bytes32(uint256(uint160(address(this))))
             );
             outputSettlerCoin.fill(
-                type(uint32).max, orderid2, mandate2.outputs[0], bytes32(uint256(uint160(address(this))))
+                type(uint32).max,
+                orderid2,
+                mandate2.outputs[0],
+                bytes32(uint256(uint160(address(this))))
             );
         }
     }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.26;
 
 import { Ownable } from "solady/auth/Ownable.sol";
@@ -91,7 +91,7 @@ abstract contract GovernanceFee is Ownable {
             if (fee == 0 || amount >= type(uint256).max / fee) return amountFee = 0;
             // The above check ensures that amount * fee < type(uint256).max.
             // amount >= amount * fee / GOVERNANCE_FEE_DENOM since fee < GOVERNANCE_FEE_DENOM
-            return amountFee = amount * fee / GOVERNANCE_FEE_DENOM;
+            return amountFee = (amount * fee) / GOVERNANCE_FEE_DENOM;
         }
     }
 }

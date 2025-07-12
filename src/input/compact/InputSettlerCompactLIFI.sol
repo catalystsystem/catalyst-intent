@@ -196,13 +196,15 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
                 });
             }
         }
-
+        address user = order.user;
+        // The Compact skips signature checks for msg.sender. Ensure no accidental intents are issued.
+        if (user == address(this)) revert UserCannotBeSettler();
         require(
             COMPACT.batchClaim(
                 BatchClaim({
                     allocatorData: allocatorData,
                     sponsorSignature: sponsorSignature,
-                    sponsor: order.user,
+                    sponsor: user,
                     nonce: order.nonce,
                     expires: order.expires,
                     witness: StandardOrderType.witnessHash(order),

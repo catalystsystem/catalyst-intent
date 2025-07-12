@@ -187,16 +187,10 @@ contract InputSettler7683SameChainSwapTest is InputSettler7683TestBase {
             );
 
             outputSettlerCoin.setAttestation(
-                orderid1,
-                bytes32(uint256(uint160(address(this)))),
-                uint32(block.timestamp),
-                mandate1.outputs[0]
+                orderid1, bytes32(uint256(uint160(address(this)))), uint32(block.timestamp), mandate1.outputs[0]
             );
             outputSettlerCoin.setAttestation(
-                orderid2,
-                bytes32(uint256(uint160(address(this)))),
-                uint32(block.timestamp),
-                mandate2.outputs[0]
+                orderid2, bytes32(uint256(uint160(address(this)))), uint32(block.timestamp), mandate2.outputs[0]
             );
         }
     }

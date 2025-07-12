@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.26;
 
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
@@ -46,7 +46,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     }
 
     /**
-     * @notice Valdiates that an intent has been registered against TheCompact and broadcasts and event for
+     * @notice Validates that an intent has been registered against TheCompact and broadcasts and event for
      * permissionless consumption.
      * @param order Order to be broadcasts for consumption by off-chain solvers.
      */
@@ -70,13 +70,11 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     /**
      * @notice Finalises an order when called directly by the solver
      * @dev The caller must be the address corresponding to the first solver in the solvers array.
-     * If destination is bytes32(0), the order owner will be used as the destination.
      * @param order StandardOrder signed in conjunction with a Compact to form an order
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorData))
      * @param timestamps Array of timestamps when each output was filled
-     * @param solvers Array of solvers who filled each output (in order). For single solver, pass an array with only one
-     * element
+     * @param solvers Array of solvers who filled each output (in order of outputs).
      * @param destination Where to send the inputs. If the solver wants to send the inputs to themselves, they should
      * pass their address to this parameter.
      * @param call Optional callback data. If non-empty, will call orderFinalised on the destination
@@ -157,7 +155,8 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
             uint256 numInputs = order.inputs.length;
             batchClaimComponents = new BatchClaimComponent[](numInputs);
             uint256[2][] calldata maxInputs = order.inputs;
-            uint64 fee = governanceFee;
+            address _owner = owner();
+            uint64 fee = _owner != address(0) ? governanceFee : 0;
             for (uint256 i; i < numInputs; ++i) {
                 uint256[2] calldata input = maxInputs[i];
                 uint256 tokenId = input[0];
@@ -174,7 +173,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
                         // Note: While this function is called with replaced token, it
                         // replaces the rightmost 20 bytes. So it takes the locktag from TokenId
                         // and places it infront of the current vault owner.
-                        uint256 ownerId = IdLib.withReplacedToken(tokenId, owner());
+                        uint256 ownerId = IdLib.withReplacedToken(tokenId, _owner);
                         components = new Component[](2);
                         // For the user
                         components[0] =
@@ -199,13 +198,15 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
                 });
             }
         }
-
+        address user = order.user;
+        // The Compact skips signature checks for msg.sender. Ensure no accidental intents are issued.
+        if (user == address(this)) revert UserCannotBeSettler();
         require(
             COMPACT.batchClaim(
                 BatchClaim({
                     allocatorData: allocatorData,
                     sponsorSignature: sponsorSignature,
-                    sponsor: order.user,
+                    sponsor: user,
                     nonce: order.nonce,
                     expires: order.expires,
                     witness: StandardOrderType.witnessHash(order),

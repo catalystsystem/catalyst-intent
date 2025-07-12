@@ -74,8 +74,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorData))
      * @param timestamps Array of timestamps when each output was filled
-     * @param solvers Array of solvers who filled each output (in order). For single solver, pass an array with only one
-     * element
+     * @param solvers Array of solvers who filled each output (in order of outputs).
      * @param destination Where to send the inputs. If the solver wants to send the inputs to themselves, they should
      * pass their address to this parameter.
      * @param call Optional callback data. If non-empty, will call orderFinalised on the destination

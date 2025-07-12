@@ -46,7 +46,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     }
 
     /**
-     * @notice Valdiates that an intent has been registered against TheCompact and broadcasts and event for
+     * @notice Validates that an intent has been registered against TheCompact and broadcasts and event for
      * permissionless consumption.
      * @param order Order to be broadcasts for consumption by off-chain solvers.
      */

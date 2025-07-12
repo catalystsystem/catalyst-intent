@@ -50,7 +50,7 @@ abstract contract GovernanceFee is Ownable {
     uint64 public nextGovernanceFeeTime = type(uint64).max;
 
     /**
-     * @notice Sets a new governanceFee. Is immediately applied to orders initiated after this call.
+     * @notice Sets a new governanceFee. Is applied after a call to applyGovernanceFee
      * @param _nextGovernanceFee New governance fee. Is bounded by MAX_GOVERNANCE_FEE.
      */
     function setGovernanceFee(

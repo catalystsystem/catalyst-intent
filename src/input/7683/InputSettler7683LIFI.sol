@@ -16,13 +16,9 @@ import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
 import { GovernanceFee } from "../../libs/GovernanceFee.sol";
 
 /**
- * @title Catalyst Settler supporting The Compact
- * @notice This Catalyst Settler implementation uses The Compact as the deposit scheme.
- * It is a delivery first, inputs second scheme that allows users with a deposit inside The Compact.
- *
- * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
- * They then needs to either register or sign a supported claim with the intent as the witness.
- * Without the deposit extension, this contract does not have a way to emit on-chain orders.
+ * @title LIFI Input Settler supporting an explicit escrow
+ * @notice This contract is implemented as an extension of the OIF
+ * It inheirts all of the functionality of InputSettlerCompact.
  *
  * This contract does not support fee on transfer tokens.
  */

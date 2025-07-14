@@ -14,13 +14,11 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
 import { RegisterIntentLib } from "../../libs/RegisterIntentLib.sol";
 
 /**
- * @title Catalyst Settler supporting The Compact
- * @notice This Catalyst Settler implementation uses The Compact as the deposit scheme.
- * It is a delivery first, inputs second scheme that allows users with a deposit inside The Compact.
+ * @title LIFI Input Settler supporting The Compact
+ * @notice This contract is implemented as an extension of the OIF InputSettlerCompact. It inheirts all of the
+ * functionality of InputSettlerCompact but adds broadcast, same chain swaps, and governance fee.
  *
- * Users are expected to have an existing deposit inside the Compact or purposefully deposit for the intent.
- * They then need to either register or sign a supported claim with the intent outputs as the witness.
- * Without the deposit extension, this contract does not have a way to emit on-chain orders.
+ * This contract does not support fee on transfer tokens.
  *
  * The ownable component of the smart contract is only used for fees.
  */

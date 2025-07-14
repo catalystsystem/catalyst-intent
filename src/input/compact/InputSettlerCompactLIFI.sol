@@ -88,6 +88,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         bytes calldata call
     ) external override {
         if (destination == bytes32(0)) revert NoDestination();
+        if (order.originChainId != block.chainid) revert WrongChainId();
 
         bytes32 orderId = _orderIdentifier(order);
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
@@ -124,6 +125,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         bytes calldata orderOwnerSignature
     ) external override {
         if (destination == bytes32(0)) revert NoDestination();
+        if (order.originChainId != block.chainid) revert WrongChainId();
 
         bytes32 orderId = _orderIdentifier(order);
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);

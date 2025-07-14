@@ -68,7 +68,7 @@ contract InputSettler7683TestBaseLIFI is InputSettler7683Test {
                 output.oracle,
                 output.settler,
                 keccak256(
-                    MandateOutputEncodingLib.encodeFillDescription(
+                    MandateOutputEncodingLib.encodeFillDescriptionMemory(
                         bytes32(uint256(uint160(callerOfContract))),
                         orderId,
                         uint32(block.timestamp),
@@ -192,7 +192,7 @@ contract InputSettler7683TestBaseLIFI is InputSettler7683Test {
         });
 
         bytes32 orderId = InputSettler7683LIFIHarness(inputsettler7683).orderIdentifier(compactOrder);
-        bytes memory payload = MandateOutputEncodingLib.encodeFillDescriptionM(
+        bytes memory payload = MandateOutputEncodingLib.encodeFillDescriptionMemory(
             bytes32(uint256(uint160((solver)))), orderId, uint32(block.timestamp), outputs[0]
         );
         bytes32 payloadHash = keccak256(payload);

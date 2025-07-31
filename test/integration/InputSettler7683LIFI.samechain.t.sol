@@ -7,7 +7,7 @@ import { MandateOutput, MandateOutputType } from "OIF/src/input/types/MandateOut
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
 import { InputSettlerEscrowTestBase } from "OIF/test/input/escrow/InputSettlerEscrow.base.t.sol";
 
-import { InputSettlerEscrowLIFI } from "../../src/input/Escrow/InputSettlerEscrowLIFI.sol";
+import { InputSettlerEscrowLIFI } from "../../src/input/escrow/InputSettlerEscrowLIFI.sol";
 
 /// @notice This test showcases how to take 2 intents and fill them together.
 contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {

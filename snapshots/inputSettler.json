@@ -7,14 +7,14 @@
   "7683Validate2FillsMultipleSolvers": "6460",
   "7683open": "60416",
   "7683openFor": "106340",
-  "CompactFinaliseFor": "102028",
-  "CompactFinaliseSelf": "95014",
-  "CompactFinaliseSelfWithFee": "164847",
-  "CompactFinaliseTo": "95014",
-  "IntegrationCoinFill": "64316",
-  "IntegrationCompactFinaliseSelf": "85813",
+  "CompactFinaliseFor": "101880",
+  "CompactFinaliseSelf": "94866",
+  "CompactFinaliseSelfWithFee": "164696",
+  "CompactFinaliseTo": "94866",
+  "IntegrationCoinFill": "64338",
+  "IntegrationCompactFinaliseSelf": "85665",
   "IntegrationWormholeReceiveMessage": "45670",
-  "IntegrationWormholeSubmit": "14015",
+  "IntegrationWormholeSubmit": "14037",
   "broadcast": "14904",
-  "depositAndRegisterFor": "129042"
+  "depositAndRegisterFor": "128947"
 }

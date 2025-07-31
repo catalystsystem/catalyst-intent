@@ -2,6 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { ChainMap } from "OIF/src/oracles/ChainMap.sol";
+import { PolymerOracle } from "OIF/src/oracles/polymer/PolymerOracle.sol";
 import { PolymerOracleMapped } from "OIF/src/oracles/polymer/PolymerOracleMapped.sol";
 
 import { multichain } from "./multichain.s.sol";
@@ -11,16 +12,23 @@ contract deployPolymer is multichain {
 
     string private constant POLYMER_CONFIG = "/script/polymer.json";
 
+    mapping(address => bytes32) polymerSalts;
+
+    constructor() {
+        polymerSalts[0x03Fb5bFA4EB2Cba072A477A372bB87880A60fC96] =
+            0x00000000000000000000000000000000000000006e659189a2473edd56090014;
+    }
+
     function run(
         string[] calldata chains
-    ) public returns (PolymerOracleMapped oracle) {
+    ) public returns (address oracle) {
         return run(chains, getSender());
     }
 
     function run(
         string[] calldata chains,
         address initialOwner
-    ) public iter_chains(chains) broadcast returns (PolymerOracleMapped oracle) {
+    ) public iter_chains(chains) broadcast returns (address oracle) {
         string memory activeChain = getChain();
         // Load polymer config.
         string memory pathRoot = vm.projectRoot();
@@ -31,26 +39,46 @@ contract deployPolymer is multichain {
             vm.parseJsonAddress(polymerConfig, string.concat(".implementation.", activeChain, ".polymer"));
 
         // Deploy the Polymer Oracle.
-        oracle = deployPolymerOracle(initialOwner, polymerImplementation);
+        oracle = initialOwner == address(0)
+            ? deployNonMappedPolymerOracle(polymerImplementation)
+            : deployPolymerOracle(initialOwner, polymerImplementation);
         vm.writeJson(
             vm.toString(address(oracle)), pathToPolymerConfig, string.concat(".implementation.", activeChain, ".oracle")
         );
 
-        bytes memory chainIdData = vm.parseJson(polymerConfig, ".chainids");
-        uint256[][] memory chainIdArray = abi.decode(chainIdData, (uint256[][]));
-        for (uint256 i = 0; i < chainIdArray.length; i++) {
-            assert(chainIdArray[i].length == 2);
-            uint256 chainId = chainIdArray[i][0];
-            uint32 messagingProtocolChainIdentifier = uint32(chainIdArray[i][1]);
-            // Set the chain map for the Polymer Oracle.
-            setPolymerConfig(oracle, messagingProtocolChainIdentifier, chainId);
+        if (initialOwner != address(0)) {
+            bytes memory chainIdData = vm.parseJson(polymerConfig, ".chainids");
+            uint256[][] memory chainIdArray = abi.decode(chainIdData, (uint256[][]));
+            for (uint256 i = 0; i < chainIdArray.length; i++) {
+                assert(chainIdArray[i].length == 2);
+                uint256 chainId = chainIdArray[i][0];
+                uint32 messagingProtocolChainIdentifier = uint32(chainIdArray[i][1]);
+                // Set the chain map for the Polymer Oracle.
+                setPolymerConfig(PolymerOracleMapped(oracle), messagingProtocolChainIdentifier, chainId);
+            }
         }
+    }
+
+    function deployNonMappedPolymerOracle(
+        address polymerImplementation
+    ) internal returns (address oracle) {
+        address expectedAddress = getExpectedCreate2Address(
+            polymerSalts[polymerImplementation], // salt
+            type(PolymerOracle).creationCode,
+            abi.encode(polymerImplementation)
+        );
+        bool isOracleDeployed = address(expectedAddress).code.length != 0;
+
+        if (!isOracleDeployed) {
+            return address(new PolymerOracle{ salt: polymerSalts[polymerImplementation] }(polymerImplementation));
+        }
+        return expectedAddress;
     }
 
     function deployPolymerOracle(
         address initialOwner,
         address polymerImplementation
-    ) internal returns (PolymerOracleMapped oracle) {
+    ) internal returns (address oracle) {
         address expectedAddress = getExpectedCreate2Address(
             0, // salt
             type(PolymerOracleMapped).creationCode,
@@ -58,8 +86,8 @@ contract deployPolymer is multichain {
         );
         bool isOracleDeployed = address(expectedAddress).code.length != 0;
 
-        if (!isOracleDeployed) return new PolymerOracleMapped{ salt: 0 }(initialOwner, polymerImplementation);
-        return PolymerOracleMapped(expectedAddress);
+        if (!isOracleDeployed) return address(new PolymerOracleMapped{ salt: 0 }(initialOwner, polymerImplementation));
+        return expectedAddress;
     }
 
     function setPolymerConfig(

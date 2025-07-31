@@ -6,7 +6,7 @@ import { InputSettlerEscrowLIFI } from "../../../src/input/escrow/InputSettlerEs
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
 import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
 
-import { InputSettlerEscrowTest } from "OIF/test/input/escrow/inputSettlerEscrow.t.sol";
+import { InputSettlerEscrowTest } from "OIF/test/input/escrow/InputSettlerEscrow.t.sol";
 
 contract InputSettlerEscrowLIFIHarness is InputSettlerEscrowLIFI {
     constructor(

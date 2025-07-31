@@ -85,8 +85,8 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         bytes32 destination,
         bytes calldata call
     ) external override {
-        if (destination == bytes32(0)) revert NoDestination();
-        if (order.originChainId != block.chainid) revert WrongChainId();
+        _validateDestination(destination);
+        _validateInputChain(order.originChainId);
 
         bytes32 orderId = _orderIdentifier(order);
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
@@ -97,7 +97,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
             IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
-        _validateFills(order, orderId, solvers, timestamps);
+        _validateFills(order.fillDeadline, order.localOracle, order.outputs, orderId, timestamps, solvers);
     }
 
     /**
@@ -122,8 +122,8 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         bytes calldata call,
         bytes calldata orderOwnerSignature
     ) external override {
-        if (destination == bytes32(0)) revert NoDestination();
-        if (order.originChainId != block.chainid) revert WrongChainId();
+        _validateDestination(destination);
+        _validateInputChain(order.originChainId);
 
         bytes32 orderId = _orderIdentifier(order);
         bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
@@ -137,7 +137,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
             IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
-        _validateFills(order, orderId, solvers, timestamps);
+        _validateFills(order.fillDeadline, order.localOracle, order.outputs, orderId, timestamps, solvers);
     }
 
     //--- The Compact & Resource Locks ---//

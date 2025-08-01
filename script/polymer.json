@@ -1,20 +1,20 @@
 {
   "implementation": {
     "sepolia": {
-      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
-      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+      "polymer": "0x03Fb5bFA4EB2Cba072A477A372bB87880A60fC96",
+      "oracle": "0x009379002e03ec0017000030002f63d9d44d0128"
     },
     "basesepolia": {
-      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
-      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+      "polymer": "0x03Fb5bFA4EB2Cba072A477A372bB87880A60fC96",
+      "oracle": "0x009379002e03ec0017000030002f63d9d44d0128"
     },
     "arbitrumsepolia": {
-      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
-      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+      "polymer": "0x03Fb5bFA4EB2Cba072A477A372bB87880A60fC96",
+      "oracle": "0x009379002e03ec0017000030002f63d9d44d0128"
     },
     "optimismsepolia": {
-      "polymer": "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa",
-      "oracle": "0x8CC4969a529dE674B72E77C5205229c6b4a17755"
+      "polymer": "0x03Fb5bFA4EB2Cba072A477A372bB87880A60fC96",
+      "oracle": "0x009379002e03ec0017000030002f63d9d44d0128"
     }
   },
   "chainids": [

@@ -106,7 +106,7 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
             originChainId: block.chainid,
             fillDeadline: type(uint32).max,
             expires: type(uint32).max,
-            localOracle: alwaysYesOracle,
+            inputOracle: alwaysYesOracle,
             inputs: inputs,
             outputs: outputs
         });
@@ -133,7 +133,7 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
         InputSettlerCompactLIFI(inputSettlerCompact).finalise(
             order, signature, timestamps, solvers, bytes32(uint256(uint160((solver)))), hex""
         );
-        vm.snapshotGasLastCall("inputSettler", "CompactFinaliseSelfWithFee");
+        vm.snapshotGasLastCall("inputSettler", "compactFinaliseSelfWithFee");
 
         assertEq(token.balanceOf(solver), amountPostFee);
         assertEq(theCompact.balanceOf(owner, tokenId), govFeeAmount);

@@ -68,7 +68,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             originChainId: block.chainid,
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
-            localOracle: address(outputSettlerCoin),
+            inputOracle: address(outputSettlerCoin),
             inputs: inputs1,
             outputs: outputs1
         });
@@ -94,14 +94,14 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             originChainId: block.chainid,
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
-            localOracle: address(outputSettlerCoin),
+            inputOracle: address(outputSettlerCoin),
             inputs: inputs2,
             outputs: outputs2
         });
 
         // Sign the orders
-        bytes memory signature1 = getPermit2Signature(swapperPrivateKey, order1);
-        bytes memory signature2 = getPermit2Signature(swapper2PrivateKey, order2);
+        bytes memory signature1 = abi.encodePacked(bytes1(0x00), getPermit2Signature(swapperPrivateKey, order1));
+        bytes memory signature2 = abi.encodePacked(bytes1(0x00), getPermit2Signature(swapper2PrivateKey, order2));
 
         assertEq(token.balanceOf(address(swapper)), amount1);
         assertEq(anotherToken.balanceOf(address(swapper2)), amount2);
@@ -115,12 +115,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
 
         // Notice! This test will continue in inputs filled.
         InputSettlerEscrowLIFI(inputSettlerEscrow).openForAndFinalise(
-            abi.encode(order1),
-            order1.user,
-            signature1,
-            bytes32(uint256(uint160(address(this)))),
-            address(this),
-            dataToForward
+            abi.encode(order1), order1.user, signature1, address(this), dataToForward
         );
 
         assertEq(token.balanceOf(address(swapper)), 0);
@@ -149,12 +144,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
 
             // Notice! The test will continue after "} else {"
             InputSettlerEscrowLIFI(inputSettlerEscrow).openForAndFinalise(
-                abi.encode(order2),
-                order2.user,
-                signature2,
-                bytes32(uint256(uint160(address(this)))),
-                address(this),
-                dataToForward
+                abi.encode(order2), order2.user, signature2, address(this), dataToForward
             );
         } else {
             (, bytes32 orderid1, StandardOrder memory order1, bytes32 orderid2, StandardOrder memory order2) =

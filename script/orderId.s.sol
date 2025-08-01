@@ -32,7 +32,7 @@ contract GetOrderId is Script {
             originChainId: 11155111,
             expires: 1753714798,
             fillDeadline: 1753714798,
-            localOracle: 0x009379002e03ec0017000030002f63d9d44d0128,
+            inputOracle: 0x009379002e03ec0017000030002f63d9d44d0128,
             inputs: inputs,
             outputs: outputs
         });

@@ -52,7 +52,7 @@ contract RegisterIntentLibTest is InputSettlerCompactTestBase {
             originChainId: block.chainid,
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
-            localOracle: alwaysYesOracle,
+            inputOracle: alwaysYesOracle,
             inputs: inputs,
             outputs: outputs
         });

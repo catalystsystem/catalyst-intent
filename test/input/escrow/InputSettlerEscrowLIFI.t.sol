@@ -13,13 +13,8 @@ contract InputSettlerEscrowLIFIHarness is InputSettlerEscrowLIFI {
         address initialOwner
     ) InputSettlerEscrowLIFI(initialOwner) { }
 
-    function validateFillsNow(
-        address localOracle,
-        MandateOutput[] calldata outputs,
-        bytes32 orderId,
-        bytes32 solver
-    ) external view {
-        _validateFillsNow(localOracle, outputs, orderId, solver);
+    function validateFillsNow(address inputOracle, MandateOutput[] calldata outputs, bytes32 orderId) external view {
+        _validateFillsNow(inputOracle, outputs, orderId);
     }
 }
 
@@ -41,7 +36,6 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         address callerOfContract,
         OrderFulfillmentDescription[] calldata orderFulfillmentDescription
     ) external {
-        vm.assume(orderFulfillmentDescription.length == 2);
         vm.assume(orderFulfillmentDescription.length > 0);
 
         bytes memory expectedProofPayload = hex"";
@@ -74,9 +68,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         _validProofSeries[expectedProofPayload] = true;
 
         vm.prank(callerOfContract);
-        InputSettlerEscrowLIFIHarness(inputSettlerEscrow).validateFillsNow(
-            address(this), mandateOutputs, orderId, bytes32(uint256(uint160(callerOfContract)))
-        );
+        InputSettlerEscrowLIFIHarness(inputSettlerEscrow).validateFillsNow(address(this), mandateOutputs, orderId);
     }
 
     // --- Fee tests --- //
@@ -137,12 +129,12 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         InputSettlerEscrowLIFI(inputSettlerEscrow).applyGovernanceFee();
 
         uint256 amount = 1e18 / 10;
-        address localOracle = address(alwaysYesOracle);
+        address inputOracle = address(alwaysYesOracle);
 
         MandateOutput[] memory outputs = new MandateOutput[](1);
         outputs[0] = MandateOutput({
             settler: bytes32(uint256(uint160(address(outputSettlerCoin)))),
-            oracle: bytes32(uint256(uint160(localOracle))),
+            oracle: bytes32(uint256(uint160(inputOracle))),
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount,
@@ -159,7 +151,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
             originChainId: block.chainid,
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
-            localOracle: localOracle,
+            inputOracle: inputOracle,
             inputs: inputs,
             outputs: outputs
         });
@@ -196,7 +188,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         InputSettlerEscrowLIFI(inputSettlerEscrow).finalise(
             order, timestamps, solvers, bytes32(uint256(uint160((solver)))), hex""
         );
-        vm.snapshotGasLastCall("inputSettler", "7683FinaliseSelfWithFee");
+        vm.snapshotGasLastCall("inputSettler", "escrowFinaliseSelfWithFee");
 
         uint256 govFeeAmount = (amount * fee) / 10 ** 18;
         uint256 amountPostFee = amount - govFeeAmount;

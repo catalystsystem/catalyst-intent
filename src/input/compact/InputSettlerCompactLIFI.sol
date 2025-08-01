@@ -97,7 +97,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
             IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
-        _validateFills(order.fillDeadline, order.localOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
 
     /**
@@ -137,7 +137,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
             IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
-        _validateFills(order.fillDeadline, order.localOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
 
     //--- The Compact & Resource Locks ---//

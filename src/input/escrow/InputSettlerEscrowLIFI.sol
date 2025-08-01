@@ -8,8 +8,10 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { InputSettlerEscrow } from "OIF/src/input/escrow/InputSettlerEscrow.sol";
 import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
+
+import { IInputOracle } from "OIF/src/interfaces/IInputOracle.sol";
 import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
-import { IOracle } from "OIF/src/interfaces/IOracle.sol";
+import { LibAddress } from "OIF/src/libs/LibAddress.sol";
 
 import { GovernanceFee } from "../../libs/GovernanceFee.sol";
 
@@ -21,10 +23,9 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
  * This contract does not support fee on transfer tokens.
  */
 contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
+    using LibAddress for address;
     using StandardOrderType for bytes;
     using StandardOrderType for StandardOrder;
-
-    error ReentrancyDetected();
 
     constructor(
         address initialOwner
@@ -45,21 +46,16 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
     /**
      * @notice Check if a series of outputs has been proven.
-     * @dev An alternative to _validateFills that assumes the fills have been filled instantly and also a single solver
-     * address.
+     * @dev An alternative to _validateFills that assumes the fills have been filled instantly and by the current
+     * msg.sender.
      * Does not validate fillDeadline.
      */
-    function _validateFillsNow(
-        address localOracle,
-        MandateOutput[] calldata outputs,
-        bytes32 orderId,
-        bytes32 solver
-    ) internal view {
+    function _validateFillsNow(address inputOracle, MandateOutput[] calldata outputs, bytes32 orderId) internal view {
         uint256 numOutputs = outputs.length;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {
             MandateOutput calldata output = outputs[i];
-            bytes32 payloadHash = _proofPayloadHash(orderId, solver, uint32(block.timestamp), output);
+            bytes32 payloadHash = _proofPayloadHash(orderId, msg.sender.toIdentifier(), uint32(block.timestamp), output);
 
             uint256 chainId = output.chainId;
             bytes32 outputOracle = output.oracle;
@@ -72,7 +68,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
                 mstore(add(offset, 0x60), payloadHash)
             }
         }
-        IOracle(localOracle).efficientRequireProven(proofSeries);
+        IInputOracle(inputOracle).efficientRequireProven(proofSeries);
     }
 
     /**
@@ -83,7 +79,6 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         bytes calldata order,
         address sponsor,
         bytes calldata signature,
-        bytes32 solver,
         address destination,
         bytes calldata call
     ) external {
@@ -100,8 +95,14 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         orderStatus[orderId] = OrderStatus.Deposited;
 
         // Send input tokens to the provided destination so the tokens can be used for secondary purposes.
-        // TODO: collect governance fee.
-        _openFor(order, sponsor, signature, address(this));
+        bytes1 signatureType = signature.length > 0 ? signature[0] : SIGNATURE_TYPE_SELF;
+        if (signatureType == SIGNATURE_TYPE_PERMIT2) {
+            _openForWithPermit2(order, sponsor, signature[1:], address(this));
+        } else if (signatureType == SIGNATURE_TYPE_3009) {
+            _openForWithAuthorization(order.inputs(), order.fillDeadline(), sponsor, signature[1:], orderId);
+        } else {
+            revert SignatureNotSupported(signatureType);
+        }
 
         // There should be a validation that the order status is currently deposited, that is checked in the
         // _resolveLock.
@@ -113,7 +114,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         if (call.length > 0) IOIFCallback(destination).orderFinalised(inputs, call);
 
         // Validate the fill. The solver may use the reentrance of the above line to execute the fill.
-        _validateFillsNow(order.localOracle(), order.outputs(), orderId, solver);
+        _validateFillsNow(order.inputOracle(), order.outputs(), orderId);
     }
 
     // --- Finalise Orders --- //
@@ -149,7 +150,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
             IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
-        _validateFills(order.fillDeadline, order.localOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
 
     /**
@@ -192,7 +193,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
             IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
         }
 
-        _validateFills(order.fillDeadline, order.localOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
 
     //--- The Compact & Resource Locks ---//

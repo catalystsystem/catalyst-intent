@@ -215,7 +215,8 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         // revert and it will unmark it. This acts as a reentry check.
         orderStatus[orderId] = newStatus;
 
-        uint256 fee = governanceFee;
+        address _owner = owner();
+        uint64 fee = _owner != address(0) ? governanceFee : 0;
         // We have now ensured that this point can only be reached once. We can now process the asset delivery.
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
@@ -225,7 +226,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
             uint256 calculatedFee = _calcFee(amount, fee);
             if (calculatedFee > 0) {
-                SafeTransferLib.safeTransfer(token, owner(), calculatedFee);
+                SafeTransferLib.safeTransfer(token, _owner, calculatedFee);
                 unchecked {
                     amount = amount - calculatedFee;
                 }

@@ -24,6 +24,8 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
  */
 contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
     using LibAddress for address;
+    using LibAddress for uint256;
+    using LibAddress for bytes32;
     using StandardOrderType for bytes;
     using StandardOrderType for StandardOrder;
 
@@ -153,9 +155,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
         _finalise(order, orderId, solvers[0], destination);
 
-        if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
-        }
+        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
@@ -189,16 +189,12 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
             // Validate the external claimant with signature
             _validateDestination(destination);
-            _allowExternalClaimant(
-                orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
-            );
+            _allowExternalClaimant(orderId, orderOwner.fromIdentifier(), destination, call, orderOwnerSignature);
         }
 
         _finalise(order, orderId, solvers[0], destination);
 
-        if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
-        }
+        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
@@ -227,7 +223,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] memory input = inputs[i];
-            address token = EfficiencyLib.asSanitizedAddress(input[0]);
+            address token = input[0].fromIdentifier();
             uint256 amount = input[1];
 
             uint256 calculatedFee = _calcFee(amount, fee);

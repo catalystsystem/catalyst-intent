@@ -89,6 +89,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         _validateInputChain(order.originChainId());
         _validateTimestampHasNotPassed(order.fillDeadline());
         _validateTimestampHasNotPassed(order.expires());
+        _validateDestination(destination.toIdentifier());
 
         bytes32 orderId = order.orderIdentifier();
 

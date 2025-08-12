@@ -9,8 +9,8 @@ import { InputSettlerEscrow } from "OIF/src/input/escrow/InputSettlerEscrow.sol"
 import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
 
+import { IInputCallback } from "OIF/src/interfaces/IInputCallback.sol";
 import { IInputOracle } from "OIF/src/interfaces/IInputOracle.sol";
-import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
 import { LibAddress } from "OIF/src/libs/LibAddress.sol";
 
 import { GovernanceFee } from "../../libs/GovernanceFee.sol";
@@ -120,7 +120,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         emit Finalised(orderId, msg.sender.toIdentifier(), destination.toIdentifier());
 
         // Call the destination (if needed) so the caller can inject logic into our call.
-        if (call.length > 0) IOIFCallback(destination).orderFinalised(inputs, call);
+        if (call.length > 0) IInputCallback(destination).orderFinalised(inputs, call);
 
         // Validate the fill. The solver may use the reentrance of the above line to execute the fill.
         _validateFillsNow(order.inputOracle(), order.outputs(), orderId);
@@ -156,7 +156,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
         _finalise(order, orderId, solvers[0], destination);
 
-        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
+        if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
@@ -195,7 +195,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
         _finalise(order, orderId, solvers[0], destination);
 
-        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
+        if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }

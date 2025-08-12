@@ -8,7 +8,7 @@ import { BatchClaimComponent, Component } from "the-compact/src/types/Components
 
 import { InputSettlerCompact } from "OIF/src/input/compact/InputSettlerCompact.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
-import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
+import { IInputCallback } from "OIF/src/interfaces/IInputCallback.sol";
 import { LibAddress } from "OIF/src/libs/LibAddress.sol";
 
 import { GovernanceFee } from "../../libs/GovernanceFee.sol";
@@ -98,7 +98,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         _orderOwnerIsCaller(orderOwner);
 
         _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
+        if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
@@ -134,7 +134,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         _allowExternalClaimant(orderId, orderOwner.fromIdentifier(), destination, call, orderOwnerSignature);
 
         _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
+        if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }

@@ -8,12 +8,15 @@ import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
 import { MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
+import { LibAddress } from "OIF/src/libs/LibAddress.sol";
 
 /**
  * @notice Intent Registration library. Aids with registration of intents onbehalf of someone else for The Compact.
  * @dev If the library is not used for registering intents, it contains helpers for validation and intent hashes.
  */
 library RegisterIntentLib {
+    using LibAddress for uint256;
+
     error DeadlinePassed();
     error WrongChain(uint256 expected, uint256 provided);
 
@@ -110,9 +113,7 @@ library RegisterIntentLib {
             uint256 numInputs = idsAndAmounts.length;
             for (uint256 i; i < numInputs; ++i) {
                 uint256[2] memory idAndAmount = idsAndAmounts[i];
-                SafeTransferLib.safeApproveWithRetry(
-                    EfficiencyLib.asSanitizedAddress(idAndAmount[0]), address(COMPACT), idAndAmount[1]
-                );
+                SafeTransferLib.safeApproveWithRetry(idAndAmount[0].fromIdentifier(), address(COMPACT), idAndAmount[1]);
             }
         }
 

@@ -24,8 +24,13 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
  */
 contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
     using LibAddress for address;
+    using LibAddress for uint256;
+    using LibAddress for bytes32;
     using StandardOrderType for bytes;
     using StandardOrderType for StandardOrder;
+
+    /// @dev Simpler open event to reduce gas costs. Used specifically for openForAndFinalise.
+    event Open(bytes32 indexed orderId);
 
     constructor(
         address initialOwner
@@ -86,6 +91,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         _validateInputChain(order.originChainId());
         _validateTimestampHasNotPassed(order.fillDeadline());
         _validateTimestampHasNotPassed(order.expires());
+        _validateDestination(destination.toIdentifier());
 
         bytes32 orderId = order.orderIdentifier();
 
@@ -93,6 +99,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         // Mark order as deposited. If we can't make the deposit, we will
         // revert and it will unmark it. This acts as a reentry check.
         orderStatus[orderId] = OrderStatus.Deposited;
+        emit Open(orderId);
 
         // Send input tokens to the provided destination so the tokens can be used for secondary purposes.
         bytes1 signatureType = signature.length > 0 ? signature[0] : SIGNATURE_TYPE_SELF;
@@ -109,6 +116,8 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         // Send tokens to solver.
         uint256[2][] calldata inputs = order.inputs();
         _resolveLock(orderId, inputs, destination, OrderStatus.Claimed);
+        // Emit the finalise event to follow the normal finalise event emit.
+        emit Finalised(orderId, msg.sender.toIdentifier(), destination.toIdentifier());
 
         // Call the destination (if needed) so the caller can inject logic into our call.
         if (call.length > 0) IOIFCallback(destination).orderFinalised(inputs, call);
@@ -146,9 +155,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
         _finalise(order, orderId, solvers[0], destination);
 
-        if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
-        }
+        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
@@ -182,16 +189,12 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
 
             // Validate the external claimant with signature
             _validateDestination(destination);
-            _allowExternalClaimant(
-                orderId, EfficiencyLib.asSanitizedAddress(uint256(orderOwner)), destination, call, orderOwnerSignature
-            );
+            _allowExternalClaimant(orderId, orderOwner.fromIdentifier(), destination, call, orderOwnerSignature);
         }
 
         _finalise(order, orderId, solvers[0], destination);
 
-        if (call.length > 0) {
-            IOIFCallback(EfficiencyLib.asSanitizedAddress(uint256(destination))).orderFinalised(order.inputs, call);
-        }
+        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
@@ -221,7 +224,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         uint256 numInputs = inputs.length;
         for (uint256 i; i < numInputs; ++i) {
             uint256[2] memory input = inputs[i];
-            address token = EfficiencyLib.asSanitizedAddress(input[0]);
+            address token = input[0].fromIdentifier();
             uint256 amount = input[1];
 
             uint256 calculatedFee = _calcFee(amount, fee);

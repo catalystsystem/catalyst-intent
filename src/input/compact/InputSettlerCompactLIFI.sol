@@ -15,7 +15,7 @@ import { RegisterIntentLib } from "../../libs/RegisterIntentLib.sol";
 
 /**
  * @title LIFI Input Settler supporting The Compact
- * @notice This contract is implemented as an extension of the OIF InputSettlerCompact. It inheirts all of the
+ * @notice This contract is implemented as an extension of the OIF InputSettlerCompact. It inherits all of the
  * functionality of InputSettlerCompact but adds broadcast, same chain swaps, and governance fee.
  *
  * This contract does not support fee on transfer tokens.
@@ -67,7 +67,8 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
 
     /**
      * @notice Finalises an order when called directly by the solver
-     * @dev The caller must be the address corresponding to the first solver in the solvers array.
+     * @dev The caller must be the address corresponding to the first solver in the solvers array or the orderOwner if
+     * the order has been purchased.
      * @param order StandardOrder signed in conjunction with a Compact to form an order
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorData))

@@ -18,7 +18,7 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
 /**
  * @title LIFI Input Settler supporting an explicit escrow
  * @notice This contract is implemented as an extension of the OIF
- * It inheirts all of the functionality of InputSettlerCompact.
+ * It inherits all of the functionality of InputSettlerEscrow.
  *
  * This contract does not support fee on transfer tokens.
  */
@@ -131,7 +131,8 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
     /**
      * @notice Finalises an order when called directly by the solver
      * @dev Finalise is not blocked after the expiry of orders.
-     * The caller must be the address corresponding to the first solver in the solvers array.
+     * The caller must be the address corresponding to the first solver in the solvers array or the orderOwner if the
+     * order has been purchased.
      * @param order StandardOrder description of the intent.
      * @param timestamps Array of timestamps when each output was filled
      * @param solvers Array of solvers who filled each output (in order of outputs).
@@ -199,11 +200,11 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
     }
 
-    //--- The Compact & Resource Locks ---//
+    //--- Asset Locks ---//
 
     /**
      * @dev This function employs a local reentry guard: we check the order status and then we update it afterwards.
-     * This is an important check as it is indeed to process external ERC20 transfers.
+     * This is an important check as it is intended to process external ERC20 transfers.
      * @param newStatus specifies the new status to set the order to. Should never be OrderStatus.Deposited.
      */
     function _resolveLock(

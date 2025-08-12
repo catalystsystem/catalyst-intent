@@ -27,6 +27,9 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
     using StandardOrderType for bytes;
     using StandardOrderType for StandardOrder;
 
+    /// @dev Simpler open event to reduce gas costs. Used specifically for openForAndFinalise.
+    event Open(bytes32 indexed orderId);
+
     constructor(
         address initialOwner
     ) InputSettlerEscrow() {
@@ -93,6 +96,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         // Mark order as deposited. If we can't make the deposit, we will
         // revert and it will unmark it. This acts as a reentry check.
         orderStatus[orderId] = OrderStatus.Deposited;
+        emit Open(orderId);
 
         // Send input tokens to the provided destination so the tokens can be used for secondary purposes.
         bytes1 signatureType = signature.length > 0 ? signature[0] : SIGNATURE_TYPE_SELF;
@@ -109,6 +113,8 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         // Send tokens to solver.
         uint256[2][] calldata inputs = order.inputs();
         _resolveLock(orderId, inputs, destination, OrderStatus.Claimed);
+        // Emit the finalise event to follow the normal finalise event emit.
+        emit Finalised(orderId, msg.sender.toIdentifier(), destination.toIdentifier());
 
         // Call the destination (if needed) so the caller can inject logic into our call.
         if (call.length > 0) IOIFCallback(destination).orderFinalised(inputs, call);

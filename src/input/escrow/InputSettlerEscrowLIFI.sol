@@ -38,17 +38,6 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         _initializeOwner(initialOwner);
     }
 
-    function _domainNameAndVersion()
-        internal
-        pure
-        virtual
-        override
-        returns (string memory name, string memory version)
-    {
-        name = "InputSettlerEscrowLIFI";
-        version = "1";
-    }
-
     /**
      * @notice Check if a series of outputs has been proven.
      * @dev An alternative to _validateFills that assumes the fills have been filled instantly and by the current
@@ -81,16 +70,16 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
      * Set the solver as msg.sender (of this call). Timestamp will be collected from block.timestamp.
      */
     function openForAndFinalise(
-        bytes calldata order,
+        StandardOrder calldata order,
         address sponsor,
         bytes calldata signature,
         address destination,
         bytes calldata call
     ) external {
         // Validate the order structure.
-        _validateInputChain(order.originChainId());
-        _validateTimestampHasNotPassed(order.fillDeadline());
-        _validateTimestampHasNotPassed(order.expires());
+        _validateInputChain(order.originChainId);
+        _validateTimestampHasNotPassed(order.fillDeadline);
+        _validateTimestampHasNotPassed(order.expires);
         _validateDestination(destination.toIdentifier());
 
         bytes32 orderId = order.orderIdentifier();
@@ -106,7 +95,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         if (signatureType == SIGNATURE_TYPE_PERMIT2) {
             _openForWithPermit2(order, sponsor, signature[1:], address(this));
         } else if (signatureType == SIGNATURE_TYPE_3009) {
-            _openForWithAuthorization(order.inputs(), order.fillDeadline(), sponsor, signature[1:], orderId);
+            _openForWithAuthorization(order.inputs, order.fillDeadline, sponsor, signature[1:], orderId);
         } else {
             revert SignatureNotSupported(signatureType);
         }
@@ -114,7 +103,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         // There should be a validation that the order status is currently deposited, that is checked in the
         // _resolveLock.
         // Send tokens to solver.
-        uint256[2][] calldata inputs = order.inputs();
+        uint256[2][] calldata inputs = order.inputs;
         _resolveLock(orderId, inputs, destination, OrderStatus.Claimed);
         // Emit the finalise event to follow the normal finalise event emit.
         emit Finalised(orderId, msg.sender.toIdentifier(), destination.toIdentifier());
@@ -123,7 +112,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         if (call.length > 0) IInputCallback(destination).orderFinalised(inputs, call);
 
         // Validate the fill. The solver may use the reentrance of the above line to execute the fill.
-        _validateFillsNow(order.inputOracle(), order.outputs(), orderId);
+        _validateFillsNow(order.inputOracle, order.outputs, orderId);
     }
 
     // --- Finalise Orders --- //
@@ -131,19 +120,16 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
     /**
      * @notice Finalises an order when called directly by the solver
      * @dev Finalise is not blocked after the expiry of orders.
-     * The caller must be the address corresponding to the first solver in the solvers array or the orderOwner if the
-     * order has been purchased.
+     * The caller must be the address corresponding to the first solver in the solvers array.
      * @param order StandardOrder description of the intent.
-     * @param timestamps Array of timestamps when each output was filled
-     * @param solvers Array of solvers who filled each output (in order of outputs).
+     * @param solveParams List of solve parameters for when the outputs were filled
      * @param destination Address to send the inputs to. If the solver wants to send the inputs to themselves, they
      * should pass their address to this parameter.
      * @param call Optional callback data. If non-empty, will call orderFinalised on the destination
      */
     function finalise(
         StandardOrder calldata order,
-        uint32[] calldata timestamps,
-        bytes32[] calldata solvers,
+        SolveParams[] calldata solveParams,
         bytes32 destination,
         bytes calldata call
     ) external virtual override {
@@ -151,14 +137,14 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         _validateInputChain(order.originChainId);
 
         bytes32 orderId = order.orderIdentifier();
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solveParams);
         _orderOwnerIsCaller(orderOwner);
 
-        _finalise(order, orderId, solvers[0], destination);
+        _finalise(order, orderId, solveParams[0].solver, destination);
 
         if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
-        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, solveParams);
     }
 
     /**
@@ -166,16 +152,14 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
      * @dev Finalise is not blocked after the expiry of orders.
      * This function serves to finalise intents on the origin chain with proper authorization from the order owner.
      * @param order StandardOrder description of the intent.
-     * @param timestamps Array of timestamps when each output was filled
-     * @param solvers Array of solvers who filled each output (in order of outputs) element
+     * @param solveParams List of solve parameters for when the outputs were filled
      * @param destination Address to send the inputs to.
      * @param call Optional callback data. If non-empty, will call orderFinalised on the destination
      * @param orderOwnerSignature Signature from the order owner authorizing this external call
      */
     function finaliseWithSignature(
         StandardOrder calldata order,
-        uint32[] calldata timestamps,
-        bytes32[] memory solvers,
+        SolveParams[] calldata solveParams,
         bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
@@ -186,18 +170,18 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         bytes32 orderId = order.orderIdentifier();
 
         {
-            bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+            bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solveParams);
 
             // Validate the external claimant with signature
             _validateDestination(destination);
             _allowExternalClaimant(orderId, orderOwner.fromIdentifier(), destination, call, orderOwnerSignature);
         }
 
-        _finalise(order, orderId, solvers[0], destination);
+        _finalise(order, orderId, solveParams[0].solver, destination);
 
         if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
-        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, solveParams);
     }
 
     //--- Asset Locks ---//

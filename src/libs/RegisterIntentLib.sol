@@ -6,7 +6,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 
-import { MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
+import { MandateOutput, MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
 import { LibAddress } from "OIF/src/libs/LibAddress.sol";
 
@@ -26,6 +26,53 @@ library RegisterIntentLib {
         )
     );
 
+    /**
+     * @notice Hashes a MandateOutput struct.
+     * @param output The MandateOutput struct to hash.
+     * @return The hash of the MandateOutput struct.
+     */
+    function hashOutput(
+        MandateOutput memory output
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                MandateOutputType.MANDATE_OUTPUT_TYPE_HASH,
+                output.oracle,
+                output.settler,
+                output.chainId,
+                output.token,
+                output.amount,
+                output.recipient,
+                keccak256(output.call),
+                keccak256(output.context)
+            )
+        );
+    }
+
+    /**
+     * @notice Hashes a list of MandateOutput structs.
+     * @param outputs The list of MandateOutput structs to hash.
+     * @return The hash of the list of MandateOutput structs.
+     */
+    function hashOutputs(
+        MandateOutput[] memory outputs
+    ) internal pure returns (bytes32) {
+        unchecked {
+            bytes memory currentHash = new bytes(32 * outputs.length);
+            uint256 p;
+            assembly ("memory-safe") {
+                p := add(currentHash, 0x20)
+            }
+            for (uint256 i = 0; i < outputs.length; ++i) {
+                bytes32 outputHash = hashOutput(outputs[i]);
+                assembly ("memory-safe") {
+                    mstore(add(p, mul(i, 0x20)), outputHash)
+                }
+            }
+            return keccak256(currentHash);
+        }
+    }
+
     // Copy from OIF implementation with elements in memory for usage inside other contracts constructing the
     // StandardOrder.
     function witnessHash(
@@ -36,7 +83,7 @@ library RegisterIntentLib {
                 StandardOrderType.CATALYST_WITNESS_TYPE_HASH,
                 order.fillDeadline,
                 order.inputOracle,
-                MandateOutputType.hashOutputsM(order.outputs)
+                hashOutputs(order.outputs)
             )
         );
     }

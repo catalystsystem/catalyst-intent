@@ -18,9 +18,11 @@ import { GovernanceFee } from "../../libs/GovernanceFee.sol";
 /**
  * @title LIFI Input Settler supporting an explicit escrow
  * @notice This contract is implemented as an extension of the OIF
- * It inherits all of the functionality of InputSettlerEscrow.
+ * It inherits all of the functionality of InputSettlerEscrow but adds same chain swaps and governance fee.
  *
  * This contract does not support fee on transfer tokens.
+ *
+ * The ownable component of the smart contract is only used for fees.
  */
 contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
     using LibAddress for address;
@@ -36,6 +38,16 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
         address initialOwner
     ) InputSettlerEscrow() {
         _initializeOwner(initialOwner);
+    }
+
+    /**
+     * @notice Returns the domain name of the EIP712 signature.
+     * @dev This function is only called in the constructor and the returned value is cached
+     * by the EIP712 base contract.
+     * @return name The domain name.
+     */
+    function _domainName() internal view override returns (string memory) {
+        return "OIFEscrowLIFI";
     }
 
     /**

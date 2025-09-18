@@ -37,6 +37,16 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     }
 
     /**
+     * @notice Returns the domain name of the EIP712 signature.
+     * @dev This function is only called in the constructor and the returned value is cached
+     * by the EIP712 base contract.
+     * @return name The domain name.
+     */
+    function _domainName() internal view override returns (string memory) {
+        return "OIFCompactLIFI";
+    }
+    
+    /**
      * @notice Validates that an intent has been registered against TheCompact and broadcasts and event for
      * permissionless consumption.
      * @param order Order to be broadcasts for consumption by off-chain solvers.

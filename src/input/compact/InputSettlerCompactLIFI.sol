@@ -45,7 +45,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     function _domainName() internal view override returns (string memory) {
         return "OIFCompactLIFI";
     }
-    
+
     /**
      * @notice Validates that an intent has been registered against TheCompact and broadcasts and event for
      * permissionless consumption.

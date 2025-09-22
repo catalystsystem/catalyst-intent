@@ -29,7 +29,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
 
     struct OrderFulfillmentDescription {
         uint32 timestamp;
-        MandateOutput MandateOutput;
+        MandateOutput mandateOutput;
     }
 
     function test_validate_fills_now(
@@ -44,7 +44,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         MandateOutput[] memory mandateOutputs = new MandateOutput[](orderFulfillmentDescription.length);
         for (uint256 i; i < orderFulfillmentDescription.length; ++i) {
             timestamps[i] = orderFulfillmentDescription[i].timestamp;
-            mandateOutputs[i] = orderFulfillmentDescription[i].MandateOutput;
+            mandateOutputs[i] = orderFulfillmentDescription[i].mandateOutput;
             MandateOutput memory output = mandateOutputs[i];
 
             expectedProofPayload = abi.encodePacked(

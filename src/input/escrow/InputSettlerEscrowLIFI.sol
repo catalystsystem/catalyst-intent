@@ -3,8 +3,6 @@ pragma solidity ^0.8.26;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
-
 import { InputSettlerEscrow } from "OIF/src/input/escrow/InputSettlerEscrow.sol";
 import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
@@ -46,7 +44,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
      * by the EIP712 base contract.
      * @return name The domain name.
      */
-    function _domainName() internal view override returns (string memory) {
+    function _domainName() internal pure override returns (string memory) {
         return "OIFEscrowLIFI";
     }
 

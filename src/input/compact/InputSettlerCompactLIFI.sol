@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.26;
 
-import { EIP712 } from "OIF/lib/openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
-import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
 import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
@@ -42,7 +40,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
      * by the EIP712 base contract.
      * @return name The domain name.
      */
-    function _domainName() internal view override returns (string memory) {
+    function _domainName() internal pure override returns (string memory) {
         return "OIFCompactLIFI";
     }
 

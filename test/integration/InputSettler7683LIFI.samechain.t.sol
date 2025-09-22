@@ -4,7 +4,7 @@ pragma solidity ^0.8.22;
 import { LibAddress } from "OIF/src/libs/LibAddress.sol";
 import { OutputSettlerSimple } from "OIF/src/output/simple/OutputSettlerSimple.sol";
 
-import { MandateOutput, MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
+import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
 import { InputSettlerEscrowTestBase } from "OIF/test/input/escrow/InputSettlerEscrow.base.t.sol";
 

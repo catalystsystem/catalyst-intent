@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import "forge-std/Test.sol";
-
 import { InputSettlerCompactLIFI } from "../../../src/input/compact/InputSettlerCompactLIFI.sol";
 
 import { InputSettlerBase } from "OIF/src/input/InputSettlerBase.sol";
 import { InputSettlerCompactTest } from "OIF/test/input/compact/InputSettlerCompact.t.sol";
 
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
-import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
+import { MandateOutput } from "OIF/src/libs/MandateOutputEncodingLib.sol";
 
 contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
     // uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;

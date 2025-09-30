@@ -2,6 +2,16 @@
 
 LI.FI Intent is a cross-chain swap protocol built with the Open Intents Framework, OIF. It allows users to sign intents: What asset they want, how they want etc, etc. which is claimed and then delivered by solvers.
 
+## Deployments
+
+Deployed addresses:
+- Compact Address: `0x00000000000000171ede64904551eeDF3C6C9788`
+- Input Settler Compact Address: `0x000000c9eC71B1a39055Ec631200ED0022140074`
+- Input Settler Escrow Address: `0x000001bf3F3175BD007f3889b50000c7006E72c0`
+- Output Settler Address: `0x00000000D7278408CE7a490015577c41e57143a5`
+- Polymer Oracle Testnet: `0x00d5b500ECa100F7cdeDC800eC631Aca00BaAC00`
+- Polymer Oracle Mainnet: `0x0000006ea400569c0040d6e5ba651c00848409be`
+
 ### Open Intents Framework
 
 The OIF is a reference implementation of a modular and composable intent system. LI.FI intent is built as an implementation of it, meaning it is compatible and compliments any other OIF deployment.

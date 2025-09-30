@@ -2,6 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { InputSettlerEscrowLIFI } from "../../../src/input/escrow/InputSettlerEscrowLIFI.sol";
+import { InputSettlerBase } from "OIF/src/input/InputSettlerBase.sol";
 
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
 import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
@@ -28,7 +29,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
 
     struct OrderFulfillmentDescription {
         uint32 timestamp;
-        MandateOutput MandateOutput;
+        MandateOutput mandateOutput;
     }
 
     function test_validate_fills_now(
@@ -43,7 +44,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         MandateOutput[] memory mandateOutputs = new MandateOutput[](orderFulfillmentDescription.length);
         for (uint256 i; i < orderFulfillmentDescription.length; ++i) {
             timestamps[i] = orderFulfillmentDescription[i].timestamp;
-            mandateOutputs[i] = orderFulfillmentDescription[i].MandateOutput;
+            mandateOutputs[i] = orderFulfillmentDescription[i].mandateOutput;
             MandateOutput memory output = mandateOutputs[i];
 
             expectedProofPayload = abi.encodePacked(
@@ -160,10 +161,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         vm.prank(swapper);
         token.approve(inputSettlerEscrow, amount);
         vm.prank(swapper);
-        InputSettlerEscrowLIFI(inputSettlerEscrow).open(abi.encode(order));
-
-        uint32[] memory timestamps = new uint32[](1);
-        timestamps[0] = uint32(block.timestamp);
+        InputSettlerEscrowLIFI(inputSettlerEscrow).open(order);
 
         bytes32 orderId = InputSettlerEscrowLIFI(inputSettlerEscrow).orderIdentifier(order);
         bytes memory payload = MandateOutputEncodingLib.encodeFillDescriptionMemory(
@@ -181,12 +179,15 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
             )
         );
 
-        bytes32[] memory solvers = new bytes32[](1);
-        solvers[0] = bytes32(uint256(uint160((solver))));
+        InputSettlerBase.SolveParams[] memory solveParams = new InputSettlerBase.SolveParams[](1);
+        solveParams[0] = InputSettlerBase.SolveParams({
+            timestamp: uint32(block.timestamp),
+            solver: bytes32(uint256(uint160((solver))))
+        });
 
         vm.prank(solver);
         InputSettlerEscrowLIFI(inputSettlerEscrow).finalise(
-            order, timestamps, solvers, bytes32(uint256(uint160((solver)))), hex""
+            order, solveParams, bytes32(uint256(uint160((solver)))), hex""
         );
         vm.snapshotGasLastCall("inputSettler", "escrowFinaliseSelfWithFee");
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
+import { PolymerOracle } from "OIF/src/integrations/oracles/polymer/PolymerOracle.sol";
+import { PolymerOracleMapped } from "OIF/src/integrations/oracles/polymer/PolymerOracleMapped.sol";
 import { ChainMap } from "OIF/src/oracles/ChainMap.sol";
-import { PolymerOracle } from "OIF/src/oracles/polymer/PolymerOracle.sol";
-import { PolymerOracleMapped } from "OIF/src/oracles/polymer/PolymerOracleMapped.sol";
 
 import { multichain } from "./multichain.s.sol";
 

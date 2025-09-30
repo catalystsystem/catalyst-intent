@@ -1,0 +1,20 @@
+{
+  "lib/OIF": {
+    "rev": "df415ead6ac049319bf6de2fa55d47c4c34242e0"
+  },
+  "lib/bitcoinprism-evm": {
+    "rev": "158ff5e6361ba6813f37135c3635d6a88c6b3407"
+  },
+  "lib/forge-std": {
+    "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+  },
+  "lib/permit2": {
+    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
+  "lib/solady": {
+    "rev": "8583a6e386b897f3db142a541f86d5953eccd835"
+  },
+  "lib/the-compact": {
+    "rev": "b9c3b544151106a23b8f9d800751166a6089cf00"
+  }
+}

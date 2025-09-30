@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.26;
 
-import { EfficiencyLib } from "the-compact/src/lib/EfficiencyLib.sol";
 import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { BatchClaim } from "the-compact/src/types/BatchClaims.sol";
 import { BatchClaimComponent, Component } from "the-compact/src/types/Components.sol";
 
 import { InputSettlerCompact } from "OIF/src/input/compact/InputSettlerCompact.sol";
 import { StandardOrder, StandardOrderType } from "OIF/src/input/types/StandardOrderType.sol";
-import { IOIFCallback } from "OIF/src/interfaces/IOIFCallback.sol";
+import { IInputCallback } from "OIF/src/interfaces/IInputCallback.sol";
 import { LibAddress } from "OIF/src/libs/LibAddress.sol";
 
 import { GovernanceFee } from "../../libs/GovernanceFee.sol";
@@ -35,16 +34,14 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         _initializeOwner(initialOwner);
     }
 
-    /// @notice EIP712
-    function _domainNameAndVersion()
-        internal
-        pure
-        virtual
-        override
-        returns (string memory name, string memory version)
-    {
-        name = "InputSettlerCompact";
-        version = "LIFI_1";
+    /**
+     * @notice Returns the domain name of the EIP712 signature.
+     * @dev This function is only called in the constructor and the returned value is cached
+     * by the EIP712 base contract.
+     * @return name The domain name.
+     */
+    function _domainName() internal pure override returns (string memory) {
+        return "OIFCompactLIFI";
     }
 
     /**
@@ -71,13 +68,11 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
 
     /**
      * @notice Finalises an order when called directly by the solver
-     * @dev The caller must be the address corresponding to the first solver in the solvers array or the orderOwner if
-     * the order has been purchased.
+     * @dev The caller must be the address corresponding to the first solver in the solvers array.
      * @param order StandardOrder signed in conjunction with a Compact to form an order
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorData))
-     * @param timestamps Array of timestamps when each output was filled
-     * @param solvers Array of solvers who filled each output (in order of outputs).
+     * @param solveParams List of solve parameters for when the outputs were filled
      * @param destination Where to send the inputs. If the solver wants to send the inputs to themselves, they should
      * pass their address to this parameter.
      * @param call Optional callback data. If non-empty, will call orderFinalised on the destination
@@ -85,8 +80,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     function finalise(
         StandardOrder calldata order,
         bytes calldata signatures,
-        uint32[] calldata timestamps,
-        bytes32[] memory solvers,
+        SolveParams[] calldata solveParams,
         bytes32 destination,
         bytes calldata call
     ) external override {
@@ -94,13 +88,13 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
         _validateInputChain(order.originChainId);
 
         bytes32 orderId = _orderIdentifier(order);
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solveParams);
         _orderOwnerIsCaller(orderOwner);
 
-        _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
+        _finalise(order, signatures, orderId, solveParams[0].solver, destination);
+        if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
-        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, solveParams);
     }
 
     /**
@@ -109,8 +103,7 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
      * @param order StandardOrder signed in conjunction with a Compact to form an order
      * @param signatures A signature for the sponsor and the allocator. abi.encode(bytes(sponsorSignature),
      * bytes(allocatorData))
-     * @param timestamps Array of timestamps when each output was filled
-     * @param solvers Array of solvers who filled each output (in order). For single solver, pass an array with only
+     * @param solveParams List of solve parameters for when the outputs were filled
      * element
      * @param destination Where to send the inputs
      * @param call Optional callback data. If non-empty, will call orderFinalised on the destination
@@ -119,24 +112,23 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
     function finaliseWithSignature(
         StandardOrder calldata order,
         bytes calldata signatures,
-        uint32[] calldata timestamps,
-        bytes32[] memory solvers,
+        SolveParams[] calldata solveParams,
         bytes32 destination,
         bytes calldata call,
         bytes calldata orderOwnerSignature
-    ) external override {
+    ) external virtual override {
         _validateDestination(destination);
         _validateInputChain(order.originChainId);
 
         bytes32 orderId = _orderIdentifier(order);
-        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solvers[0], timestamps);
+        bytes32 orderOwner = _purchaseGetOrderOwner(orderId, solveParams);
         // Validate the external claimant with signature
         _allowExternalClaimant(orderId, orderOwner.fromIdentifier(), destination, call, orderOwnerSignature);
 
-        _finalise(order, signatures, orderId, solvers[0], destination);
-        if (call.length > 0) IOIFCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
+        _finalise(order, signatures, orderId, solveParams[0].solver, destination);
+        if (call.length > 0) IInputCallback(destination.fromIdentifier()).orderFinalised(order.inputs, call);
 
-        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, timestamps, solvers);
+        _validateFills(order.fillDeadline, order.inputOracle, order.outputs, orderId, solveParams);
     }
 
     //--- The Compact & Resource Locks ---//

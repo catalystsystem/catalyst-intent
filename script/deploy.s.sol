@@ -5,7 +5,7 @@ import { TheCompact } from "the-compact/src/TheCompact.sol";
 import { IdLib } from "the-compact/src/lib/IdLib.sol";
 import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
 
-import { OutputSettlerCoin } from "OIF/src/output/coin/OutputSettlerCoin.sol";
+import { OutputSettlerSimple } from "OIF/src/output/simple/OutputSettlerSimple.sol";
 import { AlwaysYesOracle } from "OIF/test/mocks/AlwaysYesOracle.sol";
 
 import { multichain } from "./multichain.s.sol";
@@ -44,7 +44,7 @@ contract deploy is multichain {
         deployCompact();
         settler = deploySettler(initialOwner, expectedSettlerAddress);
 
-        deployOutputSettlerCoin();
+        deployOutputSettlerSimple();
         deployAlwaysOkAllocaor();
         deployAlwaysYesOracle();
     }
@@ -77,16 +77,16 @@ contract deploy is multichain {
         }
     }
 
-    function deployOutputSettlerCoin() internal returns (OutputSettlerCoin filler) {
+    function deployOutputSettlerSimple() internal returns (OutputSettlerSimple filler) {
         address expectedAddress = getExpectedCreate2Address(
             outputSettlerSalt, // salt
-            type(OutputSettlerCoin).creationCode,
+            type(OutputSettlerSimple).creationCode,
             hex""
         );
         bool isFillerDeployed = address(expectedAddress).code.length != 0;
 
-        if (!isFillerDeployed) return filler = new OutputSettlerCoin{ salt: outputSettlerSalt }();
-        return OutputSettlerCoin(expectedAddress);
+        if (!isFillerDeployed) return filler = new OutputSettlerSimple{ salt: outputSettlerSalt }();
+        return OutputSettlerSimple(expectedAddress);
     }
 
     function deployAlwaysOkAllocaor() internal returns (AlwaysOKAllocator allocator, uint96 allocatorId) {

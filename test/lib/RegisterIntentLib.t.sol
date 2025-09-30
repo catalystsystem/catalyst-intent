@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import { TheCompact } from "the-compact/src/TheCompact.sol";
-import { AlwaysOKAllocator } from "the-compact/src/test/AlwaysOKAllocator.sol";
-
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
-import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
+import { MandateOutput } from "OIF/src/libs/MandateOutputEncodingLib.sol";
 import { InputSettlerCompactTestBase } from "OIF/test/input/compact/InputSettlerCompact.base.t.sol";
 
 import { InputSettlerCompactLIFI } from "../../src/input/compact/InputSettlerCompactLIFI.sol";

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import { OutputSettlerCoin } from "OIF/src/output/coin/OutputSettlerCoin.sol";
+import { LibAddress } from "OIF/src/libs/LibAddress.sol";
+import { OutputSettlerSimple } from "OIF/src/output/simple/OutputSettlerSimple.sol";
 
-import { MandateOutput, MandateOutputType } from "OIF/src/input/types/MandateOutputType.sol";
+import { MandateOutput } from "OIF/src/input/types/MandateOutputType.sol";
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
 import { InputSettlerEscrowTestBase } from "OIF/test/input/escrow/InputSettlerEscrow.base.t.sol";
 
@@ -11,15 +12,19 @@ import { InputSettlerEscrowLIFI } from "../../src/input/escrow/InputSettlerEscro
 
 /// @notice This test showcases how to take 2 intents and fill them together.
 contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
+    using LibAddress for address;
+
     address swapper2;
     uint256 swapper2PrivateKey;
 
     uint256 amount1;
     uint256 amount2;
 
+    OutputSettlerSimple outputSettlerSimple;
+
     function setUp() public virtual override {
         super.setUp();
-        outputSettlerCoin = new OutputSettlerCoin();
+        outputSettlerSimple = new OutputSettlerSimple();
 
         address owner = makeAddr("owner");
         inputSettlerEscrow = address(new InputSettlerEscrowLIFI(owner));
@@ -45,13 +50,13 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
         assertEq(token.balanceOf(address(this)), 0);
         assertEq(anotherToken.balanceOf(address(this)), 0);
 
-        bytes32 OutputSettlerCoinIdentifier = bytes32(uint256(uint160(address(outputSettlerCoin))));
+        bytes32 outputSettlerSimpleIdentifier = bytes32(uint256(uint160(address(outputSettlerSimple))));
 
         // Define order 1.
         MandateOutput[] memory outputs1 = new MandateOutput[](1);
         outputs1[0] = MandateOutput({
-            settler: OutputSettlerCoinIdentifier,
-            oracle: OutputSettlerCoinIdentifier,
+            settler: outputSettlerSimpleIdentifier,
+            oracle: outputSettlerSimpleIdentifier,
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount2,
@@ -68,7 +73,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             originChainId: block.chainid,
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
-            inputOracle: address(outputSettlerCoin),
+            inputOracle: address(outputSettlerSimple),
             inputs: inputs1,
             outputs: outputs1
         });
@@ -76,8 +81,8 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
         // Define order 2.
         MandateOutput[] memory outputs2 = new MandateOutput[](1);
         outputs2[0] = MandateOutput({
-            settler: OutputSettlerCoinIdentifier,
-            oracle: OutputSettlerCoinIdentifier,
+            settler: outputSettlerSimpleIdentifier,
+            oracle: outputSettlerSimpleIdentifier,
             chainId: block.chainid,
             token: bytes32(uint256(uint160(address(token)))),
             amount: amount1,
@@ -94,7 +99,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             originChainId: block.chainid,
             expires: type(uint32).max,
             fillDeadline: type(uint32).max,
-            inputOracle: address(outputSettlerCoin),
+            inputOracle: address(outputSettlerSimple),
             inputs: inputs2,
             outputs: outputs2
         });
@@ -115,7 +120,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
 
         // Notice! This test will continue in inputs filled.
         InputSettlerEscrowLIFI(inputSettlerEscrow).openForAndFinalise(
-            abi.encode(order1), order1.user, signature1, address(this), dataToForward
+            order1, order1.user, signature1, address(this), dataToForward
         );
 
         assertEq(token.balanceOf(address(swapper)), 0);
@@ -144,7 +149,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
 
             // Notice! The test will continue after "} else {"
             InputSettlerEscrowLIFI(inputSettlerEscrow).openForAndFinalise(
-                abi.encode(order2), order2.user, signature2, address(this), dataToForward
+                order2, order2.user, signature2, address(this), dataToForward
             );
         } else {
             (, bytes32 orderid1, StandardOrder memory order1, bytes32 orderid2, StandardOrder memory order2) =
@@ -156,22 +161,18 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             assertEq(token.balanceOf(address(swapper)), 0);
             assertEq(anotherToken.balanceOf(address(swapper2)), 0);
 
-            token.approve(address(outputSettlerCoin), amount1);
-            anotherToken.approve(address(outputSettlerCoin), amount2);
+            token.approve(address(outputSettlerSimple), amount1);
+            anotherToken.approve(address(outputSettlerSimple), amount2);
 
             // Fill the input of orders. Remember, we got tokens from the sequential fills.
-            outputSettlerCoin.fill(
-                type(uint32).max, orderid1, order1.outputs[0], bytes32(uint256(uint160(address(this))))
-            );
-            outputSettlerCoin.fill(
-                type(uint32).max, orderid2, order2.outputs[0], bytes32(uint256(uint160(address(this))))
-            );
+            outputSettlerSimple.fill(orderid1, order1.outputs[0], type(uint32).max, abi.encode(address(this)));
+            outputSettlerSimple.fill(orderid2, order2.outputs[0], type(uint32).max, abi.encode(address(this)));
 
-            outputSettlerCoin.setAttestation(
-                orderid1, bytes32(uint256(uint160(address(this)))), uint32(block.timestamp), order1.outputs[0]
+            outputSettlerSimple.setAttestation(
+                orderid1, address(this).toIdentifier(), uint32(block.timestamp), order1.outputs[0]
             );
-            outputSettlerCoin.setAttestation(
-                orderid2, bytes32(uint256(uint160(address(this)))), uint32(block.timestamp), order2.outputs[0]
+            outputSettlerSimple.setAttestation(
+                orderid2, address(this).toIdentifier(), uint32(block.timestamp), order2.outputs[0]
             );
         }
     }

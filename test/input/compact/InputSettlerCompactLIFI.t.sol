@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
-import "forge-std/Test.sol";
-
 import { InputSettlerCompactLIFI } from "../../../src/input/compact/InputSettlerCompactLIFI.sol";
 
+import { InputSettlerBase } from "OIF/src/input/InputSettlerBase.sol";
 import { InputSettlerCompactTest } from "OIF/test/input/compact/InputSettlerCompact.t.sol";
 
 import { StandardOrder } from "OIF/src/input/types/StandardOrderType.sol";
-import { MandateOutput, MandateOutputEncodingLib } from "OIF/src/libs/MandateOutputEncodingLib.sol";
+import { MandateOutput } from "OIF/src/libs/MandateOutputEncodingLib.sol";
 
 contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
     // uint64 constant GOVERNANCE_FEE_CHANGE_DELAY = 7 days;
@@ -121,17 +120,18 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
 
         bytes memory signature = abi.encode(sponsorSig, hex"");
 
-        uint32[] memory timestamps = new uint32[](1);
-        timestamps[0] = uint32(block.timestamp);
-
         uint256 govFeeAmount = (amount * fee) / 10 ** 18;
         uint256 amountPostFee = amount - govFeeAmount;
-        bytes32[] memory solvers = new bytes32[](1);
-        solvers[0] = bytes32(uint256(uint160((solver))));
+
+        InputSettlerBase.SolveParams[] memory solveParams = new InputSettlerBase.SolveParams[](1);
+        solveParams[0] = InputSettlerBase.SolveParams({
+            solver: bytes32(uint256(uint160((solver)))),
+            timestamp: uint32(block.timestamp)
+        });
 
         vm.prank(solver);
         InputSettlerCompactLIFI(inputSettlerCompact).finalise(
-            order, signature, timestamps, solvers, bytes32(uint256(uint160((solver)))), hex""
+            order, signature, solveParams, bytes32(uint256(uint160((solver)))), hex""
         );
         vm.snapshotGasLastCall("inputSettler", "compactFinaliseSelfWithFee");
 

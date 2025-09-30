@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.22;
 
+import { WormholeOracle } from "OIF/src/integrations/oracles/wormhole/WormholeOracle.sol";
 import { ChainMap } from "OIF/src/oracles/ChainMap.sol";
-import { WormholeOracle } from "OIF/src/oracles/wormhole/WormholeOracle.sol";
 
 import { multichain } from "./multichain.s.sol";
 

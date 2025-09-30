@@ -7,6 +7,8 @@ import { ChainMap } from "OIF/src/oracles/ChainMap.sol";
 
 import { multichain } from "./multichain.s.sol";
 
+import { console } from "forge-std/console.sol";
+
 contract deployPolymer is multichain {
     error NotExpectedAddress(string name, address expected, address actual);
 
@@ -16,7 +18,9 @@ contract deployPolymer is multichain {
 
     constructor() {
         polymerSalts[0x03Fb5bFA4EB2Cba072A477A372bB87880A60fC96] =
-            0x00000000000000000000000000000000000000006e659189a2473edd56090014;
+            0x00000000000000000000000000000000000000003f5a1d9c8d66f846fc58000c;
+        polymerSalts[0x95ccEAE71605c5d97A0AC0EA13013b058729d075] =
+            0x00000000000000000000000000000000000000004f09241f65a03e2a3e020030;
     }
 
     function run(

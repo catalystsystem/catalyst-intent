@@ -7,7 +7,7 @@ import { ChainMap } from "OIF/src/oracles/ChainMap.sol";
 
 import { multichain } from "./multichain.s.sol";
 
-import {console} from "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
 
 contract deployPolymer is multichain {
     error NotExpectedAddress(string name, address expected, address actual);

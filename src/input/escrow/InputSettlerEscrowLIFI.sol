@@ -54,7 +54,11 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
      * msg.sender.
      * Does not validate fillDeadline.
      */
-    function _validateFillsNow(address inputOracle, MandateOutput[] calldata outputs, bytes32 orderId) internal view {
+    function _validateFillsNow(
+        address inputOracle,
+        MandateOutput[] calldata outputs,
+        bytes32 orderId
+    ) internal view {
         uint256 numOutputs = outputs.length;
         bytes memory proofSeries = new bytes(32 * 4 * numOutputs);
         for (uint256 i; i < numOutputs; ++i) {

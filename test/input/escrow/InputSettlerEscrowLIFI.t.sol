@@ -14,7 +14,11 @@ contract InputSettlerEscrowLIFIHarness is InputSettlerEscrowLIFI {
         address initialOwner
     ) InputSettlerEscrowLIFI(initialOwner) { }
 
-    function validateFillsNow(address inputOracle, MandateOutput[] calldata outputs, bytes32 orderId) external view {
+    function validateFillsNow(
+        address inputOracle,
+        MandateOutput[] calldata outputs,
+        bytes32 orderId
+    ) external view {
         _validateFillsNow(inputOracle, outputs, orderId);
     }
 }
@@ -60,7 +64,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
                         output.token,
                         output.amount,
                         output.recipient,
-                        output.call,
+                        output.callbackData,
                         output.context
                     )
                 )
@@ -91,7 +95,10 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
         InputSettlerEscrowLIFI(inputSettlerEscrow).setGovernanceFee(type(uint64).max);
     }
 
-    function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {
+    function test_governance_fee_change_not_ready(
+        uint64 fee,
+        uint256 timeDelay
+    ) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
         vm.assume(timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
 
@@ -140,7 +147,7 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount,
             recipient: bytes32(uint256(uint160(swapper))),
-            call: hex"",
+            callbackData: hex"",
             context: hex""
         });
         uint256[2][] memory inputs = new uint256[2][](1);
@@ -181,14 +188,12 @@ contract inputSettlerEscrowTestBaseLIFI is InputSettlerEscrowTest {
 
         InputSettlerBase.SolveParams[] memory solveParams = new InputSettlerBase.SolveParams[](1);
         solveParams[0] = InputSettlerBase.SolveParams({
-            timestamp: uint32(block.timestamp),
-            solver: bytes32(uint256(uint160((solver))))
+            timestamp: uint32(block.timestamp), solver: bytes32(uint256(uint160((solver))))
         });
 
         vm.prank(solver);
-        InputSettlerEscrowLIFI(inputSettlerEscrow).finalise(
-            order, solveParams, bytes32(uint256(uint160((solver)))), hex""
-        );
+        InputSettlerEscrowLIFI(inputSettlerEscrow)
+            .finalise(order, solveParams, bytes32(uint256(uint160((solver)))), hex"");
         vm.snapshotGasLastCall("inputSettler", "escrowFinaliseSelfWithFee");
 
         uint256 govFeeAmount = (amount * fee) / 10 ** 18;

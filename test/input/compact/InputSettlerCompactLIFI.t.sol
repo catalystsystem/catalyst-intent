@@ -39,7 +39,10 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
         InputSettlerCompactLIFI(inputSettlerCompact).setGovernanceFee(type(uint64).max);
     }
 
-    function test_governance_fee_change_not_ready(uint64 fee, uint256 timeDelay) public {
+    function test_governance_fee_change_not_ready(
+        uint64 fee,
+        uint256 timeDelay
+    ) public {
         vm.assume(fee <= MAX_GOVERNANCE_FEE);
         vm.assume(timeDelay < uint32(block.timestamp) + GOVERNANCE_FEE_CHANGE_DELAY);
 
@@ -96,7 +99,7 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount,
             recipient: bytes32(uint256(uint160(swapper))),
-            call: hex"",
+            callbackData: hex"",
             context: hex""
         });
         StandardOrder memory order = StandardOrder({
@@ -125,14 +128,12 @@ contract InputSettlerCompactLIFITest is InputSettlerCompactTest {
 
         InputSettlerBase.SolveParams[] memory solveParams = new InputSettlerBase.SolveParams[](1);
         solveParams[0] = InputSettlerBase.SolveParams({
-            solver: bytes32(uint256(uint160((solver)))),
-            timestamp: uint32(block.timestamp)
+            solver: bytes32(uint256(uint160((solver)))), timestamp: uint32(block.timestamp)
         });
 
         vm.prank(solver);
-        InputSettlerCompactLIFI(inputSettlerCompact).finalise(
-            order, signature, solveParams, bytes32(uint256(uint160((solver)))), hex""
-        );
+        InputSettlerCompactLIFI(inputSettlerCompact)
+            .finalise(order, signature, solveParams, bytes32(uint256(uint160((solver)))), hex"");
         vm.snapshotGasLastCall("inputSettler", "compactFinaliseSelfWithFee");
 
         assertEq(token.balanceOf(solver), amountPostFee);

@@ -7,6 +7,7 @@ evm_version = "cancun"
 via_ir = true
 optimizer = true
 optimizer_runs = 100_000_000
+bytecode_hash = 'none'
 fuzz.runs = 10_000
 fs_permissions = [{ access = "read-write", path = "./script/wormhole.json" }, { access = "read-write", path = "./script/polymer.json" }]
 

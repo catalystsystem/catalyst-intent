@@ -30,7 +30,10 @@ contract InputSettlerCompactLIFI is InputSettlerCompact, GovernanceFee {
 
     event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
-    constructor(address compact, address initialOwner) InputSettlerCompact(compact) {
+    constructor(
+        address compact,
+        address initialOwner
+    ) InputSettlerCompact(compact) {
         _initializeOwner(initialOwner);
     }
 

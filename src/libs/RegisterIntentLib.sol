@@ -21,7 +21,7 @@ library RegisterIntentLib {
 
     bytes32 constant STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH = keccak256(
         bytes(
-            "BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,Lock[] commitments,Mandate mandate)Lock(bytes12 lockTag,address token,uint256 amount)Mandate(uint32 fillDeadline,address inputOracle,MandateOutput[] outputs)MandateOutput(bytes32 oracle,bytes32 settler,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes call,bytes context)"
+            "BatchCompact(address arbiter,address sponsor,uint256 nonce,uint256 expires,Lock[] commitments,Mandate mandate)Lock(bytes12 lockTag,address token,uint256 amount)Mandate(uint32 fillDeadline,address inputOracle,MandateOutput[] outputs)MandateOutput(bytes32 oracle,bytes32 settler,uint256 chainId,bytes32 token,uint256 amount,bytes32 recipient,bytes callbackData,bytes context)"
         )
     );
 
@@ -42,7 +42,7 @@ library RegisterIntentLib {
                 output.token,
                 output.amount,
                 output.recipient,
-                keccak256(output.call),
+                keccak256(output.callbackData),
                 keccak256(output.context)
             )
         );
@@ -112,7 +112,10 @@ library RegisterIntentLib {
         }
     }
 
-    function compactClaimHash(address settler, StandardOrder calldata order) internal pure returns (bytes32) {
+    function compactClaimHash(
+        address settler,
+        StandardOrder calldata order
+    ) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH,
@@ -133,7 +136,10 @@ library RegisterIntentLib {
         if (block.chainid != originChainId) revert WrongChain(block.chainid, originChainId);
     }
 
-    function _validateExpiry(uint32 fillDeadline, uint32 expires) internal view {
+    function _validateExpiry(
+        uint32 fillDeadline,
+        uint32 expires
+    ) internal view {
         // Check if the fill deadline has been passed
         if (block.timestamp > fillDeadline) revert DeadlinePassed();
         // Check if expiry has been passed
@@ -163,14 +169,15 @@ library RegisterIntentLib {
             }
         }
 
-        (claimHash,) = TheCompact(COMPACT).batchDepositAndRegisterFor(
-            order.user,
-            idsAndAmounts,
-            arbiter,
-            order.nonce,
-            order.expires,
-            STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH,
-            witnessHash(order)
-        );
+        (claimHash,) = TheCompact(COMPACT)
+            .batchDepositAndRegisterFor(
+                order.user,
+                idsAndAmounts,
+                arbiter,
+                order.nonce,
+                order.expires,
+                STANDARD_ORDER_BATCH_COMPACT_TYPE_HASH,
+                witnessHash(order)
+            );
     }
 }

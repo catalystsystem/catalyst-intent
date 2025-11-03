@@ -25,7 +25,10 @@ contract RegisterIntentLibTest is InputSettlerCompactTestBase {
 
     event IntentRegistered(bytes32 indexed orderId, StandardOrder order);
 
-    function test_depositFor(address depositor, address user) public {
+    function test_depositFor(
+        address depositor,
+        address user
+    ) public {
         vm.assume(depositor != address(0));
         vm.assume(user != address(0));
         vm.assume(depositor != address(inputSettlerCompact));

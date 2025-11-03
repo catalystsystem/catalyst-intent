@@ -61,7 +61,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             token: bytes32(uint256(uint160(address(anotherToken)))),
             amount: amount2,
             recipient: bytes32(uint256(uint160(swapper))),
-            call: hex"",
+            callbackData: hex"",
             context: hex""
         });
         uint256[2][] memory inputs1 = new uint256[2][](1);
@@ -87,7 +87,7 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             token: bytes32(uint256(uint160(address(token)))),
             amount: amount1,
             recipient: bytes32(uint256(uint160(swapper2))),
-            call: hex"",
+            callbackData: hex"",
             context: hex""
         });
         uint256[2][] memory inputs2 = new uint256[2][](1);
@@ -119,9 +119,8 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
         bytes memory dataToForward = abi.encode(signature2, orderid1, order1, orderid2, order2);
 
         // Notice! This test will continue in inputs filled.
-        InputSettlerEscrowLIFI(inputSettlerEscrow).openForAndFinalise(
-            order1, order1.user, signature1, address(this), dataToForward
-        );
+        InputSettlerEscrowLIFI(inputSettlerEscrow)
+            .openForAndFinalise(order1, order1.user, signature1, address(this), dataToForward);
 
         assertEq(token.balanceOf(address(swapper)), 0);
         assertEq(anotherToken.balanceOf(address(swapper2)), 0);
@@ -148,9 +147,8 @@ contract InputSettlerEscrowSameChainSwapTest is InputSettlerEscrowTestBase {
             assertEq(anotherToken.balanceOf(address(swapper2)), amount2);
 
             // Notice! The test will continue after "} else {"
-            InputSettlerEscrowLIFI(inputSettlerEscrow).openForAndFinalise(
-                order2, order2.user, signature2, address(this), dataToForward
-            );
+            InputSettlerEscrowLIFI(inputSettlerEscrow)
+                .openForAndFinalise(order2, order2.user, signature2, address(this), dataToForward);
         } else {
             (, bytes32 orderid1, StandardOrder memory order1, bytes32 orderid2, StandardOrder memory order2) =
                 abi.decode(dataToForward, (bytes, bytes32, StandardOrder, bytes32, StandardOrder));

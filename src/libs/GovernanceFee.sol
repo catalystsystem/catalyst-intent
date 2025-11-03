@@ -85,7 +85,10 @@ abstract contract GovernanceFee is Ownable {
      * @param fee Fee to subtract from amount. Is percentage and GOVERNANCE_FEE_DENOM based.
      * @return amountFee Fee
      */
-    function _calcFee(uint256 amount, uint256 fee) internal pure returns (uint256 amountFee) {
+    function _calcFee(
+        uint256 amount,
+        uint256 fee
+    ) internal pure returns (uint256 amountFee) {
         unchecked {
             // Check if amount * fee overflows. If it does, don't take the fee.
             if (fee == 0 || amount >= type(uint256).max / fee) return amountFee = 0;

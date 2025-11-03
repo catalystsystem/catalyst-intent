@@ -23,7 +23,7 @@ contract GetOrderId is Script {
             token: 0x000000000000000000000000036cbd53842c5426634e7929541ec2318f3dcf7e,
             amount: 20000,
             recipient: 0x000000000000000000000000529cebf485dee1d68073afb75244022f048b0157,
-            call: hex"",
+            callbackData: hex"",
             context: hex""
         });
         StandardOrder memory order = StandardOrder({

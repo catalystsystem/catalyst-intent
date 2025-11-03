@@ -32,57 +32,68 @@ contract deploy is multichain {
 
     uint256 private constant _ALLOCATOR_BY_ALLOCATOR_ID_SLOT_SEED = 0x000044036fc77deaed2300000000000000000000000;
 
-    bytes32 compactInputSettlerSalt = 0x00000000000000000000000000000000000000006ff68c8dad0e10d563870020;
-    bytes32 escrowInputSettlerSalt = 0x0000000000000000000000000000000000000000f358e61463148e7aa0b80038;
-    bytes32 outputSettlerSalt = 0x00000000000000000000000000000000000000007db1f09bb639430ecc0700a0;
+    bytes32 compactInputSettlerSalt = 0x0000000000000000000000000000000000000000f6984c847844f46d961403a0;
+    bytes32 escrowInputSettlerSalt = 0x000000000000000000000000000000000000000036953f8842af61be32560ee0;
+    bytes32 outputSettlerSalt = 0x0000000000000000000000000000000000000000071f34063c15a56d555d1000;
+
+    function inputSettlerCompactInitcodeHash(
+        address initialOwner
+    ) external returns (bytes32) {
+        return
+            keccak256(abi.encodePacked(type(InputSettlerCompactLIFI).creationCode, abi.encode(COMPACT, initialOwner)));
+    }
+
+    function inputSettlerEscrowInitcodeHash(
+        address initialOwner
+    ) external returns (bytes32) {
+        return keccak256(abi.encodePacked(type(InputSettlerEscrowLIFI).creationCode, abi.encode(initialOwner)));
+    }
+
+    function outputSettlerInitcodeHash() external returns (bytes32) {
+        return keccak256(abi.encodePacked(type(OutputSettlerSimple).creationCode, hex""));
+    }
 
     function run(
         string[] calldata chains
-    ) public returns (InputSettlerCompactLIFI compactSettler, InputSettlerEscrowLIFI escrowSettler) {
+    )
+        public
+        returns (
+            InputSettlerCompactLIFI compactSettler,
+            InputSettlerEscrowLIFI escrowSettler,
+            OutputSettlerSimple filler
+        )
+    {
         return run(chains, getSender());
     }
 
     function run(
         string[] calldata chains,
         address initialOwner
-    ) public returns (InputSettlerCompactLIFI compactSettler, InputSettlerEscrowLIFI escrowSettler) {
-        address expectedCompactSettlerAddress = getExpectedCreate2Address(
-            compactInputSettlerSalt, // salt
-            type(InputSettlerCompactLIFI).creationCode,
-            abi.encode(COMPACT, initialOwner)
-        );
-        address expectedEscrowSettlerAddress = getExpectedCreate2Address(
-            escrowInputSettlerSalt, // salt
-            type(InputSettlerEscrowLIFI).creationCode,
-            abi.encode(initialOwner)
-        );
-        return run(chains, initialOwner, expectedCompactSettlerAddress, expectedEscrowSettlerAddress);
-    }
-
-    function run(
-        string[] calldata chains,
-        address initialOwner,
-        address expectedCompactSettlerAddress,
-        address expectedEscrowSettlerAddress
     )
         public
         iter_chains(chains)
         broadcast
-        returns (InputSettlerCompactLIFI compactSettler, InputSettlerEscrowLIFI escrowSettler)
+        returns (
+            InputSettlerCompactLIFI compactSettler,
+            InputSettlerEscrowLIFI escrowSettler,
+            OutputSettlerSimple filler
+        )
     {
         deployCompact();
-        compactSettler = deployCompactSettler(initialOwner, expectedCompactSettlerAddress);
-        escrowSettler = deployEscrowSettler(initialOwner, expectedEscrowSettlerAddress);
+        compactSettler = deployCompactSettler(initialOwner);
+        escrowSettler = deployEscrowSettler(initialOwner);
 
-        deployOutputSettlerSimple();
-        deployAlwaysOkAllocaor();
-        deployAlwaysYesOracle();
+        filler = deployOutputSettlerSimple();
     }
 
     function deployCompactSettler(
-        address initialOwner,
-        address expectedSettlerAddress
+        address initialOwner
     ) internal returns (InputSettlerCompactLIFI settler) {
+        address expectedSettlerAddress = getExpectedCreate2Address(
+            compactInputSettlerSalt, // salt
+            type(InputSettlerCompactLIFI).creationCode,
+            abi.encode(COMPACT, initialOwner)
+        );
         bool isSettlerDeployed = address(expectedSettlerAddress).code.length != 0;
 
         if (!isSettlerDeployed) {
@@ -97,9 +108,13 @@ contract deploy is multichain {
     }
 
     function deployEscrowSettler(
-        address initialOwner,
-        address expectedSettlerAddress
+        address initialOwner
     ) internal returns (InputSettlerEscrowLIFI settler) {
+        address expectedSettlerAddress = getExpectedCreate2Address(
+            escrowInputSettlerSalt, // salt
+            type(InputSettlerEscrowLIFI).creationCode,
+            abi.encode(initialOwner)
+        );
         bool isSettlerDeployed = address(expectedSettlerAddress).code.length != 0;
 
         if (!isSettlerDeployed) {
@@ -136,43 +151,6 @@ contract deploy is multichain {
 
         if (!isFillerDeployed) return filler = new OutputSettlerSimple{ salt: outputSettlerSalt }();
         return OutputSettlerSimple(expectedAddress);
-    }
-
-    function deployAlwaysOkAllocaor() internal returns (AlwaysOKAllocator allocator, uint96 allocatorId) {
-        address expectedAddress = getExpectedCreate2Address(
-            bytes32(uint256(0)), // salt
-            type(AlwaysOKAllocator).creationCode,
-            hex""
-        );
-        bool isAllocatorDeployed = address(expectedAddress).code.length != 0;
-
-        if (!isAllocatorDeployed) allocator = new AlwaysOKAllocator{ salt: bytes32(uint256(0)) }();
-        else allocator = AlwaysOKAllocator(expectedAddress);
-
-        allocatorId = IdLib.toAllocatorId(address(allocator));
-
-        bytes32 storageSlotKey;
-        assembly {
-            storageSlotKey := or(_ALLOCATOR_BY_ALLOCATOR_ID_SLOT_SEED, allocatorId)
-        }
-
-        bytes32 storageSlotValue = vm.load(COMPACT, storageSlotKey);
-        if (storageSlotValue == bytes32(0)) {
-            uint96 registeredAllocatorId = TheCompact(COMPACT).__registerAllocator(address(allocator), "");
-            assert(registeredAllocatorId == allocatorId);
-        }
-    }
-
-    function deployAlwaysYesOracle() internal returns (AlwaysYesOracle oracle) {
-        address expectedAddress = getExpectedCreate2Address(
-            bytes32(uint256(0)), // salt
-            type(AlwaysYesOracle).creationCode,
-            hex""
-        );
-        bool isOracleDeployed = address(expectedAddress).code.length != 0;
-
-        if (!isOracleDeployed) return oracle = new AlwaysYesOracle{ salt: bytes32(uint256(0)) }();
-        return AlwaysYesOracle(expectedAddress);
     }
 
     bytes constant COMPACT_INIT =

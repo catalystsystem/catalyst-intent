@@ -6,9 +6,9 @@ LI.FI Intent is a cross-chain swap protocol built with the Open Intents Framewor
 
 Deployed addresses:
 - Compact Address: `0x00000000000000171ede64904551eeDF3C6C9788`
-- Input Settler Compact Address: `0x000000c9eC71B1a39055Ec631200ED0022140074`
-- Input Settler Escrow Address: `0x000001bf3F3175BD007f3889b50000c7006E72c0`
-- Output Settler Address: `0x00000000D7278408CE7a490015577c41e57143a5`
+- Input Settler Compact Address: `0x0000000000cd5f7fDEc90a03a31F79E5Fbc6A9Cf`
+- Input Settler Escrow Address: `0x000025c3226C00B2Cdc200005a1600509f4e00C0`
+- Output Settler Address: `0x0000000000eC36B683C2E6AC89e9A75989C22a2e`
 - Polymer Oracle Testnet: `0x00d5b500ECa100F7cdeDC800eC631Aca00BaAC00`
 - Polymer Oracle Mainnet: `0x0000006ea400569c0040d6e5ba651c00848409be`
 

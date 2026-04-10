@@ -14,74 +14,27 @@ Three core modules make this work:
 - **OutputSettler** sits on the destination chain and allows solvers to fill outputs. It exposes attestation state via `IPayloadValidator.hasAttested()`
 - **Oracle** bridges proof of filled outputs from the destination chain back to the origin chain. Polymer (IBC-based) and Wormhole (VAA-based) are both supported
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              ORIGIN CHAIN                                   │
-│                                                                             │
-│   ┌──────────┐      1. Sign intent &       ┌───────────────────────┐       │
-│   │   User   │ ──── lock input assets ────► │     InputSettler      │       │
-│   │ (Sponsor) │                              │  (Compact or Escrow)  │       │
-│   └──────────┘                              └───────────┬───────────┘       │
-│                                                         │                   │
-│                                              5. Validate│fills              │
-│                                                         │                   │
-│                                              ┌──────────┴──────────┐       │
-│                                              │       Oracle        │       │
-│                                              │   (receive proof)   │       │
-│                                              └──────────▲──────────┘       │
-└─────────────────────────────────────────────────────────┼───────────────────┘
-                                                          │
-           ┌──────────────┐                    4. Bridge proof
-           │    Solver    │                   (Polymer / Wormhole)
-           │   (Filler)   │                               │
-           └──┬───────▲───┘                               │
-              │       │                                   │
-   2. Fill    │       │ 7. Release inputs                 │
-   outputs    │       │    (minus fee)                    │
-              │       │                                   │
-┌─────────────┼───────┼───────────────────────────────────┼───────────────────┐
-│             ▼       │         DESTINATION CHAIN          │                   │
-│   ┌─────────────────┴─┐    3. Emit fill    ┌───────────┴──────────┐       │
-│   │   OutputSettler    │ ──── proof ──────► │       Oracle        │       │
-│   └────────┬──────────┘                     │  (generate proof)   │       │
-│            │                                └─────────────────────┘       │
-│            │ Deliver assets                                               │
-│            ▼                                                              │
-│   ┌─────────────────┐                                                     │
-│   │    Recipient     │                                                     │
-│   └─────────────────┘                                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/images/intent-lifecycle.svg" alt="LI.FI Intent Lifecycle" />
+</p>
 
 ## Protocol Flow
 
-```
-  User                InputSettler (Origin)        Solver          OutputSettler (Dest)      Oracle
-   │                         │                       │                     │                   │
-   │  Sign StandardOrder     │                       │                     │                   │
-   │  & lock inputs          │                       │                     │                   │
-   │ ──────────────────────► │                       │                     │                   │
-   │                         │                       │                     │                   │
-   │                         │  IntentRegistered     │                     │                   │
-   │                         │  event                │                     │                   │
-   │                         │ ─────────────────────►│                     │                   │
-   │                         │                       │                     │                   │
-   │                         │                       │  Fill outputs       │                   │
-   │                         │                       │ ──────────────────► │                   │
-   │                         │                       │                     │                   │
-   │                         │                       │                     │  Generate proof   │
-   │                         │                       │                     │ ────────────────► │
-   │                         │                       │                     │                   │
-   │                         │       Bridge proof to origin chain          │                   │
-   │                         │ ◄──────────────────────────────────────────────────────────────│
-   │                         │                       │                     │                   │
-   │                         │  finalise() + proof   │                     │                   │
-   │                         │ ◄─────────────────────│                     │                   │
-   │                         │                       │                     │                   │
-   │                         │  Release inputs       │                     │                   │
-   │                         │  (minus gov fee)      │                     │                   │
-   │                         │ ─────────────────────►│                     │                   │
-   │                         │                       │                     │                   │
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant IS as InputSettler (Origin)
+    participant S as Solver
+    participant OS as OutputSettler (Dest)
+    participant O as Oracle
+
+    U->>IS: Sign StandardOrder & lock inputs
+    IS-->>S: IntentRegistered event
+    S->>OS: Fill outputs on destination chain
+    OS->>O: Generate fill proof
+    O-->>IS: Bridge proof to origin chain
+    S->>IS: finalise() with proof
+    IS->>S: Release inputs (minus governance fee)
 ```
 
 The same-chain shortcut (`openForAndFinalise()`) collapses this entire flow into a single transaction. The solver fills the output via a reentrant callback during the open step, so no oracle bridging is needed.

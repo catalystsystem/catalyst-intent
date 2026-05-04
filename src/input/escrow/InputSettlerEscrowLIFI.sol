@@ -44,7 +44,7 @@ contract InputSettlerEscrowLIFI is InputSettlerEscrow, GovernanceFee {
      * by the EIP712 base contract.
      * @return name The domain name.
      */
-    function _domainName() internal pure override returns (string memory) {
+    function _domainName() internal pure virtual override returns (string memory) {
         return "OIFEscrowLIFI";
     }
 

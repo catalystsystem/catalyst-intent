@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.25;
 
 import { SafeTransferLibTron } from "../../libs/SafeTransferLib.tron.sol";
 import { InputSettlerEscrowLIFI } from "./InputSettlerEscrowLIFI.sol";
